@@ -162,21 +162,12 @@ export default function LoginPage() {
     setIsSubmitting(true);
 
     try {
-      // Must use the accessToken we just got to authorize the change
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000'}/api/v1/auth/change-password`, {
-        method: 'POST',
+      // Use apiClient which correctly normalises the base URL for all environments
+      await apiClient.post('/auth/change-password', { currentPassword: password, newPassword }, {
         headers: {
-          'Content-Type': 'application/json',
           'Authorization': `Bearer ${tempAuthData?.accessToken}`
         },
-        body: JSON.stringify({ currentPassword: password, newPassword }),
       });
-      
-      const resData = await res.json();
-      
-      if (!res.ok) {
-        throw new Error(resData.error?.message || 'Failed to update password');
-      }
 
       // After successful update, actually log them in!
       if (tempAuthData) {

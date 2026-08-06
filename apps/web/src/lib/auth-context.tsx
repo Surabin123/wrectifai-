@@ -2,6 +2,14 @@
 
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
+function getBaseUrl(): string {
+  let url = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
+  url = url.replace(/\/+$/, ''); // Remove trailing slashes
+  if (url.endsWith('/api/v1')) return url;
+  if (url.endsWith('/api')) return `${url}/v1`;
+  return `${url}/api/v1`;
+}
+
 export interface User {
   id: string;
   email?: string;
@@ -51,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function initAuth() {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
+        const baseUrl = getBaseUrl();
         // Fetch current user from HttpOnly cookie session
         const res = await fetch(`${baseUrl}/auth/me`, {
           credentials: 'include',
@@ -128,7 +136,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(async () => {
     if (typeof window !== 'undefined') {
       try {
-        const baseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
+        const baseUrl = getBaseUrl();
         await fetch(`${baseUrl}/auth/logout`, {
           method: 'POST',
           credentials: 'include',
