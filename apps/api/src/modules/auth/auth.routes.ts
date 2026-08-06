@@ -329,8 +329,9 @@ authRouter.post('/logout', async (req, res) => {
       console.warn('Failed to delete refresh token during logout:', err instanceof Error ? err.message : err);
     }
   }
-  res.clearCookie('accessToken', { path: '/' });
-  res.clearCookie('refreshToken', { path: '/' });
+  const { maxAge, ...clearConfig } = cookieConfig;
+  res.clearCookie('accessToken', clearConfig);
+  res.clearCookie('refreshToken', clearConfig);
   return success(res, { message: 'Logged out successfully' });
 });
 
