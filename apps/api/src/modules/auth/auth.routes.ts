@@ -218,7 +218,6 @@ authRouter.post('/login', async (req, res, next) => {
         return error(res, 'Invalid email or password', 'UNAUTHORIZED', 401);
       }
     } else {
-      if (!mobileNumber || !otp) {
       if (process.env.DEMO_MODE === 'true' && otp === '123456') {
         const existingUser = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
         
@@ -420,3 +419,5 @@ authRouter.post('/change-password', authenticate, async (req, res) => {
     return error(res, 'Failed to update password', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
+
+
