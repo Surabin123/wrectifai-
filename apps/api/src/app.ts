@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import cookieParser from 'cookie-parser';
-import helmet from 'helmet';
 import { apiRouter } from './routes';
 import { errorHandler } from './middleware/error-handler';
 import { requestLogger } from './middleware/request-logger';
@@ -15,9 +14,6 @@ export function createApp() {
   // Trust the first proxy (Render's load balancer) so that rate limiters
   // and secure cookies work correctly with X-Forwarded-For headers.
   app.set('trust proxy', 1);
-
-  // Security headers
-  app.use(helmet());
 
   // CORS configuration
   app.use(
