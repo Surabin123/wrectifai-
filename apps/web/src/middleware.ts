@@ -32,20 +32,28 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  // Token exists, parse roles
+  const decoded = decodeJwt(token);
+  const roles = decoded?.roles || [];
+
   // If token exists and path is root "/", redirect based on role
-  if (token && path === '/') {
-    const decoded = decodeJwt(token);
-    if (decoded && decoded.roles) {
-      if (decoded.roles.includes('admin')) {
-        return NextResponse.redirect(new URL('/admin/dashboard', request.url));
-      } else if (decoded.roles.includes('garage')) {
-        return NextResponse.redirect(new URL('/garage/dashboard', request.url));
-      } else {
-        return NextResponse.redirect(new URL('/dashboard', request.url));
-      }
+  if (path === '/') {
+    if (roles.includes('admin')) {
+      return NextResponse.redirect(new URL('/admin/dashboard', request.url));
+    } else if (roles.includes('garage')) {
+      return NextResponse.redirect(new URL('/garage/dashboard', request.url));
+    } else {
+      return NextResponse.redirect(new URL('/dashboard', request.url));
     }
-    // Fallback if parsing fails
-    return NextResponse.redirect(new URL('/login', request.url));
+  }
+
+  // Enforce role-based routing to prevent URL bypassing
+  if (path.startsWith('/admin') && !roles.includes('admin')) {
+    return NextResponse.redirect(new URL(roles.includes('garage') ? '/garage/dashboard' : '/dashboard', request.url));
+  }
+
+  if (path.startsWith('/garage') && !roles.includes('garage')) {
+    return NextResponse.redirect(new URL(roles.includes('admin') ? '/admin/dashboard' : '/dashboard', request.url));
   }
 
   return NextResponse.next();
