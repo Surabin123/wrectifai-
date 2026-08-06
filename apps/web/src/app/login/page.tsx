@@ -159,20 +159,23 @@ export default function LoginPage() {
       return;
     }
 
+    if (newPassword === 'Admin@12345') {
+      setErrorMsg('You cannot reuse the temporary password. Please choose a strong new password.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
-      // Use apiClient which correctly normalises the base URL for all environments
-      await apiClient.post('/auth/change-password', { currentPassword: password, newPassword }, {
-        headers: {
-          'Authorization': `Bearer ${tempAuthData?.accessToken}`
-        },
-      });
+      // Change the password — authenticated via the HttpOnly cookie set at login
+      await apiClient.post('/auth/change-password', { currentPassword: password, newPassword });
 
-      // After successful update, actually log them in!
-      if (tempAuthData) {
-        login(tempAuthData.accessToken, tempAuthData.refreshToken, tempAuthData.user);
-      }
+      // Re-login with the new password to get fresh cookies and proper session
+      const data = await apiClient.post<AuthResponse>('/auth/login', {
+        email,
+        password: newPassword,
+      });
+      login(data.accessToken, data.refreshToken, data.user);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Password reset failed.';
       setErrorMsg(message);
