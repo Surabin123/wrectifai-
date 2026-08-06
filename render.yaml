@@ -9,7 +9,7 @@ services:
     name: wrectifai-api
     runtime: node
     plan: free
-    buildCommand: pnpm install --frozen-lockfile && npx nx build api && node db/migrate.js
+    buildCommand: pnpm install --frozen-lockfile && npx nx build api && node db/migrate.js && node db/seed-admin.js
     startCommand: node dist/api/main.js
     envVars:
       - key: NODE_VERSION
