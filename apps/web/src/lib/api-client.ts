@@ -59,14 +59,6 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
     },
   };
 
-  // 1. Inject Authorization header if we have an accessToken stored (Fallback for non-cookie environments)
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-    if (token && !(config.headers as Record<string, string>)['Authorization']) {
-      (config.headers as Record<string, string>)['Authorization'] = `Bearer ${token}`;
-    }
-  }
-
   // 2. Run request interceptors
   for (const interceptor of requestInterceptors) {
     config = await interceptor(url, config);
@@ -101,20 +93,8 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
               throw new Error('Refresh failed');
             }
 
-            // Since tokens are stored in cookies, we just return true.
-            // Also update localStorage for fallback compat if used.
-            const refreshJson = await refreshRes.json();
-            const newAccessToken = refreshJson.data?.accessToken;
-            if (newAccessToken) {
-              localStorage.setItem('accessToken', newAccessToken);
-              localStorage.setItem('token', newAccessToken);
-            }
             return 'REFRESHED';
           } catch (_refreshErr) {
-            localStorage.removeItem('accessToken');
-            localStorage.removeItem('token');
-            localStorage.removeItem('refreshToken');
-            localStorage.removeItem('user');
             refreshPromise = null;
             window.dispatchEvent(new CustomEvent('auth-logout'));
             throw new ApiError('Session expired. Please log in again.', 401, 'UNAUTHORIZED_EXPIRED');
@@ -124,14 +104,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
       await refreshPromise;
       
-      // If we fall back to authorization header, grab it again
-      const retryToken = localStorage.getItem('accessToken') || localStorage.getItem('token');
-      const retryHeaders: any = { ...config.headers };
-      if (retryToken) {
-        retryHeaders['Authorization'] = `Bearer ${retryToken}`;
-      }
-      
-      const retryRes = await fetch(url, { ...config, headers: retryHeaders });
+      const retryRes = await fetch(url, config);
       return handleResponse<T>(retryRes);
     }
   }

@@ -270,9 +270,7 @@ authRouter.post('/login', async (req, res, next) => {
         status: user.status,
         roles,
       },
-      requiresPasswordChange,
-      accessToken,
-      refreshToken
+      requiresPasswordChange
     });
   } catch (err) {
     next(err);
