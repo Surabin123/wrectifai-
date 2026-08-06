@@ -99,6 +99,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
           router.replace('/garage/dashboard');
           return;
         }
+        if (primaryRole === 'customer') {
+          router.replace('/dashboard');
+          return;
+        }
       }
     }
   }, [isLoading, isAuthenticated, user, isPublicPath, router, pathname]);
