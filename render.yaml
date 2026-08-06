@@ -30,7 +30,7 @@ services:
         generateValue: true
 
       - key: WEB_ORIGINS
-        value: https://wrectifai-web.onrender.com
+        value: https://wrectifai-web-2cd6.onrender.com
 
       - key: GOOGLE_CLIENT_ID
         sync: false
@@ -71,7 +71,10 @@ services:
         value: production
 
       - key: NEXT_PUBLIC_API_URL
-        value: https://wrectifai-api.onrender.com/api/v1
+        value: https://wrectifai-api-0yow.onrender.com/api/v1
+
+      - key: NEXT_PUBLIC_API_BASE_URL
+        value: https://wrectifai-api-0yow.onrender.com/api/v1
 
       - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
         sync: false
