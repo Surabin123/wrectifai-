@@ -22,6 +22,18 @@ export default function LoginPage() {
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
 
+  // Redirect authenticated users to their role-based dashboard
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.roles?.includes('admin')) {
+        router.replace('/admin/dashboard');
+      } else if (user.roles?.includes('garage')) {
+        router.replace('/garage/dashboard');
+      } else {
+        router.replace('/dashboard');
+      }
+    }
+  }, [isAuthenticated, user, router]);
 
   // Form states
   const [mobileNumber, setMobileNumber] = useState('');
