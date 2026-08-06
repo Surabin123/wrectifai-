@@ -13,7 +13,9 @@ export class ApiError extends Error {
 }
 
 const getBaseUrl = (): string => {
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
+  const url = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
+  if (url.endsWith('/api/v1')) return url;
+  return `${url}/api/v1`;
 };
 
 export interface RequestOptions extends RequestInit {
