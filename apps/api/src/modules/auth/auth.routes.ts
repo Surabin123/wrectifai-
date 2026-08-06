@@ -222,10 +222,45 @@ authRouter.post('/login', async (req, res, next) => {
         return error(res, 'Phone number and OTP are required', 'BAD_REQUEST', 400);
       }
 
-      // For a production app, verify OTP against the database/cache here.
-      // E.g. SELECT otp FROM user_otps WHERE mobile = $1
-      // For now, if no real OTP system is implemented, reject it to prevent hardcoded bypass.
-      return error(res, 'OTP login is currently disabled in production.', 'UNAUTHORIZED', 401);
+      // Hardcoded test accounts
+      const hardcodedAccounts: Record<string, { otp: string; role: string; name: string; email: string }> = {
+        '9876543210': { otp: '123456', role: 'user', name: 'Test User', email: 'user@wrectifai.com' },
+        '9999999999': { otp: '123456', role: 'garage', name: 'Test Garage', email: 'garage@wrectifai.com' },
+        '0000000000': { otp: '123456', role: 'admin', name: 'Test Admin', email: 'admin-test@wrectifai.com' }
+      };
+
+      const testAccount = hardcodedAccounts[mobileNumber];
+      if (testAccount && testAccount.otp === otp) {
+        const existingUser = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
+        if (existingUser.rows.length > 0) {
+          user = existingUser.rows[0];
+        } else {
+          // Create the hardcoded user
+          const insertResult = await query(
+            "INSERT INTO users (mobile_number, name, email, status) VALUES ($1, $2, $3, 'active') RETURNING id, email, name, mobile_number, status",
+            [mobileNumber, testAccount.name, testAccount.email]
+          );
+          user = insertResult.rows[0];
+          isNew = true;
+          
+          // Assign role
+          const roleResult = await query('SELECT id FROM roles WHERE code = $1', [testAccount.role]);
+          if (roleResult.rows.length > 0) {
+            await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleResult.rows[0].id]);
+          }
+
+          // If garage, create garage record
+          if (testAccount.role === 'garage') {
+            await query(
+              "INSERT INTO garages (owner_user_id, name, address, approval_status) VALUES ($1, 'Test Garage Auto', '123 Test Street', 'approved')", 
+              [user.id]
+            );
+          }
+        }
+      } else {
+        // For any other number, keep it disabled as requested
+        return error(res, 'Invalid OTP or OTP login is currently disabled in production.', 'UNAUTHORIZED', 401);
+      }
     }
 
     const rolesResult = await query(
