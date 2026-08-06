@@ -188,6 +188,8 @@ export default function LoginPage() {
         password: newPassword,
       });
       login(data.accessToken, data.refreshToken, data.user);
+      setShowPasswordReset(false);
+      setIsSubmitting(false);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Password reset failed.';
       setErrorMsg(message);

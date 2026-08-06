@@ -27,6 +27,12 @@ export function middleware(request: NextRequest) {
   // If no token exists
   if (!token) {
     if (isProtected || path === '/') {
+      // In cross-origin production environments (like Render), HttpOnly cookies are stored on the API domain.
+      // Next.js middleware running on the web domain cannot read them, so we bypass this check in production
+      // and let the client-side RoleGuard / useAuth context handle authentication and authorization.
+      if (process.env.NODE_ENV === 'production') {
+        return NextResponse.next();
+      }
       return NextResponse.redirect(new URL('/login', request.url));
     }
     return NextResponse.next();
