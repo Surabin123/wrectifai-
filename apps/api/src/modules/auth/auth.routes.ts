@@ -222,52 +222,51 @@ authRouter.post('/login', async (req, res, next) => {
         return error(res, 'Phone number and OTP are required', 'BAD_REQUEST', 400);
       }
 
-      // Hardcoded test accounts
-      const hardcodedAccounts: Record<string, { otp: string; role: string; name: string; email: string }> = {
-        '9876543210': { otp: '123456', role: 'user', name: 'Surabin', email: 'surabin@wrectifai.com' },
-        '9999999999': { otp: '123456', role: 'garage', name: 'Test Garage Owner', email: 'garage@wrectifai.com' },
-        '0000000000': { otp: '123456', role: 'admin', name: 'Test Admin', email: 'admin-test@wrectifai.com' }
+      // Hardcoded test accounts for NEW users if they don't exist
+      const hardcodedAccounts: Record<string, { role: string; name: string; email: string }> = {
+        '9876543210': { role: 'user', name: 'Surabin', email: 'surabin@wrectifai.com' },
+        '0000000000': { role: 'admin', name: 'Test Admin', email: 'admin-test@wrectifai.com' }
       };
 
-      const testAccount = hardcodedAccounts[mobileNumber];
-      if (testAccount && testAccount.otp === otp) {
+      if (otp === '123456') {
         const existingUser = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
         
         if (existingUser.rows.length > 0) {
+          // The number exists in the database! Log them in as whatever they already are (Garage, User, etc)
           user = existingUser.rows[0];
-          // Force update the name to match what is expected for the test account
-          await query('UPDATE users SET name = $1 WHERE id = $2', [testAccount.name, user.id]);
-          user.name = testAccount.name;
+          
+          // Only force name/role update if it's the specific Surabin or Admin test number
+          const testAccount = hardcodedAccounts[mobileNumber];
+          if (testAccount) {
+            await query('UPDATE users SET name = $1 WHERE id = $2', [testAccount.name, user.id]);
+            user.name = testAccount.name;
+            await query('DELETE FROM user_roles WHERE user_id = $1', [user.id]);
+            const roleResult = await query('SELECT id FROM roles WHERE code = $1', [testAccount.role]);
+            if (roleResult.rows.length > 0) {
+              await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleResult.rows[0].id]);
+            }
+          }
         } else {
-          // Create the hardcoded user
-          const insertResult = await query(
-            "INSERT INTO users (mobile_number, name, email, status) VALUES ($1, $2, $3, 'active') RETURNING id, email, name, mobile_number, status",
-            [mobileNumber, testAccount.name, testAccount.email]
-          );
-          user = insertResult.rows[0];
-          isNew = true;
-        }
-
-        // Enforce the correct role (wipe existing roles for this test user to prevent overlap)
-        await query('DELETE FROM user_roles WHERE user_id = $1', [user.id]);
-        
-        const roleResult = await query('SELECT id FROM roles WHERE code = $1', [testAccount.role]);
-        if (roleResult.rows.length > 0) {
-          await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleResult.rows[0].id]);
-        }
-
-        // If it's the test garage, ensure they have at least one garage assigned
-        if (testAccount.role === 'garage') {
-          const garageCheck = await query('SELECT id FROM garages WHERE owner_user_id = $1', [user.id]);
-          if (garageCheck.rows.length === 0) {
-            await query(
-              "INSERT INTO garages (owner_user_id, name, address, approval_status) VALUES ($1, 'Test Garage Auto', '123 Test Street', 'approved')", 
-              [user.id]
+          // The number doesn't exist. Only create it if it's one of our specific test numbers
+          const testAccount = hardcodedAccounts[mobileNumber];
+          if (testAccount) {
+            const insertResult = await query(
+              "INSERT INTO users (mobile_number, name, email, status) VALUES ($1, $2, $3, 'active') RETURNING id, email, name, mobile_number, status",
+              [mobileNumber, testAccount.name, testAccount.email]
             );
+            user = insertResult.rows[0];
+            isNew = true;
+            
+            const roleResult = await query('SELECT id FROM roles WHERE code = $1', [testAccount.role]);
+            if (roleResult.rows.length > 0) {
+              await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleResult.rows[0].id]);
+            }
+          } else {
+            return error(res, 'User not found in database. Cannot login as a new user.', 'UNAUTHORIZED', 401);
           }
         }
       } else {
-        // For any other number, keep it disabled as requested
+        // For any other OTP, keep it disabled
         return error(res, 'Invalid OTP or OTP login is currently disabled in production.', 'UNAUTHORIZED', 401);
       }
     }
