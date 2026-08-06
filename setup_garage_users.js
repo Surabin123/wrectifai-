@@ -32,7 +32,7 @@ async function main() {
         // Create user name and email based on garage name
         const prefix = garage.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
         const email = `${prefix}@wrectifai.com`;
-        const mobile = `99999900${(i + 1).toString().padStart(2, '0')}`; // e.g., 9999990001
+        const mobile = `99999999${(i + 1).toString().padStart(2, '0')}`; // e.g., 9999999901
         
         console.log(`  -> Creating user: ${email} (${mobile})`);
         

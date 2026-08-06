@@ -13,16 +13,10 @@ async function seedDemoAccounts() {
     const garages = await query('SELECT id, owner_user_id, name FROM garages ORDER BY id LIMIT 12');
     console.log(`Found ${garages.rows.length} garages to map.`);
 
-    // 2. Map garages to mobile numbers 9999999991 - 9999999999, 9999999900, 9999999901, 9999999902
+    // 2. Map garages to mobile numbers 9999999901 - 9999999912
     for (let i = 0; i < garages.rows.length; i++) {
       const garage = garages.rows[i];
-      let phoneStr = '';
-      if (i < 9) {
-        phoneStr = `999999999${i + 1}`;
-      } else {
-        // i=9 -> 9999999900, i=10 -> 9999999901, i=11 -> 9999999902
-        phoneStr = `999999990${i - 9}`;
-      }
+      const phoneStr = `99999999${(i + 1).toString().padStart(2, '0')}`;
 
       await query('UPDATE users SET mobile_number = $1 WHERE id = $2', [phoneStr, garage.owner_user_id]);
       console.log(`Mapped Garage "${garage.name}" (User ID: ${garage.owner_user_id}) to phone: ${phoneStr}`);
