@@ -219,55 +219,20 @@ authRouter.post('/login', async (req, res, next) => {
       }
     } else {
       if (!mobileNumber || !otp) {
-        return error(res, 'Phone number and OTP are required', 'BAD_REQUEST', 400);
-      }
-
-      // Hardcoded test accounts for NEW users if they don't exist
-      const hardcodedAccounts: Record<string, { role: string; name: string; email: string }> = {
-        '9876543210': { role: 'user', name: 'Surabin', email: 'surabin@wrectifai.com' },
-        '0000000000': { role: 'admin', name: 'Test Admin', email: 'admin-test@wrectifai.com' }
-      };
-
-      if (otp === '123456') {
+      if (process.env.DEMO_MODE === 'true' && otp === '123456') {
         const existingUser = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
         
         if (existingUser.rows.length > 0) {
-          // The number exists in the database! Log them in as whatever they already are (Garage, User, etc)
           user = existingUser.rows[0];
-          
-          // Only force name/role update if it's the specific Surabin or Admin test number
-          const testAccount = hardcodedAccounts[mobileNumber];
-          if (testAccount) {
-            await query('UPDATE users SET name = $1 WHERE id = $2', [testAccount.name, user.id]);
-            user.name = testAccount.name;
-            await query('DELETE FROM user_roles WHERE user_id = $1', [user.id]);
-            const roleResult = await query('SELECT id FROM roles WHERE code = $1', [testAccount.role]);
-            if (roleResult.rows.length > 0) {
-              await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleResult.rows[0].id]);
-            }
-          }
         } else {
-          // The number doesn't exist. Only create it if it's one of our specific test numbers
-          const testAccount = hardcodedAccounts[mobileNumber];
-          if (testAccount) {
-            const insertResult = await query(
-              "INSERT INTO users (mobile_number, name, email, status) VALUES ($1, $2, $3, 'active') RETURNING id, email, name, mobile_number, status",
-              [mobileNumber, testAccount.name, testAccount.email]
-            );
-            user = insertResult.rows[0];
-            isNew = true;
-            
-            const roleResult = await query('SELECT id FROM roles WHERE code = $1', [testAccount.role]);
-            if (roleResult.rows.length > 0) {
-              await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleResult.rows[0].id]);
-            }
-          } else {
-            return error(res, 'User not found in database. Cannot login as a new user.', 'UNAUTHORIZED', 401);
-          }
+          return error(res, 'Demo account not found in database.', 'UNAUTHORIZED', 401);
         }
       } else {
-        // For any other OTP, keep it disabled
-        return error(res, 'Invalid OTP or OTP login is currently disabled in production.', 'UNAUTHORIZED', 401);
+        if (!mobileNumber || !otp) {
+          return error(res, 'Phone number and OTP are required', 'BAD_REQUEST', 400);
+        }
+        // For normal production OTP verification (if ever implemented):
+        return error(res, 'OTP login is currently disabled in production.', 'UNAUTHORIZED', 401);
       }
     }
 
