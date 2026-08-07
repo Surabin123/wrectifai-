@@ -14,7 +14,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
 
     const result = await query(
       `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details,
-              q.labor_cost as "laborCost", q.parts_cost as "partsCost", q.total_cost as "totalCost", q.eta_note as "etaNote",
+              q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
               g.name as "garageName", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported",
               qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary", qr.preferred_date as "preferredDate",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage",
@@ -230,18 +230,20 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
     const amount = Number(labourCost || 0) + Number(partsCost || 0);
 
     const result = await query(
-      `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, labor_cost, parts_cost, total_cost, eta_note, details)
-       VALUES ($1, $2, $3, 'USD', 'active', $4, $5, $6, $7, $8)
+      `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details)
+       VALUES ($1, $2, $3, 'USD', 'active', $4)
        RETURNING id`,
       [
         req.params.quoteRequestId, 
         garageId, 
         amount, 
-        labourCost, 
-        partsCost, 
-        amount, 
-        estimatedTime, 
-        JSON.stringify({ remarks })
+        JSON.stringify({ 
+          remarks,
+          laborCost: labourCost,
+          partsCost: partsCost,
+          totalCost: amount,
+          etaNote: estimatedTime
+        })
       ]
     );
 
@@ -410,7 +412,7 @@ quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
   try {
     const result = await query(
       `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details, q.garage_id as "quoteGarageId",
-              q.labor_cost as "laborCost", q.parts_cost as "partsCost", q.total_cost as "totalCost", q.eta_note as "etaNote",
+              q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
               g.name as "garageName", g.owner_user_id as "garageOwnerId", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported",
               qr.customer_id as "requestCustomerId", qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage"
@@ -527,7 +529,7 @@ quotesRouter.get('/garage/quotes', authenticate, async (req, res) => {
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(
-      `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount as "totalCost", q.labor_cost as "laborCost", q.parts_cost as "partsCost", q.eta_days as "etaDays", q.eta_note as "etaNote", q.status as "quoteStatus", q.created_at as "createdAt", q.details,
+      `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount as "totalCost", q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.eta_days as "etaDays", q.details->>'etaNote' as "etaNote", q.status as "quoteStatus", q.created_at as "createdAt", q.details,
               qr.issue_summary as "issueSummary",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear",
               u.name as "customerName", NULL as "customerAvatar"

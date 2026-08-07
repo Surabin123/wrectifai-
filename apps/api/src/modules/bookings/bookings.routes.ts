@@ -46,7 +46,7 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
         v.model as "vehicleModel",
         v.year as "vehicleYear",
         v.vin as "vehicleVin",
-        q.eta_note as "estimatedDays",
+        q.details->>'etaNote' as "estimatedDays",
         qr.issue_summary as "issueDescription",
         qr.preferred_date as "preferredDate",
         u.name as "customerName",
@@ -174,7 +174,7 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
               b.scheduled_at as "scheduledAt", b.status, b.total_amount as "totalAmount", b.created_at as "createdAt",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin",
               u.name as "customerName", u.mobile_number as "customerPhone", p.avatar_url as "customerAvatar",
-              q.details as "quoteDetails", q.amount as "quoteAmount", q.eta_note as "estimatedDays",
+              q.details as "quoteDetails", q.amount as "quoteAmount", q.details->>'etaNote' as "estimatedDays",
               qr.issue_summary as "issueSummary"
        FROM bookings b
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
@@ -306,7 +306,7 @@ bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
         v.model as "vehicleModel",
         v.year as "vehicleYear",
         v.vin as "vehicleVin",
-        q.eta_note as "estimatedDays",
+        q.details->>'etaNote' as "estimatedDays",
         qr.issue_summary as "issueDescription",
         qr.preferred_date as "preferredDate",
         u.name as "customerName",

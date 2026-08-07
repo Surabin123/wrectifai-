@@ -299,8 +299,6 @@ authRouter.post('/refresh', async (req, res) => {
     verifyRefreshToken(refreshToken);
     const userId = await validateRefreshTokenInDb(refreshToken);
 
-    await deleteRefreshTokenInDb(refreshToken);
-
     const userResult = await query('SELECT * FROM users WHERE id = $1', [userId]);
     if (userResult.rows.length === 0) {
       return error(res, 'User not found', 'UNAUTHORIZED', 401);
@@ -321,11 +319,8 @@ authRouter.post('/refresh', async (req, res) => {
     }
 
     const newAccessToken = generateAccessToken({ userId, email: user.email, name: user.name, roles, garageId });
-    const newRefreshToken = generateRefreshToken({ userId });
 
-    await storeRefreshToken(userId, newRefreshToken);
-
-    setTokensInCookies(res, newAccessToken, newRefreshToken);
+    setTokensInCookies(res, newAccessToken, refreshToken);
 
     return success(res, { message: 'Token refreshed successfully' });
   } catch (err) {
