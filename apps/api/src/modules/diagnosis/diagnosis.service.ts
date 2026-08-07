@@ -230,57 +230,19 @@ Do NOT ask generic questions. Do NOT repeat questions.`;
     }
 
     // Call LLM to generate targeted questions based on database matches
-    const { generateObject } = await import('ai');
-    const { createOpenAI } = await import('@ai-sdk/openai');
-    let aiProvider;
-    if (env.llmProvider === 'groq') {
-      if (!env.groqApiKey) {
-        throw new Error('GROQ_API_KEY is not defined in the environment');
-      }
-      aiProvider = createOpenAI({
-        baseURL: 'https://api.groq.com/openai/v1',
-        apiKey: env.groqApiKey,
-        fetch,
-      });
-    } else {
-      if (!env.openaiApiKey) {
-        throw new Error('OPENAI_API_KEY is not defined in the environment');
-      }
-      aiProvider = createOpenAI({
-        apiKey: env.openaiApiKey,
-        fetch,
-      });
-    }
-
-    const modelInstance = aiProvider(env.llmModel);
-
-    let previousAnswersContext = '';
-    if (intakeAnswers) {
-      const qas = intakeAnswers.qas || intakeAnswers.answers;
-      if (qas && Object.keys(qas).length > 0) {
-        previousAnswersContext = `\n\nPrevious questions asked and user's answers:\n${Object.entries(qas).map(([q, a]) => `- Q: ${q}\n  A: ${a}`).join('\n')}`;
-      }
-    }
-
-
-    const systemPrompt = `You are an expert automotive diagnostic assistant.
-The user has reported a symptom: "${symptomText}".${previousAnswersContext}
-
-Your task is to generate exactly 5 concise follow-up questions to ask the user. They must form a complete diagnostic interview that progressively narrows down the issue like an experienced mechanic.
-First, internally identify the primary affected vehicle subsystem from the user's primary symptom (e.g. Tyres, Brakes, Battery, Charging, Engine Cooling, Engine, Transmission, Steering, Suspension, Fuel, Electrical, AC, etc.).
-Ask ALL follow-up questions only within that subsystem. Never ask unrelated cross-system questions unless previous answers provide strong evidence that another subsystem is involved.
-Generate the questions using the original symptom, vehicle details, and only the information required to narrow the diagnosis.
-Every next question must depend on the original symptom, vehicle details and all previous answers to eliminate the most likely causes.
-Each question must be relevant, evidence-based and help narrow the diagnosis.
-Never ask unrelated or repeated questions (e.g. AC for tyre pressure).
-Use conversation context to avoid repeated or contradictory questions.
-The next question should reduce diagnostic uncertainty.
-Do not ask generic questions (e.g. "what model is your car?"). Focus strictly on symptoms, sound patterns, warning lights, or operating conditions related to the potential issues.
-Provide 3 to 5 concise multiple choice options for each question (e.g., ["Crank is slow", "Starter clicks only", "No crank at all"]).
-Output your response as a strict JSON array under a "questions" field containing exactly 5 objects with "question" (string) and "options" (array of strings).`;
-
     let llmResponse;
     try {
+      const { generateObject } = await import('ai');
+      const { createOpenAI } = await import('@ai-sdk/openai');
+      let aiProvider;
+      if (env.llmProvider === 'groq') {
+        if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');
+        aiProvider = createOpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: env.groqApiKey, fetch });
+      } else {
+        if (!env.openaiApiKey) throw new Error('OPENAI_API_KEY is not defined');
+        aiProvider = createOpenAI({ apiKey: env.openaiApiKey, fetch });
+      }
+      const modelInstance = aiProvider(env.llmModel);
       llmResponse = await generateObject({
         model: modelInstance,
         schema: z.object({
@@ -444,59 +406,22 @@ Output your response as a strict JSON array under a "questions" field containing
     let finalSymptomText = symptomText;
 
     // 3. Call LLM (Vercel AI SDK OpenAI or Groq)
-    const { generateObject } = await import('ai');
-    const { createOpenAI } = await import('@ai-sdk/openai');
-    let aiProvider;
-    if (env.llmProvider === 'groq') {
-      if (!env.groqApiKey) {
-        throw new Error('GROQ_API_KEY is not defined in the environment');
-      }
-      aiProvider = createOpenAI({
-        baseURL: 'https://api.groq.com/openai/v1',
-        apiKey: env.groqApiKey,
-        fetch,
-      });
-    } else {
-      if (!env.openaiApiKey) {
-        throw new Error('OPENAI_API_KEY is not defined in the environment');
-      }
-      aiProvider = createOpenAI({
-        apiKey: env.openaiApiKey,
-        fetch,
-      });
-    }
-
-    const modelInstance = aiProvider(env.llmModel);
-
-    // Format service history for the prompt
-    const serviceHistoryText = serviceHistory.length > 0
-      ? serviceHistory.map(h => `- [${new Date(h.service_date).toLocaleDateString()}] ${h.description} ($${h.cost || 0})`).join('\n')
-      : 'No prior service history recorded.';
-
-    const systemPrompt = `You are WrectifAI, an advanced automotive diagnostic expert system.
-Analyze the vehicle details, recent service history, user symptoms, and any provided media descriptions.
-You must reason over the complete conversation and ALL user answers, not simply combine or restate them. Do NOT rely on the initial symptom or database matches alone.
-The diagnosis must be specific and evidence-based. Avoid generic issue names. The diagnosis should identify the most probable component or system responsible based on the complete interview.
-The diagnosis must sound like an experienced mechanic explaining the reasoning, not a generic AI summary or a restatement of the user's answers.
-
-Provide a highly structured professional AI diagnosis conforming exactly to the required JSON schema.
-The diagnosis MUST contain:
-1. Most likely issue (set this as the first issue in the 'issues' array. Make it specific, not generic).
-2. Confidence % (populate 'confidenceScore' and the 'confidence' field of the first issue).
-3. Severity (populate 'riskLevel').
-4. Why this diagnosis? (include this as the first item in the 'diySteps' array, clearly labeled as "Why this diagnosis?:"). Provide a clear, natural, customer-friendly explanation of how the AI reached its conclusion based on the complete interview. Preserve exactly the same meaning and evidence but sound like a helpful AI explaining its conclusion based on the user's answers rather than a technical report.
-5. Ranked alternative possible causes (include these as additional issues in the 'issues' array, ordered by likelihood).
-6. Recommended inspection or confirmation steps (include this as the second item in the 'diySteps' array, clearly labeled as "Recommended Next Inspection:").
-
-Decide the correct DIY category dynamically based on safety, complexity, and whether safe owner-level actions exist:
-- "repair": Use ONLY when the issue can realistically be repaired safely by a typical owner without specialised tools or advanced mechanical knowledge. Set diyAllowed = true.
-- "troubleshooting": Use when the issue should not be repaired by the user but there are safe software or visual troubleshooting steps that may resolve or isolate the problem without opening components. Set diyAllowed = true. (Prefer this over "none" if safe checks exist).
-- "none": Use ONLY for issues requiring professional tools, advanced diagnostics, disassembly, or safety-critical work (brakes, steering, high-voltage). Set diyAllowed = false.
-Always include the chosen category as the third item in the 'diySteps' array, exactly labeled as "DIY Category: repair", "DIY Category: troubleshooting", or "DIY Category: none".
-If the category is "repair" or "troubleshooting", generate the appropriate steps, time, tools (or things to verify), and expected outcome as additional items in the 'diySteps' array. Do NOT generate repair instructions if the category is "troubleshooting".
-Always output prices in US dollars.`;
-
-    const finalSystemPrompt = systemPrompt;
+    let llmResponse;
+    let retries = 1;
+    
+    while (retries >= 0) {
+      try {
+        const { generateObject } = await import('ai');
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        let aiProvider;
+        if (env.llmProvider === 'groq') {
+          if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');
+          aiProvider = createOpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: env.groqApiKey, fetch });
+        } else {
+          if (!env.openaiApiKey) throw new Error('OPENAI_API_KEY is not defined');
+          aiProvider = createOpenAI({ apiKey: env.openaiApiKey, fetch });
+        }
+        const modelInstance = aiProvider(env.llmModel);
 
     let intakeText = '';
     if (intakeAnswers) {
@@ -548,11 +473,35 @@ Please diagnose the issue.`;
 
     const contentPayload: { type: 'text'; text: string }[] = [{ type: 'text', text: userPrompt + imageContext }];
 
-    let llmResponse;
-    let retries = 1;
+        // Format service history for the prompt
+        const serviceHistoryText = serviceHistory.length > 0
+          ? serviceHistory.map(h => `- [${new Date(h.service_date).toLocaleDateString()}] ${h.description} ($${h.cost || 0})`).join('\n')
+          : 'No prior service history recorded.';
     
-    while (retries >= 0) {
-      try {
+        const systemPrompt = `You are WrectifAI, an advanced automotive diagnostic expert system.
+Analyze the vehicle details, recent service history, user symptoms, and any provided media descriptions.
+You must reason over the complete conversation and ALL user answers, not simply combine or restate them. Do NOT rely on the initial symptom or database matches alone.
+The diagnosis must be specific and evidence-based. Avoid generic issue names. The diagnosis should identify the most probable component or system responsible based on the complete interview.
+The diagnosis must sound like an experienced mechanic explaining the reasoning, not a generic AI summary or a restatement of the user's answers.
+
+Provide a highly structured professional AI diagnosis conforming exactly to the required JSON schema.
+The diagnosis MUST contain:
+1. Most likely issue (set this as the first issue in the 'issues' array. Make it specific, not generic).
+2. Confidence % (populate 'confidenceScore' and the 'confidence' field of the first issue).
+3. Severity (populate 'riskLevel').
+4. Why this diagnosis? (include this as the first item in the 'diySteps' array, clearly labeled as "Why this diagnosis?:"). Provide a clear, natural, customer-friendly explanation of how the AI reached its conclusion based on the complete interview. Preserve exactly the same meaning and evidence but sound like a helpful AI explaining its conclusion based on the user's answers rather than a technical report.
+5. Ranked alternative possible causes (include these as additional issues in the 'issues' array, ordered by likelihood).
+6. Recommended inspection or confirmation steps (include this as the second item in the 'diySteps' array, clearly labeled as "Recommended Next Inspection:").
+
+Decide the correct DIY category dynamically based on safety, complexity, and whether safe owner-level actions exist:
+- "repair": Use ONLY when the issue can realistically be repaired safely by a typical owner without specialised tools or advanced mechanical knowledge. Set diyAllowed = true.
+- "troubleshooting": Use when the issue should not be repaired by the user but there are safe software or visual troubleshooting steps that may resolve or isolate the problem without opening components. Set diyAllowed = true. (Prefer this over "none" if safe checks exist).
+- "none": Use ONLY for issues requiring professional tools, advanced diagnostics, disassembly, or safety-critical work (brakes, steering, high-voltage). Set diyAllowed = false.
+Always include the chosen category as the third item in the 'diySteps' array, exactly labeled as "DIY Category: repair", "DIY Category: troubleshooting", or "DIY Category: none".
+If the category is "repair" or "troubleshooting", generate the appropriate steps, time, tools (or things to verify), and expected outcome as additional items in the 'diySteps' array. Do NOT generate repair instructions if the category is "troubleshooting".
+Always output prices in US dollars.`;
+    
+        const finalSystemPrompt = systemPrompt;
         llmResponse = await generateObject({
           model: modelInstance,
           schema: diagnosisResultSchema,
