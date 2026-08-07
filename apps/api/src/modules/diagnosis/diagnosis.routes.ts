@@ -57,28 +57,6 @@ diagnosisRouter.post('/', authenticate, requireRole(['user', 'garage', 'vendor',
   }
 });
 
-// Chat conversation logic for dynamic follow-ups
-diagnosisRouter.post('/chat', authenticate, requireRole(['user', 'garage', 'vendor', 'admin']), async (req, res) => {
-  try {
-    const { vehicleId, conversationHistory } = req.body;
-    
-    if (!conversationHistory || !Array.isArray(conversationHistory)) {
-      return error(res, 'Conversation history is required', 'BAD_REQUEST', 400);
-    }
-
-    const customerId = req.user?.userId;
-    if (!customerId) {
-      return error(res, 'Authentication failed: no customer ID found', 'UNAUTHORIZED', 401);
-    }
-
-    const response = await DiagnosisService.chatWithLLM(customerId, vehicleId, conversationHistory);
-    return success(res, response, 200);
-  } catch (err: any) {
-    console.error('Diagnosis chat error:', err);
-    return error(res, err.message || 'An error occurred during chat processing', 'INTERNAL_SERVER_ERROR', 500);
-  }
-});
-
 // Fetch detailed diagnosis result
 diagnosisRouter.get('/:id', authenticate, requireRole(['user', 'garage', 'vendor', 'admin']), async (req, res) => {
   try {

@@ -134,61 +134,7 @@ export class DiagnosisService {
     }
   }
 
-  static async chatWithLLM(customerId: string, vehicleId: string, conversationHistory: { role: string, content: string }[]) {
-    const env = getEnv();
 
-    const vehicleRes = await query(
-      'SELECT make, model, year FROM vehicles WHERE id = $1 AND customer_id = $2',
-      [vehicleId, customerId]
-    );
-
-    if (vehicleRes.rows.length === 0) {
-      throw new Error('Vehicle not found or does not belong to the user');
-    }
-    const vehicle = vehicleRes.rows[0];
-
-    const { generateObject } = await import('ai');
-    const { createOpenAI } = await import('@ai-sdk/openai');
-    
-    let aiProvider;
-    if (env.llmProvider === 'groq') {
-      if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');
-      aiProvider = createOpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: env.groqApiKey, fetch });
-    } else {
-      if (!env.openaiApiKey) throw new Error('OPENAI_API_KEY is not defined');
-      aiProvider = createOpenAI({ apiKey: env.openaiApiKey, fetch });
-    }
-    const modelInstance = aiProvider(env.llmModel);
-
-    const systemPrompt = `You are WrectifAI, an expert automotive diagnostic assistant.
-The user is driving a ${vehicle.year} ${vehicle.make} ${vehicle.model}.
-Your goal is to gather enough symptoms and operating conditions to diagnose the car's issue.
-Ask exactly ONE concise clarifying question based on the conversation history.
-If you determine that you have enough information (a clear symptom and its operating conditions/context) to perform a diagnosis, set "sufficient" to true and leave "followUpQuestion" empty.
-Do NOT ask generic questions. Do NOT repeat questions.`;
-
-    try {
-      const llmResponse = await generateObject({
-        model: modelInstance,
-        schema: z.object({
-          sufficient: z.boolean(),
-          followUpQuestion: z.string().optional(),
-        }),
-        messages: [
-          { role: 'system', content: systemPrompt },
-          ...conversationHistory.map(msg => ({ role: msg.role as 'user' | 'assistant', content: msg.content }))
-        ],
-      });
-      return llmResponse.object;
-    } catch (err) {
-      console.error('LLM chat failed:', err);
-      // Fallback to ask for more info instead of short-circuiting to sufficient: true
-      return { 
-        sufficient: false, 
-        followUpQuestion: `I'm having trouble analyzing the specifics. Can you tell me more about when you notice this happening with your ${vehicle.make}?` 
-      }; 
-    }
-  }
 
   /**
    * Stage 1: Generate dynamic intake questions based on database matches
@@ -236,68 +182,112 @@ Do NOT ask generic questions. Do NOT repeat questions.`;
       }
     }
 
-    const systemPrompt = `You are an expert automotive diagnostic assistant.
-The user has reported a symptom: "${symptomText}".${previousAnswersContext}
 
-Your task is to generate exactly 5 concise follow-up questions to ask the user. They must form a complete diagnostic interview that progressively narrows down the issue like an experienced mechanic.
-First, internally identify the primary affected vehicle subsystem from the user's primary symptom (e.g. Tyres, Brakes, Battery, Charging, Engine Cooling, Engine, Transmission, Steering, Suspension, Fuel, Electrical, AC, etc.).
-Ask ALL follow-up questions only within that subsystem. Never ask unrelated cross-system questions unless previous answers provide strong evidence that another subsystem is involved.
-Generate the questions using the original symptom, vehicle details, and only the information required to narrow the diagnosis.
-Every next question must depend on the original symptom, vehicle details and all previous answers to eliminate the most likely causes.
-Each question must be relevant, evidence-based and help narrow the diagnosis.
-Never ask unrelated or repeated questions (e.g. AC for tyre pressure).
-Use conversation context to avoid repeated or contradictory questions.
-The next question should reduce diagnostic uncertainty.
-Do not ask generic questions (e.g. "what model is your car?"). Focus strictly on symptoms, sound patterns, warning lights, or operating conditions related to the potential issues.
-Provide 3 to 5 concise multiple choice options for each question (e.g., ["Crank is slow", "Starter clicks only", "No crank at all"]).
-Output your response as a strict JSON array under a "questions" field containing exactly 5 objects with "question" (string) and "options" (array of strings).`;
-
-    let llmResponse;
-    try {
-      const { generateObject } = await import('ai');
-      const { createOpenAI } = await import('@ai-sdk/openai');
-      let aiProvider;
-      if (env.llmProvider === 'groq') {
-        if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');
-        aiProvider = createOpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: env.groqApiKey, fetch });
-      } else {
-        if (!env.openaiApiKey) throw new Error('OPENAI_API_KEY is not defined');
-        aiProvider = createOpenAI({ apiKey: env.openaiApiKey, fetch });
-      }
-      const modelInstance = aiProvider(env.llmModel);
-      llmResponse = await generateObject({
-        model: modelInstance,
-        schema: z.object({
-          questions: z.array(z.object({
-            question: z.string(),
-            options: z.array(z.string()),
-          })),
-        }),
-        prompt: systemPrompt,
+    // ── Diagnostic logging helper ──────────────────────────────────────────
+    const logLlmAttempt = (attempt: number) => {
+      console.log(`[Diagnosis:generateQuestions] LLM attempt ${attempt}`, {
+        provider: env.llmProvider,
+        model: env.llmModel,
+        groqKeyPrefix: env.groqApiKey ? env.groqApiKey.slice(0, 8) + '...' : '(unset)',
+        openaiKeyPrefix: env.openaiApiKey ? env.openaiApiKey.slice(0, 8) + '...' : '(unset)',
+        symptomTextLength: symptomText.length,
+        symptomTextPreview: symptomText.slice(0, 80),
       });
-    } catch (err) {
-      console.error('LLM generation failed:', err);
-      return {
-        questions: [
-          {
-            question: "When exactly do you notice this issue occurring?",
-            options: ["Only when starting", "While accelerating", "While braking", "All the time"]
-          },
-          {
-            question: "Are there any other symptoms accompanying this?",
-            options: ["Strange noises", "Vibrations or shaking", "Warning lights", "No other symptoms"]
-          }
-        ],
-        matchedIssues: matchedIssues.map(issue => ({
-          id: issue.id,
-          issue_name: issue.issue_name,
-          safety_critical: issue.safety_critical,
-        })),
-      };
+    };
+
+    const logLlmError = (attempt: number, err: unknown) => {
+      const e = err as any;
+      console.error(`[Diagnosis:generateQuestions] LLM attempt ${attempt} FAILED`, {
+        name: e?.name,
+        message: e?.message,
+        // Vercel AI SDK surfaces these on the error object
+        status: e?.status ?? e?.statusCode ?? e?.response?.status,
+        errorCode: e?.responseBody ? (() => { try { return JSON.parse(e.responseBody)?.error?.code; } catch { return undefined; } })() : undefined,
+        errorType: e?.responseBody ? (() => { try { return JSON.parse(e.responseBody)?.error?.type; } catch { return undefined; } })() : undefined,
+        responseBody: e?.responseBody ?? e?.body ?? undefined,
+        cause: e?.cause ? String(e.cause) : undefined,
+        stack: e?.stack?.split('\n').slice(0, 6).join('\n'),
+      });
+    };
+
+    // ── LLM call with one automatic retry ─────────────────────────────────
+    // Use a plain typed holder to avoid TS errors with Awaited<ReturnType<dynamic import>>
+    let llmResultObject: { questions: Array<{ question: string; options: string[] }> } | undefined;
+    let lastLlmError: unknown;
+
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      logLlmAttempt(attempt);
+      try {
+        const { generateText } = await import('ai');
+        const { createOpenAI } = await import('@ai-sdk/openai');
+        let aiProvider;
+        if (env.llmProvider === 'groq') {
+          if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');
+          aiProvider = createOpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: env.groqApiKey, fetch });
+        } else {
+          if (!env.openaiApiKey) throw new Error('OPENAI_API_KEY is not defined');
+          aiProvider = createOpenAI({ apiKey: env.openaiApiKey, fetch });
+        }
+        const modelInstance = aiProvider(env.llmModel);
+
+        // system + user message split for better structured-output compliance on Groq
+        const llmRaw = await generateText({
+          model: modelInstance,
+          system: `You are an expert automotive diagnostic assistant for a ${vehicle.year} ${vehicle.make} ${vehicle.model}.
+Your task is to generate EXACTLY 5 follow-up diagnostic questions for the reported symptom.
+Step 1 – Identify the single primary vehicle subsystem affected by the symptom (e.g. Windshield Wiper System, Brakes, Battery/Charging, Engine, AC, Transmission, Tyres, Steering/Suspension, Fuel, Electrical).
+Step 2 – Generate EXACTLY 5 questions that are specific to that subsystem only. Never mix subsystems unless a previous answer explicitly points to a secondary system.
+Rules:
+- Every question MUST be directly relevant to the reported symptom and the identified subsystem.
+- Never ask generic cross-system questions (e.g., "When do you notice this?" as an accelerating/braking option is ONLY for drivetrain symptoms, NOT for wipers, AC, or electrical faults).
+- Never ask about vehicle model/year (already known).
+- Each question must have 3–5 concise, mutually exclusive answer options.
+- Questions must progressively narrow the diagnosis (start broad within the subsystem, then narrow).
+- Return EXACTLY 5 question objects, no more, no less.
+- IMPORTANT: You must output ONLY a valid raw JSON object with the following schema, and absolutely NO markdown formatting or other text:
+{
+  "questions": [
+    { "question": "The question text", "options": ["Option 1", "Option 2", "Option 3"] }
+  ]
+}`,
+          messages: [{
+            role: 'user',
+            content: `Symptom reported: "${symptomText}"${previousAnswersContext}\n\nGenerate exactly 5 diagnostic questions specific to this symptom's subsystem. Return ONLY JSON.`,
+          }],
+        });
+
+        // Parse the generated text into JSON
+        let text = llmRaw.text.trim();
+        if (text.startsWith('```json')) text = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+        llmResultObject = JSON.parse(text);
+        
+        // Ensure it's roughly the right shape
+        if (!llmResultObject?.questions || !Array.isArray(llmResultObject.questions)) {
+           throw new Error('LLM did not return a valid questions array');
+        }
+
+        console.log(`[Diagnosis:generateQuestions] LLM attempt ${attempt} SUCCESS — received ${llmResultObject.questions.length} questions`);
+        break; // success — exit retry loop
+      } catch (err) {
+        logLlmError(attempt, err);
+        lastLlmError = err;
+        if (attempt < 2) {
+          // Brief pause before retry
+          await new Promise(resolve => setTimeout(resolve, 800));
+        }
+      }
     }
 
-    // ponytail: map dynamic questions to clean structured objects with dynamic IDs
-    const questionsWithIds = llmResponse.object.questions.map((q, idx) => ({
+    // ── If both attempts failed, surface a clear unavailability response ───
+    if (!llmResultObject) {
+      const errMsg = lastLlmError instanceof Error ? lastLlmError.message : 'Unknown LLM error';
+      console.error('[Diagnosis:generateQuestions] Both LLM attempts failed. Returning AI-unavailable signal.', { errMsg });
+      // Throw so the route returns a proper 500 — never return hardcoded questions
+      throw new Error(`AI diagnostic service temporarily unavailable: ${errMsg}`);
+    }
+
+    // Map questions to structured objects with unique IDs
+    const questionsWithIds = llmResultObject.questions.map((q: { question: string; options: string[] }, idx: number) => ({
       id: `dyn-q-${idx}-${Date.now()}`,
       question: q.question,
       options: q.options,
@@ -428,12 +418,13 @@ Output your response as a strict JSON array under a "questions" field containing
     let finalSymptomText = symptomText;
 
     // 3. Call LLM (Vercel AI SDK OpenAI or Groq)
-    let llmResponse;
+    let llmResponseObj: any = null;
     let retries = 1;
+    let lastError: any = null;
     
     while (retries >= 0) {
       try {
-        const { generateObject } = await import('ai');
+        const { generateText } = await import('ai');
         const { createOpenAI } = await import('@ai-sdk/openai');
         let aiProvider;
         if (env.llmProvider === 'groq') {
@@ -503,31 +494,60 @@ Please diagnose the issue.`;
 
         const systemPrompt = `You are WrectifAI, an advanced automotive diagnostic expert system.
 Analyze the vehicle details, recent service history, user symptoms, and any provided media descriptions.
-You must reason over the complete conversation and ALL user answers, not simply combine or restate them. Do NOT rely on the initial symptom or database matches alone.
-The diagnosis must be specific and evidence-based. Avoid generic issue names. The diagnosis should identify the most probable component or system responsible based on the complete interview.
-The diagnosis must sound like an experienced mechanic explaining the reasoning, not a generic AI summary or a restatement of the user's answers.
+
+CRITICAL REASONING & ANTI-HALLUCINATION RULES:
+- You MUST evaluate ALL collected evidence together (original symptom, follow-up questions, and additional user input).
+- When additional information is provided, reconsider all available evidence and update the diagnosis logically. Do not discard previous reasoning; the new information must refine the diagnosis, not restart it.
+- The diagnosis MUST be generated ONLY from the provided information. Do NOT invent facts, assume user responses, or hallucinate observations.
+- Every statement in the diagnosis must be supported by the collected conversation.
+- NEVER mention: recent servicing, replaced parts, warning lights, noises, leaks, smoke, or vibrations UNLESS the user explicitly reported them.
+
+DIAGNOSIS REQUIREMENTS:
+- Generate a ranked differential diagnosis, not just a single guess.
+- The confidence score must be calculated dynamically, reflecting the completeness of evidence, consistency of symptoms, and certainty of the diagnosis. Do not use fixed confidence values.
+- If information is insufficient, reduce the confidence score and explain what additional information is needed.
+- Severity must be determined dynamically based on the safety risk of the collected information. Do not use fixed severity levels.
 
 Provide a highly structured professional AI diagnosis conforming exactly to the required JSON schema.
 The diagnosis MUST contain:
-1. Most likely issue (set this as the first issue in the 'issues' array. Make it specific, not generic).
+1. Probable Diagnosis (set this as the first issue in the 'issues' array).
 2. Confidence % (populate 'confidenceScore' and the 'confidence' field of the first issue).
 3. Severity (populate 'riskLevel').
-4. Why this diagnosis? (include this as the first item in the 'diySteps' array, clearly labeled as "Why this diagnosis?:"). Provide a clear, natural, customer-friendly explanation of how the AI reached its conclusion based on the complete interview. Preserve exactly the same meaning and evidence but sound like a helpful AI explaining its conclusion based on the user's answers rather than a technical report.
-5. Ranked alternative possible causes (include these as additional issues in the 'issues' array, ordered by likelihood).
-6. Recommended inspection or confirmation steps (include this as the second item in the 'diySteps' array, clearly labeled as "Recommended Next Inspection:").
+4. Diagnosis Summary (include this as the first item in the 'diySteps' array, labeled exactly as "Diagnosis Summary:"). Reconsider all available evidence and explain why this diagnosis was reached based STRICTLY on the user's actual answers. If new information changed the ranking, explain why.
+5. Ranked Possible Causes (include these as additional issues in the 'issues' array, ordered by likelihood). Explain why each alternative is considered based on the user's actual answers.
+6. Recommended Repairs (include this as the second item in the 'diySteps' array, labeled exactly as "Recommended Repairs:"). Generate repair recommendations based on the diagnosis.
+7. Safety Advice (include this as the third item in the 'diySteps' array, labeled exactly as "Safety Advice:"). Generate safety guidance dynamically. If the issue could affect safe vehicle operation, clearly communicate that. If it is safe to continue driving with caution, communicate that appropriately.
 
+DIY & SERVICE CATEGORY:
 Decide the correct DIY category dynamically based on safety, complexity, and whether safe owner-level actions exist:
-- "repair": Use ONLY when the issue can realistically be repaired safely by a typical owner without specialised tools or advanced mechanical knowledge. Set diyAllowed = true.
-- "troubleshooting": Use when the issue should not be repaired by the user but there are safe software or visual troubleshooting steps that may resolve or isolate the problem without opening components. Set diyAllowed = true. (Prefer this over "none" if safe checks exist).
-- "none": Use ONLY for issues requiring professional tools, advanced diagnostics, disassembly, or safety-critical work (brakes, steering, high-voltage). Set diyAllowed = false.
-Always include the chosen category as the third item in the 'diySteps' array, exactly labeled as "DIY Category: repair", "DIY Category: troubleshooting", or "DIY Category: none".
-If the category is "repair" or "troubleshooting", generate the appropriate steps, time, tools (or things to verify), and expected outcome as additional items in the 'diySteps' array. Do NOT generate repair instructions if the category is "troubleshooting".
-Always output prices in US dollars.`;
+- "repair": Safe to repair by a typical owner. Set diyAllowed = true.
+- "troubleshooting": Safe software or visual troubleshooting steps exist. Set diyAllowed = true.
+- "none": Requires professional inspection or safety-critical work. Set diyAllowed = false.
+Always include the chosen category as the fourth item in the 'diySteps' array, exactly labeled as "DIY Category: repair", "DIY Category: troubleshooting", or "DIY Category: none".
+If appropriate, generate safe DIY steps as additional items in the 'diySteps' array. If not appropriate, clearly state: "DIY instructions are unavailable because professional inspection is recommended." as the final item in the 'diySteps' array. Do not fabricate DIY instructions.
+Always output prices in US dollars.
+
+IMPORTANT: You must output ONLY a valid raw JSON object matching the required schema, and absolutely NO markdown formatting or other text.
+The required JSON schema is:
+{
+  "issues": [
+    {
+      "name": "string",
+      "confidence": "number (0-100)",
+      "estimatedPriceRange": { "min": "number", "max": "number" },
+      "requiredParts": ["string"]
+    }
+  ],
+  "confidenceScore": "number (0-100)",
+  "riskLevel": "string (low, medium, high, critical)",
+  "diyAllowed": "boolean",
+  "diySteps": ["string"],
+  "nextAction": "string (diy, bookGarage, buyParts)"
+}`;
     
         const finalSystemPrompt = systemPrompt;
-        llmResponse = await generateObject({
+        const llmRaw = await generateText({
           model: modelInstance,
-          schema: diagnosisResultSchema,
           system: finalSystemPrompt,
           messages: [
             {
@@ -536,40 +556,37 @@ Always output prices in US dollars.`;
             },
           ],
         });
+        
+        let text = llmRaw.text.trim();
+        text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+        llmResponseObj = JSON.parse(text);
+        
+        // Rough validation
+        if (!llmResponseObj?.issues || !Array.isArray(llmResponseObj.issues) || typeof llmResponseObj.confidenceScore !== 'number') {
+           throw new Error('LLM returned invalid diagnosis structure');
+        }
+        
+        // Normalize nextAction to prevent DB constraint errors
+        const allowedNextActions = ['diy', 'bookGarage', 'buyParts'];
+        if (!allowedNextActions.includes(llmResponseObj.nextAction)) {
+           llmResponseObj.nextAction = 'bookGarage';
+        }
+        
         break; // Success, exit retry loop
       } catch (err) {
         console.error(`LLM generation failed (retries left: ${retries}):`, err);
+        lastError = err;
         if (retries === 0) {
-          // Fallback to a valid JSON response matching the schema
-          llmResponse = {
-            object: {
-              issues: [
-                {
-                  name: `Potential issue related to: ${symptomText.substring(0, 30)}...`,
-                  confidence: 40,
-                  estimatedPriceRange: { min: 50, max: 200 },
-                  requiredParts: []
-                }
-              ],
-              confidenceScore: 40,
-              riskLevel: 'medium' as const,
-              diyAllowed: false,
-              diySteps: [
-                'Why this diagnosis?: The AI was unable to generate a conclusive diagnosis from the provided details, but it seems related to your described symptoms.',
-                'Recommended Next Inspection: Please book a professional inspection so a mechanic can accurately diagnose the issue.'
-              ],
-              nextAction: 'bookGarage' as const
-            }
-          };
-          break;
+          throw new Error(`AI diagnostic service temporarily unavailable: ${err instanceof Error ? err.message : 'Unknown LLM error'}`);
         }
         retries--;
       }
     }
-    if (!llmResponse) {
-      throw new Error('Failed to generate LLM response');
+    
+    if (!llmResponseObj) {
+      throw new Error(`Failed to generate LLM response: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
     }
-    result = DiagnosisService.applySafetyGuardrail(llmResponse.object, symptomText, matchedIssues);
+    result = DiagnosisService.applySafetyGuardrail(llmResponseObj, symptomText, matchedIssues);
 
     // 5. Database Transaction Persistence
     const pool = getDbPool();

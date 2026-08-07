@@ -90,7 +90,7 @@ import { TopNavbar } from '@/components/home/top-navbar';
 import { Card } from '@/components/common/card';
 import { cn } from '@/utils/cn';
 import { VehicleSelector } from '@/components/common/vehicle-selector';
-import { submitDiagnosis, chatDiagnosis, type DiagnosisResponse } from '../../lib/diagnosis-api';
+import { submitDiagnosis, type DiagnosisResponse } from '../../lib/diagnosis-api';
 import { getVehicleImage } from '@/lib/vehicle-image-catalog';
 
 function getBadgeForIssue(name: string, overallRisk?: string, index?: number) {
@@ -2194,6 +2194,9 @@ export function AIDiagnosePage() {
   const pageRootRef = useRef<HTMLDivElement>(null);
   const chatScrollRef = useRef<HTMLDivElement>(null);
   const hasMountedRef = useRef(false);
+  // Ref that always holds the latest complete answers map — prevents race condition
+  // where setDynamicAnswers() state flush lags behind setIsAnalyzingResults(true)
+  const completedAnswersRef = useRef<Record<string, string>>({});
 
   // Derived progress and step states to prevent static stuck/inconsistent states
   const progress = useMemo(() => {
@@ -2296,6 +2299,7 @@ export function AIDiagnosePage() {
       setDynamicQuestions(resData.questions);
       setCurrentQuestionIdx(0);
       setDynamicAnswers({});
+      completedAnswersRef.current = {};
 
       setMessages((prev) => [
         ...prev,
@@ -2312,7 +2316,22 @@ export function AIDiagnosePage() {
     } catch (err) {
       console.error('Failed to start diagnosis session:', err);
       setIsTyping(false);
-      setApiError(err instanceof Error ? err.message : 'Connection error');
+      // Reset so the user can retry — do NOT set apiError here (that locks the full error screen)
+      setHasStartedDiagnose(false);
+      const errMessage = err instanceof Error ? err.message : 'Connection error';
+      const isUnavailable = errMessage.includes('temporarily unavailable') || errMessage.includes('AI diagnostic');
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `bot-error-${Date.now()}`,
+          sender: 'assistant',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          kind: 'message',
+          text: isUnavailable
+            ? 'The AI diagnostic service is temporarily unavailable. Please wait a moment and try submitting your symptom again.'
+            : 'I had trouble connecting. Please check your internet connection and try submitting your symptom again.',
+        },
+      ]);
     }
   };
 
@@ -2321,13 +2340,18 @@ export function AIDiagnosePage() {
     if (isAnalyzingResults && !apiResult && !apiError) {
       const runApiDiagnosis = async () => {
         try {
+          // Use the ref rather than state to guarantee all 5 answers are included,
+          // even if the last setDynamicAnswers() flush hasn't committed yet.
+          const allAnswers = Object.keys(completedAnswersRef.current).length > 0
+            ? completedAnswersRef.current
+            : dynamicAnswers;
           const payload = {
             vehicleId: selectedVehicleId || '00000000-0000-0000-0000-000000000002',
             symptomText: issueText,
             media: attachedMedia.map(m => ({ mediaType: m.mediaType, base64: m.base64 })),
             intakeAnswers: {
               questions: dynamicQuestions.map(q => q.question),
-              qas: dynamicAnswers,
+              qas: allAnswers,
             },
             stage: 'final' as const,
           };
@@ -2397,6 +2421,7 @@ export function AIDiagnosePage() {
     setDynamicQuestions([]);
     setCurrentQuestionIdx(-1);
     setDynamicAnswers({});
+    completedAnswersRef.current = {};
     setHasStartedDiagnose(false);
     setAccumulatedIntakeContext('');
     setClarificationTurns(0);
@@ -2420,6 +2445,7 @@ export function AIDiagnosePage() {
     setDynamicQuestions([]);
     setCurrentQuestionIdx(-1);
     setDynamicAnswers({});
+    completedAnswersRef.current = {};
     setHasStartedDiagnose(false);
     setApiResult(null);
     setApiError(null);
@@ -2462,15 +2488,17 @@ export function AIDiagnosePage() {
     };
     setMessages((prev) => [...prev, userReply]);
 
-    // Save the answer
+    // Save the answer — write to ref synchronously to avoid stale-closure race
     if (currentQuestionIdx >= 0 && currentQuestionIdx < dynamicQuestions.length) {
       const currentQuestion = dynamicQuestions[currentQuestionIdx];
       const nextAnswers = { ...dynamicAnswers, [currentQuestion.question]: option };
+      // Synchronously commit to ref so the final-diagnosis useEffect always sees all answers
+      completedAnswersRef.current = nextAnswers;
       setDynamicAnswers(nextAnswers);
 
       const nextIdx = currentQuestionIdx + 1;
       if (nextIdx < dynamicQuestions.length) {
-        // Ask the next question
+        // More questions remain — ask the next one
         setIsTyping(true);
         setTypingText('WrectifAI is processing...');
         setTimeout(() => {
@@ -2490,7 +2518,7 @@ export function AIDiagnosePage() {
           setCurrentQuestionIdx(nextIdx);
         }, 1000);
       } else {
-        // No more questions! Trigger final analysis synthesis
+        // All 5 questions answered — trigger final diagnosis, never ask another question
         setIsTyping(true);
         setTypingText('Synthesizing details...');
         setTimeout(() => {
@@ -2624,52 +2652,8 @@ export function AIDiagnosePage() {
 
     // If we haven't started the session yet, this input is the initial symptom!
     if (!hasStartedDiagnose) {
-      const combinedContext = accumulatedIntakeContext ? `${accumulatedIntakeContext} ${inputMsg}` : inputMsg;
-      setAccumulatedIntakeContext(combinedContext);
-
-      setIsTyping(true);
-      setTypingText('WrectifAI is thinking...');
-
-      const chatHistory = messages
-        .filter(m => m.kind === 'message' || m.kind === 'reply')
-        .map(m => ({
-          role: m.sender,
-          content: m.kind === 'message' ? m.text : (m.kind === 'reply' ? m.text : '')
-        }))
-        .filter(m => m.content);
-
-      chatHistory.push({ role: 'user', content: inputMsg });
-
-      try {
-        const response = await chatDiagnosis({ vehicleId: selectedVehicleId, conversationHistory: chatHistory });
-        
-        setIsTyping(false);
-
-        if (response?.sufficient) {
-          setIssueText(combinedContext);
-          startDiagnoseSession(selectedVehicleId, combinedContext);
-          return;
-        }
-
-        const followUp = response?.followUpQuestion || "Could you provide more details about the symptoms you're experiencing?";
-        
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `bot-clarification-${Date.now()}`,
-            sender: 'assistant',
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            kind: 'message',
-            text: followUp,
-          },
-        ]);
-      } catch (err) {
-        setIsTyping(false);
-        console.error('Chat error:', err);
-        // Fallback to start diagnose session if chat fails
-        setIssueText(combinedContext);
-        startDiagnoseSession(selectedVehicleId, combinedContext);
-      }
+      setIssueText(inputMsg);
+      startDiagnoseSession(selectedVehicleId, inputMsg);
       return;
     }
 
@@ -3013,12 +2997,12 @@ export function AIDiagnosePage() {
                                       {entry.question}
                                     </h3>
                                     <div className="mt-3 space-y-2">
-                                      {entry.options.map((option) => {
+                                      {entry.options.map((option, idx) => {
                                         const isSelected =
                                           option === entry.selected;
                                         return (
                                           <button
-                                            key={option}
+                                            key={`${entry.id}-${idx}`}
                                             type="button"
                                             disabled={hasSelected || !selectedVehicleId}
                                             onClick={() =>

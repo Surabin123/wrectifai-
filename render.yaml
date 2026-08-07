@@ -42,7 +42,7 @@ services:
         value: groq
 
       - key: LLM_MODEL
-        value: openai/gpt-oss-120b
+        value: llama3-8b-8192
 
       - key: GROQ_API_KEY
         sync: false
