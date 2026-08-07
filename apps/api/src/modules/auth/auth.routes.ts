@@ -223,6 +223,9 @@ authRouter.post('/login', async (req, res, next) => {
         
         if (existingUser.rows.length > 0) {
           user = existingUser.rows[0];
+          if (mobileNumber === '9876543210') {
+            user.name = 'User';
+          }
         } else if (mobileNumber === '9876543210') {
           const userResult = await query(
             "INSERT INTO users (mobile_number, name, status) VALUES ($1, $2, 'active') RETURNING id, mobile_number, name, status",
