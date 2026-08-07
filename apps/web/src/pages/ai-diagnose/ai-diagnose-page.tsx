@@ -2281,10 +2281,17 @@ export function AIDiagnosePage() {
       });
 
       interface QuestionsStageResponse {
+        success?: boolean;
+        message?: string;
         questions: Array<{ id: string; question: string; options: string[] }>;
         matchedIssues: Array<{ id: string; issue_name: string; safety_critical: boolean }>;
       }
       const resData = response as unknown as QuestionsStageResponse;
+      
+      if (resData.success === false) {
+        throw new Error(resData.message || 'Failed to generate diagnosis questions');
+      }
+
       setIsTyping(false);
 
       if (!resData.questions || resData.questions.length === 0) {
