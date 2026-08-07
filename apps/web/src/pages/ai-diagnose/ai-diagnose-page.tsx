@@ -2288,18 +2288,8 @@ export function AIDiagnosePage() {
       setIsTyping(false);
 
       if (!resData.questions || resData.questions.length === 0) {
-        // Zero-Match Fallback - Direct Clarification
-        const clarificationMessage = "I couldn't find a direct match. Can you describe the noise it's making, or when exactly it happens?";
-        setMessages((prev) => [
-          ...prev,
-          {
-            id: `bot-clarification-${Date.now()}`,
-            sender: 'assistant',
-            time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            kind: 'message',
-            text: clarificationMessage,
-          },
-        ]);
+        // Zero-Match Fallback should no longer occur with backend defaults, but if it does, synthesize immediately
+        setIsAnalyzingResults(true);
         return;
       }
 

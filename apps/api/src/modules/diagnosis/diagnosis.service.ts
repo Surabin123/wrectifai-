@@ -182,8 +182,11 @@ Do NOT ask generic questions. Do NOT repeat questions.`;
       return llmResponse.object;
     } catch (err) {
       console.error('LLM chat failed:', err);
-      // Fallback
-      return { sufficient: true }; 
+      // Fallback to ask for more info instead of short-circuiting to sufficient: true
+      return { 
+        sufficient: false, 
+        followUpQuestion: `I'm having trouble analyzing the specifics. Can you tell me more about when you notice this happening with your ${vehicle.make}?` 
+      }; 
     }
   }
 
@@ -291,7 +294,16 @@ Output your response as a strict JSON array under a "questions" field containing
     } catch (err) {
       console.error('LLM generation failed:', err);
       return {
-        questions: [],
+        questions: [
+          {
+            question: "When exactly do you notice this issue occurring?",
+            options: ["Only when starting", "While accelerating", "While braking", "All the time"]
+          },
+          {
+            question: "Are there any other symptoms accompanying this?",
+            options: ["Strange noises", "Vibrations or shaking", "Warning lights", "No other symptoms"]
+          }
+        ],
         matchedIssues: matchedIssues.map(issue => ({
           id: issue.id,
           issue_name: issue.issue_name,
@@ -561,18 +573,18 @@ Please diagnose the issue.`;
             object: {
               issues: [
                 {
-                  name: 'Undetermined Issue',
-                  confidence: 50,
-                  estimatedPriceRange: { min: 0, max: 0 },
+                  name: `Potential issue related to: ${symptomText.substring(0, 30)}...`,
+                  confidence: 40,
+                  estimatedPriceRange: { min: 50, max: 200 },
                   requiredParts: []
                 }
               ],
-              confidenceScore: 50,
+              confidenceScore: 40,
               riskLevel: 'medium' as const,
               diyAllowed: false,
               diySteps: [
-                'Why this diagnosis?: The AI was unable to generate a conclusive diagnosis from the provided details.',
-                'Recommended Next Inspection: Please book a professional inspection.'
+                'Why this diagnosis?: The AI was unable to generate a conclusive diagnosis from the provided details, but it seems related to your described symptoms.',
+                'Recommended Next Inspection: Please book a professional inspection so a mechanic can accurately diagnose the issue.'
               ],
               nextAction: 'bookGarage' as const
             }

@@ -1,5 +1,6 @@
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { ChevronDown, CalendarDays, Package, FileText, Car } from 'lucide-react';
 import Image from 'next/image';
 import { Card } from '@/components/common/card';
@@ -18,9 +19,12 @@ function OverviewPanel() {
   const [vehicleDesc, setVehicleDesc] = useState<string>('No vehicles added');
   const [ordersCount, setOrdersCount] = useState<number>(0);
 
+  const [timeFilter, setTimeFilter] = useState('this_month');
+  const router = useRouter();
+
   const loadStats = () => {
     let active = true;
-    apiClient.get('/users/customer/stats')
+    apiClient.get(`/users/customer/stats?filter=${timeFilter}`)
       .then((data: any) => {
         if (!active || !data) return;
         setBookingsCount(data.bookingsCount || 0);
@@ -53,7 +57,7 @@ function OverviewPanel() {
       cleanup();
       window.removeEventListener('dashboard_refresh', loadStats);
     };
-  }, []);
+  }, [timeFilter]);
 
   const items = [
     {
@@ -100,10 +104,16 @@ function OverviewPanel() {
         <h2 className="text-[14.5px] font-semibold tracking-[-0.03em] text-[#17307a]">
           My Overview
         </h2>
-        <div className="flex h-9 items-center gap-2 rounded-[10px] border border-[#dbe6ff] px-3 text-[11.5px] font-semibold text-[#17307a]">
-          This Month
-          <ChevronDown className="h-4 w-4" />
-        </div>
+        <select 
+          className="flex h-9 items-center gap-2 rounded-[10px] border border-[#dbe6ff] px-3 text-[11.5px] font-semibold text-[#17307a] bg-transparent outline-none cursor-pointer"
+          value={timeFilter}
+          onChange={(e) => setTimeFilter(e.target.value)}
+        >
+          <option value="this_month">This Month</option>
+          <option value="last_month">Last Month</option>
+          <option value="this_year">This Year</option>
+          <option value="all_time">All Time</option>
+        </select>
       </div>
 
       <div className="space-y-2">
@@ -124,7 +134,7 @@ function OverviewPanel() {
               </div>
               <p className="mt-0.5 text-[11px] font-normal text-[#17307a]">{description}</p>
             </div>
-            <a href={href} className="self-center text-[11.5px] font-semibold text-[#1a56db] cursor-pointer hover:underline">{cta}</a>
+            <button onClick={() => router.push(href)} className="self-center text-[11.5px] font-semibold text-[#1a56db] cursor-pointer hover:underline">{cta}</button>
           </div>
         ))}
       </div>
@@ -152,8 +162,9 @@ function EmergencyHelp() {
           const isLarge = imageClass?.includes('h-10');
           const size = isLarge ? 40 : 32;
           return (
-            <div
+            <a
               key={title}
+              href={href}
               className="flex min-h-[68px] flex-col items-center justify-center gap-1 rounded-[14px] border border-[#f0f4ff] bg-white px-1 py-1 text-center shadow-[0_4px_12px_rgba(20,44,112,0.03)] cursor-pointer hover:border-[#ffcccc] transition-all hover:bg-[#fffdfd]"
             >
               <div
@@ -174,7 +185,7 @@ function EmergencyHelp() {
               <span className="max-w-[72px] text-[10.5px] font-semibold leading-tight text-[#17307a]">
                 {title}
               </span>
-            </div>
+            </a>
           );
         })}
       </div>
