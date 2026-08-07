@@ -158,7 +158,7 @@ function EmergencyHelp() {
       </div>
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {emergencyItems.map(({ title, image, imageClass }) => {
+        {emergencyItems.map(({ title, image, imageClass, href }) => {
           const isLarge = imageClass?.includes('h-10');
           const size = isLarge ? 40 : 32;
           return (

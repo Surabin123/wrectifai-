@@ -24,7 +24,7 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     }
   }
 
-  const anyKey = envSource.GROQ_API_KEY || envSource.OPENAI_API_KEY || '';
+  const anyKey = envSource.GROQ_API_KEY || envSource.OPENAI_API_KEY || envSource.open_api_key || envSource.OPEN_API_KEY || '';
   let provider = envSource.LLM_PROVIDER || 'groq';
   
   // Auto-detect provider to fix misconfigured environment variables
