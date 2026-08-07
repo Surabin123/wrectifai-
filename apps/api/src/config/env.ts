@@ -24,6 +24,16 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     }
   }
 
+  const anyKey = envSource.GROQ_API_KEY || envSource.OPENAI_API_KEY || '';
+  let provider = envSource.LLM_PROVIDER || 'groq';
+  
+  // Auto-detect provider to fix misconfigured environment variables
+  if (anyKey.startsWith('sk-') || anyKey.startsWith('proj-')) {
+    provider = 'openai';
+  } else if (anyKey.startsWith('gsk_')) {
+    provider = 'groq';
+  }
+
   return {
     host: envSource.HOST ?? '0.0.0.0',
     port: envSource.PORT ? Number(envSource.PORT) : 3000,
@@ -32,13 +42,13 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     jwtRefreshSecret: jwtRefreshSecret ?? 'super-secret-refresh-key',
     corsOrigins: envSource.WEB_ORIGINS ? envSource.WEB_ORIGINS.split(',') : ['http://localhost:4200', 'http://localhost:3001'],
     googleClientId: envSource.GOOGLE_CLIENT_ID,
-    llmProvider: envSource.LLM_PROVIDER ?? 'groq',
+    llmProvider: provider,
     llmModel: envSource.LLM_MODEL ?? 'llama-3.1-70b-versatile',
-    groqApiKey: envSource.GROQ_API_KEY ?? envSource.OPENAI_API_KEY,
-    openaiApiKey: envSource.OPENAI_API_KEY ?? envSource.GROQ_API_KEY,
-    imageLlmProvider: envSource.IMAGE_LLM_PROVIDER ?? 'groq',
+    groqApiKey: anyKey,
+    openaiApiKey: anyKey,
+    imageLlmProvider: envSource.IMAGE_LLM_PROVIDER ?? provider,
     imageLlmModel: envSource.IMAGE_LLM_MODEL ?? 'meta-llama/llama-4-scout-17b-16e-instruct',
-    audioProvider: envSource.AUDIO_PROVIDER ?? 'groq',
+    audioProvider: envSource.AUDIO_PROVIDER ?? provider,
     audioModel: envSource.AUDIO_MODEL ?? 'whisper-large-v3-turbo',
   };
 }
