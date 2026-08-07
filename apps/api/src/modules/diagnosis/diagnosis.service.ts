@@ -228,8 +228,30 @@ Do NOT ask generic questions. Do NOT repeat questions.`;
     } catch (dbErr) {
       console.error('Failed to retrieve matched issues from database:', dbErr);
     }
+    let previousAnswersContext = '';
+    if (intakeAnswers) {
+      const qas = intakeAnswers.qas || intakeAnswers.answers;
+      if (qas && Object.keys(qas).length > 0) {
+        previousAnswersContext = `\n\nPrevious questions asked and user's answers:\n${Object.entries(qas).map(([q, a]) => `- Q: ${q}\n  A: ${a}`).join('\n')}`;
+      }
+    }
 
-    // Call LLM to generate targeted questions based on database matches
+    const systemPrompt = `You are an expert automotive diagnostic assistant.
+The user has reported a symptom: "${symptomText}".${previousAnswersContext}
+
+Your task is to generate exactly 5 concise follow-up questions to ask the user. They must form a complete diagnostic interview that progressively narrows down the issue like an experienced mechanic.
+First, internally identify the primary affected vehicle subsystem from the user's primary symptom (e.g. Tyres, Brakes, Battery, Charging, Engine Cooling, Engine, Transmission, Steering, Suspension, Fuel, Electrical, AC, etc.).
+Ask ALL follow-up questions only within that subsystem. Never ask unrelated cross-system questions unless previous answers provide strong evidence that another subsystem is involved.
+Generate the questions using the original symptom, vehicle details, and only the information required to narrow the diagnosis.
+Every next question must depend on the original symptom, vehicle details and all previous answers to eliminate the most likely causes.
+Each question must be relevant, evidence-based and help narrow the diagnosis.
+Never ask unrelated or repeated questions (e.g. AC for tyre pressure).
+Use conversation context to avoid repeated or contradictory questions.
+The next question should reduce diagnostic uncertainty.
+Do not ask generic questions (e.g. "what model is your car?"). Focus strictly on symptoms, sound patterns, warning lights, or operating conditions related to the potential issues.
+Provide 3 to 5 concise multiple choice options for each question (e.g., ["Crank is slow", "Starter clicks only", "No crank at all"]).
+Output your response as a strict JSON array under a "questions" field containing exactly 5 objects with "question" (string) and "options" (array of strings).`;
+
     let llmResponse;
     try {
       const { generateObject } = await import('ai');
@@ -456,6 +478,11 @@ Do NOT ask generic questions. Do NOT repeat questions.`;
       ? `\n\nImage Analysis:\n${imageDescriptions.map((d, i) => `- Image #${i + 1}: ${d}`).join('\n')}`
       : '';
 
+    // Format service history for the prompt
+    const serviceHistoryText = serviceHistory.length > 0
+      ? serviceHistory.map(h => `- [${new Date(h.service_date).toLocaleDateString()}] ${h.description} ($${h.cost || 0})`).join('\n')
+      : 'No prior service history recorded.';
+
     const userPrompt = `Vehicle Context:
 - Make: ${vehicle.make}
 - Model: ${vehicle.model}
@@ -473,11 +500,7 @@ Please diagnose the issue.`;
 
     const contentPayload: { type: 'text'; text: string }[] = [{ type: 'text', text: userPrompt + imageContext }];
 
-        // Format service history for the prompt
-        const serviceHistoryText = serviceHistory.length > 0
-          ? serviceHistory.map(h => `- [${new Date(h.service_date).toLocaleDateString()}] ${h.description} ($${h.cost || 0})`).join('\n')
-          : 'No prior service history recorded.';
-    
+
         const systemPrompt = `You are WrectifAI, an advanced automotive diagnostic expert system.
 Analyze the vehicle details, recent service history, user symptoms, and any provided media descriptions.
 You must reason over the complete conversation and ALL user answers, not simply combine or restate them. Do NOT rely on the initial symptom or database matches alone.
