@@ -43,7 +43,7 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     corsOrigins: envSource.WEB_ORIGINS ? envSource.WEB_ORIGINS.split(',') : ['http://localhost:4200', 'http://localhost:3001'],
     googleClientId: envSource.GOOGLE_CLIENT_ID,
     llmProvider: provider,
-    llmModel: envSource.LLM_MODEL ?? 'llama-3.1-70b-versatile',
+    llmModel: envSource.LLM_MODEL ?? 'llama-3.3-70b-versatile',
     groqApiKey: anyKey,
     openaiApiKey: anyKey,
     imageLlmProvider: envSource.IMAGE_LLM_PROVIDER ?? provider,
