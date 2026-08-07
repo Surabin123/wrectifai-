@@ -223,6 +223,16 @@ authRouter.post('/login', async (req, res, next) => {
         
         if (existingUser.rows.length > 0) {
           user = existingUser.rows[0];
+        } else if (mobileNumber === '9876543210') {
+          const userResult = await query(
+            "INSERT INTO users (mobile_number, name, status) VALUES ($1, $2, 'active') RETURNING id, mobile_number, name, status",
+            [mobileNumber, 'User']
+          );
+          user = userResult.rows[0];
+          const roleResult = await query("SELECT id FROM roles WHERE code = 'user'");
+          if (roleResult.rows.length > 0) {
+            await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleResult.rows[0].id]);
+          }
         } else {
           return error(res, 'Demo account not found in database.', 'UNAUTHORIZED', 401);
         }
