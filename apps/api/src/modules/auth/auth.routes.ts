@@ -329,6 +329,16 @@ authRouter.post('/refresh', async (req, res) => {
     );
     const roles = rolesResult.rows.map((row) => row.code);
 
+    // Fallback: auto-heal sessions for users who have no roles in user_roles
+    // (e.g. existing accounts created before RBAC, or after a DB reset/migration)
+    if (roles.length === 0) {
+      const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'user'");
+      if (defaultRole.rows.length > 0) {
+        await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, defaultRole.rows[0].id]);
+        roles.push(defaultRole.rows[0].code);
+      }
+    }
+
     let garageId = undefined;
     if (roles.includes('garage')) {
       const garageResult = await query('SELECT id FROM garages WHERE owner_user_id = $1', [userId]);
