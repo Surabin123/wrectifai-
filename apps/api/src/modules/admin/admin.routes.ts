@@ -198,7 +198,7 @@ adminRouter.get('/users', async (req, res) => {
        FROM users u
        JOIN user_roles ur ON u.id = ur.user_id
        JOIN roles r ON ur.role_id = r.id
-       WHERE r.code = 'user'
+       WHERE r.code = 'customer'
        ORDER BY u.created_at DESC`
     );
     return success(res, result.rows);
@@ -222,8 +222,8 @@ adminRouter.post('/users', async (req, res) => {
     );
     const user = userRes.rows[0];
 
-    // 2. Get user role id
-    const roleRes = await query(`SELECT id FROM roles WHERE code = 'user'`);
+    // 2. Get customer role id
+    const roleRes = await query(`SELECT id FROM roles WHERE code = 'customer'`);
     if (roleRes.rows.length > 0) {
       await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [user.id, roleRes.rows[0].id]);
     }

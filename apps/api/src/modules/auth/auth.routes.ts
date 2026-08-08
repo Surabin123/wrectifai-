@@ -60,7 +60,7 @@ export async function handleUserLoginOrRegister(email: string, name: string) {
   }
 
   if (isNew) {
-    const roleResult = await query("SELECT id FROM roles WHERE code = 'user'");
+    const roleResult = await query("SELECT id FROM roles WHERE code = 'customer'");
     if (roleResult.rows.length > 0) {
       const roleId = roleResult.rows[0].id;
       await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleId]);
@@ -76,7 +76,7 @@ export async function handleUserLoginOrRegister(email: string, name: string) {
   // Fallback: If existing user has no roles (e.g. DB was reset or user pre-dates RBAC),
   // auto-assign the 'user' role so they are never locked out.
   if (roles.length === 0) {
-    const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'user'");
+    const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'customer'");
     if (defaultRole.rows.length > 0) {
       await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, defaultRole.rows[0].id]);
       roles.push(defaultRole.rows[0].code);
@@ -130,7 +130,7 @@ authRouter.post('/google', async (req, res) => {
 });
 
 authRouter.post('/register', async (req, res, next) => {
-  const { mobileNumber, name, otp, role = 'user' } = req.body;
+  const { mobileNumber, name, otp, role = 'customer' } = req.body;
   if (!mobileNumber || !name || !otp) {
     return error(res, 'Phone number, name, and OTP are required', 'BAD_REQUEST', 400);
   }
@@ -158,7 +158,7 @@ authRouter.post('/register', async (req, res, next) => {
     }
 
     if (isNew) {
-      const resolvedRole = role === 'customer' ? 'user' : role;
+      const resolvedRole = (role === 'customer' || role === 'user') ? 'customer' : role;
       const roleResult = await query('SELECT id FROM roles WHERE code = $1', [resolvedRole]);
       if (roleResult.rows.length > 0) {
         const roleId = roleResult.rows[0].id;
@@ -242,7 +242,7 @@ authRouter.post('/login', async (req, res, next) => {
             [mobileNumber, 'User']
           );
           user = userResult.rows[0];
-          const roleResult = await query("SELECT id FROM roles WHERE code = 'user'");
+          const roleResult = await query("SELECT id FROM roles WHERE code = 'customer'");
           if (roleResult.rows.length > 0) {
             await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleResult.rows[0].id]);
           }
@@ -264,9 +264,9 @@ authRouter.post('/login', async (req, res, next) => {
     );
     const roles = rolesResult.rows.map((row) => row.code);
 
-    // Fallback: If user has no roles (e.g. created before RBAC enforcement), assign 'user' role
+    // Fallback: If user has no roles (e.g. created before RBAC enforcement), assign 'customer' role
     if (roles.length === 0) {
-      const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'user'");
+      const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'customer'");
       if (defaultRole.rows.length > 0) {
         await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, defaultRole.rows[0].id]);
         roles.push(defaultRole.rows[0].code);
@@ -332,7 +332,7 @@ authRouter.post('/refresh', async (req, res) => {
     // Fallback: auto-heal sessions for users who have no roles in user_roles
     // (e.g. existing accounts created before RBAC, or after a DB reset/migration)
     if (roles.length === 0) {
-      const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'user'");
+      const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'customer'");
       if (defaultRole.rows.length > 0) {
         await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userId, defaultRole.rows[0].id]);
         roles.push(defaultRole.rows[0].code);

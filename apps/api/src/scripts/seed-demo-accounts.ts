@@ -33,7 +33,7 @@ async function seedDemoAccounts() {
       );
       const customerId = insertCustomer.rows[0].id;
       
-      const roleResult = await query("SELECT id FROM roles WHERE code = 'user'");
+      const roleResult = await query("SELECT id FROM roles WHERE code = 'customer'");
       if (roleResult.rows.length > 0) {
         await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [customerId, roleResult.rows[0].id]);
       }
