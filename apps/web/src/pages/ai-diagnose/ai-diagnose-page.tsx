@@ -2324,7 +2324,17 @@ export function AIDiagnosePage() {
       setHasStartedDiagnose(false);
       setHasFailedDiagnose(true);
       const errMessage = err instanceof Error ? err.message : 'Connection error';
+      const errStatus = (err as any)?.status;
       const isUnavailable = errMessage.includes('temporarily unavailable') || errMessage.includes('AI diagnostic');
+      const isAuthError = errStatus === 401 || errStatus === 403 || errMessage.toLowerCase().includes('session') || errMessage.toLowerCase().includes('log in');
+      
+      let displayMessage = 'I had trouble connecting. Please check your internet connection and try submitting your symptom again.';
+      if (isAuthError) {
+        displayMessage = 'Your session has expired or is invalid. Please log out and log back in, then try again.';
+      } else if (isUnavailable) {
+        displayMessage = 'The AI diagnostic service is temporarily unavailable. Please wait a moment and try submitting your symptom again.';
+      }
+      
       setMessages((prev) => [
         ...prev,
         {
@@ -2332,9 +2342,7 @@ export function AIDiagnosePage() {
           sender: 'assistant',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           kind: 'message',
-          text: isUnavailable
-            ? 'The AI diagnostic service is temporarily unavailable. Please wait a moment and try submitting your symptom again.'
-            : 'I had trouble connecting. Please check your internet connection and try submitting your symptom again.',
+          text: displayMessage,
         },
       ]);
     }

@@ -51,16 +51,10 @@ export interface SubmitDiagnosisPayload {
 }
 
 export async function submitDiagnosis(payload: SubmitDiagnosisPayload): Promise<any> {
-  try {
-    return await apiClient.post('/diagnosis', payload);
-  } catch (err) {
-    console.error('Failed to submit diagnosis:', err);
-    return {
-      success: false,
-      message: "We couldn't generate the diagnosis right now. Please try again.",
-      diagnosis: null
-    };
-  }
+  // Do NOT catch errors here — let them propagate so the api-client can
+  // handle 401 token-refresh automatically, and so the caller can show
+  // the correct error message (e.g. session expired vs network error).
+  return apiClient.post('/diagnosis', payload);
 }
 
 export async function chatDiagnosis(payload: { vehicleId: string, conversationHistory: { role: string, content: string }[] }): Promise<any> {
