@@ -2177,6 +2177,7 @@ export function AIDiagnosePage() {
   const [currentQuestionIdx, setCurrentQuestionIdx] = useState<number>(-1);
   const [dynamicAnswers, setDynamicAnswers] = useState<Record<string, string>>({});
   const [hasStartedDiagnose, setHasStartedDiagnose] = useState<boolean>(false);
+  const [hasFailedDiagnose, setHasFailedDiagnose] = useState<boolean>(false);
   const [accumulatedIntakeContext, setAccumulatedIntakeContext] = useState<string>('');
   const [clarificationTurns, setClarificationTurns] = useState<number>(0);
 
@@ -2320,8 +2321,8 @@ export function AIDiagnosePage() {
     } catch (err) {
       console.error('Failed to start diagnosis session:', err);
       setIsTyping(false);
-      // Reset so the user can retry — do NOT set apiError here (that locks the full error screen)
       setHasStartedDiagnose(false);
+      setHasFailedDiagnose(true);
       const errMessage = err instanceof Error ? err.message : 'Connection error';
       const isUnavailable = errMessage.includes('temporarily unavailable') || errMessage.includes('AI diagnostic');
       setMessages((prev) => [
@@ -2438,12 +2439,12 @@ export function AIDiagnosePage() {
   }, [initialIssueParam]);
 
   useEffect(() => {
-    if (selectedVehicleId && issueText && issueText !== DEFAULT_ISSUE_TEXT && !hasStartedDiagnose) {
+    if (selectedVehicleId && issueText && issueText !== DEFAULT_ISSUE_TEXT && !hasStartedDiagnose && !hasFailedDiagnose) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       startDiagnoseSession(selectedVehicleId, issueText);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedVehicleId, issueText, hasStartedDiagnose]);
+  }, [selectedVehicleId, issueText, hasStartedDiagnose, hasFailedDiagnose]);
 
   const resetDiagnoseFlow = () => {
     setDynamicQuestions([]);
@@ -2451,6 +2452,7 @@ export function AIDiagnosePage() {
     setDynamicAnswers({});
     completedAnswersRef.current = {};
     setHasStartedDiagnose(false);
+    setHasFailedDiagnose(false);
     setApiResult(null);
     setApiError(null);
     setTimerFinished(false);
@@ -2657,6 +2659,7 @@ export function AIDiagnosePage() {
     // If we haven't started the session yet, this input is the initial symptom!
     if (!hasStartedDiagnose) {
       setIssueText(inputMsg);
+      setHasFailedDiagnose(false);
       startDiagnoseSession(selectedVehicleId, inputMsg);
       return;
     }
