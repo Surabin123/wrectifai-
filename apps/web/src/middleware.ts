@@ -17,7 +17,7 @@ export function middleware(request: NextRequest) {
 
   const isProtected = 
     path.startsWith('/admin') ||
-    path.startsWith('/garage') ||
+    path.startsWith('/garage/') || path === '/garage' ||
     path.startsWith('/customer') ||
     path === '/garages' ||
     path === '/settings' ||
@@ -58,7 +58,7 @@ export function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL(roles.includes('garage') ? '/garage/dashboard' : '/dashboard', request.url));
   }
 
-  if (path.startsWith('/garage') && !roles.includes('garage')) {
+  if ((path.startsWith('/garage/') || path === '/garage') && !roles.includes('garage')) {
     return NextResponse.redirect(new URL(roles.includes('admin') ? '/admin/dashboard' : '/dashboard', request.url));
   }
 

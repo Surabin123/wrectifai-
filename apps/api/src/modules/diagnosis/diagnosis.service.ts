@@ -4,6 +4,8 @@ import { z } from 'zod';
 import { getDbPool, query } from '../../config/database';
 import { getEnv } from '../../config/env';
 import { KnowledgeService, type RetrievedIssue } from './knowledge.service';
+import { generateText } from 'ai';
+import { createOpenAI } from '@ai-sdk/openai';
 
 // Schema matching frontend requirements and future sprints
 export const diagnosisResultSchema = z.object({
@@ -92,8 +94,6 @@ export class DiagnosisService {
   }
 
   static async analyzeImage(base64Image: string): Promise<string> {
-    const { generateText } = await import('ai');
-    const { createOpenAI } = await import('@ai-sdk/openai');
     const env = getEnv();
     const apiKey = env.imageLlmProvider === 'groq' ? env.groqApiKey : env.openaiApiKey;
     const baseURL = env.imageLlmProvider === 'groq' ? 'https://api.groq.com/openai/v1' : undefined;
@@ -218,8 +218,6 @@ export class DiagnosisService {
     for (let attempt = 1; attempt <= 2; attempt++) {
       logLlmAttempt(attempt);
       try {
-        const { generateText } = await import('ai');
-        const { createOpenAI } = await import('@ai-sdk/openai');
         let aiProvider;
         if (env.llmProvider === 'groq') {
           if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');
@@ -424,8 +422,6 @@ Rules:
     
     while (retries >= 0) {
       try {
-        const { generateText } = await import('ai');
-        const { createOpenAI } = await import('@ai-sdk/openai');
         let aiProvider;
         if (env.llmProvider === 'groq') {
           if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');
