@@ -24,10 +24,10 @@ services:
           property: connectionString
 
       - key: JWT_SECRET
-        generateValue: true
+        sync: false
 
       - key: JWT_REFRESH_SECRET
-        generateValue: true
+        sync: false
 
       - key: WEB_ORIGINS
         fromService:
@@ -42,7 +42,13 @@ services:
         value: groq
 
       - key: LLM_MODEL
-        value: llama3-8b-8192
+        value: llama-3.3-70b-versatile
+
+      - key: DEMO_MODE
+        value: "true"
+
+      - key: OPENAI_API_KEY
+        sync: false
 
       - key: GROQ_API_KEY
         sync: false

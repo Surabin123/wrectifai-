@@ -73,6 +73,16 @@ export async function handleUserLoginOrRegister(email: string, name: string) {
   );
   const roles = rolesResult.rows.map((row) => row.code);
 
+  // Fallback: If existing user has no roles (e.g. DB was reset or user pre-dates RBAC),
+  // auto-assign the 'user' role so they are never locked out.
+  if (roles.length === 0) {
+    const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'user'");
+    if (defaultRole.rows.length > 0) {
+      await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, defaultRole.rows[0].id]);
+      roles.push(defaultRole.rows[0].code);
+    }
+  }
+
   let garageId = undefined;
   if (roles.includes('garage')) {
     const garageResult = await query('SELECT id FROM garages WHERE owner_user_id = $1', [user.id]);
