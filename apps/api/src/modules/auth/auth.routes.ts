@@ -254,6 +254,15 @@ authRouter.post('/login', async (req, res, next) => {
     );
     const roles = rolesResult.rows.map((row) => row.code);
 
+    // Fallback: If user has no roles (e.g. created before RBAC enforcement), assign 'user' role
+    if (roles.length === 0) {
+      const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'user'");
+      if (defaultRole.rows.length > 0) {
+        await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, defaultRole.rows[0].id]);
+        roles.push(defaultRole.rows[0].code);
+      }
+    }
+
     let garageName = undefined;
     let garageId = undefined;
     if (roles.includes('garage')) {
