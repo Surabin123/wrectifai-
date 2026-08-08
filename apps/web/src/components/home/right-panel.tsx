@@ -1,14 +1,15 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronDown, CalendarDays, Package, FileText, Car } from 'lucide-react';
+import { ChevronDown, CalendarDays, Package, FileText, Car, PhoneCall } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { Card } from '@/components/common/card';
+import { Modal } from '@/components/common/modal';
+import { Button } from '@/components/common/button';
 import { emergencyItems } from '@/components/home/data';
 import { cn } from '@/utils/cn';
 import { apiClient } from '@/lib/api-client';
-import { fetchBookings } from '@/lib/bookings-api';
-import { fetchQuotes } from '@/lib/quotes-api';
 import { getPromoTheme } from '@/utils/promo-theme';
 
 function OverviewPanel() {
@@ -143,6 +144,8 @@ function OverviewPanel() {
 }
 
 function EmergencyHelp() {
+  const [selectedEmergency, setSelectedEmergency] = useState<string | null>(null);
+
   return (
     <Card id="emergency" className="p-4 border-[#fff0f0] bg-[#fffbfa]">
       <div className="mb-4 flex items-start justify-between gap-3">
@@ -162,9 +165,9 @@ function EmergencyHelp() {
           const isLarge = imageClass?.includes('h-10');
           const size = isLarge ? 40 : 32;
           return (
-            <a
+            <button
               key={title}
-              href={href}
+              onClick={() => setSelectedEmergency(title)}
               className="flex min-h-[68px] flex-col items-center justify-center gap-1 rounded-[14px] border border-[#f0f4ff] bg-white px-1 py-1 text-center shadow-[0_4px_12px_rgba(20,44,112,0.03)] cursor-pointer hover:border-[#ffcccc] transition-all hover:bg-[#fffdfd]"
             >
               <div
@@ -185,10 +188,30 @@ function EmergencyHelp() {
               <span className="max-w-[72px] text-[10.5px] font-semibold leading-tight text-[#17307a]">
                 {title}
               </span>
-            </a>
+            </button>
           );
         })}
       </div>
+
+      <Modal isOpen={!!selectedEmergency} onClose={() => setSelectedEmergency(null)} title={selectedEmergency || "Emergency Help"}>
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="h-16 w-16 rounded-full bg-[#ffeeee] flex items-center justify-center text-[#ff3b30]">
+            <PhoneCall className="h-8 w-8" />
+          </div>
+          <div>
+            <h3 className="text-lg font-bold text-[#17307a] mb-1">{selectedEmergency} Support</h3>
+            <p className="text-sm text-[#6b7da5]">Our emergency team is available 24/7 to assist you.</p>
+          </div>
+          <div className="w-full rounded-xl bg-[#f8fbff] p-4 border border-[#e4ecff]">
+            <p className="text-xs text-[#6b7da5] uppercase tracking-wider font-bold mb-1">Toll-Free Number</p>
+            <p className="text-2xl font-black text-[#1a56db] tracking-wide">1-800-MOCK-HELP</p>
+          </div>
+          <Button className="w-full bg-[#ff3b30] hover:bg-[#ff3b30]/90 text-white font-bold" onClick={() => setSelectedEmergency(null)}>
+            Call Now
+          </Button>
+        </div>
+      </Modal>
+
     </Card>
   );
 }
@@ -219,10 +242,11 @@ function OfferCard({
   const cardColor = theme.bgColor;
 
   return (
-    <Card
-      className="overflow-hidden border-0 p-0 shadow-none"
-      style={{ backgroundColor: cardColor }}
-    >
+    <Link href="/deals" className="block">
+      <Card
+        className="overflow-hidden border-0 p-0 shadow-none transition-transform hover:scale-[1.02]"
+        style={{ backgroundColor: cardColor }}
+      >
       <div className="grid min-h-[138px] grid-cols-[1.18fr_0.82fr] items-center">
         <div className="p-4 pr-0">
           <p className={cn('text-[11px] font-bold uppercase tracking-[0.02em]', theme.accentClass)}>{eyebrow}</p>
@@ -271,6 +295,7 @@ function OfferCard({
         </div>
       </div>
     </Card>
+    </Link>
   );
 }
 
@@ -314,9 +339,9 @@ function OffersPanel() {
         <h2 className="text-[14.5px] font-semibold tracking-[-0.03em] text-[#17307a]">
           Offers &amp; Promos
         </h2>
-        <span className="cursor-pointer text-[11.5px] font-bold text-[#1a56db] hover:underline">
+        <Link href="/deals" className="cursor-pointer text-[11.5px] font-bold text-[#1a56db] hover:underline">
           View All Offers
-        </span>
+        </Link>
       </div>
       <div className="space-y-4">
         {promos.map((promo: any) => (

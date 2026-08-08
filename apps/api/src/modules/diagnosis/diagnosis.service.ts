@@ -4,8 +4,8 @@ import { z } from 'zod';
 import { getDbPool, query } from '../../config/database';
 import { getEnv } from '../../config/env';
 import { KnowledgeService, type RetrievedIssue } from './knowledge.service';
-import { generateText } from 'ai';
-import { createOpenAI } from '@ai-sdk/openai';
+// Fallback for CommonJS to use ESM modules without tsc breaking it
+const dynamicImport = new Function('specifier', 'return import(specifier)');
 
 // Schema matching frontend requirements and future sprints
 export const diagnosisResultSchema = z.object({
@@ -109,6 +109,9 @@ export class DiagnosisService {
     if (match) {
       mimeType = match[1];
     }
+
+    const { createOpenAI } = await dynamicImport('@ai-sdk/openai');
+    const { generateText } = await dynamicImport('ai');
 
     const aiProvider = createOpenAI({ apiKey, ...(baseURL ? { baseURL } : {}), fetch });
 
@@ -218,6 +221,9 @@ export class DiagnosisService {
     for (let attempt = 1; attempt <= 2; attempt++) {
       logLlmAttempt(attempt);
       try {
+        const { createOpenAI } = await dynamicImport('@ai-sdk/openai');
+        const { generateText } = await dynamicImport('ai');
+        
         let aiProvider;
         if (env.llmProvider === 'groq') {
           if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');
@@ -422,6 +428,9 @@ Rules:
     
     while (retries >= 0) {
       try {
+        const { createOpenAI } = await dynamicImport('@ai-sdk/openai');
+        const { generateText } = await dynamicImport('ai');
+        
         let aiProvider;
         if (env.llmProvider === 'groq') {
           if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');

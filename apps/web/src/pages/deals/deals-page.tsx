@@ -30,6 +30,7 @@ import Image from 'next/image';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '@/components/common/button';
 import { Card } from '@/components/common/card';
+import { Modal } from '@/components/common/modal';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { apiClient } from '@/lib/api-client';
@@ -657,7 +658,7 @@ function FilterChip({
   );
 }
 
-function DealCard({ deal }: { deal: DealItem }) {
+function DealCard({ deal, onSelect }: { deal: DealItem; onSelect?: (deal: DealItem) => void }) {
   const DealIcon = deal.icon;
 
   return (
@@ -748,7 +749,7 @@ function DealCard({ deal }: { deal: DealItem }) {
             <span>Valid till {deal.validTill}</span>
             <span>Used {deal.usedCount}</span>
           </div>
-          <Button variant="outline" size="sm" className="h-6 rounded-[8px] border-[#1f5cff] px-2.5 text-[10.5px] font-bold text-[#1f5cff] hover:bg-[#1f5cff]/5">
+          <Button onClick={() => onSelect?.(deal)} variant="outline" size="sm" className="h-6 rounded-[8px] border-[#1f5cff] px-2.5 text-[10.5px] font-bold text-[#1f5cff] hover:bg-[#1f5cff]/5">
             View Details
           </Button>
         </div>
@@ -802,6 +803,7 @@ function DealsPageContent() {
   const [sortOpen, setSortOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedDeal, setSelectedDeal] = useState<DealItem | null>(null);
   const pageSize = 9;
   const sortRef = useRef<HTMLDivElement>(null);
   const moreFiltersRef = useRef<HTMLDivElement>(null);
@@ -1156,7 +1158,7 @@ function DealsPageContent() {
       {paginatedDeals.length > 0 ? (
         <section className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-3">
           {paginatedDeals.map((deal) => (
-            <DealCard key={deal.id} deal={deal} />
+            <DealCard key={deal.id} deal={deal} onSelect={setSelectedDeal} />
           ))}
         </section>
       ) : (
@@ -1223,6 +1225,52 @@ function DealsPageContent() {
           <span className="font-bold text-[#26408a]">{filteredDeals.length} deals</span>
         </div>
       </div>
+
+      <Modal isOpen={!!selectedDeal} onClose={() => setSelectedDeal(null)} title={selectedDeal?.title || "Deal Details"}>
+        {selectedDeal && (
+          <div className="flex flex-col gap-4 text-[#17307a]">
+            {selectedDeal.image && (
+              <div className="relative h-40 w-full overflow-hidden rounded-[14px]">
+                <Image src={selectedDeal.image} alt={selectedDeal.title} fill className="object-cover" />
+              </div>
+            )}
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={cn('rounded-[6px] px-2 py-0.5 text-[10px] font-bold', selectedDeal.badgeColor)}>
+                  {selectedDeal.badge}
+                </span>
+              </div>
+              <h3 className="text-[18px] font-bold">{selectedDeal.title}</h3>
+              <div className="mt-2 flex items-center gap-3">
+                <span className={cn('text-[20px] font-bold', selectedDeal.accent)}>{selectedDeal.displayPrice}</span>
+                {selectedDeal.strikePrice && <span className="text-[14px] text-[#8998b8] line-through">{selectedDeal.strikePrice}</span>}
+              </div>
+            </div>
+            
+            <div className="border-t border-[#e4ecff] pt-4">
+              <h4 className="text-[14px] font-semibold mb-2">What's included:</h4>
+              <ul className="flex flex-col gap-1.5">
+                {selectedDeal.bullets.map((bullet, idx) => (
+                  <li key={idx} className="flex items-start gap-2 text-[13px] text-[#4f67a2]">
+                    <Check className="h-4 w-4 shrink-0 text-[#1a56db]" />
+                    <span>{bullet}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            
+            <div className="border-t border-[#e4ecff] pt-4 flex flex-col gap-2 text-[12px] text-[#6b7da5]">
+              <p><strong>Valid till:</strong> {selectedDeal.validTill}</p>
+              <p><strong>Purchased:</strong> {selectedDeal.usedCount}</p>
+              <p><strong>Terms:</strong> Standard mock terms apply. Not clubbable with other offers.</p>
+            </div>
+            
+            <Button className="w-full mt-2 font-bold bg-[#1a56db] hover:bg-[#1a56db]/90" onClick={() => setSelectedDeal(null)}>
+              Claim Offer
+            </Button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }
