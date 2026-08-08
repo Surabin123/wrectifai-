@@ -2290,6 +2290,10 @@ export function AIDiagnosePage() {
       const resData = response as unknown as QuestionsStageResponse;
       setIsTyping(false);
 
+      if (response && response.success === false) {
+        throw new Error(response.message || 'API request failed');
+      }
+
       if (!resData.questions || resData.questions.length === 0) {
         // Zero-Match Fallback should no longer occur with backend defaults, but if it does, synthesize immediately
         setIsAnalyzingResults(true);
