@@ -16,14 +16,27 @@ export function HelpContent() {
   const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [infoModal, setInfoModal] = useState<{ isOpen: boolean; title: string; content: string } | null>(null);
 
   const handleAction = (item: any) => {
-    if (item.link) {
+    if (item.title === 'Account & Profile') {
       router.push(`${basePath}${item.link}`);
-    } else if (item.title === 'Technical Support') {
-      setIsSupportModalOpen(true);
     } else if (item.title === 'Policies & Legal') {
       setIsLegalModalOpen(true);
+    } else if (item.title === 'Technical Support') {
+      setIsSupportModalOpen(true);
+    } else {
+      let content = '';
+      if (item.title === 'Bookings & Services') {
+        content = 'Access your active bookings, view status updates, schedule details, or cancel your requests. For help with any urgent booking, please contact support.';
+      } else if (item.title === 'Offers & Rewards') {
+        content = 'Save on services with promo code "WRECTI20" for 20% off on your next car diagnostic! Share your referral code with friends to earn reward credits.';
+      } else if (item.title === 'Payments & Wallet') {
+        content = 'Manage transaction history, view invoices, and check wallet balance. If you face any payment queries, reach out directly to support.';
+      } else if (item.title === 'Garages & Mechanics') {
+        content = 'Locate top-rated mechanics, compare custom quotes, and choose verified workshops. For special business requests, contact support.';
+      }
+      setInfoModal({ isOpen: true, title: item.title, content });
     }
   };
 
@@ -128,6 +141,25 @@ export function HelpContent() {
       </Modal>
 
       <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} />
+
+      {infoModal && (
+        <Modal isOpen={infoModal.isOpen} onClose={() => setInfoModal(null)} title={infoModal.title}>
+          <div className="space-y-4 py-2">
+            <p className="text-sm text-slate-600 leading-relaxed">{infoModal.content}</p>
+            <div className="pt-4 border-t flex flex-col gap-2">
+              <Button className="w-full bg-blue-600 text-white font-bold" onClick={() => {
+                setInfoModal(null);
+                setIsSupportModalOpen(true);
+              }}>
+                Contact Support Helpline
+              </Button>
+              <Button variant="outline" className="w-full text-slate-700 font-bold" onClick={() => setInfoModal(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

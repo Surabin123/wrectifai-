@@ -41,7 +41,7 @@ function AdminServiceRequestsContent() {
     loadData();
   }, []);
 
-  const filters = ['All', 'Pending', 'Quoted', 'Payment Pending', 'Booked', 'Accepted', 'In Progress', 'Ready', 'Completed', 'Cancelled'];
+  const filters = ['All', 'Pending', 'Quoted', 'In Progress', 'Completed', 'Cancelled'];
 
   useEffect(() => {
     if (filterParam) {
