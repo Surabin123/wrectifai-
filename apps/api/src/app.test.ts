@@ -38,6 +38,17 @@ test('CORS - rejects disallowed origin by not reflecting it', async () => {
   assert.strictEqual(corsHeader, null);
 });
 
+test('CORS - accepts allowed origin and normalizes trailing slash', async () => {
+  const res = await fetch(`http://localhost:${port}/api/v1/health`, {
+    headers: {
+      'Origin': 'http://localhost:3001/',
+    },
+  });
+  
+  const corsHeader = res.headers.get('access-control-allow-origin');
+  assert.strictEqual(corsHeader, 'http://localhost:3001/');
+});
+
 test('Rate Limiter - sets rate limit headers', async () => {
   const res = await fetch(`http://localhost:${port}/api/v1/health`);
   assert.strictEqual(res.headers.get('x-ratelimit-limit'), '100');

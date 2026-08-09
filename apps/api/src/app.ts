@@ -36,13 +36,15 @@ export function createApp() {
 
   // CORS configuration: Strict browser origin allowlist.
   // Requests without an Origin header do not receive CORS headers, but are not blocked at the application level.
+  const allowedOrigins = env.corsOrigins.map((o) => o.replace(/\/$/, ''));
   app.use(
     cors({
       origin: (origin, callback) => {
         if (!origin) {
           return callback(null, false);
         }
-        if (env.corsOrigins.includes(origin)) {
+        const normalizedOrigin = origin.replace(/\/$/, '');
+        if (allowedOrigins.includes(normalizedOrigin)) {
           callback(null, true);
         } else {
           callback(null, false);
