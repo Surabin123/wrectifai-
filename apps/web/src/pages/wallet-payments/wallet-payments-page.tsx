@@ -378,7 +378,13 @@ export function WalletPaymentsPage() {
           
           {newMethodType === 'Card' ? (
             <div className="space-y-3">
-              <input type="text" placeholder="Card Number" className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" />
+              <input 
+                type="text" 
+                placeholder="Card Number" 
+                maxLength={16}
+                onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '') }}
+                className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" 
+              />
               <div className="flex gap-3">
                 <input type="text" placeholder="MM/YY" className="w-1/2 border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" />
                 <input type="text" placeholder="CVV" className="w-1/2 border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" />
