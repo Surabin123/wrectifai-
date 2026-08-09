@@ -386,8 +386,39 @@ export function WalletPaymentsPage() {
                 className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" 
               />
               <div className="flex gap-3">
-                <input type="text" placeholder="MM/YY" className="w-1/2 border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" />
-                <input type="text" placeholder="CVV" className="w-1/2 border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" />
+                <input 
+                  type="text" 
+                  placeholder="MM/YY" 
+                  maxLength={5}
+                  onInput={(e) => {
+                    let val = e.currentTarget.value.replace(/\D/g, '');
+                    if (val.length >= 2) {
+                      val = val.substring(0, 2) + '/' + val.substring(2, 4);
+                    }
+                    e.currentTarget.value = val;
+                  }}
+                  onBlur={(e) => {
+                    const val = e.currentTarget.value;
+                    if (val.length === 5) {
+                      const [m, y] = val.split('/');
+                      const month = parseInt(m, 10);
+                      const year = parseInt(y, 10);
+                      if (year < 26 || (year === 26 && month < 8) || month < 1 || month > 12) {
+                        e.currentTarget.value = '';
+                      }
+                    } else {
+                      e.currentTarget.value = '';
+                    }
+                  }}
+                  className="w-1/2 border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" 
+                />
+                <input 
+                  type="text" 
+                  placeholder="CVV" 
+                  maxLength={3}
+                  onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '') }}
+                  className="w-1/2 border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" 
+                />
               </div>
             </div>
           ) : (

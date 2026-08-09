@@ -204,7 +204,7 @@ function EmergencyHelp() {
           </div>
           <div className="w-full rounded-xl bg-[#f8fbff] p-4 border border-[#e4ecff]">
             <p className="text-xs text-[#6b7da5] uppercase tracking-wider font-bold mb-1">Toll-Free Number</p>
-            <p className="text-2xl font-black text-[#1a56db] tracking-wide">1-800-MOCK-HELP</p>
+            <p className="text-2xl font-black text-[#1a56db] tracking-wide">1-800-555-0199</p>
           </div>
           <Button className="w-full bg-[#ff3b30] hover:bg-[#ff3b30]/90 text-white font-bold" onClick={() => setSelectedEmergency(null)}>
             Call Now
