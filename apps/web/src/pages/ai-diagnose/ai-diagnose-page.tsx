@@ -1240,6 +1240,15 @@ function DiagnoseResultsScreen({
   const [isDiyDrawerOpen, setIsDiyDrawerOpen] = useState(false);
   const [showCallSupport, setShowCallSupport] = useState(false);
   const [showRoadside, setShowRoadside] = useState(false);
+  const [copiedText, setCopiedText] = useState('');
+
+  const handleCopy = (text: string, type: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(type);
+    setTimeout(() => {
+      setCopiedText('');
+    }, 2000);
+  };
 
   useEffect(() => {
     if (resultIssues[0]) {
@@ -1525,50 +1534,6 @@ function DiagnoseResultsScreen({
               })}
             </div>
           </Card>
-
-          <Card className="rounded-[22px] border-[#e6ecfb] bg-white px-4 py-4 shadow-[0_12px_30px_rgba(37,73,153,0.04)]">
-            <div>
-              <h2 className={homeSectionHeadingClass}>
-                Provide more details for selected issue(s){' '}
-                <span className="text-[11px] font-medium text-[#5f7099]">
-                  (Optional)
-                </span>
-              </h2>
-              <p className="mt-1.5 text-[11px] text-[#5f7099]">
-                The more details you provide, the more accurate quotes
-                you&apos;ll receive.
-              </p>
-            </div>
-
-            <div className="mt-3 flex flex-wrap items-center gap-6 border-b border-[#eaf0fd] px-2">
-              {detailsTabs.map((tab, index) => (
-                <button
-                  key={tab}
-                  type="button"
-                  className={cn(
-                    'border-b-2 pb-2 text-[12px] font-semibold transition-colors',
-                    index === 0
-                      ? 'border-[#1a56db] text-[#1a56db]'
-                      : 'border-transparent text-[#5f7099]'
-                  )}
-                >
-                  {tab}
-                </button>
-              ))}
-            </div>
-
-            <div className="mt-3 rounded-[16px] border border-[#e8eefc] bg-[#fcfdff] px-3 py-3">
-              <textarea
-                value={detailsText}
-                onChange={(event) => onDetailsTextChange(event.target.value)}
-                placeholder="Add more details about the issue..."
-                className="min-h-[64px] w-full resize-none bg-transparent text-[12px] leading-5 text-[#17307a] outline-none placeholder:text-[#a5b1cb]"
-              />
-              <div className="text-right text-[11px] text-[#9babca]">
-                {detailsText.length}/1000
-              </div>
-            </div>
-          </Card>
         </div>
 
         <div className="space-y-5">
@@ -1756,8 +1721,15 @@ function DiagnoseResultsScreen({
             <p className="text-xs text-[#5f7099] leading-relaxed mb-6">
               Our support helpline is available 24/7. Call us for any assistance with your vehicle or quotes.
             </p>
-            <div className="bg-[#f4f7ff] p-3 rounded-[12px] text-[#1a56db] font-bold text-lg tracking-wide mb-6">
+            <div className="bg-[#f4f7ff] p-3 rounded-[12px] text-[#1a56db] font-bold text-lg tracking-wide mb-3">
               +1 (800) 555-0199
+            </div>
+            <div className="h-6 mb-3 flex items-center justify-center">
+              {copiedText === 'support' && (
+                <p className="text-[11px] text-green-600 font-semibold animate-in fade-in duration-200">
+                  ✓ Number copied to clipboard!
+                </p>
+              )}
             </div>
             <div className="flex gap-3">
               <button
@@ -1767,12 +1739,13 @@ function DiagnoseResultsScreen({
               >
                 Close
               </button>
-              <a
-                href="tel:+18005550199"
+              <button
+                type="button"
+                onClick={() => handleCopy('+1 (800) 555-0199', 'support')}
                 className="flex h-11 flex-1 items-center justify-center rounded-[12px] bg-[#1a56db] text-[12px] font-bold text-white hover:bg-[#17307a] transition-colors"
               >
-                Call Now
-              </a>
+                {copiedText === 'support' ? 'Copied!' : 'Copy Number'}
+              </button>
             </div>
           </div>
         </div>
@@ -1789,8 +1762,15 @@ function DiagnoseResultsScreen({
             <p className="text-xs text-[#5f7099] leading-relaxed mb-6">
               Need immediate towing or roadside help? Speak to our emergency response dispatch service now.
             </p>
-            <div className="bg-[#fff1f1] p-3 rounded-[12px] text-red-600 font-bold text-lg tracking-wide mb-6">
+            <div className="bg-[#fff1f1] p-3 rounded-[12px] text-red-600 font-bold text-lg tracking-wide mb-3">
               +1 (800) 555-0244
+            </div>
+            <div className="h-6 mb-3 flex items-center justify-center">
+              {copiedText === 'roadside' && (
+                <p className="text-[11px] text-green-600 font-semibold animate-in fade-in duration-200">
+                  ✓ Number copied to clipboard!
+                </p>
+              )}
             </div>
             <div className="flex gap-3">
               <button
@@ -1800,12 +1780,13 @@ function DiagnoseResultsScreen({
               >
                 Close
               </button>
-              <a
-                href="tel:+18005550244"
+              <button
+                type="button"
+                onClick={() => handleCopy('+1 (800) 555-0244', 'roadside')}
                 className="flex h-11 flex-1 items-center justify-center rounded-[12px] bg-red-600 text-[12px] font-bold text-white hover:bg-red-700 transition-colors"
               >
-                Request Dispatch
-              </a>
+                {copiedText === 'roadside' ? 'Copied!' : 'Copy Number'}
+              </button>
             </div>
           </div>
         </div>
