@@ -49,6 +49,17 @@ test('CORS - accepts allowed origin and normalizes trailing slash', async () => 
   assert.strictEqual(corsHeader, 'http://localhost:3001/');
 });
 
+test('CORS - accepts dynamic Render subdomains', async () => {
+  const res = await fetch(`http://localhost:${port}/api/v1/health`, {
+    headers: {
+      'Origin': 'https://custom-service.onrender.com',
+    },
+  });
+  
+  const corsHeader = res.headers.get('access-control-allow-origin');
+  assert.strictEqual(corsHeader, 'https://custom-service.onrender.com');
+});
+
 test('Rate Limiter - sets rate limit headers', async () => {
   const res = await fetch(`http://localhost:${port}/api/v1/health`);
   assert.strictEqual(res.headers.get('x-ratelimit-limit'), '100');

@@ -44,7 +44,16 @@ export function createApp() {
           return callback(null, false);
         }
         const normalizedOrigin = origin.replace(/\/$/, '');
-        if (allowedOrigins.includes(normalizedOrigin)) {
+        // Dynamically allow local development and Render subdomains to prevent config issues.
+        const isAllowed = 
+          allowedOrigins.includes(normalizedOrigin) ||
+          normalizedOrigin.endsWith('.onrender.com') ||
+          normalizedOrigin.startsWith('http://localhost:') ||
+          normalizedOrigin.startsWith('http://127.0.0.1:') ||
+          normalizedOrigin === 'http://localhost' ||
+          normalizedOrigin === 'http://127.0.0.1';
+
+        if (isAllowed) {
           callback(null, true);
         } else {
           callback(null, false);
