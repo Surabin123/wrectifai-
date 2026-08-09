@@ -17,16 +17,16 @@ export async function runMigrations() {
 
     // 3. Create tracking table if it doesn't exist
     await client.query(`
-      CREATE TABLE IF NOT EXISTS schema_migrations (
+      CREATE TABLE IF NOT EXISTS _migrations (
         id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL UNIQUE,
-        run_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        filename VARCHAR(255) NOT NULL UNIQUE,
+        applied_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       );
     `);
 
     // 4. Get list of already applied migrations
-    const { rows } = await client.query('SELECT name FROM schema_migrations');
-    const applied = new Set(rows.map((r: any) => r.name));
+    const { rows } = await client.query('SELECT filename FROM _migrations');
+    const applied = new Set(rows.map((r: any) => r.filename));
 
     // 5. Locate migrations directory (check workspace source first, fall back to dist copy)
     let migrationsDir = path.join(process.cwd(), 'apps', 'api', 'src', 'db', 'migrations');
@@ -63,7 +63,7 @@ export async function runMigrations() {
 
       // Record applied migration
       await client.query(
-        'INSERT INTO schema_migrations (name) VALUES ($1)',
+        'INSERT INTO _migrations (filename) VALUES ($1)',
         [file]
       );
       executedCount++;

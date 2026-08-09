@@ -34,12 +34,12 @@ async function main() {
   const client = new Client({ connectionString: databaseUrl, ssl });
   await client.connect();
 
-  // Ensure migrations tracking table exists (schema_migrations)
+  // Ensure migrations tracking table exists (_migrations)
   await client.query(`
-    CREATE TABLE IF NOT EXISTS schema_migrations (
+    CREATE TABLE IF NOT EXISTS _migrations (
       id SERIAL PRIMARY KEY,
-      name VARCHAR(255) NOT NULL UNIQUE,
-      run_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      filename VARCHAR(255) NOT NULL UNIQUE,
+      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 
@@ -48,8 +48,8 @@ async function main() {
     // Acquire transaction-level advisory lock to prevent concurrent runs
     await client.query('SELECT pg_advisory_xact_lock(54321)');
 
-    const applied = await client.query('SELECT name FROM schema_migrations');
-    const appliedSet = new Set(applied.rows.map((r) => r.name));
+    const applied = await client.query('SELECT filename FROM _migrations');
+    const appliedSet = new Set(applied.rows.map((r) => r.filename));
 
     let ran = 0;
     for (const file of files) {
@@ -60,7 +60,7 @@ async function main() {
       const sql = readFileSync(join(migrationsDir, file), 'utf-8');
       console.log(`Applying ${file}...`);
       await client.query(sql);
-      await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [file]);
+      await client.query('INSERT INTO _migrations (filename) VALUES ($1)', [file]);
       ran++;
       console.log(`  ✓ ${file}`);
     }
