@@ -18,7 +18,7 @@ async function main() {
     process.exit(1);
   }
 
-  const migrationsDir = join(__dirname, 'migrations');
+  const migrationsDir = join(__dirname, '..', 'apps', 'api', 'src', 'db', 'migrations');
   const files = readdirSync(migrationsDir)
     .filter((f) => f.endsWith('.sql'))
     .sort();
@@ -28,46 +28,52 @@ async function main() {
     return;
   }
 
-  const client = new Client({ connectionString: databaseUrl });
+  const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
+  const ssl = isLocal ? false : { rejectUnauthorized: true };
+
+  const client = new Client({ connectionString: databaseUrl, ssl });
   await client.connect();
 
-  // Ensure migrations tracking table exists
+  // Ensure migrations tracking table exists (schema_migrations)
   await client.query(`
-    CREATE TABLE IF NOT EXISTS _migrations (
+    CREATE TABLE IF NOT EXISTS schema_migrations (
       id SERIAL PRIMARY KEY,
-      filename VARCHAR(255) NOT NULL UNIQUE,
-      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      name VARCHAR(255) NOT NULL UNIQUE,
+      run_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
 
-  const applied = await client.query('SELECT filename FROM _migrations');
-  const appliedSet = new Set(applied.rows.map((r) => r.filename));
+  await client.query('BEGIN');
+  try {
+    // Acquire transaction-level advisory lock to prevent concurrent runs
+    await client.query('SELECT pg_advisory_xact_lock(54321)');
 
-  let ran = 0;
-  for (const file of files) {
-    if (appliedSet.has(file)) {
-      continue;
-    }
+    const applied = await client.query('SELECT name FROM schema_migrations');
+    const appliedSet = new Set(applied.rows.map((r) => r.name));
 
-    const sql = readFileSync(join(migrationsDir, file), 'utf-8');
-    console.log(`Applying ${file}...`);
-    await client.query('BEGIN');
-    try {
+    let ran = 0;
+    for (const file of files) {
+      if (appliedSet.has(file)) {
+        continue;
+      }
+
+      const sql = readFileSync(join(migrationsDir, file), 'utf-8');
+      console.log(`Applying ${file}...`);
       await client.query(sql);
-      await client.query('INSERT INTO _migrations (filename) VALUES ($1)', [file]);
-      await client.query('COMMIT');
-      console.log(`  ✓ ${file}`);
+      await client.query('INSERT INTO schema_migrations (name) VALUES ($1)', [file]);
       ran++;
-    } catch (err) {
-      await client.query('ROLLBACK');
-      console.error(`  ✗ ${file} failed:`, err.message);
-      await client.end();
-      process.exit(1);
+      console.log(`  ✓ ${file}`);
     }
+    await client.query('COMMIT');
+    console.log(`\nDone. ${ran} migration(s) applied, ${files.length - ran} already applied.`);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error(`Migration failed:`, err.message);
+    await client.end();
+    process.exit(1);
   }
 
   await client.end();
-  console.log(`\nDone. ${ran} migration(s) applied, ${files.length - ran} already applied.`);
 }
 
 main().catch((err) => {

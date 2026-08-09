@@ -4,12 +4,32 @@ import { getEnv } from './env';
 let pool: Pool | null = null;
 
 export function getDbPool(): Pool {
+  if (process.env.MOCK_DB === 'true') {
+    return {
+      query: async () => ({ rows: [] }),
+      on: () => {},
+      connect: async () => ({
+        query: async () => ({ rows: [] }),
+        release: () => {},
+      }),
+    } as any;
+  }
+
   if (!pool) {
     const { databaseUrl } = getEnv();
+
+    // Strict TLS certificate validation for remote DBs to prevent MITM.
+    // Local connections (localhost/127.0.0.1) don't use SSL/TLS.
+    const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
+    const ssl = isLocal ? false : {
+      rejectUnauthorized: true,
+    };
+
     pool = new Pool({
       connectionString: databaseUrl,
       max: 20,
       idleTimeoutMillis: 30000,
+      ssl,
     });
 
     pool.on('error', (err) => {

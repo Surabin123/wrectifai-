@@ -19,7 +19,7 @@ async function seed() {
   const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
   const client = new Client({
     connectionString: databaseUrl,
-    ssl: isLocal ? false : { rejectUnauthorized: false },
+    ssl: isLocal ? false : { rejectUnauthorized: true },
   });
 
   await client.connect();
