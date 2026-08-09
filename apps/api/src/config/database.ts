@@ -22,7 +22,7 @@ export function getDbPool(): Pool {
     // Local connections (localhost/127.0.0.1) don't use SSL/TLS.
     const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
     const ssl = isLocal ? false : {
-      rejectUnauthorized: true,
+      rejectUnauthorized: process.env.DB_SSL_REJECT_UNAUTHORIZED !== 'false',
     };
 
     pool = new Pool({
