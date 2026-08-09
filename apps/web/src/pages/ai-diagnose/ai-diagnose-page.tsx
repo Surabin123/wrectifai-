@@ -17,6 +17,7 @@ import {
   Sparkles,
   Video,
   Zap,
+  AlertTriangle,
 } from 'lucide-react';
 
 interface Vehicle {
@@ -846,7 +847,7 @@ function DiagnoseAnalyzingScreen({ onComplete }: { onComplete?: () => void }) {
 }
 
 function ConfidenceGauge({ value }: { value: number }) {
-  const radius = 52;
+  const radius = 64;
   const circumference = Math.PI * radius;
   const dashOffset = circumference - (circumference * value) / 100;
 
@@ -1237,6 +1238,8 @@ function DiagnoseResultsScreen({
   const [additionalNotes, setAdditionalNotes] = useState('');
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isDiyDrawerOpen, setIsDiyDrawerOpen] = useState(false);
+  const [showCallSupport, setShowCallSupport] = useState(false);
+  const [showRoadside, setShowRoadside] = useState(false);
 
   useEffect(() => {
     if (resultIssues[0]) {
@@ -1588,14 +1591,16 @@ function DiagnoseResultsScreen({
             <div className="mt-5 space-y-3">
               <button
                 type="button"
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-[12px] border border-[#dde6ff] bg-white text-[12px] font-semibold text-[#1a56db]"
+                onClick={() => setShowCallSupport(true)}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-[12px] border border-[#dde6ff] bg-white text-[12px] font-semibold text-[#1a56db] hover:bg-slate-50 transition-colors"
               >
                 <PhoneCall className="h-4 w-4" />
                 <span>Call Support</span>
               </button>
               <button
                 type="button"
-                className="flex h-11 w-full items-center justify-center gap-2 rounded-[12px] border border-[#dde6ff] bg-white text-[12px] font-semibold text-[#1a56db]"
+                onClick={() => setShowRoadside(true)}
+                className="flex h-11 w-full items-center justify-center gap-2 rounded-[12px] border border-[#dde6ff] bg-white text-[12px] font-semibold text-[#1a56db] hover:bg-slate-50 transition-colors"
               >
                 <Headset className="h-4 w-4" />
                 <span>Roadside Assistance</span>
@@ -1737,6 +1742,72 @@ function DiagnoseResultsScreen({
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Call Support Modal */}
+      {showCallSupport && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm bg-white rounded-[24px] p-6 text-center shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-blue-50 text-blue-600 mb-4">
+              <PhoneCall className="h-6 w-6" />
+            </div>
+            <h3 className="text-lg font-bold text-[#17307a] mb-2">Call Support</h3>
+            <p className="text-xs text-[#5f7099] leading-relaxed mb-6">
+              Our support helpline is available 24/7. Call us for any assistance with your vehicle or quotes.
+            </p>
+            <div className="bg-[#f4f7ff] p-3 rounded-[12px] text-[#1a56db] font-bold text-lg tracking-wide mb-6">
+              +1 (800) 555-0199
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowCallSupport(false)}
+                className="flex h-11 flex-1 items-center justify-center rounded-[12px] bg-slate-100 text-[12px] font-bold text-slate-700 hover:bg-slate-200 transition-colors"
+              >
+                Close
+              </button>
+              <a
+                href="tel:+18005550199"
+                className="flex h-11 flex-1 items-center justify-center rounded-[12px] bg-[#1a56db] text-[12px] font-bold text-white hover:bg-[#17307a] transition-colors"
+              >
+                Call Now
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Roadside Assistance Modal */}
+      {showRoadside && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-full max-w-sm bg-white rounded-[24px] p-6 text-center shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600 mb-4">
+              <AlertTriangle className="h-6 w-6" />
+            </div>
+            <h3 className="text-lg font-bold text-[#17307a] mb-2">Roadside Assistance</h3>
+            <p className="text-xs text-[#5f7099] leading-relaxed mb-6">
+              Need immediate towing or roadside help? Speak to our emergency response dispatch service now.
+            </p>
+            <div className="bg-[#fff1f1] p-3 rounded-[12px] text-red-600 font-bold text-lg tracking-wide mb-6">
+              +1 (800) 555-0244
+            </div>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowRoadside(false)}
+                className="flex h-11 flex-1 items-center justify-center rounded-[12px] bg-slate-100 text-[12px] font-bold text-slate-700 hover:bg-slate-200 transition-colors"
+              >
+                Close
+              </button>
+              <a
+                href="tel:+18005550244"
+                className="flex h-11 flex-1 items-center justify-center rounded-[12px] bg-red-600 text-[12px] font-bold text-white hover:bg-red-700 transition-colors"
+              >
+                Request Dispatch
+              </a>
+            </div>
+          </div>
         </div>
       )}
     </div>

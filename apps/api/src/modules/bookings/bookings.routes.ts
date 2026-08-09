@@ -47,7 +47,7 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
         v.year as "vehicleYear",
         v.vin as "vehicleVin",
         q.details->>'etaNote' as "estimatedDays",
-        qr.issue_summary as "issueDescription",
+        COALESCE(qr.issue_summary, b.customer_note) as "issueDescription",
         qr.preferred_date as "preferredDate",
         u.name as "customerName",
         u.mobile_number as "customerPhone",
@@ -65,6 +65,7 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
 
     const formatted = result.rows.map((row) => ({
       ...row,
+      status: row.status === 'inService' ? 'in_progress' : row.status,
       totalAmount: Number(row.totalAmount),
     }));
 
@@ -123,8 +124,8 @@ async function createBookingInternal(req: any, res: any, data: {
 
   try {
     const result = await query(
-      `INSERT INTO bookings (customer_id, garage_id, vehicle_id, quote_id, booking_type, scheduled_at, status, total_amount, currency)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pendingPayment', $7, $8)
+      `INSERT INTO bookings (customer_id, garage_id, vehicle_id, quote_id, booking_type, scheduled_at, status, total_amount, currency, customer_note)
+       VALUES ($1, $2, $3, $4, $5, $6, 'pendingPayment', $7, $8, $9)
        RETURNING id, customer_id as "customerId", garage_id as "garageId", vehicle_id as "vehicleId", quote_id as "quoteId", booking_type as "bookingType", scheduled_at as "scheduledAt", status, total_amount as "totalAmount", currency, created_at as "createdAt"`,
       [
         customerId,
@@ -134,7 +135,8 @@ async function createBookingInternal(req: any, res: any, data: {
         bookingType,
         scheduledAt,
         totalAmount,
-        currency || 'USD'
+        currency || 'USD',
+        finalServiceType
       ]
     );
 
@@ -307,7 +309,7 @@ bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
         v.year as "vehicleYear",
         v.vin as "vehicleVin",
         q.details->>'etaNote' as "estimatedDays",
-        qr.issue_summary as "issueDescription",
+        COALESCE(qr.issue_summary, b.customer_note) as "issueDescription",
         qr.preferred_date as "preferredDate",
         u.name as "customerName",
         u.mobile_number as "customerPhone",
@@ -329,6 +331,7 @@ bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
     const row = result.rows[0];
     const formatted = {
       ...row,
+      status: row.status === 'inService' ? 'in_progress' : row.status,
       totalAmount: Number(row.totalAmount),
     };
 
@@ -373,6 +376,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
     if (status === 'pending') dbStatus = 'pendingPayment';
     if (status === 'accepted') dbStatus = 'confirmed';
     if (status === 'rejected') dbStatus = 'cancelled';
+    if (status === 'in_progress') dbStatus = 'inService';
 
     const result = await query(
       `UPDATE bookings

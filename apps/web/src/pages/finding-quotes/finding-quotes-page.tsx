@@ -130,6 +130,7 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
     console.log('[FindingQuotes] Mount effect ran. isMounted:', isMounted, 'hasSubmitted:', hasSubmitted.current);
     if (!isMounted) return;
     if (hasSubmitted.current) return;
+    if (chosenIssues.length === 0) return;
     async function submitRequest() {
       try {
         hasSubmitted.current = true;
@@ -177,6 +178,12 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
     } else if (requestId) {
       console.log('[FindingQuotes] Redirect condition met! Pushing to request-aent with requestId:', requestId);
       router.push(`/request-aent?requestId=${requestId}`);
+      // Fallback redirection in case next-router navigation stalls
+      setTimeout(() => {
+        if (typeof window !== 'undefined') {
+          window.location.href = `/request-aent?requestId=${requestId}`;
+        }
+      }, 300);
     } else {
       console.log('[FindingQuotes] Steps complete but requestId is null.');
     }

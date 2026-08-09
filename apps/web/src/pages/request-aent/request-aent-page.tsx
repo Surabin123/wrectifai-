@@ -86,11 +86,10 @@ export function RequestAentPage({ issues, requestId }: { issues?: string; reques
   useEffect(() => {
     async function fetchGarages() {
       try {
-        const url = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
-        const res = await fetch(`${url}/garages`);
-        const json = await res.json();
-        if (json.data) {
-          setGarages(json.data.slice(0, 4));
+        const { apiClient } = await import('@/lib/api-client');
+        const data = await apiClient.get<any[]>('/garages');
+        if (data) {
+          setGarages(data.slice(0, 4));
         }
       } catch (err) {
         console.error('Failed to load garages:', err);
