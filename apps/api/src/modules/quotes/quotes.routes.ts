@@ -108,10 +108,12 @@ quotesRouter.get('/garage-requests', authenticate, async (req, res) => {
     const result = await query(
       `SELECT qr.id, qr.customer_id as "customerId", qr.vehicle_id as "vehicleId", qr.issue_summary as "issueSummary", qr.status, qr.created_at as "createdAt",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage",
-              NULL as "customerAvatar", u.name as "customerName"
+              NULL as "customerAvatar", u.name as "customerName", u.mobile_number as "customerPhone", u.email as "customerEmail",
+              g.name as "garageName"
        FROM quote_requests qr
        LEFT JOIN vehicles v ON qr.vehicle_id = v.id
        LEFT JOIN users u ON qr.customer_id = u.id
+       LEFT JOIN garages g ON qr.garage_id = g.id
        WHERE qr.garage_id = $1
        ORDER BY qr.created_at DESC`,
       [garageId]
@@ -121,6 +123,9 @@ quotesRouter.get('/garage-requests', authenticate, async (req, res) => {
       id: row.id,
       customerId: row.customerId,
       customerName: row.customerName || 'Customer',
+      customerPhone: row.customerPhone || 'N/A',
+      customerEmail: row.customerEmail || 'N/A',
+      garageName: row.garageName || 'N/A',
       customerAvatar: row.customerAvatar,
       vehicleId: row.vehicleId,
       issueSummary: row.issueSummary,
@@ -532,17 +537,22 @@ quotesRouter.get('/garage/quotes', authenticate, async (req, res) => {
       `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount as "totalCost", q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.eta_days as "etaDays", q.details->>'etaNote' as "etaNote", q.status as "quoteStatus", q.created_at as "createdAt", q.details,
               qr.issue_summary as "issueSummary",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear",
-              u.name as "customerName", NULL as "customerAvatar"
+              u.name as "customerName", u.mobile_number as "customerPhone", u.email as "customerEmail", NULL as "customerAvatar",
+              g.name as "garageName"
        FROM quotes q
        JOIN quote_requests qr ON q.quote_request_id = qr.id
        LEFT JOIN vehicles v ON qr.vehicle_id = v.id
        LEFT JOIN users u ON qr.customer_id = u.id
+       LEFT JOIN garages g ON q.garage_id = g.id
        WHERE q.garage_id = $1
        ORDER BY q.created_at DESC`,
       [garageId]
     );
     const mapped = result.rows.map(row => ({
       ...row,
+      customerPhone: row.customerPhone || 'N/A',
+      customerEmail: row.customerEmail || 'N/A',
+      garageName: row.garageName || 'N/A',
       laborCost: Number(row.laborCost || 0),
       partsCost: Number(row.partsCost || 0),
       totalCost: Number(row.totalCost || 0)

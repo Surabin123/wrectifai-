@@ -164,8 +164,13 @@ export function VehiclesPage() {
     e.preventDefault();
     setFormError(null);
 
-    if (!make.trim() || !model.trim() || !year) {
-      setFormError('Make, model, and year are required.');
+    if (!make.trim() || !model.trim() || !year || mileage === '' || !vin.trim()) {
+      setFormError('Make, model, year, miles (mileage), and VIN number are all required.');
+      return;
+    }
+
+    if (vin.trim().length !== 17) {
+      setFormError('VIN number must be exactly 17 characters.');
       return;
     }
 
@@ -176,7 +181,7 @@ export function VehiclesPage() {
         model,
         year: Number(year),
         vin: vin.trim() || undefined,
-        mileage: mileage !== '' ? Number(mileage) : undefined,
+        mileage: Number(mileage),
       });
       setIsAddOpen(false);
       resetForm();
@@ -205,8 +210,13 @@ export function VehiclesPage() {
 
     if (!selectedVehicle) return;
 
-    if (!make.trim() || !model.trim() || !year) {
-      setFormError('Make, model, and year are required.');
+    if (!make.trim() || !model.trim() || !year || mileage === '' || !vin.trim()) {
+      setFormError('Make, model, year, miles (mileage), and VIN number are all required.');
+      return;
+    }
+
+    if (vin.trim().length !== 17) {
+      setFormError('VIN number must be exactly 17 characters.');
       return;
     }
 
@@ -217,7 +227,7 @@ export function VehiclesPage() {
         model,
         year: Number(year),
         vin: vin.trim() || undefined,
-        mileage: mileage !== '' ? Number(mileage) : undefined,
+        mileage: Number(mileage),
       });
       setIsEditOpen(false);
       setSelectedVehicle(null);

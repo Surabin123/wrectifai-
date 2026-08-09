@@ -17,6 +17,13 @@ ALTER TABLE garages ADD COLUMN IF NOT EXISTS is_approved BOOLEAN DEFAULT false;
 ALTER TABLE garages ADD COLUMN IF NOT EXISTS trust_score NUMERIC(3, 2);
 ALTER TABLE garages ADD COLUMN IF NOT EXISTS business_hours JSONB;
 
+-- Add missing columns to quotes table
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS parts_cost NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS labor_cost NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS total_cost NUMERIC(12, 2) NOT NULL DEFAULT 0;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS eta_note TEXT;
+ALTER TABLE quotes ADD COLUMN IF NOT EXISTS comparison_label TEXT NOT NULL DEFAULT 'fair';
+
 -- Update garages approval_status CHECK constraint
 ALTER TABLE garages DROP CONSTRAINT IF EXISTS garages_approval_status_check;
 ALTER TABLE garages ADD CONSTRAINT garages_approval_status_check CHECK (approval_status::text = ANY (ARRAY['pending'::character varying, 'approved'::character varying, 'rejected'::character varying, 'suspended'::character varying]::text[]));
