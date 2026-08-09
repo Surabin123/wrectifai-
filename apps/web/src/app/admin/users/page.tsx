@@ -180,15 +180,6 @@ export default function CustomersPage() {
              <div><label className="block text-xs font-semibold mb-1">Vehicle Type</label><input className="w-full border rounded p-2 text-sm" value={formData.vehicleType} onChange={e => setFormData({...formData, vehicleType: e.target.value})} /></div>
            </div>
 
-           <h3 className="text-sm font-bold border-b pb-1 mt-4">Documents</h3>
-           <div className="text-xs text-slate-500 bg-slate-50 p-2 rounded border border-dashed border-slate-300">
-             Note: Document storage is not available in the current demo. You may select files, but they will not be persisted to the database.
-           </div>
-           <div className="grid grid-cols-2 gap-4">
-             <div><label className="block text-xs font-semibold mb-1">Aadhaar Upload</label><input type="file" className="w-full text-xs" /></div>
-             <div><label className="block text-xs font-semibold mb-1">Driving License Upload</label><input type="file" className="w-full text-xs" /></div>
-           </div>
-
            <div className="pt-4 flex gap-2">
              <button type="button" onClick={() => setIsAddModalOpen(false)} className="flex-1 py-2 border rounded-lg text-sm font-bold">Cancel</button>
              <button type="submit" disabled={isSubmitting} className="px-4 py-2 text-sm font-medium text-white bg-[#1a56db] rounded-lg hover:bg-[#174ec5]">

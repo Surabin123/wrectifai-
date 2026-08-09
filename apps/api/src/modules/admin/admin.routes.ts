@@ -11,7 +11,7 @@ adminRouter.use(requireRole(['admin']));
 
 adminRouter.get('/stats', async (req, res) => {
   try {
-    const customersCount = await query(`SELECT COUNT(*) FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id WHERE r.code = 'user'`);
+    const customersCount = await query(`SELECT COUNT(*) FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id WHERE r.code = 'customer'`);
     const garagesCount = await query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'approved'`);
     const pendingCount = await query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'pending'`);
     const bookingsCount = await query(`SELECT COUNT(*) FROM bookings WHERE status IN ('confirmed', 'inService')`);
