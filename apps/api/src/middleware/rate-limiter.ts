@@ -10,8 +10,8 @@ const ipLimits = new Map<string, RateLimitInfo>();
 
 export function rateLimiter(options: { windowMs: number; max: number; message: string }) {
   return (req: Request, res: Response, next: NextFunction) => {
-    // Determine client IP. Supports proxy headers if proxy trust is enabled
-    const ip = req.ip || (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.socket.remoteAddress || 'unknown';
+    // Determine client IP. Prioritize X-Forwarded-For to get the original client IP behind edge proxies (like Cloudflare/Render LB)
+    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.ip || req.socket.remoteAddress || 'unknown';
     const now = Date.now();
 
     let limitInfo = ipLimits.get(ip);
