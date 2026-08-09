@@ -260,8 +260,14 @@ bookingsRouter.post('/from-quote/:quoteId', authenticate, async (req, res) => {
       currency: currency || quoteData.currency || 'USD',
       serviceType: issueDescription || serviceType || 'Quote Based Service',
     });
-  } catch (err) {
-    return error(res, 'Failed to process quote', 'INTERNAL_SERVER_ERROR', 500);
+  } catch (err: any) {
+    console.error('Error processing quote booking:', err);
+    return error(
+      res,
+      err instanceof Error ? err.message : 'Failed to process quote',
+      'INTERNAL_SERVER_ERROR',
+      500
+    );
   }
 });
 

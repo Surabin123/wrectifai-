@@ -2,6 +2,7 @@
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { User, Bell, Shield, CreditCard, Globe, Moon, Sun, Info, ChevronRight, MonitorSmartphone, Monitor, HelpCircle, ShieldCheck, LogOut } from 'lucide-react';
+import { SupportModal } from '@/components/common/support-modal';
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
@@ -15,6 +16,7 @@ export function SettingsContent() {
   const basePath = pathname.startsWith('/admin') ? '/admin' : pathname.startsWith('/garage') ? '/garage' : '';
 
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const roleKey = basePath === '/admin' ? 'admin' : basePath === '/garage' ? 'garage' : 'customer';
   const [theme, setTheme] = useState('light');
   const [mounted, setMounted] = useState(false);
@@ -81,10 +83,7 @@ export function SettingsContent() {
         <Card className="p-6 shadow-sm border-slate-100 rounded-[20px]">
           <h3 className="font-bold text-slate-900 mb-2">Need Help?</h3>
           <p className="text-sm text-slate-500 mb-4">We&apos;re here to help you with any issues or questions.</p>
-          <Button variant="outline" className="w-full font-bold text-blue-600 border-blue-200" onClick={() => {
-             const helpPath = basePath === '/admin' ? '/admin/support' : basePath === '/garage' ? '/garage/help' : '/help-support';
-             router.push(helpPath);
-          }}>
+          <Button variant="outline" className="w-full font-bold text-blue-600 border-blue-200" onClick={() => setIsSupportModalOpen(true)}>
              <HelpCircle className="w-4 h-4 mr-2" /> Contact Support
           </Button>
         </Card>
@@ -120,6 +119,7 @@ export function SettingsContent() {
           <Button className="w-full mt-4 bg-blue-600 text-white" onClick={() => setIsAboutModalOpen(false)}>Close</Button>
         </div>
       </Modal>
+      <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} />
     </div>
   );
 }

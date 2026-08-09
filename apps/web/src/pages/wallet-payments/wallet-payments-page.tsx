@@ -1,5 +1,6 @@
 'use client';
 
+import { SupportModal } from '@/components/common/support-modal';
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
@@ -69,6 +70,7 @@ export function WalletPaymentsPage() {
   const [isLearnWalletOpen, setIsLearnWalletOpen] = useState(false);
   const [isAddMethodOpen, setIsAddMethodOpen] = useState(false);
   const [newMethodType, setNewMethodType] = useState('Card');
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
   const [paymentMethods, setPaymentMethods] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -339,7 +341,7 @@ export function WalletPaymentsPage() {
           <Card className="p-5 shadow-sm border-slate-100 bg-white rounded-[20px]">
             <h3 className="font-bold text-slate-900 mb-2">Need Help?</h3>
             <p className="text-sm text-slate-500 mb-4">Facing issues with payments? We&apos;re here to help you.</p>
-            <Button variant="outline" className="w-full border-blue-200 text-blue-600 hover:bg-blue-50" onClick={() => router.push('/help-support')}>
+            <Button variant="outline" className="w-full border-blue-200 text-blue-600 hover:bg-blue-50" onClick={() => setIsSupportModalOpen(true)}>
               <HelpCircle className="w-4 h-4 mr-2" /> Contact Support
             </Button>
           </Card>
@@ -444,6 +446,7 @@ export function WalletPaymentsPage() {
           </div>
         )}
       </Modal>
+      <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} />
     </DashboardShell>
   );
 }

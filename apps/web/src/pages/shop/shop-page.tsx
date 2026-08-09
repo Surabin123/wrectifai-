@@ -1,5 +1,6 @@
 'use client';
 
+import { SupportModal } from '@/components/common/support-modal';
 import { useState, useEffect } from 'react';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
@@ -30,6 +31,7 @@ export function ShopPage() {
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
   const [products, setProducts] = useState(initialMockProducts);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
   const showToast = (message: string) => {
     setToastMessage(message);
@@ -206,7 +208,7 @@ export function ShopPage() {
           <Card className="p-5 shadow-sm border-slate-100 bg-blue-50/50 rounded-[20px]">
             <h3 className="font-bold text-slate-900 mb-2">Need Help?</h3>
             <p className="text-sm text-slate-500 mb-4">Can&apos;t find what you&apos;re looking for? Our experts are here to help you.</p>
-            <Button variant="outline" className="w-full bg-white border-blue-200 text-blue-600 hover:bg-blue-50" onClick={() => router.push('/help-support')}>
+            <Button variant="outline" className="w-full bg-white border-blue-200 text-blue-600 hover:bg-blue-50" onClick={() => setIsSupportModalOpen(true)}>
               Contact Support
             </Button>
           </Card>
@@ -219,6 +221,7 @@ export function ShopPage() {
           {toastMessage}
         </div>
       )}
+      <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} />
     </DashboardShell>
   );
 }

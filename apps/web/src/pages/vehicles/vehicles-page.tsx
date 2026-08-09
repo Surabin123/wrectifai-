@@ -440,6 +440,7 @@ export function VehiclesPage() {
                       placeholder="e.g. 45000"
                       value={mileage}
                       onChange={(e) => setMileage(e.target.value !== '' ? Number(e.target.value) : '')}
+                      required
                     />
                   </div>
                 </div>
@@ -453,6 +454,7 @@ export function VehiclesPage() {
                     value={vin}
                     onChange={(e) => setVin(e.target.value.toUpperCase())}
                     maxLength={17}
+                    required
                   />
                 </div>
 
@@ -536,6 +538,7 @@ export function VehiclesPage() {
                       placeholder="e.g. 45000"
                       value={mileage}
                       onChange={(e) => setMileage(e.target.value !== '' ? Number(e.target.value) : '')}
+                      required
                     />
                   </div>
                 </div>
@@ -549,6 +552,7 @@ export function VehiclesPage() {
                     value={vin}
                     onChange={(e) => setVin(e.target.value.toUpperCase())}
                     maxLength={17}
+                    required
                   />
                 </div>
 

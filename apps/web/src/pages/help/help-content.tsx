@@ -6,19 +6,22 @@ import { useState } from 'react';
 import { Modal } from '@/components/common/modal';
 import { Button } from '@/components/common/button';
 
+import { SupportModal } from '@/components/common/support-modal';
+
 export function HelpContent() {
   const router = useRouter();
   const pathname = usePathname() || '';
   const basePath = pathname.startsWith('/admin') ? '/admin' : pathname.startsWith('/garage') ? '/garage' : '';
 
   const [isLegalModalOpen, setIsLegalModalOpen] = useState(false);
+  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   const handleAction = (item: any) => {
     if (item.link) {
       router.push(`${basePath}${item.link}`);
     } else if (item.title === 'Technical Support') {
-      // Do nothing for now
+      setIsSupportModalOpen(true);
     } else if (item.title === 'Policies & Legal') {
       setIsLegalModalOpen(true);
     }
@@ -41,7 +44,6 @@ export function HelpContent() {
 
   const q = searchQuery.toLowerCase();
   const filteredCategories = categories.filter(c => c.title.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q));
-  const filteredContacts = contacts.filter(c => c.title.toLowerCase().includes(q) || c.desc.toLowerCase().includes(q));
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 relative">
@@ -72,12 +74,12 @@ export function HelpContent() {
                  <Card key={i} className="p-4 flex items-start gap-4 cursor-pointer hover:shadow-md transition-shadow border-slate-100 shadow-sm rounded-[16px]" onClick={() => handleAction(c)}>
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${c.bg} ${c.color}`}>
                        <c.icon className="w-5 h-5" />
-                    </div>
-                    <div className="flex-1">
-                      <h4 className="font-bold text-sm text-slate-900">{c.title}</h4>
-                      <p className="text-xs text-slate-500 mt-1">{c.desc}</p>
-                    </div>
-                 </Card>
+                     </div>
+                     <div className="flex-1">
+                       <h4 className="font-bold text-sm text-slate-900">{c.title}</h4>
+                       <p className="text-xs text-slate-500 mt-1">{c.desc}</p>
+                     </div>
+                  </Card>
                ))}
              </div>
            )}
@@ -88,32 +90,11 @@ export function HelpContent() {
         <Card className="p-6 shadow-sm border-slate-100 bg-blue-50/50 rounded-[20px]">
           <h3 className="font-bold text-slate-900 mb-2">Need Immediate Help?</h3>
           <p className="text-sm text-slate-500 mb-4">Our support team is ready to assist you.</p>
-          <button className="w-full py-2 bg-white border border-blue-200 text-blue-600 font-bold rounded-lg flex justify-center items-center gap-2 hover:bg-blue-50 transition-colors mb-3" onClick={() => {
-             const helpPath = basePath === '/admin' ? '/admin/support' : basePath === '/garage' ? '/garage/help' : '/help-support';
-             router.push(helpPath);
-          }}>
+          <button type="button" className="w-full py-2 bg-white border border-blue-200 text-blue-600 font-bold rounded-lg flex justify-center items-center gap-2 hover:bg-blue-50 transition-colors mb-3" onClick={() => setIsSupportModalOpen(true)}>
              <Headset className="w-4 h-4" /> Contact Support
           </button>
           <div className="flex items-center justify-center gap-2 text-xs font-semibold text-green-600">
              <div className="w-2 h-2 rounded-full bg-green-500"></div> Available 24/7
-          </div>
-        </Card>
-
-        <Card className="p-5 shadow-sm border-slate-100 rounded-[20px]">
-          <h3 className="font-bold text-slate-900 mb-4">Contact Us</h3>
-          <div className="space-y-4">
-             {filteredContacts.length === 0 ? (
-               <p className="text-sm text-slate-500">No matching contacts.</p>
-             ) : (
-               filteredContacts.map((c, i) => (
-                 <div key={i} className="flex justify-between items-center cursor-pointer hover:bg-slate-50 p-2 -mx-2 rounded">
-                   <div className="flex items-center gap-3">
-                     <div className="w-8 h-8 rounded bg-slate-100 text-slate-600 flex justify-center items-center"><c.icon className="w-4 h-4"/></div>
-                     <div><p className="text-sm font-bold">{c.title}</p><p className="text-[10px] text-slate-500">{c.desc}</p></div>
-                   </div>
-                 </div>
-               ))
-             )}
           </div>
         </Card>
       </div>
@@ -145,6 +126,8 @@ export function HelpContent() {
           </div>
         </div>
       </Modal>
+
+      <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} />
     </div>
   );
 }
