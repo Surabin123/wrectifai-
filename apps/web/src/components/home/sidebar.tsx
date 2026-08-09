@@ -193,7 +193,7 @@ export function Sidebar({
                     Refer &amp; Earn
                   </h2>
                   <p className="max-w-[130px] text-[10.5px] font-normal leading-snug text-[#17307a] mb-2.5">
-                    Invite your friends and earn up to {'\u20B9500'}
+                    Invite your friends and earn up to {'$500'}
                   </p>
                   <Button
                     asChild
