@@ -48,6 +48,16 @@ export function AdminDashboardShell({
     };
   }, [roleKey]);
 
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+      document.body.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+      document.body.classList.remove('dark');
+    }
+  }, [theme]);
+
   return (
     <main id="top" className={cn("min-h-screen bg-[#f6f8fe]", theme === 'dark' ? 'dark text-foreground' : '')}>
       <div className="mx-auto max-w-[1600px] px-3 py-3 sm:px-4 lg:px-5 lg:h-screen lg:overflow-hidden lg:py-4">

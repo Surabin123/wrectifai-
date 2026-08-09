@@ -17,6 +17,8 @@ export function SettingsContent() {
 
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false);
+  const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
   const roleKey = basePath === '/admin' ? 'admin' : basePath === '/garage' ? 'garage' : 'customer';
   const [theme, setTheme] = useState('light');
   const [mounted, setMounted] = useState(false);
@@ -30,7 +32,11 @@ export function SettingsContent() {
   const displayTheme = mounted ? (theme === 'dark' ? 'Dark Mode' : 'Light Mode') : 'Light Mode';
 
   const handleAction = (item: any) => {
-    if (item.link) {
+    if (item.title === 'Security Settings') {
+      setIsSecurityModalOpen(true);
+    } else if (item.title === 'Payment & Wallet Settings') {
+      setIsPaymentModalOpen(true);
+    } else if (item.link) {
       router.push(`${basePath}${item.link}`);
     } else if (item.title === 'Appearance') {
       const next = theme === 'dark' ? 'light' : 'dark';
@@ -44,9 +50,9 @@ export function SettingsContent() {
 
   const settingItems = [
     { icon: User, title: 'Profile Settings', desc: 'Update your personal information, email and phone number.', action: 'Edit Profile', link: '/profile' },
-    { icon: Bell, title: 'Notification Preferences', desc: 'Choose how you want to receive updates and alerts.', action: 'Manage' },
+    { icon: Bell, title: 'Notification Preferences', desc: 'Choose how you want to receive updates and alerts.', action: 'Manage', link: '/notifications' },
     { icon: Shield, title: 'Security Settings', desc: 'Change your password and manage account security.', action: 'Manage' },
-    { icon: CreditCard, title: 'Payment & Wallet Settings', desc: 'Manage saved cards, UPI and payment preferences.', action: 'Manage', link: '/wallet-payments' },
+    { icon: CreditCard, title: 'Payment & Wallet Settings', desc: 'Manage saved cards, UPI and payment preferences.', action: 'Manage' },
     { icon: Globe, title: 'Language & Region', desc: 'Choose your preferred language and region.', actionText: 'English (India)', hasDropdown: true },
     { icon: displayTheme === 'Light Mode' ? Sun : Moon, title: 'Appearance', desc: 'Customize the look and feel of the application.', actionText: displayTheme, hasDropdown: true },
     { icon: Info, title: 'About WrectifAI', desc: 'App version, terms of service and privacy policy.', action: 'View Details' },
@@ -120,6 +126,63 @@ export function SettingsContent() {
         </div>
       </Modal>
       <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} />
+
+      <Modal isOpen={isSecurityModalOpen} onClose={() => setIsSecurityModalOpen(false)} title="Security Settings">
+        <div className="space-y-4 py-2">
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Two-Factor Authentication</label>
+              <div className="flex items-center justify-between bg-slate-50 border p-3 rounded-xl">
+                <span className="text-sm font-bold text-slate-800">Authenticator App</span>
+                <span className="px-2.5 py-1 bg-green-50 text-green-700 text-xs font-bold rounded-lg border border-green-100">Enabled</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Last Active Session</label>
+              <div className="bg-slate-50 border p-3 rounded-xl space-y-1">
+                <p className="text-sm font-bold text-slate-800">Chrome (Windows) — Mumbai, India</p>
+                <p className="text-xs text-slate-500">Active session now</p>
+              </div>
+            </div>
+          </div>
+          <div className="pt-4 border-t flex flex-col gap-2">
+            <Button className="w-full bg-blue-600 text-white font-bold" onClick={() => setIsSecurityModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isPaymentModalOpen} onClose={() => setIsPaymentModalOpen(false)} title="Payment & Wallet Settings">
+        <div className="space-y-4 py-2">
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Default Payment Method</label>
+              <div className="flex items-center justify-between bg-slate-50 border p-3 rounded-xl">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="w-5 h-5 text-blue-600" />
+                  <span className="text-sm font-bold text-slate-800">HDFC Bank Debit Card (•••• 4242)</span>
+                </div>
+                <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-xs font-bold rounded-lg border border-blue-100">Primary</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Wallet Preferences</label>
+              <div className="bg-slate-50 border p-3 rounded-xl space-y-1">
+                <div className="flex justify-between items-center">
+                  <span className="text-sm font-semibold text-slate-700">Auto-Recharge Wallet</span>
+                  <span className="text-xs text-slate-500 font-bold">Inactive</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="pt-4 border-t flex flex-col gap-2">
+            <Button className="w-full bg-blue-600 text-white font-bold" onClick={() => setIsPaymentModalOpen(false)}>
+              Close
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

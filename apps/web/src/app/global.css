@@ -48,8 +48,9 @@
   --app-color-text-muted: #94A3B8;
 }
 
-.dark body, .dark html, .dark main {
+body.dark, html.dark, main.dark, .dark body, .dark html, .dark main {
   background: #0B0F19 !important;
+  background-image: none !important;
   color: #F8FAFC !important;
 }
 
