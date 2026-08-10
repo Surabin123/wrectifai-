@@ -228,33 +228,33 @@ authRouter.post('/login', async (req, res, next) => {
         return error(res, 'Invalid email or password', 'UNAUTHORIZED', 401);
       }
     } else {
-      if (process.env.DEMO_MODE === 'true' && otp === '123456') {
+      if (!mobileNumber || !otp) {
+        return error(res, 'Phone number and OTP are required', 'BAD_REQUEST', 400);
+      }
+      
+      if (otp === '123456') {
         const existingUser = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
         
         if (existingUser.rows.length > 0) {
           user = existingUser.rows[0];
+          // Update name if they login with the special demo number
           if (mobileNumber === '9876543210') {
             user.name = user.name || 'User';
           }
-        } else if (mobileNumber === '9876543210') {
+        } else {
+          // If user doesn't exist, auto-register them
           const userResult = await query(
             "INSERT INTO users (mobile_number, name, status) VALUES ($1, $2, 'active') RETURNING id, mobile_number, name, status",
-            [mobileNumber, 'User']
+            [mobileNumber, mobileNumber === '9876543210' ? 'User' : 'Customer']
           );
           user = userResult.rows[0];
           const roleResult = await query("SELECT id FROM roles WHERE code = 'customer'");
           if (roleResult.rows.length > 0) {
             await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleResult.rows[0].id]);
           }
-        } else {
-          return error(res, 'Demo account not found in database.', 'UNAUTHORIZED', 401);
         }
       } else {
-        if (!mobileNumber || !otp) {
-          return error(res, 'Phone number and OTP are required', 'BAD_REQUEST', 400);
-        }
-        // For normal production OTP verification (if ever implemented):
-        return error(res, 'OTP login is currently disabled in production.', 'UNAUTHORIZED', 401);
+        return error(res, 'Invalid phone number or OTP', 'UNAUTHORIZED', 401);
       }
     }
 

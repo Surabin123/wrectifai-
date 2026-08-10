@@ -16,26 +16,7 @@ export function createApp() {
   // and secure cookies work correctly with X-Forwarded-For headers.
   app.set('trust proxy', 1);
 
-  // Global rate limiter: 100 requests per 15 minutes
-  app.use(
-    rateLimiter({
-      windowMs: 15 * 60 * 1000,
-      max: 100,
-      message: 'Too many requests from this IP, please try again after 15 minutes',
-    })
-  );
-
-  // Strict authentication rate limiter to prevent brute-force attacks: 5 requests per 1 minute
-  const authRateLimiter = rateLimiter({
-    windowMs: 60 * 1000,
-    max: 5,
-    message: 'Too many authentication attempts. Please try again after 1 minute.',
-  });
-  app.use('/api/v1/auth', authRateLimiter);
-  app.use('/api/auth', authRateLimiter);
-
-  // CORS configuration: Strict browser origin allowlist.
-  // Requests without an Origin header do not receive CORS headers, but are not blocked at the application level.
+  // CORS configuration must be first so that rate limiters and error handlers get CORS headers
   const allowedOrigins = env.corsOrigins.map((o) => o.replace(/\/$/, ''));
   app.use(
     cors({
@@ -62,6 +43,24 @@ export function createApp() {
       credentials: true,
     })
   );
+
+  // Global rate limiter: 100 requests per 15 minutes
+  app.use(
+    rateLimiter({
+      windowMs: 15 * 60 * 1000,
+      max: 100,
+      message: 'Too many requests from this IP, please try again after 15 minutes',
+    })
+  );
+
+  // Strict authentication rate limiter to prevent brute-force attacks: 5 requests per 1 minute
+  const authRateLimiter = rateLimiter({
+    windowMs: 60 * 1000,
+    max: 5,
+    message: 'Too many authentication attempts. Please try again after 1 minute.',
+  });
+  app.use('/api/v1/auth', authRateLimiter);
+  app.use('/api/auth', authRateLimiter);
 
   // Cookie parser
   app.use(cookieParser());
