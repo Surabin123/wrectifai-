@@ -12,9 +12,8 @@ export function createApp() {
   const app = express();
   const env = getEnv();
 
-  // Trust the first proxy (Render's load balancer) so that rate limiters
-  // and secure cookies work correctly with X-Forwarded-For headers.
-  app.set('trust proxy', 1);
+  // Trust proxies to correctly resolve client IPs (essential for rate limiting behind load balancers/Render/Cloudflare)
+  app.set('trust proxy', true);
 
   // CORS configuration must be first so that rate limiters and error handlers get CORS headers
   const allowedOrigins = env.corsOrigins.map((o) => o.replace(/\/$/, ''));
@@ -48,15 +47,15 @@ export function createApp() {
   app.use(
     rateLimiter({
       windowMs: 15 * 60 * 1000,
-      max: 100,
+      max: 1000, // Increased to accommodate active usage
       message: 'Too many requests from this IP, please try again after 15 minutes',
     })
   );
 
-  // Strict authentication rate limiter to prevent brute-force attacks: 5 requests per 1 minute
+  // Authentication rate limiter: 100 requests per 1 minute
   const authRateLimiter = rateLimiter({
     windowMs: 60 * 1000,
-    max: 5,
+    max: 100,
     message: 'Too many authentication attempts. Please try again after 1 minute.',
   });
   app.use('/api/v1/auth', authRateLimiter);
