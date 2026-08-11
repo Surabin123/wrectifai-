@@ -129,26 +129,67 @@ authRouter.post('/google', async (req, res) => {
   }
 });
 
-authRouter.post('/register', async (req, res, next) => {
-  const { mobileNumber, name, otp, role = 'customer' } = req.body;
-  if (!mobileNumber || !name || !otp) {
-    return error(res, 'Phone number, name, and OTP are required', 'BAD_REQUEST', 400);
-  }
-
-  if (otp !== '123456') {
-    return error(res, 'Invalid phone number or OTP', 'UNAUTHORIZED', 401);
+authRouter.post('/check-user', async (req, res, next) => {
+  const { mobileNumber } = req.body;
+  if (!mobileNumber) {
+    return error(res, 'Phone number is required', 'BAD_REQUEST', 400);
   }
 
   try {
-    const existingUser = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
+    const existingUser = await query('SELECT id FROM users WHERE mobile_number = $1', [mobileNumber]);
+    return success(res, { exists: existingUser.rows.length > 0 }, 200);
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/register', async (req, res, next) => {
+  const { mobileNumber, name, otp, email, password, role = 'customer' } = req.body;
+  
+  if (!name) {
+    return error(res, 'Name is required', 'BAD_REQUEST', 400);
+  }
+
+  try {
     let user;
     let isNew = false;
     
-    if (existingUser.rows.length > 0) {
-      user = existingUser.rows[0];
-      await query('UPDATE users SET name = $1 WHERE id = $2', [name, user.id]);
-      user.name = name;
+    if (email && password) {
+      // Email/Password Registration Flow
+      const existingUser = await query('SELECT * FROM users WHERE email = $1', [email]);
+      if (existingUser.rows.length > 0) {
+        return error(res, 'Account already exists with this email. Please sign in.', 'CONFLICT', 409);
+      }
+      
+      if (mobileNumber) {
+        const existingPhone = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
+        if (existingPhone.rows.length > 0) {
+          return error(res, 'Account already exists with this phone number. Please sign in.', 'CONFLICT', 409);
+        }
+      }
+      
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const userResult = await query(
+        "INSERT INTO users (email, name, password_hash, mobile_number, status) VALUES ($1, $2, $3, $4, 'active') RETURNING id, email, name, mobile_number, status",
+        [email, name, hashedPassword, mobileNumber || null]
+      );
+      user = userResult.rows[0];
+      isNew = true;
     } else {
+      // Phone OTP Registration Flow
+      if (!mobileNumber || !otp) {
+        return error(res, 'Phone number and OTP are required', 'BAD_REQUEST', 400);
+      }
+
+      if (otp !== '1234' && otp !== '123456') {
+        return error(res, 'Invalid phone number or OTP', 'UNAUTHORIZED', 401);
+      }
+
+      const existingUser = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
+      if (existingUser.rows.length > 0) {
+        return error(res, 'Account already exists with this phone number. Please sign in.', 'CONFLICT', 409);
+      }
+      
       const userResult = await query(
         "INSERT INTO users (mobile_number, name, status) VALUES ($1, $2, 'active') RETURNING id, email, name, mobile_number, status",
         [mobileNumber, name]
@@ -232,7 +273,7 @@ authRouter.post('/login', async (req, res, next) => {
         return error(res, 'Phone number and OTP are required', 'BAD_REQUEST', 400);
       }
       
-      if (otp === '123456') {
+      if (otp === '1234' || otp === '123456') {
         const existingUser = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
         
         if (existingUser.rows.length > 0) {

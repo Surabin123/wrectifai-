@@ -7,6 +7,7 @@ import { Input } from '@/components/common/input';
 import { Bell, Calendar, Wallet, FileText, CheckCircle2, Clock, ShieldAlert } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
+import { useAuth } from '@/lib/auth-context';
 
 const iconMap: Record<string, any> = { Calendar, Wallet, FileText, Bell, CheckCircle2, Clock, ShieldAlert };
 
@@ -22,6 +23,7 @@ export const initialNotifications: any[] = [
 
 export function Notifications() {
   const pathname = usePathname();
+  const { user } = useAuth();
 
   const [notifications, setNotificationsState] = useState(initialNotifications);
   const [filter, setFilter] = useState('All');
@@ -44,9 +46,17 @@ export function Notifications() {
     }
   }, []);
 
-  const filteredNotifications = notifications.filter(n => filter === 'All' || n.type === filter);
+  const isAdmin = user?.roles?.includes('admin');
+  const isGarage = user?.roles?.includes('garage');
+  const audienceRole = isAdmin ? 'Admin' : isGarage ? 'Garage' : 'Customer';
+
+  const audienceFiltered = notifications.filter(n => 
+    n.audience === 'All' || n.audience === audienceRole
+  );
+
+  const filteredNotifications = audienceFiltered.filter(n => filter === 'All' || n.type === filter);
   
-  const unreadCount = notifications.filter(n => !n.read).length;
+  const unreadCount = audienceFiltered.filter(n => !n.read).length;
 
   const markAllAsRead = () => {
     setNotifications(notifications.map(n => ({ ...n, read: true })));

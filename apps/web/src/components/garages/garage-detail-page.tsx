@@ -82,8 +82,6 @@ const servicesOffered = [
   { name: 'More Services', icon: SlidersHorizontal },
 ];
 
-import { useFavorites } from '@/lib/favorites-context';
-
 export function GarageDetailPage({
   garage: initialGarage,
   onBack,
@@ -92,8 +90,66 @@ export function GarageDetailPage({
   quoteContext,
 }: GarageDetailPageProps) {
   const router = useRouter();
-  const { isFavorite, toggleFavorite } = useFavorites();
-  const favorite = isFavorite(initialGarage.name);
+  
+  const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+  const [favorite, setFavorite] = useState(false);
+  const [isToastVisible, setIsToastVisible] = useState(false);
+  const [toastMessage, setToastMessage] = useState('');
+
+  useEffect(() => {
+    const savedWishlist = localStorage.getItem('shopWishlist');
+    if (savedWishlist) {
+      try {
+        const parsed = JSON.parse(savedWishlist);
+        setWishlistItems(parsed);
+        const exists = parsed.find((i: any) => (i.id === initialGarage.id || i.name === initialGarage.name));
+        setFavorite(!!exists);
+      } catch (e) {}
+    }
+
+    const handleUpdate = () => {
+      const updated = localStorage.getItem('shopWishlist');
+      if (updated) {
+        try {
+          const parsed = JSON.parse(updated);
+          setWishlistItems(parsed);
+          const exists = parsed.find((i: any) => (i.id === initialGarage.id || i.name === initialGarage.name));
+          setFavorite(!!exists);
+        } catch (e) {}
+      }
+    };
+
+    window.addEventListener('wishlist-updated', handleUpdate);
+    return () => window.removeEventListener('wishlist-updated', handleUpdate);
+  }, [initialGarage.id, initialGarage.name]);
+
+  const toggleFavorite = (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    const id = initialGarage.id || initialGarage.name;
+    const exists = wishlistItems.find(i => (i.id === id || i.name === id));
+    let newItems;
+    if (exists) {
+      newItems = wishlistItems.filter(i => (i.id !== id && i.name !== id));
+      setToastMessage('Garage removed from Wishlist');
+    } else {
+      newItems = [...wishlistItems, { 
+        id, 
+        name: initialGarage.facade || initialGarage.name, 
+        img: initialGarage.image, 
+        category: initialGarage.location,
+        type: 'garage' 
+      }];
+      setToastMessage('Garage added to Wishlist');
+    }
+    
+    setWishlistItems(newItems);
+    setFavorite(!exists);
+    localStorage.setItem('shopWishlist', JSON.stringify(newItems));
+    window.dispatchEvent(new Event('wishlist-updated'));
+    
+    setIsToastVisible(true);
+    setTimeout(() => setIsToastVisible(false), 3000);
+  };
   const [isExpanded, setIsExpanded] = useState(false);
   
   // Track garage and services separately to prevent prop-reference cycles
@@ -225,6 +281,7 @@ export function GarageDetailPage({
           const notifs = JSON.parse(localStorage.getItem('wrectifai_notifications') || '[]');
           notifs.unshift({ id: Date.now(), type: 'Quote', title: 'New Quote Request', desc: `Customer requested a quote from ${garage.name}.`, time: 'Just now', read: false, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'Admin' });
           notifs.unshift({ id: Date.now() + 1, type: 'Quote', title: 'New Quote Request', desc: `You received a new quote request from a customer.`, time: 'Just now', read: false, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'Garage' });
+          notifs.unshift({ id: Date.now() + 2, type: 'Quote', title: 'Quote Requested', desc: `You successfully sent a quote request to ${garage.name}.`, time: 'Just now', read: false, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'Customer' });
           localStorage.setItem('wrectifai_notifications', JSON.stringify(notifs));
           window.dispatchEvent(new Event('notifications-updated'));
         }} 
@@ -238,6 +295,7 @@ export function GarageDetailPage({
           const notifs = JSON.parse(localStorage.getItem('wrectifai_notifications') || '[]');
           notifs.unshift({ id: Date.now(), type: 'Booking', title: 'New Booking', desc: `Customer booked an appointment at ${garage.name}.`, time: 'Just now', read: false, icon: 'Calendar', color: 'text-blue-500', bg: 'bg-blue-50', audience: 'Admin' });
           notifs.unshift({ id: Date.now() + 1, type: 'Booking', title: 'New Booking', desc: `You received a new booking from a customer.`, time: 'Just now', read: false, icon: 'Calendar', color: 'text-blue-500', bg: 'bg-blue-50', audience: 'Garage' });
+          notifs.unshift({ id: Date.now() + 2, type: 'Booking', title: 'Booking Confirmed', desc: `Your appointment at ${garage.name} has been booked.`, time: 'Just now', read: false, icon: 'Calendar', color: 'text-blue-500', bg: 'bg-blue-50', audience: 'Customer' });
           localStorage.setItem('wrectifai_notifications', JSON.stringify(notifs));
           window.dispatchEvent(new Event('notifications-updated'));
         }} 
@@ -305,7 +363,7 @@ export function GarageDetailPage({
                 </span>
               )}
               <button
-                onClick={() => toggleFavorite(garage.name)}
+                onClick={toggleFavorite}
                 className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#1a56db] shadow-[0_8px_20px_rgba(30,58,138,0.15)] transition-transform hover:scale-105 active:scale-95"
               >
                 <Heart
@@ -993,6 +1051,12 @@ export function GarageDetailPage({
           </div>
         </Modal>
       </div>
+      {/* Simple Toast for Wishlist */}
+      {isToastVisible && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg z-50 text-sm font-medium animate-in fade-in slide-in-from-bottom-5">
+          {toastMessage}
+        </div>
+      )}
     </>
   );
 }

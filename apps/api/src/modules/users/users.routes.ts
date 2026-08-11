@@ -19,7 +19,9 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return error(res, 'Name is required', 'VALIDATION_ERROR', 400);
     }
-    if (!email || typeof email !== 'string' || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    const emailToSave = email && email.trim() !== '' ? email.trim().toLowerCase() : null;
+
+    if (emailToSave && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailToSave)) {
       return error(res, 'A valid email is required', 'VALIDATION_ERROR', 400);
     }
 
@@ -27,7 +29,7 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
     
     const result = await query(
       'UPDATE users SET name = $1, email = $2, mobile_number = $3 WHERE id = $4 RETURNING id, email, name, mobile_number as "mobileNumber", status',
-      [name.trim(), email.trim().toLowerCase(), phoneToSave, userId]
+      [name.trim(), emailToSave, phoneToSave, userId]
     );
 
     if (result.rowCount === 0) {

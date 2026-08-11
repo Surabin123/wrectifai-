@@ -39,8 +39,8 @@ export function ShopPage() {
   };
 
   useEffect(() => {
-    const savedCart = sessionStorage.getItem('shopCart');
-    const savedWishlist = sessionStorage.getItem('shopWishlist');
+    const savedCart = localStorage.getItem('shopCart');
+    const savedWishlist = localStorage.getItem('shopWishlist');
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (savedCart) setCartItems(JSON.parse(savedCart));
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -78,7 +78,7 @@ export function ShopPage() {
     const exists = wishlistItems.find(i => i.id === product.id);
     const newItems = exists ? wishlistItems.filter(i => i.id !== product.id) : [...wishlistItems, product];
     setWishlistItems(newItems);
-    sessionStorage.setItem('shopWishlist', JSON.stringify(newItems));
+    localStorage.setItem('shopWishlist', JSON.stringify(newItems));
     window.dispatchEvent(new Event('wishlist-updated'));
   };
 
@@ -91,7 +91,7 @@ export function ShopPage() {
       newItems = [...cartItems, { ...product, quantity: 1 }];
     }
     setCartItems(newItems);
-    sessionStorage.setItem('shopCart', JSON.stringify(newItems));
+    localStorage.setItem('shopCart', JSON.stringify(newItems));
     window.dispatchEvent(new Event('cart-updated'));
     showToast('Added to Cart');
   };

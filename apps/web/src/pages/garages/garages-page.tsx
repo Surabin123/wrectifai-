@@ -35,6 +35,7 @@ import { resultIssues } from '@/components/ai-diagnose/diagnose-flow-shared';
 
 import { GarageDetailPage } from '@/components/garages/garage-detail-page';
 import { fetchGarages, type Garage as ApiGarage } from '@/lib/garages-api';
+import { getLocationCookie, formatCurrency } from '@/utils/location';
 
 type FilterKey =
   | 'rating'
@@ -380,7 +381,7 @@ function parseDistanceKm(distance: any): number {
   return isNaN(num) ? 3.0 : num;
 }
 
-function mapBackendGarageToFrontend(g: any): Garage {
+function mapBackendGarageToFrontend(g: any, userCity: string): Garage {
   const name = g.name;
   const badge = g.badge || '';
   const chips = g.chips && g.chips.length > 0 ? g.chips : ['General Service'];
@@ -393,9 +394,9 @@ function mapBackendGarageToFrontend(g: any): Garage {
     badge,
     badgeTone: getGarageBadgeTone(badge),
     name,
-    rating: Number(g.rating) || 0.0,
+    rating: Number(g.rating) || 4.5,
     reviews: Number(g.reviews) || 0,
-    location: g.location || '',
+    location: userCity,
     distanceKm,
     responseMins,
     chips,
@@ -424,6 +425,18 @@ function GaragesContent() {
     moreFilters: 'all',
   });
 
+  const [userCity, setUserCity] = useState('Hyderabad');
+
+  useEffect(() => {
+    const handleCityChange = () => {
+      const city = getLocationCookie('wrectifai_city') || 'Hyderabad';
+      setUserCity(city);
+    };
+    handleCityChange();
+    window.addEventListener('city-changed', handleCityChange);
+    return () => window.removeEventListener('city-changed', handleCityChange);
+  }, []);
+
   const [garagesList, setGaragesList] = useState<Garage[]>([]);
   const [quotes, setQuotes] = useState<any[]>([]);
 
@@ -432,7 +445,7 @@ function GaragesContent() {
     fetchGarages()
       .then((data) => {
         if (active && data && data.length > 0) {
-          const merged = data.map(mapBackendGarageToFrontend);
+          const merged = data.map(g => mapBackendGarageToFrontend(g, userCity));
           setGaragesList(merged);
         }
       })
@@ -451,7 +464,7 @@ function GaragesContent() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [userCity]);
 
   useEffect(() => {
     const handleSearch = (event: Event) => {
@@ -476,12 +489,12 @@ function GaragesContent() {
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
 
   useEffect(() => {
-    const savedWishlist = sessionStorage.getItem('shopWishlist');
+    const savedWishlist = localStorage.getItem('shopWishlist');
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (savedWishlist) setWishlistItems(JSON.parse(savedWishlist));
     
     const handleUpdate = () => {
-      const updated = sessionStorage.getItem('shopWishlist');
+      const updated = localStorage.getItem('shopWishlist');
       if (updated) setWishlistItems(JSON.parse(updated));
     };
     window.addEventListener('wishlist-updated', handleUpdate);
@@ -508,7 +521,7 @@ function GaragesContent() {
     }
     
     setWishlistItems(newItems);
-    sessionStorage.setItem('shopWishlist', JSON.stringify(newItems));
+    localStorage.setItem('shopWishlist', JSON.stringify(newItems));
     window.dispatchEvent(new Event('wishlist-updated'));
     
     setIsToastVisible(true);
@@ -706,7 +719,7 @@ function GaragesContent() {
             name: quote.garage,
             rating: Number(quote.rating) || 4.5,
             reviews: Number(quote.reviews) || 12,
-            location: 'Hyderabad',
+            location: userCity,
             distanceKm: parseFloat(quote.distance) || 3.0,
             responseMins: 30,
             chips: ['General Service'],
@@ -785,7 +798,7 @@ function GaragesContent() {
             </h1>
             <p className="mt-1.5 text-[12.5px] font-medium text-[#4f67a2]">
               Showing {filteredGarages.length} garages near{' '}
-              <span className="font-bold text-[#1a56db]">Hyderabad</span>
+              <span className="font-bold text-[#1a56db]">{userCity}</span>
             </p>
         </div>
         </div>

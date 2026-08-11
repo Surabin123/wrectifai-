@@ -3,6 +3,7 @@ packages:
   - 'packages/*'
 
 allowBuilds:
+  '@firebase/util': set this to true or false
   '@parcel/watcher': true
   '@swc/core': true
   core-js: false
@@ -10,5 +11,6 @@ allowBuilds:
   dtrace-provider: true
   esbuild: true
   nx: true
+  protobufjs: set this to true or false
   sharp: true
   unrs-resolver: true

@@ -52,7 +52,13 @@ export default function RegisterGaragePage() {
                </div>
                <div>
                  <label className="block text-xs font-bold text-slate-700 mb-2">Garage Type <span className="text-red-500">*</span></label>
-                 <select className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-400"><option>Select garage type</option></select>
+                 <select className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
+                   <option value="">Select garage type</option>
+                   <option value="authorized">Authorized Service Center</option>
+                   <option value="independent">Independent Garage</option>
+                   <option value="multi-brand">Multi-Brand Workshop</option>
+                   <option value="specialist">Specialist Workshop</option>
+                 </select>
                </div>
                <div>
                  <label className="block text-xs font-bold text-slate-700 mb-2">Registration Number <span className="text-slate-400 font-normal">(Optional)</span></label>
@@ -61,7 +67,12 @@ export default function RegisterGaragePage() {
                <div>
                  <label className="block text-xs font-bold text-slate-700 mb-2">Established Year</label>
                  <div className="relative">
-                    <select className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-400 appearance-none"><option>Select year</option></select>
+                    <select className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700 appearance-none">
+                      <option value="">Select year</option>
+                      {Array.from({ length: 35 }, (_, i) => new Date().getFullYear() - i).map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
                     <div className="absolute right-3 top-2.5">📅</div>
                  </div>
                </div>
@@ -78,7 +89,15 @@ export default function RegisterGaragePage() {
                </div>
                <div>
                  <label className="block text-xs font-bold text-slate-700 mb-2">City <span className="text-red-500">*</span></label>
-                 <select className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-400"><option>Select city</option></select>
+                 <select className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
+                   <option value="">Select city</option>
+                   <option value="Bangalore">Bangalore</option>
+                   <option value="Hyderabad">Hyderabad</option>
+                   <option value="Pune">Pune</option>
+                   <option value="Mumbai">Mumbai</option>
+                   <option value="Delhi">Delhi</option>
+                   <option value="Tiruchirappalli">Tiruchirappalli</option>
+                 </select>
                </div>
                <div>
                  <label className="block text-xs font-bold text-slate-700 mb-2">Area / Locality <span className="text-red-500">*</span></label>

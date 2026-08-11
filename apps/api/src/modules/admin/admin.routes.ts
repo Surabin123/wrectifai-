@@ -290,14 +290,22 @@ adminRouter.post('/users/:id/:action', async (req, res) => {
 adminRouter.delete('/users/:id', async (req, res) => {
   try {
     const userId = req.params.id;
+    // Delete all dependent records first to avoid foreign key constraint errors
+    await query('DELETE FROM user_roles WHERE user_id = $1', [userId]);
+    await query('DELETE FROM profiles WHERE user_id = $1', [userId]);
+    await query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
     await query('DELETE FROM bookings WHERE customer_id = $1', [userId]);
-    await query('DELETE FROM vehicles WHERE owner_id = $1', [userId]);
+    await query('DELETE FROM quote_requests WHERE customer_id = $1', [userId]);
+    await query('DELETE FROM vehicles WHERE customer_id = $1 OR owner_id = $1', [userId]);
+    
+    // Finally delete the user
     const result = await query('DELETE FROM users WHERE id = $1 RETURNING id', [userId]);
     
     if (result.rows.length === 0) return error(res, 'User not found', 'NOT_FOUND', 404);
     
     return success(res, { success: true });
   } catch (err) {
+    console.error('Error deleting user:', err);
     return error(res, 'Failed to delete customer', 'DATABASE_ERROR', 500);
   }
 });

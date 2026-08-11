@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>WrectifAI - Complete Handover Document</title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #333; max-width: 800px; margin: 0 auto; padding: 2rem; }
+  h1, h2, h3 { color: #111; border-bottom: 1px solid #eee; padding-bottom: 0.3em; }
+  h1 { font-size: 2em; border-bottom: 2px solid #eaecef; }
+  code { background-color: #f6f8fa; padding: 0.2em 0.4em; border-radius: 3px; font-family: ui-monospace, SFMono-Regular, Consolas, "Liberation Mono", Menlo, monospace; font-size: 85%; }
+  hr { height: 0.25em; padding: 0; margin: 24px 0; background-color: #e1e4e8; border: 0; }
+  ul, ol { padding-left: 2em; }
+</style>
+</head>
+<body>
+
+<h1>WrectifAI - Complete Handover Document</h1>
+
+<h2>1. Introduction</h2>
+<p>Welcome to the WrectifAI platform. This handover document is designed to provide a comprehensive, easy-to-understand guide to the system, detailing the core features, workflows, and access credentials. Even if you have no prior knowledge of the project, this document will help you understand the entire system completely.</p>
+
+<h2>2. Project Architecture &amp; Stack</h2>
+<p>WrectifAI is built as an advanced monorepo containing three main parts:</p>
+<ul>
+<li><strong>Backend API</strong>: Node.js (Express &amp; PostgreSQL)</li>
+<li><strong>Web Portal</strong>: Next.js (React)</li>
+<li><strong>Mobile App</strong>: React Native (Expo)</li>
+</ul>
+
+<hr>
+
+<h2>3. Login Credentials &amp; Demo Accounts</h2>
+<p>The system is equipped with predefined demo accounts to help you test the platform without registering. All demo accounts use the same OTP for login.</p>
+
+<h3>Customer &amp; Admin Access</h3>
+<ul>
+<li><strong>Demo Customer (Surabin)</strong>
+  <ul>
+  <li>Phone: <code>9876543210</code></li>
+  <li>OTP: <code>123456</code></li>
+  </ul>
+</li>
+<li><strong>Demo Admin (Test Admin)</strong>
+  <ul>
+  <li>Phone: <code>0000000000</code></li>
+  <li>OTP: <code>123456</code></li>
+  </ul>
+</li>
+</ul>
+
+<h3>Garage Access</h3>
+<p>All 12 of these demo garages have full garage functionality. You can log in using their respective phone numbers:</p>
+<ol>
+<li><strong>Metro Auto Bay</strong> - Phone: <code>9999999901</code>, OTP: <code>123456</code></li>
+<li><strong>Speed Motors</strong> - Phone: <code>9999999902</code>, OTP: <code>123456</code></li>
+<li><strong>Elite Garage</strong> - Phone: <code>9999999903</code>, OTP: <code>123456</code></li>
+<li><strong>Star Auto Care</strong> - Phone: <code>9999999904</code>, OTP: <code>123456</code></li>
+<li><strong>Prime Mechanics</strong> - Phone: <code>9999999905</code>, OTP: <code>123456</code></li>
+<li><strong>Ultimate Auto</strong> - Phone: <code>9999999906</code>, OTP: <code>123456</code></li>
+<li><strong>Pro Fix Garage</strong> - Phone: <code>9999999907</code>, OTP: <code>123456</code></li>
+<li><strong>Apex Motors</strong> - Phone: <code>9999999908</code>, OTP: <code>123456</code></li>
+<li><strong>City Garage</strong> - Phone: <code>9999999909</code>, OTP: <code>123456</code></li>
+<li><strong>Trust Auto</strong> - Phone: <code>9999999910</code>, OTP: <code>123456</code></li>
+<li><strong>Quick Fix Motors</strong> - Phone: <code>9999999911</code>, OTP: <code>123456</code></li>
+<li><strong>Auto Care Pro</strong> - Phone: <code>9999999912</code>, OTP: <code>123456</code></li>
+</ol>
+
+<hr>
+
+<h2>4. Platform Features &amp; Sidebar Navigation</h2>
+<p>The platform has a rich sidebar navigation for the Customer Web Portal. Here is an explanation of what each feature does and whether it is powered by real or mock data.</p>
+<ul>
+<li><strong>Home</strong>: The main dashboard overview showing quick actions, recent vehicles, and active service status. <em>(Real Data)</em></li>
+<li><strong>WrectifAI Diagnose</strong>: The core AI Engine feature. Users can describe their car issues (via text, image, or audio) to get a preliminary diagnosis. <em>(Real Data powered by AI Engine and PostgreSQL database)</em></li>
+<li><strong>Services</strong>: Browse available car repair and maintenance services. <em>(Mock Data - Sprint Pending)</em></li>
+<li><strong>Shop</strong>: An auto-parts and accessories marketplace. <em>(Mock Data - Sprint Pending)</em></li>
+<li><strong>Garages</strong>: Discover and view nearby registered garages. <em>(Mock Data UI, backed by Demo Garages in DB)</em></li>
+<li><strong>Bookings</strong>: Manage active and past service appointments. <em>(Mock Data - Sprint Pending)</em></li>
+<li><strong>Quotes</strong>: View and compare repair estimates from different garages. <em>(Mock Data - Sprint Pending)</em></li>
+<li><strong>Vehicles</strong>: Manage user's saved vehicles (add, edit, delete). <em>(Real Data)</em></li>
+<li><strong>Offers</strong>: View promotional discounts, referral links, and reward points. <em>(Mock Data)</em></li>
+<li><strong>Car Tips</strong>: Articles and maintenance tips to keep the vehicle in top shape. <em>(Mock Data)</em></li>
+<li><strong>Wallet &amp; Payments</strong>: Manage digital wallet balance and past transactions. <em>(Mock Data - Sprint Pending)</em></li>
+<li><strong>Profile</strong>: Manage user account details and personal info. <em>(Real Data)</em></li>
+<li><strong>Settings</strong>: Adjust application preferences and notification settings. <em>(Real Data)</em></li>
+<li><strong>Help &amp; Support</strong>: Customer service contact and FAQs. <em>(Mock Data)</em></li>
+</ul>
+
+<hr>
+
+<h2>5. Core Workflows</h2>
+<h3>A. The AI Diagnosis Workflow (Completed)</h3>
+<p>This is the most advanced feature in the platform, acting as a two-stage diagnostic pipeline:</p>
+<ol>
+<li><strong>Stage 1 (Questions)</strong>: The user submits a problem. The system searches the database (using PostgreSQL Full-Text Search) against <code>known_issues</code>. It generates 3–5 targeted questions to narrow down the problem.</li>
+<li><strong>Stage 2 (Final Diagnosis)</strong>: The user answers the questions. They can also upload images or audio. The system processes images (via Groq Vision AI) and transcribes audio (via Whisper AI). The AI then evaluates everything, applies safety constraints, and provides a final diagnosis which is saved to the database.</li>
+</ol>
+
+<h3>B. User Registration &amp; Auth Workflow (Completed)</h3>
+<ol>
+<li>User enters their phone number on the login page.</li>
+<li>System sends an OTP (mocked in demo mode as <code>123456</code>).</li>
+<li>User verifies OTP and is logged into their specific role (Customer, Garage, or Admin). The system uses strict Role-Based Access Control (RBAC).</li>
+</ol>
+
+<h3>C. Booking &amp; Marketplace Workflow (Pending / Mocked)</h3>
+<ol>
+<li>After diagnosis, the user requests quotes from nearby garages.</li>
+<li>Garages receive the request and submit price estimates.</li>
+<li>The user compares quotes in the <strong>Quotes</strong> section, selects the best option, and confirms a <strong>Booking</strong>.</li>
+<li>Payment is processed via Stripe (Implementation scheduled for upcoming sprints).</li>
+</ol>
+
+<h2>6. Implementation Status</h2>
+<ul>
+<li><strong>Completed</strong>: Core API, Database setup, Authentication, Vehicle Management, AI Diagnosis Engine.</li>
+<li><strong>Pending (Sprints 4-9)</strong>: Bookings, Quotes, Marketplace Payments (Stripe), Real-time notifications. These pending sections currently utilize <strong>Mock Data</strong> in the UI to demonstrate the flow.</li>
+</ul>
+
+<h2>7. Developer Notes</h2>
+<ul>
+<li>Do not use ORMs (Object-Relational Mappers). All database queries are raw SQL for performance.</li>
+<li>Any new backend APIs must go under <code>/api/v1</code>.</li>
+<li>The platform uses <code>Nx</code> to run all applications concurrently (<code>pnpm api</code>, <code>pnpm web</code>, <code>pnpm mobile</code>).</li>
+</ul>
+
+</body>
+</html>

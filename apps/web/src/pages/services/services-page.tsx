@@ -4,26 +4,27 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { useRouter } from 'next/navigation';
-import { ChevronRight, Wrench, CheckCircle, Search, MapPin, Star, Calendar } from 'lucide-react';
+import { Search, ChevronRight, Wrench, CheckCircle, ChevronDown, Check, Star, Filter, MapPin } from 'lucide-react';
 import Image from 'next/image';
-import { cn } from '@/lib/utils';
+import { cn } from '@/utils/cn';
+import { formatCurrency, getLocationCookie } from '@/utils/location';
 import { Modal } from '@/components/common/modal';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 
 export const initialMockServices = [
-  { id: 1, name: 'Oil Change', category: 'Maintenance', desc: 'Engine oil replacement with premium quality oil for better performance.', price: '$10 onwards', img: '/assets/engine_oil_bottle.png' },
-  { id: 2, name: 'Brake Service', category: 'Repairs', desc: 'Complete brake inspection and maintenance for your safety.', price: '$20 onwards', img: '/assets/brake_disc_1778070670609.png' },
-  { id: 3, name: 'Tyre Services', category: 'Maintenance', desc: 'Tyre rotation, balancing and alignment for smooth driving.', price: '$15 onwards', img: '/assets/clean_tire.png' },
-  { id: 4, name: 'AC Service', category: 'Maintenance', desc: 'AC gas refill and system check for a cool and comfortable ride.', price: '$25 onwards', img: '/assets/ac_vent_1778070688367.png' },
-  { id: 5, name: 'Diagnostics Only', category: 'Diagnostics', desc: 'Advanced scanning to detect and fix problems accurately.', price: '$30 onwards', img: '/assets/Robo_icon.png' },
-  { id: 6, name: 'Battery Replacement', category: 'Repairs', desc: 'High-performance batteries for a reliable start every time.', price: '$80 onwards', img: '/assets/car_battery.png' },
-  { id: 7, name: 'Wiper Replacement', category: 'Other Services', desc: 'Clear visibility in all weather conditions with new wipers.', price: '$15 onwards', img: '/assets/wiper_blade_1778070781712.png' },
-  { id: 8, name: 'Coolant Flush', category: 'Maintenance', desc: 'Keep your engine cool and protected with coolant replacement.', price: '$20 onwards', img: '/assets/oil_pour_1778070767058.png' },
-  { id: 9, name: 'Suspension Check', category: 'Repairs', desc: 'Ensure a smooth and safe driving experience.', price: '$40 onwards', img: '/assets/Electrical.png' },
+  { id: 1, name: 'Oil Change', category: 'Maintenance', desc: 'Engine oil replacement with premium quality oil for better performance.', price: '10', img: '/assets/engine_oil_bottle.png' },
+  { id: 2, name: 'Brake Service', category: 'Repairs', desc: 'Complete brake inspection and maintenance for your safety.', price: '20', img: '/assets/brake_disc_1778070670609.png' },
+  { id: 3, name: 'Tyre Services', category: 'Maintenance', desc: 'Tyre rotation, balancing and alignment for smooth driving.', price: '15', img: '/assets/clean_tire.png' },
+  { id: 4, name: 'AC Service', category: 'Maintenance', desc: 'AC gas refill and system check for a cool and comfortable ride.', price: '25', img: '/assets/ac_vent_1778070688367.png' },
+  { id: 5, name: 'Diagnostics Only', category: 'Diagnostics', desc: 'Advanced scanning to detect and fix problems accurately.', price: '30', img: '/assets/Robo_icon.png' },
+  { id: 6, name: 'Battery Replacement', category: 'Repairs', desc: 'High-performance batteries for a reliable start every time.', price: '80', img: '/assets/car_battery.png' },
+  { id: 7, name: 'Wiper Replacement', category: 'Other Services', desc: 'Clear visibility in all weather conditions with new wipers.', price: '15', img: '/assets/wiper_blade_1778070781712.png' },
+  { id: 8, name: 'Coolant Flush', category: 'Maintenance', desc: 'Keep your engine cool and protected with coolant replacement.', price: '20', img: '/assets/oil_pour_1778070767058.png' },
+  { id: 9, name: 'Suspension Check', category: 'Repairs', desc: 'Ensure a smooth and safe driving experience.', price: '40', img: '/assets/Electrical.png' },
 ];
 
-const mockGarages = [
+const TOP_GARAGES = [
   { id: 1, name: 'Speed Car Garage', location: '1.2 km away', rating: 4.8, reviews: 124 },
   { id: 2, name: 'AutoCare Center', location: '2.5 km away', rating: 4.6, reviews: 89 },
   { id: 3, name: 'Elite Motors', location: '3.1 km away', rating: 4.9, reviews: 210 },
@@ -38,8 +39,15 @@ export function ServicesPage() {
   const [selectedService, setSelectedService] = useState<any>(null);
   const [isGarageModalOpen, setIsGarageModalOpen] = useState(false);
   const [services, setServices] = useState(initialMockServices);
+  const [userCity, setUserCity] = useState('Hyderabad');
 
   useEffect(() => {
+    const handleCityChange = () => {
+      setUserCity(getLocationCookie('wrectifai_city') || 'Hyderabad');
+    };
+    handleCityChange();
+    window.addEventListener('city-changed', handleCityChange);
+
     const handleSearch = (e: CustomEvent) => setSearchQuery(e.detail);
     
     const loadServices = () => {
@@ -61,6 +69,7 @@ export function ServicesPage() {
     });
     
     return () => {
+      window.removeEventListener('city-changed', handleCityChange);
       window.removeEventListener('dashboard-search', handleSearch as EventListener);
       window.removeEventListener('services-updated', loadServices);
     };
@@ -141,7 +150,7 @@ export function ServicesPage() {
                     <h3 className="font-bold text-slate-900 mb-1">{service.name}</h3>
                     <p className="text-xs text-slate-500 line-clamp-2 mb-4 flex-1">{service.desc}</p>
                     <div className="flex items-center justify-between mt-auto">
-                      <span className="font-bold text-slate-900 text-sm">{service.price}</span>
+                      <span className="text-xs font-bold text-slate-900 bg-white/90 px-2 py-1 rounded backdrop-blur-sm shadow-sm">{formatCurrency(parseInt(service.price))} onwards</span>
                       <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                         <ChevronRight className="w-4 h-4" />
                       </div>
@@ -192,7 +201,7 @@ export function ServicesPage() {
             Select a trusted garage to book <span className="font-bold text-slate-900">{selectedService?.name}</span>
           </p>
           <div className="space-y-3">
-            {mockGarages.map(garage => (
+            {TOP_GARAGES.map(garage => (
               <div 
                 key={garage.id} 
                 onClick={() => handleGarageSelect(garage)}
@@ -201,7 +210,7 @@ export function ServicesPage() {
                 <div>
                   <h4 className="font-bold text-slate-900 group-hover:text-blue-700">{garage.name}</h4>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="flex items-center text-xs text-slate-500"><MapPin className="w-3 h-3 mr-1"/> {garage.location}</span>
+                    <span className="flex items-center text-xs text-slate-500"><MapPin className="w-3 h-3 mr-1"/> {userCity} • {garage.location}</span>
                     <span className="flex items-center text-xs font-medium text-amber-500"><Star className="w-3 h-3 mr-1 fill-current"/> {garage.rating} ({garage.reviews})</span>
                   </div>
                 </div>

@@ -5,9 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, type User } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
-import { Phone, ShieldCheck, User as UserIcon } from 'lucide-react';
+import { setLocationCookie } from '@/utils/location';
+import { Phone, ShieldCheck, User as UserIcon, Mail, Lock } from 'lucide-react';
 import OtpInput from '@/components/common/otp-input';
 import { useGoogleLogin } from '@react-oauth/google';
+import { auth } from '@/lib/firebase';
+import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 
 interface AuthResponse {
   accessToken: string;
@@ -19,18 +22,19 @@ export default function SignupPage() {
   const { isAuthenticated, login } = useAuth();
   const router = useRouter();
 
-  // AuthGuard handles redirection after login automatically.
-
   // Form states
   const [name, setName] = useState('');
+  const [countryCode, setCountryCode] = useState('+91');
   const [mobileNumber, setMobileNumber] = useState('');
-  const [otp, setOtp] = useState('');
-  const [isOtpSent, setIsOtpSent] = useState(false);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
 
-  const handleSendOtp = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
@@ -40,50 +44,77 @@ export default function SignupPage() {
       return;
     }
 
+    if (!/^[a-zA-Z\s]+$/.test(name)) {
+      setErrorMsg('Name can only contain letters and spaces.');
+      return;
+    }
+
     if (!mobileNumber.trim()) {
       setErrorMsg('Please enter a valid phone number');
       return;
     }
 
-    // Accept hardcoded ones
-    const validPhones = ['9876543210', '1234567890'];
     const sanitizedPhone = mobileNumber.replace(/\s+/g, '');
-    if (!validPhones.includes(sanitizedPhone)) {
-      setErrorMsg('error: Invalid phone number.');
+
+    if (countryCode === '+91' && !/^[6-9]\d{9}$/.test(sanitizedPhone)) {
+      setErrorMsg('Not a valid Indian mobile number.');
+      return;
+    }
+    if (countryCode === '+1' && !/^[2-9]\d{9}$/.test(sanitizedPhone)) {
+      setErrorMsg('Not a valid US mobile number.');
+      return;
+    }
+    if (countryCode === '+971' && !/^5\d{8}$/.test(sanitizedPhone)) {
+      setErrorMsg('Not a valid UAE mobile number.');
+      return;
+    }
+
+    if (!email.trim() || !password.trim()) {
+      setErrorMsg('Please enter a valid email and password');
+      return;
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      setErrorMsg('Password must be at least 8 characters with upper, lower, and special character.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setErrorMsg('Passwords do not match');
       return;
     }
 
     setIsSubmitting(true);
-    // Simulate sending OTP
-    setTimeout(() => {
-      setIsOtpSent(true);
-      setIsSubmitting(false);
-      setSuccessMsg('OTP code sent successfully! Use 123456');
-    }, 600);
-  };
-
-  const handleVerifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setErrorMsg('');
-    setSuccessMsg('');
-    setIsSubmitting(true);
-
     try {
+      // Step 1: Pre-check phone to see if it exists to provide friendly error
+      const checkRes = await apiClient.post<{ exists: boolean }>('/auth/check-user', { mobileNumber: sanitizedPhone });
+      if (checkRes.exists) {
+        setErrorMsg('Account already exists with this phone number. Please sign in.');
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Step 2: Register user with all details
       const data = await apiClient.post<AuthResponse>('/auth/register', {
         name,
-        mobileNumber: mobileNumber.replace(/\s+/g, ''),
-        otp,
+        email,
+        password,
+        mobileNumber: sanitizedPhone,
         role: 'customer'
       });
-
+      
+      setLocationCookie('wrectifai_country_code', countryCode);
       login(data.accessToken, data.refreshToken, data.user);
       setSuccessMsg('Successfully registered and logged in! Redirecting...');
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Verification failed. Please check the OTP code.';
+      const message = err instanceof Error ? err.message : 'Registration failed.';
       setErrorMsg(message);
       setIsSubmitting(false);
     }
   };
+
+
 
   const googleSignup = useGoogleLogin({
     onSuccess: async (credentialResponse) => {
@@ -139,79 +170,113 @@ export default function SignupPage() {
         )}
 
         {/* Form Flow */}
-        {!isOtpSent ? (
-          /* Step 1: Name and Phone number request */
-          <form onSubmit={handleSendOtp} className="space-y-4">
-            <div>
-              <label className="block text-xs font-semibold text-[#17307a] mb-1.5">Full Name</label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8ea0c7]">
-                  <UserIcon className="h-4 w-4" />
-                </span>
-                <input
-                  type="text"
-                  required
-                  autoComplete="off"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Enter your full name"
-                  className="h-11 w-full rounded-xl border border-[#dbe6ff] bg-white pl-10 pr-3.5 text-[13px] text-[#17307a] placeholder-[#8ea0c7] outline-none transition-all focus:border-[#1a56db] focus:ring-2 focus:ring-[#1a56db]/10"
-                />
-              </div>
-            </div>
+        <form onSubmit={handleSignup} className="space-y-4">
 
-            <div>
-              <label className="block text-xs font-semibold text-[#17307a] mb-1.5">Phone Number</label>
-              <div className="relative">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8ea0c7]">
-                  <Phone className="h-4 w-4" />
-                </span>
-                <input
-                  type="tel"
-                  required
-                  autoComplete="off"
-                  value={mobileNumber}
-                  onChange={(e) => setMobileNumber(e.target.value)}
-                  placeholder="e.g., 9876543210"
-                  className="h-11 w-full rounded-xl border border-[#dbe6ff] bg-white pl-10 pr-3.5 text-[13px] text-[#17307a] placeholder-[#8ea0c7] outline-none transition-all focus:border-[#1a56db] focus:ring-2 focus:ring-[#1a56db]/10"
-                />
-              </div>
+          {/* Full Name */}
+          <div>
+            <label className="block text-xs font-semibold text-[#17307a] mb-1.5">Full Name</label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8ea0c7]">
+                <UserIcon className="h-4 w-4" />
+              </span>
+              <input
+                type="text"
+                required
+                autoComplete="off"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Enter your full name"
+                className="h-11 w-full rounded-xl border border-[#dbe6ff] bg-white pl-10 pr-3.5 text-[13px] text-[#17307a] placeholder-[#8ea0c7] outline-none transition-all focus:border-[#1a56db] focus:ring-2 focus:ring-[#1a56db]/10"
+              />
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full h-11 rounded-xl bg-[#1a56db] text-white text-[13px] font-semibold hover:bg-[#1546b5] transition-all flex items-center justify-center disabled:opacity-50 shadow-sm shadow-[#1a56db]/10"
-            >
-              {isSubmitting ? 'Sending OTP...' : 'Send OTP'}
-            </button>
-          </form>
-        ) : (
-          /* Step 2: Verify OTP */
-          <form onSubmit={handleVerifyOtp} className="space-y-4">
-            <div>
-              <div className="flex justify-between items-center mb-1.5">
-                <label className="block text-xs font-semibold text-[#17307a]">Enter 6-Digit OTP</label>
-                <button
-                  type="button"
-                  onClick={() => setIsOtpSent(false)}
-                  className="text-xs font-semibold text-[#1a56db] hover:underline"
-                >
-                  Change Details
-                </button>
-              </div>
-              <OtpInput value={otp} onChange={setOtp} disabled={isSubmitting} />
+          {/* Phone Number with Country Code */}
+          <div>
+            <label className="block text-xs font-semibold text-[#17307a] mb-1.5">Phone Number</label>
+            <div className="flex relative rounded-xl border border-[#dbe6ff] bg-white transition-all focus-within:border-[#1a56db] focus-within:ring-2 focus-within:ring-[#1a56db]/10 overflow-hidden">
+              <select
+                value={countryCode}
+                onChange={(e) => setCountryCode(e.target.value)}
+                className="pl-2 pr-0 py-3 bg-[#f8fafe] text-[12.5px] text-[#17307a] border-r border-[#dbe6ff] outline-none font-semibold cursor-pointer hover:bg-[#f0f4fd] transition-colors"
+              >
+                <option value="+91">IN (+91)</option>
+                <option value="+1">US (+1)</option>
+                <option value="+971">AE (+971)</option>
+              </select>
+              <input
+                type="tel"
+                required
+                autoComplete="off"
+                value={mobileNumber}
+                onChange={(e) => setMobileNumber(e.target.value)}
+                placeholder="9876543210"
+                className="h-11 w-full bg-transparent px-3.5 text-[13px] text-[#17307a] placeholder-[#8ea0c7] outline-none"
+              />
             </div>
+          </div>
 
-            <button
-              type="submit"
-              disabled={isSubmitting || otp.length !== 6}
-              className="w-full h-11 rounded-xl bg-[#1a56db] text-white text-[13px] font-semibold hover:bg-[#1546b5] transition-all flex items-center justify-center disabled:opacity-50 shadow-sm shadow-[#1a56db]/10"
-            >
-              {isSubmitting ? 'Verifying...' : 'Verify & Sign Up'}
-            </button>
-          </form>
-        )}
+          {/* Email Address */}
+          <div>
+            <label className="block text-xs font-semibold text-[#17307a] mb-1.5">Email Address</label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8ea0c7]">
+                <Mail className="h-4 w-4" />
+              </span>
+              <input
+                type="email"
+                required
+                autoComplete="off"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="email@example.com"
+                className="h-11 w-full rounded-xl border border-[#dbe6ff] bg-white pl-10 pr-3.5 text-[13px] text-[#17307a] placeholder-[#8ea0c7] outline-none transition-all focus:border-[#1a56db] focus:ring-2 focus:ring-[#1a56db]/10"
+              />
+            </div>
+          </div>
+
+          {/* Passwords */}
+          <div>
+            <label className="block text-xs font-semibold text-[#17307a] mb-1.5">Create Password</label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8ea0c7]">
+                <Lock className="h-4 w-4" />
+              </span>
+              <input
+                type="password"
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Minimum 8 characters"
+                className="h-11 w-full rounded-xl border border-[#dbe6ff] bg-white pl-10 pr-3.5 text-[13px] text-[#17307a] placeholder-[#8ea0c7] outline-none transition-all focus:border-[#1a56db] focus:ring-2 focus:ring-[#1a56db]/10"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-semibold text-[#17307a] mb-1.5">Confirm Password</label>
+            <div className="relative">
+              <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8ea0c7]">
+                <Lock className="h-4 w-4" />
+              </span>
+              <input
+                type="password"
+                required
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="Confirm your password"
+                className="h-11 w-full rounded-xl border border-[#dbe6ff] bg-white pl-10 pr-3.5 text-[13px] text-[#17307a] placeholder-[#8ea0c7] outline-none transition-all focus:border-[#1a56db] focus:ring-2 focus:ring-[#1a56db]/10"
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting || !name.trim() || !mobileNumber.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()}
+            className="w-full h-11 rounded-xl bg-[#1a56db] text-white text-[13px] font-semibold hover:bg-[#1546b5] transition-all flex items-center justify-center disabled:opacity-50 shadow-sm shadow-[#1a56db]/10 mt-4"
+          >
+            {isSubmitting ? 'Signing Up...' : 'Sign Up'}
+          </button>
+        </form>
 
         {/* Divider */}
         <div className="relative my-6 text-center">

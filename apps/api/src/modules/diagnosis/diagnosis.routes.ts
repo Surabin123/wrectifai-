@@ -7,7 +7,7 @@ import { query } from '../../config/database';
 export const diagnosisRouter = Router();
 
 // Submit symptoms and run LLM diagnosis
-diagnosisRouter.post('/', authenticate, requireRole(['user', 'garage', 'vendor', 'admin']), async (req, res) => {
+diagnosisRouter.post('/', authenticate, requireRole(['user', 'customer', 'garage', 'vendor', 'admin']), async (req, res) => {
   try {
     const { vehicleId, symptomText, media, intakeAnswers, stage } = req.body;
     
@@ -58,7 +58,7 @@ diagnosisRouter.post('/', authenticate, requireRole(['user', 'garage', 'vendor',
 });
 
 // Fetch detailed diagnosis result
-diagnosisRouter.get('/:id', authenticate, requireRole(['user', 'garage', 'vendor', 'admin']), async (req, res) => {
+diagnosisRouter.get('/:id', authenticate, requireRole(['user', 'customer', 'garage', 'vendor', 'admin']), async (req, res) => {
   try {
     const { id } = req.params;
     const customerId = req.user?.userId;

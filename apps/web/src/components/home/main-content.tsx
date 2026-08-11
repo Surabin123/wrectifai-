@@ -975,15 +975,34 @@ export function MainContent() {
   const [searchTerm, setSearchTerm] = useState('');
   const [garagesList, setGaragesList] = useState<Garage[]>([]);
   const [dealsList, setDealsList] = useState<Deal[]>([]);
+  const [userCity, setUserCity] = useState('Hyderabad');
 
   useEffect(() => {
     const handleSearch = (event: Event) => {
       const customEvent = event as CustomEvent<string>;
       setSearchTerm(customEvent.detail ?? '');
     };
+    
+    const handleCityChange = () => {
+      // Helper function to get cookie safely
+      const getCookie = (name: string) => {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop()?.split(';').shift();
+        return null;
+      };
+      const city = getCookie('wrectifai_city') || 'Hyderabad';
+      setUserCity(decodeURIComponent(city));
+    };
+    
+    handleCityChange();
 
     window.addEventListener('dashboard-search', handleSearch);
-    return () => window.removeEventListener('dashboard-search', handleSearch);
+    window.addEventListener('city-changed', handleCityChange);
+    return () => {
+      window.removeEventListener('dashboard-search', handleSearch);
+      window.removeEventListener('city-changed', handleCityChange);
+    };
   }, []);
 
   useEffect(() => {
@@ -991,7 +1010,12 @@ export function MainContent() {
     fetchGarages()
       .then((data) => {
         if (active && data && data.length > 0) {
-          setGaragesList(data as unknown as Garage[]);
+          // Re-map with the current userCity
+          const mapped = data.map((g: any) => ({
+            ...g,
+            location: userCity
+          }));
+          setGaragesList(mapped as unknown as Garage[]);
         }
       })
       .catch((err) => {
@@ -1000,7 +1024,7 @@ export function MainContent() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [userCity]);
 
   useEffect(() => {
     let active = true;

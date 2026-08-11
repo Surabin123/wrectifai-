@@ -8,22 +8,25 @@ import { Input } from '@/components/common/input';
 import { topNavIcons } from '@/components/home/data';
 import { cn } from '@/utils/cn';
 import { useAuth } from '@/lib/auth-context';
+import { setLocationCookie, getLocationCookie } from '@/utils/location';
 import { Modal } from '@/components/common/modal';
 import { Button } from '@/components/common/button';
 import { Trash2, ShoppingCart, Heart } from 'lucide-react';
 import Image from 'next/image';
 
-const CITIES = [
-  'Hyderabad',
-  'Bengaluru',
-  'Mumbai',
-  'Delhi',
-  'Chennai',
-  'Pune',
-  'Kolkata',
-  'Ahmedabad',
-  'Jaipur',
-  'Kochi'
+const IN_CITIES = [
+  'Hyderabad', 'Bengaluru', 'Mumbai', 'Delhi', 'Chennai', 
+  'Pune', 'Kolkata', 'Ahmedabad', 'Jaipur', 'Kochi'
+];
+
+const US_CITIES = [
+  'New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix',
+  'San Antonio', 'San Diego', 'Dallas', 'Austin', 'San Jose'
+];
+
+const AE_CITIES = [
+  'Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 
+  'Ras Al Khaimah', 'Fujairah', 'Umm Al Quwain', 'Al Ain'
 ];
 
 export function TopNavbar() {
@@ -31,6 +34,7 @@ export function TopNavbar() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedCity, setSelectedCity] = useState('Hyderabad');
   const [citySearch, setCitySearch] = useState('');
+  const [currentCities, setCurrentCities] = useState<string[]>(IN_CITIES);
   
   const [cartCount, setCartCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
@@ -54,11 +58,11 @@ export function TopNavbar() {
     
     // Listen for cart and wishlist updates
     const updateCart = () => {
-      const items = sessionStorage.getItem('shopCart');
+      const items = localStorage.getItem('shopCart');
       setCartCount(items ? JSON.parse(items).length : 0);
     };
     const updateWishlist = () => {
-      const items = sessionStorage.getItem('shopWishlist');
+      const items = localStorage.getItem('shopWishlist');
       const parsed = items ? JSON.parse(items) : [];
       setWishlistCount(parsed.length);
       setWishlistItems(parsed);
@@ -67,7 +71,14 @@ export function TopNavbar() {
       const items = localStorage.getItem('wrectifai_notifications');
       if (items) {
         const parsed = JSON.parse(items);
-        setNotificationCount(parsed.filter((n: any) => !n.read).length);
+        const isAdmin = user?.roles?.includes('admin');
+        const isGarage = user?.roles?.includes('garage');
+        const audienceRole = isAdmin ? 'Admin' : isGarage ? 'Garage' : 'Customer';
+        
+        const relevantNotifs = parsed.filter((n: any) => 
+          n.audience === 'All' || n.audience === audienceRole
+        );
+        setNotificationCount(relevantNotifs.filter((n: any) => !n.read).length);
       }
     };
     
@@ -83,13 +94,30 @@ export function TopNavbar() {
       if (e.key === 'wrectifai_notifications') updateNotifications();
     });
     
+    // Load country and set cities
+    const countryCode = getLocationCookie('wrectifai_country_code');
+    let activeCities = IN_CITIES;
+    if (countryCode === '+1') activeCities = US_CITIES;
+    else if (countryCode === '+971') activeCities = AE_CITIES;
+    
+    setCurrentCities(activeCities);
+
+    // Load city from cookie
+    const savedCity = getLocationCookie('wrectifai_city');
+    if (savedCity && activeCities.includes(savedCity)) {
+      setSelectedCity(savedCity);
+    } else {
+      setSelectedCity(activeCities[0]);
+      setLocationCookie('wrectifai_city', activeCities[0]);
+    }
+    
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('cart-updated', updateCart);
       window.removeEventListener('wishlist-updated', updateWishlist);
       window.removeEventListener('notifications-updated', updateNotifications);
     };
-  }, []);
+  }, [user]);
 
   const router = useRouter();
 
@@ -109,7 +137,7 @@ export function TopNavbar() {
     }
   };
 
-  const filteredCities = CITIES.filter(city =>
+  const filteredCities = currentCities.filter(city =>
     city.toLowerCase().includes(citySearch.toLowerCase())
   );
 
@@ -180,6 +208,8 @@ export function TopNavbar() {
                       type="button"
                       onClick={() => {
                         setSelectedCity(city);
+                        setLocationCookie('wrectifai_city', city);
+                        window.dispatchEvent(new Event('city-changed'));
                         setIsDropdownOpen(false);
                       }}
                       className={cn(

@@ -2202,16 +2202,32 @@ export function AIDiagnosePage() {
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
     initialFlow.activeCategoryId
   );
-  const [messages, setMessages] = useState<ChatEntry[]>([
-    {
-      id: 'message-1',
+  const [messages, setMessages] = useState<ChatEntry[]>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('ai_chat_history');
+      if (saved) {
+        try {
+          return JSON.parse(saved);
+        } catch (e) {
+          console.error("Failed to parse saved chat history", e);
+        }
+      }
+    }
+    return [{
+      id: 'msg-initial',
       sender: 'assistant',
-      time: pageLoadTime,
+      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       kind: 'message',
       text: initialFlow.introText,
       highlighted: true,
-    },
-  ]);
+    }];
+  });
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && messages.length > 0) {
+      localStorage.setItem('ai_chat_history', JSON.stringify(messages));
+    }
+  }, [messages]);
 
   const [answers, setAnswers] = useState<AnswerMap>({});
 
