@@ -147,30 +147,30 @@ export default function AdminBookingsPage() {
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Booking Details">
          <div className="space-y-4">
              {selectedBooking ? (
-                  <div className="grid grid-cols-2 gap-4">
-                    <p><strong>Booking ID:</strong> {selectedBooking.id}</p>
-                    <p><strong>Quote ID:</strong> {selectedBooking.quoteId || 'N/A'}</p>
-                    <p><strong>Status:</strong> <span className="capitalize">{formatAdminStatus(selectedBooking.status)}</span></p>
-                    <p><strong>Payment Status:</strong> <span className="capitalize">{formatAdminStatus(selectedBooking.paymentStatus || 'unpaid')}</span></p>
-                    <p><strong>Customer:</strong> {selectedBooking.customerName || 'N/A'}</p>
-                    <p><strong>Garage:</strong> {selectedBooking.garageName || 'N/A'}</p>
-                    <p><strong>Created At:</strong> {selectedBooking.createdAt ? new Date(selectedBooking.createdAt).toLocaleDateString() : 'N/A'}</p>
-                    
-                    <p className="col-span-2 border-t pt-2 mt-2"></p>
-                    
-                    <p><strong>Vehicle:</strong> {selectedBooking.vehicleMake || 'N/A'} {selectedBooking.vehicleModel || ''}</p>
-                    <p><strong>VIN / Plate:</strong> {selectedBooking.vin || 'N/A'}</p>
-                    <p><strong>Preferred Date:</strong> {selectedBooking.preferredDate ? new Date(selectedBooking.preferredDate).toLocaleDateString() : 'N/A'}</p>
-                    <p><strong>Preferred Time:</strong> {selectedBooking.preferredTime || 'N/A'}</p>
-                    <p><strong>Estimated Days:</strong> {selectedBooking.estimatedDays || 'N/A'}</p>
-                    <p><strong>Service Date:</strong> {selectedBooking.serviceDate ? new Date(selectedBooking.serviceDate).toLocaleDateString() : 'N/A'}</p>
+                   <div className="grid grid-cols-2 gap-4">
+                     <p><strong>Booking ID:</strong> {selectedBooking.id}</p>
+                     <p><strong>Quote ID:</strong> {selectedBooking.quoteId || 'N/A'}</p>
+                     <p><strong>Status:</strong> <span className="capitalize font-semibold" style={{color: selectedBooking.status === 'confirmed' || selectedBooking.status === 'accepted' ? '#0369a1' : selectedBooking.status === 'pendingPayment' ? '#b45309' : selectedBooking.status === 'completed' ? '#15803d' : selectedBooking.status === 'cancelled' ? '#b91c1c' : '#374151'}}>{formatAdminStatus(selectedBooking.status)}</span></p>
+                     <p><strong>Payment Status:</strong> <span className="capitalize">{selectedBooking.paymentStatus || 'unpaid'}</span></p>
+                     <p><strong>Customer:</strong> {selectedBooking.customerName || 'N/A'}</p>
+                     <p><strong>Garage:</strong> {selectedBooking.garageName || 'N/A'}</p>
+                     <p><strong>Created At:</strong> {selectedBooking.createdAt ? new Date(selectedBooking.createdAt).toLocaleDateString() : 'N/A'}</p>
+                     
+                     <p className="col-span-2 border-t pt-2 mt-2"></p>
+                     
+                     <p><strong>Vehicle:</strong> {selectedBooking.vehicleMake || 'N/A'} {selectedBooking.vehicleModel || ''}</p>
+                     <p><strong>VIN / Plate:</strong> {selectedBooking.vin || 'N/A'}</p>
+                     <p><strong>Scheduled Date:</strong> {selectedBooking.scheduledAt ? new Date(selectedBooking.scheduledAt).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : 'N/A'}</p>
+                     <p><strong>Scheduled Time:</strong> {selectedBooking.scheduledAt ? new Date(selectedBooking.scheduledAt).toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}) : 'N/A'}</p>
+                     <p><strong>Estimated Days:</strong> {selectedBooking.estimatedDays || 'N/A'}</p>
+                     <p><strong>Booking Type:</strong> <span className="capitalize">{selectedBooking.bookingType || 'N/A'}</span></p>
 
-                    <p className="col-span-2 mt-2"><strong>Issue Description:</strong> <br/><span className="text-sm text-slate-600">{selectedBooking.issueDescription || 'No description provided.'}</span></p>
+                     <p className="col-span-2 mt-2"><strong>Issue Description:</strong> <br/><span className="text-sm text-slate-600">{selectedBooking.issueDescription || 'No description provided.'}</span></p>
 
-                    <p className="col-span-2 text-lg border-t pt-3 mt-1 font-bold text-[#17307a]">
-                      Total Amount: {formatCurrency(selectedBooking.totalAmount || 0, selectedBooking.customerPhone)}
-                    </p>
-                  </div>
+                     <p className="col-span-2 text-lg border-t pt-3 mt-1 font-bold text-[#17307a]">
+                       Total Amount: {formatCurrency(selectedBooking.totalAmount || 0)}
+                     </p>
+                   </div>
             ) : <p>Loading...</p>}
             <button onClick={() => setIsModalOpen(false)} className="w-full py-2 bg-blue-600 text-white rounded-lg text-sm font-bold">Close</button>
          </div>

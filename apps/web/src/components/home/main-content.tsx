@@ -41,6 +41,7 @@ import {
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/utils/cn';
+import { formatCurrency } from '@/lib/currency';
 
 function SectionHeader({
   title,
@@ -556,12 +557,16 @@ function GarageCard({
           <button 
             type="button"
             onClick={(e) => {
+              e.preventDefault();
               e.stopPropagation();
               toggleFavorite(name);
             }}
-            className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#1a56db] shadow-md transition-transform hover:scale-110 active:scale-95"
+            className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-[#1a56db] shadow-md transition-transform hover:scale-110 active:scale-95 z-20"
           >
-            <Heart className={cn("h-4 w-4", favorite ? "fill-[#1a56db]" : "")} />
+            <Heart 
+              fill={favorite ? "currentColor" : "none"} 
+              className={cn("h-4 w-4", favorite ? "text-[#1a56db]" : "")} 
+            />
           </button>
         </div>
         <div className="absolute bottom-3 left-4 right-4 flex gap-2 opacity-85">
@@ -971,11 +976,23 @@ function CareTips({
 }
 
 export function MainContent() {
-  const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const [userCity, setUserCity] = useState<string>('Bengaluru');
+  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
   const [garagesList, setGaragesList] = useState<Garage[]>([]);
   const [dealsList, setDealsList] = useState<Deal[]>([]);
-  const [userCity, setUserCity] = useState('Hyderabad');
+  const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('wrectifai-user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user && user.mobile_number) setUserPhone(user.mobile_number);
+        else if (user && user.phone) setUserPhone(user.phone);
+      }
+    } catch(e) {}
+  }, []);
 
   useEffect(() => {
     const handleSearch = (event: Event) => {
@@ -1045,8 +1062,8 @@ export function MainContent() {
           const comboDeals = data
             .filter((p) => p.isCombo)
             .map((p) => {
-              const displayPrice = `$${Number(p.numericPrice).toLocaleString('en-US')}`;
-              const strikePriceStr = p.strikePrice ? `$${Number(p.strikePrice).toLocaleString('en-US')}` : '';
+              const displayPrice = formatCurrency(Number(p.numericPrice), userPhone);
+              const strikePriceStr = p.strikePrice ? formatCurrency(Number(p.strikePrice), userPhone) : '';
               const discountStr = p.discountPercent ? `${p.discountPercent}% OFF` : '';
               
               // We'll map theme colors explicitly based on the backend theme preset
@@ -1096,7 +1113,7 @@ export function MainContent() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [userPhone]);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
 

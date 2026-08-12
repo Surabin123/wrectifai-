@@ -166,10 +166,10 @@ adminRouter.post('/onboarding/garages/:id/verify-status', async (req, res) => {
 adminRouter.post('/onboarding/garages/:id/:action', async (req, res) => {
   try {
     const { action } = req.params;
-    if (!['approve', 'reject', 'suspend'].includes(action)) {
+    if (!['approve', 'reject', 'suspend', 'delete'].includes(action)) {
       return error(res, 'Invalid action', 'INVALID_ACTION', 400);
     }
-    const status = action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : 'suspended';
+    const status = action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : action === 'delete' ? 'deleted' : 'suspended';
     const is_approved = action === 'approve';
     
     const result = await query(
@@ -251,11 +251,15 @@ adminRouter.get('/bookings', async (req, res) => {
   try {
     const result = await query(
       `SELECT b.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", b.status, b.created_at as "createdAt",
-              b.scheduled_at as "serviceDate", b.total_amount as "totalAmount", v.make as "vehicleMake", v.model as "vehicleModel"
+              b.scheduled_at as "serviceDate", b.total_amount as "totalAmount", v.make as "vehicleMake", v.model as "vehicleModel",
+              v.vin as "vin", b.quote_id as "quoteId", q.eta_days as "estimatedDays", qr.issue_summary as "issueDescription", qr.preferred_date as "preferredDate",
+              (SELECT status FROM payments p WHERE p.booking_id = b.id ORDER BY p.created_at DESC LIMIT 1) as "paymentStatus"
        FROM bookings b
        LEFT JOIN users u ON b.customer_id = u.id
        LEFT JOIN garages g ON b.garage_id = g.id
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
+       LEFT JOIN quotes q ON b.quote_id = q.id
+       LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
        ORDER BY b.created_at DESC`
     );
     return success(res, result.rows);
@@ -338,18 +342,19 @@ adminRouter.post('/service-requests', async (req, res) => {
 adminRouter.get('/service-requests', async (req, res) => {
   try {
       const result = await query(
-        `SELECT DISTINCT ON (qr.created_at) qr.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", 
-                COALESCE(
-                  NULLIF((SELECT string_agg(i->>'title', ', ') FROM diagnosis_results dres, jsonb_array_elements(dres.issues) i WHERE dres.diagnosis_request_id = qr.diagnosis_request_id), ''),
-                  NULLIF((SELECT symptom_text FROM diagnosis_requests dr WHERE dr.id = qr.diagnosis_request_id), ''),
-                  NULLIF(qr.issue_summary, ''),
-                  'Issue not provided'
-                ) as details, 
-                qr.status
-         FROM quote_requests qr
-         LEFT JOIN users u ON qr.customer_id = u.id
-         LEFT JOIN garages g ON qr.garage_id = g.id
-         ORDER BY qr.created_at DESC`
+      `SELECT DISTINCT ON (qr.created_at) qr.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", 
+              v.make as "vehicleMake", v.model as "vehicleModel", v.vin as "vin", qr.preferred_date as "preferredDate",
+              COALESCE(
+                qr.issue_summary,
+                NULLIF((SELECT string_agg(i->>'title', ', ') FROM diagnosis_results dres, jsonb_array_elements(dres.issues) i WHERE dres.diagnosis_request_id = qr.diagnosis_request_id), ''),
+                NULLIF((SELECT symptom_text FROM diagnosis_requests dr WHERE dr.id = qr.diagnosis_request_id), ''),
+                'General Service'
+              ) as "details", qr.status, qr.created_at as "createdAt"
+       FROM quote_requests qr
+       LEFT JOIN users u ON qr.customer_id = u.id
+       LEFT JOIN garages g ON qr.garage_id = g.id
+       LEFT JOIN vehicles v ON qr.vehicle_id = v.id
+       ORDER BY qr.created_at DESC`
       );
     return success(res, result.rows);
   } catch (err) {
@@ -362,9 +367,13 @@ adminRouter.get('/service-requests', async (req, res) => {
 adminRouter.get('/quotes', async (req, res) => {
   try {
     const result = await query(
-      `SELECT q.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", q.amount as "totalAmount"
+      `SELECT q.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", q.amount as "totalAmount",
+              q.status, q.created_at as "createdAt", q.eta_days as "estimatedDays",
+              v.make as "vehicleMake", v.model as "vehicleModel", v.vin as "vin",
+              qr.preferred_date as "preferredDate", qr.issue_summary as "issueDescription"
        FROM quotes q
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
+       LEFT JOIN vehicles v ON qr.vehicle_id = v.id
        LEFT JOIN users u ON qr.customer_id = u.id
        LEFT JOIN garages g ON q.garage_id = g.id
        ORDER BY q.created_at DESC`

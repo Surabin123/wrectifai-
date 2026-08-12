@@ -17,6 +17,7 @@ import autoTable from 'jspdf-autotable';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { formatCurrency } from '@/lib/currency';
+import { fetchWalletBalance, fetchWalletTransactions, addWalletFunds } from '@/lib/wallet-api';
 
 const mockInitialTransactions = [
   { id: 1, date: '04 Aug 2026', time: '2:19 PM', desc: 'Added Money', subdesc: 'via UPI', type: 'Credit', amount: 1000.00, status: 'Completed', icon: ArrowDownToLine, color: 'text-green-600', bg: 'bg-green-50', customer: 'Surabi N', garage: 'N/A', vehicle: 'N/A', invoice: 'INV-1001', method: 'UPI (surabi@okaxis)' },
@@ -52,26 +53,62 @@ export function WalletPaymentsPage() {
   }, []);
   const [searchQuery, setSearchQuery] = useState('');
   
-  const [transactions, setTransactions] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('wallet_transactions');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.map((t: any) => ({
-          ...t,
-          icon: t.type === 'Credit' ? (t.desc.includes('Cashback') ? GiftIcon : ArrowDownToLine) : (t.status === 'Failed' ? CreditCard : ArrowUpRight)
-        }));
-      }
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [balance, setBalance] = useState<number>(0);
+
+  const loadWalletData = async () => {
+    try {
+      const [{ balance: fetchedBalance }, fetchedTxs] = await Promise.all([
+        fetchWalletBalance(),
+        fetchWalletTransactions()
+      ]);
+      
+      setBalance(fetchedBalance);
+      
+      const mappedTxs = fetchedTxs.map(tx => {
+        const dateObj = new Date(tx.createdAt);
+        const isCredit = tx.type === 'CREDIT' || tx.type === 'RELEASE';
+        
+        let desc = 'Wallet Transaction';
+        let subdesc = tx.referenceType || 'Wallet';
+        
+        if (tx.type === 'HOLD') desc = 'Payment Hold';
+        if (tx.type === 'RELEASE') desc = 'Hold Released';
+        if (tx.type === 'DEBIT') desc = 'Payment for Booking';
+        if (tx.type === 'CREDIT') desc = 'Added Money';
+        if (tx.description) subdesc = tx.description;
+
+        const statusMap: any = { 'PENDING': 'Pending', 'COMPLETED': 'Completed', 'FAILED': 'Failed' };
+
+        return {
+          ...tx,
+          date: dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          time: dateObj.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
+          desc,
+          subdesc,
+          type: isCredit ? 'Credit' : 'Debit',
+          amount: Number(tx.amount),
+          status: statusMap[tx.status] || 'Completed',
+          icon: isCredit ? ArrowDownToLine : ArrowUpRight,
+          color: isCredit ? 'text-green-600' : 'text-red-600',
+          bg: isCredit ? 'bg-green-50' : 'bg-red-50',
+          customer: 'N/A',
+          garage: 'N/A',
+          vehicle: 'N/A',
+          invoice: 'N/A',
+          method: 'Wallet'
+        };
+      });
+      
+      setTransactions(mappedTxs);
+    } catch (err) {
+      console.error('Failed to load wallet data:', err);
     }
-    return mockInitialTransactions;
-  });
-  const [balance, setBalance] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('wallet_balance');
-      if (saved) return parseFloat(saved);
-    }
-    return 1250.00;
-  });
+  };
+
+  useEffect(() => {
+    loadWalletData();
+  }, []);
 
   const [selectedTransaction, setSelectedTransaction] = useState<any>(null);
   
@@ -105,15 +142,8 @@ export function WalletPaymentsPage() {
   // Hydration fallback removed since states are lazily initialized
 
   // Save to localStorage when state changes
-  useEffect(() => {
-    localStorage.setItem('wallet_balance', balance.toString());
-  }, [balance]);
+  // Not used anymore as we fetch from DB
 
-  useEffect(() => {
-    // Avoid serializing the React component icon
-    const toSave = transactions.map(({ icon, ...rest }: any) => rest);
-    localStorage.setItem('wallet_transactions', JSON.stringify(toSave));
-  }, [transactions]);
 
   useEffect(() => {
     // Avoid serializing the React component icon
@@ -150,7 +180,7 @@ export function WalletPaymentsPage() {
         tx.date,
         tx.desc,
         tx.type,
-        `${tx.type === 'Credit' ? '+' : '-'} $${tx.amount.toFixed(2)}`,
+        `${tx.type === 'Credit' ? '+' : '-'} ${formatCurrency(tx.amount, userPhone)}`,
         tx.status
       ]],
     });
@@ -158,29 +188,19 @@ export function WalletPaymentsPage() {
     doc.save(`receipt_${tx.id}.pdf`);
   };
 
-  const handleAddMoney = () => {
+  const handleAddMoney = async () => {
     const amount = parseFloat(addMoneyAmount);
     if (isNaN(amount) || amount <= 0) return;
     
-    setBalance(prev => prev + amount);
-    setTransactions([{
-      id: Date.now(),
-      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      time: new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' }),
-      desc: 'Added Money',
-      subdesc: 'via Default Method',
-      type: 'Credit',
-      amount: amount,
-      status: 'Completed',
-      icon: ArrowDownToLine,
-      color: 'text-green-600',
-      bg: 'bg-green-50',
-      customer: 'Vishnu',
-      garage: 'N/A',
-      vehicle: 'N/A',
-      invoice: `INV-${Math.floor(Math.random() * 10000)}`,
-      method: paymentMethods.find((m: any) => m.isDefault)?.details || 'Card'
-    }, ...transactions]);
+    const method = paymentMethods.find((m: any) => m.isDefault)?.details || 'Card';
+    try {
+      await addWalletFunds(amount, `via ${method}`);
+      await loadWalletData();
+    } catch (err) {
+      console.error('Failed to add money:', err);
+      // To strictly enforce backend persistence, we do not fall back to local state.
+      // If you see an error here, the backend API server needs to be restarted to pick up the new endpoint.
+    }
     
     setIsAddMoneyOpen(false);
     setAddMoneyAmount('');
@@ -299,7 +319,7 @@ export function WalletPaymentsPage() {
                        </td>
                        <td className="px-6 py-4">
                          <p className={cn("font-bold", tx.type === 'Credit' ? 'text-green-600' : 'text-slate-900')}>
-                           {tx.type === 'Credit' ? '+' : '-'} ${tx.amount.toFixed(2)}
+                           {tx.type === 'Credit' ? '+ ' : '- '} {formatCurrency(tx.amount, userPhone)}
                          </p>
                        </td>
                        <td className="px-6 py-4 text-center">
@@ -365,7 +385,7 @@ export function WalletPaymentsPage() {
       <Modal isOpen={isAddMoneyOpen} onClose={() => setIsAddMoneyOpen(false)} title="Add Money to Wallet">
         <div className="space-y-4 py-2">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Enter Amount ($)</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Enter Amount ({formatCurrency(0, userPhone).charAt(0)})</label>
             <input type="number" className="w-full border border-slate-200 rounded-lg p-3 text-lg font-bold focus:outline-none focus:border-blue-500" placeholder="100.00" value={addMoneyAmount} onChange={(e) => setAddMoneyAmount(e.target.value)} />
           </div>
           <Button className="w-full bg-blue-600 text-white" onClick={handleAddMoney}>Confirm & Add</Button>
@@ -454,7 +474,7 @@ export function WalletPaymentsPage() {
               <div className={cn("w-16 h-16 rounded-full flex items-center justify-center mb-4", selectedTransaction.bg, selectedTransaction.color)}>
                  <selectedTransaction.icon className="w-8 h-8" />
               </div>
-              <h2 className="text-2xl font-bold text-slate-900">{selectedTransaction.type === 'Credit' ? '+' : '-'} ${selectedTransaction.amount.toFixed(2)}</h2>
+              <h2 className="text-2xl font-bold text-slate-900">{selectedTransaction.type === 'Credit' ? '+ ' : '- '} {formatCurrency(selectedTransaction.amount, userPhone)}</h2>
               <p className="text-slate-500">{selectedTransaction.status}</p>
             </div>
             

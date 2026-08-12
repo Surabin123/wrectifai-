@@ -11,6 +11,8 @@ import { marketplaceRouter } from '../modules/marketplace/marketplace.routes';
 import { paymentsRouter } from '../modules/payments/payments.routes';
 import { reviewsRouter } from '../modules/reviews/reviews.routes';
 import { adminRouter } from '../modules/admin/admin.routes';
+import { walletRouter } from '../modules/wallet/wallet.routes';
+import { offersRouter } from '../modules/offers/offers.routes';
 import { getHealthStatus } from '../services/health.service';
 import { success, error } from '../utils/response';
 import { query } from '../config/database';
@@ -35,6 +37,8 @@ apiRouter.use('/marketplace', marketplaceRouter);
 apiRouter.use('/payments', paymentsRouter);
 apiRouter.use('/reviews', reviewsRouter);
 apiRouter.use('/admin', adminRouter);
+apiRouter.use('/wallet', walletRouter);
+apiRouter.use('/offers', offersRouter);
 
 apiRouter.get('/promos', async (req, res) => {
   try {

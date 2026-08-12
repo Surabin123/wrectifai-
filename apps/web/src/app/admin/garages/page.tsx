@@ -34,10 +34,14 @@ export default function AllGaragesPage() {
 
   const handleVerify = async (id: string, action: string) => {
     try {
-      await apiClient.post(`/admin/onboarding/garages/${id}/verify-status`, { action });
+      if (action === 'delete') {
+        await apiClient.post(`/admin/onboarding/garages/${id}/delete`, {});
+      } else {
+        await apiClient.post(`/admin/onboarding/garages/${id}/verify-status`, { action });
+      }
       await loadData();
       if (selectedGarage && selectedGarage.id === id) {
-        setSelectedGarage((prev: any) => ({ ...prev, verificationStatus: action === 'verify' ? 'verified' : 'rejected' }));
+        setSelectedGarage(null); // Close modal on delete or status change to refresh
       }
       setVerificationModal({isOpen: false, id: '', action: ''});
     } catch (err) {
@@ -141,7 +145,7 @@ export default function AllGaragesPage() {
                     </td>
                     <td className="p-4 text-xs text-slate-600">{g.city || 'N/A'}</td>
                     <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${g.approvalStatus === 'approved' ? 'bg-green-50 text-green-600 border-green-100' : g.approvalStatus === 'pending' ? 'bg-orange-50 text-orange-600 border-orange-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${g.approvalStatus === 'approved' ? 'bg-green-50 text-green-600 border-green-100' : g.approvalStatus === 'pending' ? 'bg-orange-50 text-orange-600 border-orange-100' : g.approvalStatus === 'deleted' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-purple-50 text-purple-600 border-purple-100'}`}>
                         {g.approvalStatus ? g.approvalStatus.charAt(0).toUpperCase() + g.approvalStatus.slice(1) : 'Unknown'}
                     </span>
                     </td>
@@ -224,7 +228,7 @@ export default function AllGaragesPage() {
                     </span>
                   </div>
                   
-                  {selectedGarage.verificationStatus !== 'verified' && selectedGarage.verificationStatus !== 'rejected' && (
+                  {selectedGarage.approvalStatus !== 'approved' && selectedGarage.approvalStatus !== 'rejected' && (
                     <div className="pt-2 mt-2 border-t flex justify-between gap-2">
                        <button 
                          onClick={() => setVerificationModal({isOpen: true, id: selectedGarage.id, action: 'verify'})}
@@ -233,9 +237,18 @@ export default function AllGaragesPage() {
                        </button>
                        <button 
                          onClick={() => setVerificationModal({isOpen: true, id: selectedGarage.id, action: 'reject'})}
-                         className="flex-1 bg-red-50 text-red-700 font-bold text-xs py-1.5 rounded border border-red-100 hover:bg-red-100">
+                         className="flex-1 bg-orange-50 text-orange-700 font-bold text-xs py-1.5 rounded border border-orange-100 hover:bg-orange-100">
                          Reject
                        </button>
+                    </div>
+                  )}
+                  {selectedGarage.approvalStatus !== 'deleted' && (
+                    <div className="pt-2 mt-2 border-t">
+                      <button 
+                        onClick={() => setVerificationModal({isOpen: true, id: selectedGarage.id, action: 'delete'})}
+                        className="w-full bg-red-50 text-red-700 font-bold text-xs py-1.5 rounded border border-red-100 hover:bg-red-100 flex items-center justify-center">
+                        Soft Delete Garage
+                      </button>
                     </div>
                   )}
                 </div>

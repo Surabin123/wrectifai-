@@ -10,10 +10,13 @@ import { fetchBookings, updateBookingStatus } from '@/lib/bookings-api';
 import type { Booking } from '@/lib/bookings-api';
 import { cn } from '@/utils/cn';
 import { Calendar, Clock, Wrench, XCircle, AlertTriangle, ShieldCheck, AlertCircle } from 'lucide-react';
+import { formatCurrency } from '@/lib/currency';
+import { useUserPhone } from '@/lib/user-phone';
 
 type TabKey = 'all' | 'upcoming' | 'accepted' | 'inProgress' | 'completed' | 'cancelled';
 
 export function BookingsPage() {
+  const userPhone = useUserPhone();
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [cancelModalOpen, setCancelModalOpen] = useState(false);
@@ -186,10 +189,13 @@ export function BookingsPage() {
                         b.status === 'cancelled' && 'bg-[#fee2e2] text-[#b91c1c]'
                       )}
                     >
-                      {b.status === 'pendingPayment' ? 'Pending' : 
-                       b.status === 'confirmed' || b.status === 'accepted' ? 'Accepted' : 
-                       b.status === 'in_progress' ? 'In Progress' : 
-                       b.status}
+                       {b.status === 'pendingPayment' ? 'Pending' : 
+                        b.status === 'confirmed' ? 'Confirmed' :
+                        b.status === 'accepted' ? 'Accepted' : 
+                        b.status === 'in_progress' ? 'In Progress' : 
+                        b.status === 'completed' ? 'Completed' :
+                        b.status === 'cancelled' ? 'Cancelled' :
+                        b.status}
                     </span>
                     <span className="text-[10px] text-[#8a96b8] font-semibold font-mono">
                       ID: {b.id.substring(0, 8)}
@@ -230,7 +236,7 @@ export function BookingsPage() {
                 <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 border-t sm:border-t-0 border-[#eef3ff] pt-3 sm:pt-0">
                   <div className="text-left sm:text-right">
                     <p className="text-[10px] font-bold text-[#8a96b8] uppercase">Total Cost</p>
-                    <p className="text-[15.5px] font-extrabold text-[#17307a]">{b.currency} {b.totalAmount}</p>
+                    <p className="text-[15.5px] font-extrabold text-[#17307a]">{formatCurrency(b.totalAmount, userPhone)}</p>
                   </div>
 
                   <div className="flex gap-2">

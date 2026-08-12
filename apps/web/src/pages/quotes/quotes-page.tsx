@@ -8,29 +8,16 @@ import { BookingDialog } from '@/components/customer/booking-dialog';
 import { fetchQuotes } from '@/lib/quotes-api';
 import type { QuoteItem } from '@/components/quotes/quotes-shared';
 import { formatCurrency } from '@/lib/currency';
+import { useUserPhone } from '@/lib/user-phone';
 
 export function QuotesPage() {
   const router = useRouter();
+  const userPhone = useUserPhone();
   const [quotes, setQuotes] = useState<QuoteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [bookingQuote, setBookingQuote] = useState<QuoteItem | null>(null);
   const [viewQuote, setViewQuote] = useState<QuoteItem | null>(null);
   const [viewDetailsQuote, setViewDetailsQuote] = useState<QuoteItem | null>(null);
-  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-    try {
-      const userStr = localStorage.getItem('wrectifai-user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        if (user && user.mobile_number) {
-          setUserPhone(user.mobile_number);
-        } else if (user && user.phone) {
-          setUserPhone(user.phone);
-        }
-      }
-    } catch(e) {}
-  }, []);
 
   const formatStatus = (status?: string) => {
     if (!status) return 'Pending';
@@ -132,7 +119,7 @@ export function QuotesPage() {
                       {(quote as any).garageName || quote.garage}
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-800">
-                      {quote.price ? quote.price : formatCurrency((quote as any).amount || (quote as any).totalCost || 0, userPhone)}
+                      {formatCurrency(quote.price || (quote as any).amount || (quote as any).totalCost || 0, userPhone)}
                     </td>
                     <td className="px-6 py-4 text-slate-600">
                       {quote.time || 'N/A'}

@@ -1,4 +1,3 @@
-
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ChevronDown, CalendarDays, Package, FileText, Car, PhoneCall } from 'lucide-react';
@@ -11,6 +10,7 @@ import { emergencyItems } from '@/components/home/data';
 import { cn } from '@/utils/cn';
 import { apiClient } from '@/lib/api-client';
 import { getPromoTheme } from '@/utils/promo-theme';
+import { formatCurrency } from '@/lib/currency';
 
 function OverviewPanel() {
   const [bookingsCount, setBookingsCount] = useState<number>(0);
@@ -301,6 +301,18 @@ function OfferCard({
 
 function OffersPanel() {
   const [promos, setPromos] = useState<any[]>([]);
+  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('wrectifai-user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user && user.mobile_number) setUserPhone(user.mobile_number);
+        else if (user && user.phone) setUserPhone(user.phone);
+      }
+    } catch(e) {}
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -313,8 +325,8 @@ function OffersPanel() {
             .map((p: any) => ({
               eyebrow: p.badge,
               title: p.title,
-              price: `$${Number(p.numericPrice).toLocaleString('en-US')}`,
-              strikePrice: p.strikePrice ? `$${Number(p.strikePrice).toLocaleString('en-US')}` : undefined,
+              price: formatCurrency(Number(p.numericPrice), userPhone),
+              strikePrice: p.strikePrice ? formatCurrency(Number(p.strikePrice), userPhone) : undefined,
               discount: p.discountPercent ? `${p.discountPercent}% OFF` : '',
               themePreset: p.themePreset,
               icon: p.icon,
@@ -331,7 +343,7 @@ function OffersPanel() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [userPhone]);
 
   return (
     <Card id="offers" className="p-4 border-[#f0f4ff] bg-white">

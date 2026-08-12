@@ -35,6 +35,7 @@ import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { apiClient } from '@/lib/api-client';
 import { fetchPromos } from '@/lib/garages-api';
+import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/utils/cn';
 import { getPromoTheme } from '@/utils/promo-theme';
 
@@ -658,7 +659,7 @@ function FilterChip({
   );
 }
 
-function DealCard({ deal, onSelect }: { deal: DealItem; onSelect?: (deal: DealItem) => void }) {
+function DealCard({ deal, onSelect, userPhone }: { deal: DealItem; onSelect?: (deal: DealItem) => void; userPhone?: string }) {
   const DealIcon = deal.icon;
 
   return (
@@ -725,7 +726,7 @@ function DealCard({ deal, onSelect }: { deal: DealItem; onSelect?: (deal: DealIt
             <span className="pb-0.5 text-[11px] font-semibold text-[#35539c]">{deal.pricePrefix}</span>
           ) : null}
           <span className={cn('text-[15px] font-extrabold tracking-[-0.02em]', deal.accent)}>
-            {deal.displayPrice}
+            {formatCurrency(deal.numericPrice, userPhone)}
           </span>
           {deal.strikePrice ? (
             <span
@@ -734,7 +735,7 @@ function DealCard({ deal, onSelect }: { deal: DealItem; onSelect?: (deal: DealIt
                 deal.strikePriceLineThrough ? 'text-[#8998b8] line-through' : 'text-[#35539c]'
               )}
             >
-              {deal.strikePrice}
+              {formatCurrency(parseFloat(deal.strikePrice.replace('$', '').replace(/,/g, '')), userPhone)}
             </span>
           ) : null}
           {deal.discountLabel ? (
@@ -804,11 +805,23 @@ function DealsPageContent() {
   const [currentPage, setCurrentPage] = useState(1);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedDeal, setSelectedDeal] = useState<DealItem | null>(null);
+  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
   const pageSize = 9;
   const sortRef = useRef<HTMLDivElement>(null);
   const moreFiltersRef = useRef<HTMLDivElement>(null);
 
   const [dealsList, setDealsList] = useState<DealItem[]>(deals);
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('wrectifai-user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user && user.mobile_number) setUserPhone(user.mobile_number);
+        else if (user && user.phone) setUserPhone(user.phone);
+      }
+    } catch(e) {}
+  }, []);
 
   useEffect(() => {
     let active = true;

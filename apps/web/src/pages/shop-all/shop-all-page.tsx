@@ -7,8 +7,8 @@ import { useRouter } from 'next/navigation';
 import { Search, ChevronDown, Filter, ShoppingBag, Heart, ArrowLeft, Star } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
-import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
+import { formatCurrency } from '@/lib/currency';
 
 const mockAllProducts = Array.from({ length: 32 }, (_, i) => ({
   id: i + 1,
@@ -27,6 +27,7 @@ export function ShopAllPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState('newest');
+  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
   
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
@@ -42,6 +43,16 @@ export function ShopAllPage() {
     const handleSearch = (e: CustomEvent) => {
       setSearchQuery(e.detail);
     };
+
+    try {
+      const userStr = localStorage.getItem('wrectifai-user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user && user.mobile_number) setUserPhone(user.mobile_number);
+        else if (user && user.phone) setUserPhone(user.phone);
+      }
+    } catch(e) {}
+
     window.addEventListener('dashboard-search', handleSearch as EventListener);
     return () => window.removeEventListener('dashboard-search', handleSearch as EventListener);
   }, []);
@@ -175,16 +186,17 @@ export function ShopAllPage() {
                 
                 <div className="flex-1 flex flex-col">
                   <div className="text-xs font-semibold text-blue-600 mb-2">{product.category}</div>
-                  <h4 className="font-bold text-slate-900 mb-1 leading-tight">{product.name}</h4>
+                  <h4 className="font-bold text-sm text-slate-900 line-clamp-2 h-10 mb-2">{product.name}</h4>
                   
-                  <div className="flex items-center gap-1 mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="font-bold text-slate-900">{formatCurrency(parseFloat(product.price.replace('$', '')), userPhone)}</span>
                     <Star className="w-3.5 h-3.5 text-yellow-400 fill-current" />
                     <span className="text-xs font-medium text-slate-700">{product.rating}</span>
                     <span className="text-xs text-slate-400">({product.reviews})</span>
                   </div>
                   
                   <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-100">
-                    <div className="font-bold text-lg text-slate-900">{product.price}</div>
+                    <div className="font-bold text-lg text-slate-900">{formatCurrency(parseFloat(product.price.replace('$', '')), userPhone)}</div>
                     <Button size="sm" className="rounded-full px-4" onClick={() => addToCart(product)}>
                       Add
                     </Button>

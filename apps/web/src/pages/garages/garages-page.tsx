@@ -264,8 +264,11 @@ function GarageCard({
         ) : null}
         <div 
           onClick={onClick}
-          className="absolute right-4 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white text-[#1a56db] shadow-md hover:scale-110 transition-transform cursor-pointer z-10">
-          <Heart className="h-5 w-5" fill={isWishlisted ? "currentColor" : "none"} />
+          className="absolute right-4 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md hover:scale-110 transition-transform cursor-pointer z-10">
+          <Heart 
+            className={cn("h-5 w-5", isWishlisted ? "text-[#e53e3e]" : "text-[#1a56db]")} 
+            fill={isWishlisted ? "currentColor" : "none"} 
+          />
         </div>
         <div className="absolute inset-x-4 bottom-4 flex items-end justify-between">
           <div className="text-[11.5px] font-bold tracking-[0.01em] text-white/92">
@@ -926,7 +929,7 @@ function GaragesContent() {
                 <GarageCard
                   {...garage}
                   compact
-                  isWishlisted={wishlistItems.some((i: any) => i.id === garage.name || i.name === garage.name)}
+                  isWishlisted={wishlistItems.some((i: any) => i.id === garage.id || i.id === garage.name || i.name === garage.name)}
                   onClick={(e) => toggleWishlist(e, garage)}
                 />
               </div>
@@ -976,7 +979,7 @@ function GaragesContent() {
               <div className="absolute inset-0 z-0 cursor-pointer" onClick={() => router.push(`/garages?garage=${encodeURIComponent(garage.name)}`)} />
               <GarageCard
                 {...garage}
-                isWishlisted={wishlistItems.some((i: any) => i.id === garage.name || i.name === garage.name)}
+                isWishlisted={wishlistItems.some((i: any) => i.id === garage.id || i.id === garage.name || i.name === garage.name)}
                 onClick={(e) => toggleWishlist(e, garage)}
               />
             </div>

@@ -6,7 +6,7 @@
     "node": "22.x"
   },
   "scripts": {
-    "api": "nx serve api",
+    "api": "node -r dotenv/config -r @swc-node/register apps/api/src/main.ts",
     "web": "nx dev web",
     "mobile": "nx start mobile",
     "lint": "nx run-many -t lint --all",
@@ -93,6 +93,7 @@
     "nativewind": "^4.2.3",
     "next": "~16.2.4",
     "pg": "^8.22.0",
+    "razorpay": "^2.9.8",
     "react": "19.0.0",
     "react-dom": "19.0.0",
     "react-native": "0.76.3",

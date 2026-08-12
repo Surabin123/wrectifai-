@@ -1,4 +1,5 @@
 'use client';
+import { useState, useEffect } from 'react';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -11,6 +12,7 @@ import {
   X,
 } from 'lucide-react';
 import { Button } from '@/components/common/button';
+import { formatCurrency } from '@/lib/currency';
 
 import { navItems } from '@/components/home/data';
 import { cn } from '@/utils/cn';
@@ -29,6 +31,18 @@ export function Sidebar({
   hideBottomWidget?: boolean;
 }) {
   const pathname = usePathname();
+  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('wrectifai-user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user && user.mobile_number) setUserPhone(user.mobile_number);
+        else if (user && user.phone) setUserPhone(user.phone);
+      }
+    } catch(e) {}
+  }, []);
 
   return (
     <aside
@@ -193,7 +207,7 @@ export function Sidebar({
                     Refer &amp; Earn
                   </h2>
                   <p className="max-w-[130px] text-[10.5px] font-normal leading-snug text-[#17307a] mb-2.5">
-                    Invite your friends and earn up to {'$500'}
+                    Invite your friends and earn up to {formatCurrency(500, userPhone)}
                   </p>
                   <Button
                     asChild

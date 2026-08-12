@@ -9,8 +9,8 @@ import { Heart, CheckCircle, Clock, Shield, Star, ShoppingCart } from 'lucide-re
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
-import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
+import { formatCurrency } from '@/lib/currency';
 
 export const initialMockProducts: any[] = [
   { id: 1, name: 'Mobil 1 5W-30 Fully Synthetic Engine Oil', category: 'Oils & Fluids', price: '$12.99', oldPrice: 1599, discount: '19% OFF', rating: '4.6', reviews: 128, img: '/assets/engine_oil_bottle.png', status: 'approved' },
@@ -30,6 +30,7 @@ export function ShopPage() {
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
   const [products, setProducts] = useState(initialMockProducts);
+  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
@@ -45,6 +46,15 @@ export function ShopPage() {
     if (savedCart) setCartItems(JSON.parse(savedCart));
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (savedWishlist) setWishlistItems(JSON.parse(savedWishlist));
+
+    try {
+      const userStr = localStorage.getItem('wrectifai-user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user && user.mobile_number) setUserPhone(user.mobile_number);
+        else if (user && user.phone) setUserPhone(user.phone);
+      }
+    } catch(e) {}
 
     const handleSearch = (e: CustomEvent) => {
       setSearchQuery(e.detail);
@@ -161,7 +171,7 @@ export function ShopPage() {
                   </div>
                   <h4 className="font-bold text-sm text-slate-900 line-clamp-2 h-10 mb-2">{product.name}</h4>
                   <div className="flex items-center gap-2 mb-2">
-                    <span className="font-bold text-slate-900">{product.price}</span>
+                    <span className="font-bold text-slate-900">{formatCurrency(parseFloat(product.price.replace('$', '')), userPhone)}</span>
                     <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">{product.discount}</span>
                   </div>
                   <div className="flex items-center gap-1 text-xs font-semibold text-amber-500 mb-4">

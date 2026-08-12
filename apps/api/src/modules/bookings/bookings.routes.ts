@@ -2,6 +2,9 @@ import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
 import { query } from '../../config/database';
+import { validateOffer, recordOfferRedemption } from '../offers/offers.service';
+import { holdWalletBalance } from '../wallet/wallet.service';
+import { createRazorpayOrder } from '../payments/razorpay.service';
 
 export const bookingsRouter = Router();
 
@@ -81,7 +84,6 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
 });
 
 
-// Helper for booking creation logic
 async function createBookingInternal(req: any, res: any, data: {
   garageId?: string;
   vehicleId: string;
@@ -91,10 +93,12 @@ async function createBookingInternal(req: any, res: any, data: {
   quoteId?: string | null;
   currency?: string;
   serviceType?: string;
+  offerCode?: string;
+  walletAmountToUse?: number;
 }) {
   const customerId = req.user?.userId;
   let { garageId } = data;
-  const { vehicleId, scheduledAt, totalAmount, bookingType, quoteId, currency, serviceType } = data;
+  const { vehicleId, scheduledAt, totalAmount, bookingType, quoteId, currency, serviceType, offerCode, walletAmountToUse } = data;
 
   if (!vehicleId || !scheduledAt || totalAmount === undefined || !bookingType) {
     return error(res, 'Missing required booking fields', 'BAD_REQUEST', 400);
@@ -108,8 +112,6 @@ async function createBookingInternal(req: any, res: any, data: {
         if (!garageId) {
           garageId = quoteResult.rows[0].garage_id;
         }
-        // Update quote status to 'selected'
-        await query("UPDATE quotes SET status = 'selected' WHERE id = $1", [quoteId]);
       }
     } catch (err) {
       console.error('Failed quote association processing:', err);
@@ -123,10 +125,33 @@ async function createBookingInternal(req: any, res: any, data: {
   const finalServiceType = serviceType || 'General Service';
 
   try {
+    let finalAmount = Number(totalAmount);
+    let offerId: string | null = null;
+    let discountApplied = 0;
+
+    // 1. Offer Validation
+    if (offerCode) {
+      const offerValidation = await validateOffer(offerCode, customerId, finalAmount);
+      offerId = offerValidation.offerId;
+      discountApplied = offerValidation.discount;
+      finalAmount -= discountApplied;
+    }
+
+    // 2. Wallet Hold (if requested)
+    let heldWalletAmount = 0;
+    if (walletAmountToUse && walletAmountToUse > 0) {
+      // Cannot use more wallet than the final amount
+      heldWalletAmount = Math.min(walletAmountToUse, finalAmount);
+    }
+
+    // Insert booking in 'pendingPayment' (or 'confirmed' if completely paid)
+    const status = finalAmount - heldWalletAmount <= 0 ? 'confirmed' : 'pendingPayment';
+    const paymentStatus = finalAmount - heldWalletAmount <= 0 ? 'paid' : 'pending';
+
     const result = await query(
-      `INSERT INTO bookings (customer_id, garage_id, vehicle_id, quote_id, booking_type, scheduled_at, status, total_amount, currency, customer_note)
-       VALUES ($1, $2, $3, $4, $5, $6, 'pendingPayment', $7, $8, $9)
-       RETURNING id, customer_id as "customerId", garage_id as "garageId", vehicle_id as "vehicleId", quote_id as "quoteId", booking_type as "bookingType", scheduled_at as "scheduledAt", status, total_amount as "totalAmount", currency, created_at as "createdAt"`,
+      `INSERT INTO bookings (customer_id, garage_id, vehicle_id, quote_id, booking_type, scheduled_at, status, payment_status, total_amount, currency, customer_note, offer_id, discount_applied, wallet_used)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+       RETURNING id, customer_id as "customerId", garage_id as "garageId", vehicle_id as "vehicleId", quote_id as "quoteId", booking_type as "bookingType", scheduled_at as "scheduledAt", status, payment_status as "paymentStatus", total_amount as "totalAmount", currency, created_at as "createdAt"`,
       [
         customerId,
         garageId,
@@ -134,22 +159,67 @@ async function createBookingInternal(req: any, res: any, data: {
         quoteId || null,
         bookingType,
         scheduledAt,
-        totalAmount,
-        currency || 'USD',
-        finalServiceType
+        status,
+        paymentStatus,
+        totalAmount, 
+        currency || 'INR',
+        finalServiceType,
+        offerId,
+        discountApplied,
+        heldWalletAmount
       ]
     );
 
-    const row = result.rows[0];
+    const booking = result.rows[0];
+    const bookingId = booking.id;
+
+    // 1b. Update quote status to 'selected' now that booking is successfully inserted
+    if (quoteId) {
+      await query("UPDATE quotes SET status = 'selected' WHERE id = $1", [quoteId]);
+    }
+
+    // Record offer redemption
+    if (offerId && discountApplied > 0) {
+      await recordOfferRedemption(offerId, customerId, bookingId, discountApplied);
+    }
+
+    // Hold Wallet Funds atomically
+    if (heldWalletAmount > 0) {
+      await holdWalletBalance(customerId, heldWalletAmount, 'BOOKING', bookingId);
+      // We will commit this hold on webhook success, or release it on failure
+    }
+
+    const remainingAmountToPay = finalAmount - heldWalletAmount;
+
+    // 3. Create Razorpay Order if remaining balance is > 0
+    let razorpayOrder = null;
+    if (remainingAmountToPay > 0) {
+      const amountInPaise = Math.round(remainingAmountToPay * 100);
+      razorpayOrder = await createRazorpayOrder(amountInPaise, `rcpt_${bookingId}`, {
+        bookingId,
+        customerId
+      });
+      
+      // Save provider intent internally
+      await query(
+        `UPDATE bookings SET payment_intent_id = $1 WHERE id = $2`,
+        [razorpayOrder.id, bookingId]
+      );
+    }
+
     return success(
       res,
       {
-        ...row,
-        totalAmount: Number(row.totalAmount),
+        ...booking,
+        totalAmount: Number(booking.totalAmount),
+        finalAmountToPay: remainingAmountToPay,
+        razorpayOrderId: razorpayOrder?.id || null,
+        status: booking.status
       },
       201
     );
   } catch (err) {
+    console.error('Booking creation error:', err);
     return error(
       res,
       err instanceof Error ? err.message : 'Failed to create booking',
@@ -174,10 +244,10 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
     const result = await query(
       `SELECT b.id, b.customer_id as "customerId", b.vehicle_id as "vehicleId", b.quote_id as "quoteId",
               b.scheduled_at as "scheduledAt", b.status, b.total_amount as "totalAmount", b.created_at as "createdAt",
-              v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin",
+              v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vin",
               u.name as "customerName", u.mobile_number as "customerPhone", p.avatar_url as "customerAvatar",
-              q.details as "quoteDetails", q.amount as "quoteAmount", q.details->>'etaNote' as "estimatedDays",
-              qr.issue_summary as "issueSummary"
+              q.details as "quoteDetails", q.amount as "quoteAmount", q.eta_days as "estimatedDays",
+              qr.issue_summary as "issueDescription"
        FROM bookings b
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN users u ON b.customer_id = u.id

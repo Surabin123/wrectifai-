@@ -124,7 +124,10 @@ export function GarageDetailPage({
   }, [initialGarage.id, initialGarage.name]);
 
   const toggleFavorite = (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     const id = initialGarage.id || initialGarage.name;
     const exists = wishlistItems.find(i => (i.id === id || i.name === id));
     let newItems;
@@ -367,10 +370,11 @@ export function GarageDetailPage({
                 className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#1a56db] shadow-[0_8px_20px_rgba(30,58,138,0.15)] transition-transform hover:scale-105 active:scale-95"
               >
                 <Heart
+                  fill={favorite ? "currentColor" : "none"}
                   className={cn(
                     'h-5 w-5 transition-colors',
                     favorite
-                      ? 'fill-[#e53e3e] text-[#e53e3e]'
+                      ? 'text-[#e53e3e]'
                       : 'text-[#1a56db]'
                   )}
                 />

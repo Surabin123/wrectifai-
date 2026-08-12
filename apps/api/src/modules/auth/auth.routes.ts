@@ -44,6 +44,7 @@ const HARDCODED_PHONES = ['9876543210', '1234567890'];
 
 // Helper to register/login a user from a verified OAuth profile (Google, Apple, etc.)
 export async function handleUserLoginOrRegister(email: string, name: string) {
+  if (email) email = email.toLowerCase();
   let user;
   let isNew = false;
 
@@ -144,7 +145,8 @@ authRouter.post('/check-user', async (req, res, next) => {
 });
 
 authRouter.post('/register', async (req, res, next) => {
-  const { mobileNumber, name, otp, email, password, role = 'customer' } = req.body;
+  let { mobileNumber, name, otp, email, password, role = 'customer' } = req.body;
+  if (email) email = email.toLowerCase();
   
   if (!name) {
     return error(res, 'Name is required', 'BAD_REQUEST', 400);
@@ -243,7 +245,8 @@ authRouter.post('/register', async (req, res, next) => {
 });
 
 authRouter.post('/login', async (req, res, next) => {
-  const { mobileNumber, otp, provider, email, password } = req.body;
+  let { mobileNumber, otp, provider, email, password } = req.body;
+  if (email) email = email.toLowerCase();
 
   try {
     let user;
