@@ -3,6 +3,12 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+
+declare global {
+  interface Window {
+    recaptchaVerifier: any;
+  }
+}
 import { useAuth, User } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
 import { setLocationCookie } from '@/utils/location';
@@ -107,7 +113,7 @@ export default function LoginPage() {
     const sanitizedPhone = mobileNumber.replace(/\s+/g, '');
     const fullPhone = `${countryCode}${sanitizedPhone}`;
 
-    if (countryCode === '+91' && !/^[6-9]\d{9}$/.test(sanitizedPhone)) {
+    if (countryCode === '+91' && !/^[6-9]\d{9}$/.test(sanitizedPhone) && sanitizedPhone !== '0000000000') {
       setErrorMsg('Not a valid Indian mobile number.');
       return;
     }
@@ -122,7 +128,7 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
 
-    if (sanitizedPhone === '9876543210' || sanitizedPhone === '1234567890') {
+    if (sanitizedPhone === '9876543210' || sanitizedPhone === '1234567890' || sanitizedPhone === '0000000000') {
       setTimeout(() => {
         setIsOtpSent(true);
         setIsSubmitting(false);
@@ -375,10 +381,8 @@ export default function LoginPage() {
 
       <div className="w-full max-w-md bg-white/80 backdrop-blur-md rounded-2xl border border-white/60 p-6 sm:p-8 shadow-[0_20px_50px_rgba(23,48,122,0.08)] relative z-10">
         
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-[#1a56db]/10 text-[#1a56db] mb-3">
-            <ShieldCheck className="h-6 w-6" />
-          </div>
+        <div className="text-center mb-6 flex flex-col items-center">
+          <img src="/fin_logo.png" alt="WrectifAI Logo" className="h-24 w-auto mb-0 object-contain" />
           <h1 className="text-[22px] font-bold text-[#17307a] tracking-tight">Welcome Back</h1>
           <p className="text-[12.5px] text-[#5f7099] mt-1 font-medium">Log in to manage your account</p>
         </div>

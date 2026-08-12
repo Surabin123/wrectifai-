@@ -78,6 +78,7 @@ export function WalletPaymentsPage() {
   // Modals
   const [isAddMoneyOpen, setIsAddMoneyOpen] = useState(false);
   const [addMoneyAmount, setAddMoneyAmount] = useState('');
+  const [activeTab, setActiveTab] = useState('All');
   
   const [isLearnWalletOpen, setIsLearnWalletOpen] = useState(false);
   const [isAddMethodOpen, setIsAddMethodOpen] = useState(false);

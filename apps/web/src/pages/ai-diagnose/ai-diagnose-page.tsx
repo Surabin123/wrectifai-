@@ -2608,7 +2608,7 @@ export function AIDiagnosePage() {
         const payload = {
           vehicleId: selectedVehicleId || '00000000-0000-0000-0000-000000000002',
           symptomText: issueText,
-          stage: 'questions',
+          stage: 'questions' as const,
           intakeAnswers: { qas: nextAnswers },
         };
         const response = await submitDiagnosis(payload) as any;
@@ -2829,7 +2829,7 @@ export function AIDiagnosePage() {
     try {
       const historyForApi = messages.map(m => ({
         role: m.sender === 'user' ? 'user' : 'assistant',
-        content: m.text || m.question || ''
+        content: (m as any).text || (m as any).question || ''
       })).filter(m => m.content !== '');
       
       historyForApi.push({ role: 'user', content: inputMsg });
