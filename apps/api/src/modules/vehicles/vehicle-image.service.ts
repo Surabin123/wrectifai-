@@ -170,7 +170,7 @@ Is this a valid exterior image of the exact target vehicle?` },
 
   private static async generateDalleImage(make: string, model: string, year: string): Promise<string> {
     const env = getEnv();
-    const prompt = `${year} ${make} ${model}`;
+    const prompt = `Highly accurate photorealistic exterior studio shot of a ${year} ${make} ${model} car, front three quarter view, daylight, automotive photography`;
 
     try {
       if (env.openaiApiKey) {

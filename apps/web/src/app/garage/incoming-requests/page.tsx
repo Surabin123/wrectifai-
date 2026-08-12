@@ -36,10 +36,10 @@ export default function IncomingRequestsPage() {
       const notifs = JSON.parse(localStorage.getItem('wrectifai_notifications') || '[]');
       if (status === 'accepted') {
         notifs.unshift({ id: Date.now(), type: 'Booking', title: 'Booking Confirmed', desc: `Your booking ${id.substring(0, 8)} has been confirmed by the garage.`, time: 'Just now', read: false, icon: 'CheckCircle2', color: 'text-green-500', bg: 'bg-green-50', audience: 'Customer' });
-        notifs.unshift({ id: Date.now() + 1, type: 'Booking', title: 'Booking Accepted', desc: `Garage accepted booking ${id.substring(0, 8)}.`, time: 'Just now', read: false, icon: 'CheckCircle2', color: 'text-green-500', bg: 'bg-green-50', audience: 'Admin' });
+        notifs.unshift({ id: Date.now() + 1, type: 'Booking', title: 'Booking Accepted', desc: `Garage accepted booking ${id.substring(0, 8)}.`, time: 'Just now', read: false, icon: 'CheckCircle2', color: 'text-green-500', bg: 'bg-green-50', audience: 'Garage' });
       } else {
         notifs.unshift({ id: Date.now(), type: 'System', title: 'Booking Rejected', desc: `Your booking ${id.substring(0, 8)} was rejected by the garage.`, time: 'Just now', read: false, icon: 'ShieldAlert', color: 'text-red-500', bg: 'bg-red-50', audience: 'Customer' });
-        notifs.unshift({ id: Date.now() + 1, type: 'System', title: 'Booking Rejected', desc: `Garage rejected booking ${id.substring(0, 8)}.`, time: 'Just now', read: false, icon: 'ShieldAlert', color: 'text-red-500', bg: 'bg-red-50', audience: 'Admin' });
+        notifs.unshift({ id: Date.now() + 1, type: 'System', title: 'Booking Rejected', desc: `Garage rejected booking ${id.substring(0, 8)}.`, time: 'Just now', read: false, icon: 'ShieldAlert', color: 'text-red-500', bg: 'bg-red-50', audience: 'Garage' });
       }
       localStorage.setItem('wrectifai_notifications', JSON.stringify(notifs));
       window.dispatchEvent(new Event('notifications-updated'));

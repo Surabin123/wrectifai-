@@ -39,7 +39,7 @@ export default function InventoryPage() {
     // Notify admin
     const storedNotifs = localStorage.getItem('wrectifai_notifications');
     const notifs = storedNotifs ? JSON.parse(storedNotifs) : [];
-    notifs.unshift({ id: Date.now(), type: 'System', title: 'Inventory Update', desc: 'A garage updated their inventory.', time: 'Just now', read: false, icon: 'FileText', color: 'text-blue-500', bg: 'bg-blue-50', audience: 'Admin' });
+    notifs.unshift({ id: Date.now(), type: 'System', title: 'Inventory Update', desc: 'A garage updated their inventory.', time: 'Just now', read: false, icon: 'FileText', color: 'text-blue-500', bg: 'bg-blue-50', audience: 'Garage' });
     localStorage.setItem('wrectifai_notifications', JSON.stringify(notifs));
     window.dispatchEvent(new Event('notifications-updated'));
   };

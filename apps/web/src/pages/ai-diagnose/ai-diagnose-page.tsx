@@ -91,7 +91,7 @@ import { TopNavbar } from '@/components/home/top-navbar';
 import { Card } from '@/components/common/card';
 import { cn } from '@/utils/cn';
 import { VehicleSelector } from '@/components/common/vehicle-selector';
-import { submitDiagnosis, type DiagnosisResponse } from '../../lib/diagnosis-api';
+import { submitDiagnosis, chatDiagnosis, syncChatHistory, type DiagnosisResponse } from '../../lib/diagnosis-api';
 import { getVehicleImage } from '@/lib/vehicle-image-catalog';
 
 function getBadgeForIssue(name: string, overallRisk?: string, index?: number) {
@@ -1317,8 +1317,8 @@ function DiagnoseResultsScreen({
                 </p>
               </div>
               <div className="mt-2.5 flex flex-wrap gap-2">
-                {diagnosisState.symptoms.map(sym => (
-                  <span key={sym} className="rounded-md bg-[#f4f7ff] px-2.5 py-1 text-[11.5px] font-medium text-[#1a56db]">{sym}</span>
+                {diagnosisState.symptoms.map((sym, index) => (
+                  <span key={`${sym}-${index}`} className="rounded-md bg-[#f4f7ff] px-2.5 py-1 text-[11.5px] font-medium text-[#1a56db]">{sym}</span>
                 ))}
               </div>
 
@@ -2203,16 +2203,6 @@ export function AIDiagnosePage() {
     initialFlow.activeCategoryId
   );
   const [messages, setMessages] = useState<ChatEntry[]>(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('ai_chat_history');
-      if (saved) {
-        try {
-          return JSON.parse(saved);
-        } catch (e) {
-          console.error("Failed to parse saved chat history", e);
-        }
-      }
-    }
     return [{
       id: 'msg-initial',
       sender: 'assistant',
@@ -2223,11 +2213,44 @@ export function AIDiagnosePage() {
     }];
   });
 
+  const [previousHistory, setPreviousHistory] = useState<ChatEntry[]>([]);
+
+  // Load existing history once when vehicle changes
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const vId = selectedVehicleId || 'guest';
+      const saved = localStorage.getItem(`ai_chat_history_${vId}`);
+      if (saved) {
+        try {
+          setPreviousHistory(JSON.parse(saved));
+        } catch (e) {
+          setPreviousHistory([]);
+        }
+      } else {
+        setPreviousHistory([]);
+      }
+    }
+  }, [selectedVehicleId]);
+
   useEffect(() => {
     if (typeof window !== 'undefined' && messages.length > 0) {
-      localStorage.setItem('ai_chat_history', JSON.stringify(messages));
+      // Only append and save if the user has actually interacted (messages > 1)
+      if (messages.length === 1) return;
+
+      const vId = selectedVehicleId || 'guest';
+      // Combine all previous history with the entire current session
+      const combined = [...previousHistory, ...messages];
+      
+      localStorage.setItem(`ai_chat_history_${vId}`, JSON.stringify(combined));
+      
+      // Fire-and-forget background sync to PostgreSQL (safe fallback)
+      if (vId !== 'guest') {
+        syncChatHistory(vId, combined).catch(err => {
+          // Explicitly suppress to avoid UI errors/disruption
+        });
+      }
     }
-  }, [messages]);
+  }, [messages, previousHistory, selectedVehicleId]);
 
   const [answers, setAnswers] = useState<AnswerMap>({});
 
@@ -2600,6 +2623,29 @@ export function AIDiagnosePage() {
           setCurrentQuestionIdx(nextIdx);
         }, 1000);
       } else {
+        const isNonAutomotive = dynamicQuestions.length === 1 && (dynamicQuestions[0].options.includes('Cancel') || dynamicQuestions[0].options.includes('Understood'));
+        if (isNonAutomotive) {
+          setIsTyping(true);
+          setTypingText('Processing...');
+          setTimeout(() => {
+            setIsTyping(false);
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `sys-reject-${Date.now()}`,
+                sender: 'assistant',
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                kind: 'message',
+                text: 'Diagnosis session ended. Please describe an automotive issue to begin a new diagnosis.'
+              }
+            ]);
+            setHasStartedDiagnose(false);
+            setDynamicQuestions([]);
+            setCurrentQuestionIdx(-1);
+          }, 1000);
+          return;
+        }
+
         // All 5 questions answered — trigger final diagnosis, never ask another question
         setIsTyping(true);
         setTypingText('Synthesizing details...');
@@ -2763,7 +2809,20 @@ export function AIDiagnosePage() {
     // Free-form chat context update after diagnosis is complete
     setIsTyping(true);
     setTypingText('WrectifAI is thinking...');
-    setTimeout(() => {
+    
+    try {
+      const historyForApi = messages.map(m => ({
+        role: m.sender === 'user' ? 'user' : 'assistant',
+        content: m.text || m.question || ''
+      })).filter(m => m.content !== '');
+      
+      historyForApi.push({ role: 'user', content: inputMsg });
+
+      const reply = await chatDiagnosis({
+        vehicleId: selectedVehicleId,
+        conversationHistory: historyForApi
+      });
+
       setIsTyping(false);
       setMessages((prev) => [
         ...prev,
@@ -2772,12 +2831,24 @@ export function AIDiagnosePage() {
           sender: 'assistant',
           time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
           kind: 'message',
-          text: `I've noted: "${inputMsg}". This has been shared with your inspection summary!`,
+          text: reply?.text || reply?.data?.text || "I couldn't process that. Could you rephrase?",
         },
       ]);
-    }, 1000);
+    } catch (err) {
+      console.error('Chat failed', err);
+      setIsTyping(false);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: `bot-reply-${Date.now()}`,
+          sender: 'assistant',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          kind: 'message',
+          text: "I'm having trouble connecting right now. Please try again.",
+        },
+      ]);
+    }
   };
-
 
 
 

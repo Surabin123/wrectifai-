@@ -1,6 +1,10 @@
 import { getEnv } from './config/env';
 import { createApp } from './app';
 import { runMigrations } from './db/migrations';
+import dns from 'dns';
+
+// Fix ENOTFOUND errors on some Windows setups where IPv6 fails
+dns.setDefaultResultOrder('ipv4first');
 
 const { host, port } = getEnv();
 

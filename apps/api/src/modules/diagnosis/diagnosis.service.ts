@@ -4,6 +4,11 @@ import { z } from 'zod';
 import { getDbPool, query } from '../../config/database';
 import { getEnv } from '../../config/env';
 import { KnowledgeService, type RetrievedIssue } from './knowledge.service';
+import dns from 'dns';
+
+// Fix ENOTFOUND errors on some Windows setups where IPv6 fails
+dns.setDefaultResultOrder('ipv4first');
+
 // Fallback for CommonJS to use ESM modules without tsc breaking it
 const dynamicImport = new Function('specifier', 'return import(specifier)');
 
@@ -137,7 +142,32 @@ export class DiagnosisService {
     }
   }
 
+  static async getChatHistory(userId: string, vehicleId: string): Promise<any[]> {
+    try {
+      const res = await query(
+        'SELECT messages FROM ai_chat_history WHERE user_id = $1 AND vehicle_id = $2',
+        [userId, vehicleId]
+      );
+      return res.rows.length > 0 ? res.rows[0].messages : [];
+    } catch (err) {
+      console.error('Failed to get chat history:', err);
+      return [];
+    }
+  }
 
+  static async saveChatHistory(userId: string, vehicleId: string, messages: any[]): Promise<void> {
+    try {
+      await query(
+        `INSERT INTO ai_chat_history (user_id, vehicle_id, messages, updated_at) 
+         VALUES ($1, $2, $3, NOW()) 
+         ON CONFLICT (user_id, vehicle_id) DO UPDATE SET messages = EXCLUDED.messages, updated_at = NOW()`,
+        [userId, vehicleId, JSON.stringify(messages)]
+      );
+    } catch (err) {
+      console.error('Failed to save chat history:', err);
+      // Suppress error to avoid breaking the application
+    }
+  }
 
   /**
    * Stage 1: Generate dynamic intake questions based on database matches
@@ -721,6 +751,45 @@ The required JSON schema is:
         nextAction: resultRes.rows[0].nextAction,
       } : null,
     };
+  }
+
+  /**
+   * Free-form chat with the AI assistant
+   */
+  static async chat(customerId: string, vehicleId: string, conversationHistory: Array<{role: string, content: string}>) {
+    const vehicleRes = await query('SELECT make, model, year FROM vehicles WHERE id = $1 AND customer_id = $2', [vehicleId, customerId]);
+    if (vehicleRes.rows.length === 0) {
+      throw new Error('Vehicle not found or does not belong to the user');
+    }
+    const vehicle = vehicleRes.rows[0];
+    const env = getEnv();
+
+    const { createOpenAI } = await dynamicImport('@ai-sdk/openai');
+    const { generateText } = await dynamicImport('ai');
+
+    let aiProvider;
+    if (env.llmProvider === 'groq') {
+      if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');
+      aiProvider = createOpenAI({ baseURL: 'https://api.groq.com/openai/v1', apiKey: env.groqApiKey, fetch });
+    } else {
+      if (!env.openaiApiKey) throw new Error('OPENAI_API_KEY is not defined');
+      aiProvider = createOpenAI({ apiKey: env.openaiApiKey, fetch });
+    }
+    const modelInstance = aiProvider(env.llmModel);
+
+    const systemPrompt = `You are WrectifAI, an expert automotive diagnostic assistant. The user is currently diagnosing a ${vehicle.year} ${vehicle.make} ${vehicle.model}. Be concise, helpful, and directly address their questions.`;
+
+    const messages = [
+      { role: 'system', content: systemPrompt },
+      ...conversationHistory
+    ];
+
+    const { text } = await generateText({
+      model: modelInstance,
+      messages: messages as any,
+    });
+
+    return { text };
   }
 
   /**

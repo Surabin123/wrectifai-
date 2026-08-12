@@ -82,7 +82,7 @@ export default function QuotesPage() {
       // Dispatch Notifications
       const notifs = JSON.parse(localStorage.getItem('wrectifai_notifications') || '[]');
       notifs.unshift({ id: Date.now(), type: 'Quote', title: 'Quote Received', desc: `A garage has sent you a quote for your request.`, time: 'Just now', read: false, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'Customer' });
-      notifs.unshift({ id: Date.now() + 1, type: 'Quote', title: 'Quote Sent', desc: `A garage has responded to a quote request.`, time: 'Just now', read: false, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'Admin' });
+      notifs.unshift({ id: Date.now() + 1, type: 'Quote', title: 'Quote Sent', desc: `A garage has responded to a quote request.`, time: 'Just now', read: false, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'Garage' });
       localStorage.setItem('wrectifai_notifications', JSON.stringify(notifs));
       window.dispatchEvent(new Event('notifications-updated'));
       await loadData();

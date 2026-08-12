@@ -1,7 +1,7 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { ChevronDown, Search } from 'lucide-react';
+import { ChevronDown, Search, History, X } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/common/input';
@@ -12,6 +12,7 @@ import { setLocationCookie, getLocationCookie } from '@/utils/location';
 import { Modal } from '@/components/common/modal';
 import { Button } from '@/components/common/button';
 import { Trash2, ShoppingCart, Heart } from 'lucide-react';
+import { getChatHistory } from '@/lib/diagnosis-api';
 import Image from 'next/image';
 
 const IN_CITIES = [
@@ -41,6 +42,8 @@ export function TopNavbar() {
   const [notificationCount, setNotificationCount] = useState(3);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+  const [pastMessages, setPastMessages] = useState<any[]>([]);
   
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -255,6 +258,39 @@ export function TopNavbar() {
 
       {/* Right Section: Notifications, Chat, Favorites, Profile */}
       <div className="flex items-center gap-[7px] sm:gap-[12px] shrink-0 ml-auto lg:ml-0">
+        <button
+          title="Past Conversations"
+          onClick={async () => {
+            const savedVehicleStr = localStorage.getItem('wrectifai_selected_vehicle');
+            const vId = savedVehicleStr ? JSON.parse(savedVehicleStr).id : 'guest';
+            
+            // Try fetching from DB first (if authenticated/not guest)
+            if (vId !== 'guest') {
+              try {
+                const response = await getChatHistory(vId);
+                if (response?.messages && response.messages.length > 0) {
+                  setPastMessages(response.messages);
+                  setIsHistoryModalOpen(true);
+                  return;
+                }
+              } catch (e) {
+                // Suppress API/Fetch error to prevent disruption, proceed to localStorage fallback
+              }
+            }
+
+            // Fallback to localStorage
+            const saved = localStorage.getItem(`ai_chat_history_${vId}`);
+            if (saved) {
+              try { setPastMessages(JSON.parse(saved)); } catch (e) { setPastMessages([]); }
+            } else { setPastMessages([]); }
+            
+            setIsHistoryModalOpen(true);
+          }}
+          className="relative h-9 w-9 lg:h-10 lg:w-10 shrink-0 flex items-center justify-center rounded-full bg-white text-[#17307a] shadow-sm ring-1 ring-[#e5ecfb] hover:bg-[#f2f6ff]"
+        >
+          <History className="h-4 w-4 lg:h-[18px] lg:w-[18px]" />
+        </button>
+
         {topNavIcons.map(({ icon: Icon, badge, label, href }) => (
           <button
             key={label}
@@ -353,7 +389,7 @@ export function TopNavbar() {
                           onClick={() => {
                             const newWishlist = wishlistItems.filter((i: any) => i.id !== item.id);
                             setWishlistItems(newWishlist);
-                            sessionStorage.setItem('shopWishlist', JSON.stringify(newWishlist));
+                            localStorage.setItem('shopWishlist', JSON.stringify(newWishlist));
                             window.dispatchEvent(new Event('wishlist-updated'));
                           }}
                         >
@@ -403,7 +439,7 @@ export function TopNavbar() {
                       // Remove from wishlist after adding to cart
                       const newWishlist = wishlistItems.filter((i: any) => i.id !== item.id);
                       setWishlistItems(newWishlist);
-                      sessionStorage.setItem('shopWishlist', JSON.stringify(newWishlist));
+                      localStorage.setItem('shopWishlist', JSON.stringify(newWishlist));
                       window.dispatchEvent(new Event('wishlist-updated'));
                     }}
                   >
@@ -416,7 +452,7 @@ export function TopNavbar() {
                     onClick={() => {
                       const newWishlist = wishlistItems.filter((i: any) => i.id !== item.id);
                       setWishlistItems(newWishlist);
-                      sessionStorage.setItem('shopWishlist', JSON.stringify(newWishlist));
+                      localStorage.setItem('shopWishlist', JSON.stringify(newWishlist));
                       window.dispatchEvent(new Event('wishlist-updated'));
                     }}
                   >
@@ -431,7 +467,45 @@ export function TopNavbar() {
           </div>
         )}
       </Modal>
+
+
+      {isHistoryModalOpen && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#070e20]/60 p-4 backdrop-blur-sm">
+          <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-100 p-4">
+              <h2 className="text-[17px] font-bold text-[#17307a]">Past Conversations</h2>
+              <button onClick={() => setIsHistoryModalOpen(false)} className="rounded-full p-1.5 transition-colors hover:bg-gray-100">
+                <X className="h-5 w-5 text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-5 space-y-4">
+              {pastMessages.length === 0 ? (
+                <div className="py-10 text-center text-sm font-medium text-gray-400">No past conversations found.</div>
+              ) : (
+                pastMessages.map((msg, i) => (
+                  <div key={i} className="w-full flex flex-col">
+                    {msg.id === 'msg-initial' && (
+                      <div className="flex items-center justify-center py-5 my-2">
+                        <div className="flex-grow border-t border-gray-200"></div>
+                        <span className="mx-4 text-[10px] font-extrabold text-gray-400 uppercase tracking-widest bg-white">
+                          Diagnosis Session {msg.time && `• ${msg.time}`}
+                        </span>
+                        <div className="flex-grow border-t border-gray-200"></div>
+                      </div>
+                    )}
+                    <div className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} mb-3`}>
+                      <span className="mb-1 text-[11px] font-bold text-gray-400">{msg.time}</span>
+                      <div className={`max-w-[85%] rounded-2xl p-3.5 text-[13.5px] leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-[#2451f6] text-white' : 'bg-[#f4f7ff] text-[#17307a]'}`}>
+                        {msg.text || msg.question}
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </header>
   );
 }
-

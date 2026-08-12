@@ -61,7 +61,7 @@ export default function BookingsPage() {
       
       if (title) {
         notifs.unshift({ id: Date.now(), type: 'Booking', title, desc, time: 'Just now', read: false, icon, color, bg, audience: 'Customer' });
-        notifs.unshift({ id: Date.now() + 1, type: 'Booking', title: `Booking: ${title}`, desc: `Garage updated booking ${id.substring(0, 8)} to ${newStatus}.`, time: 'Just now', read: false, icon, color, bg, audience: 'Admin' });
+        notifs.unshift({ id: Date.now() + 1, type: 'Booking', title: `Booking: ${title}`, desc: `Garage updated booking ${id.substring(0, 8)} to ${newStatus}.`, time: 'Just now', read: false, icon, color, bg, audience: 'Garage' });
         localStorage.setItem('wrectifai_notifications', JSON.stringify(notifs));
         window.dispatchEvent(new Event('notifications-updated'));
       }
