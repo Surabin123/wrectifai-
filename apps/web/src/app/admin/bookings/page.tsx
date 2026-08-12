@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
 import { formatAdminStatus } from '@/utils/admin-status';
+import { formatCurrency } from '@/lib/currency';
 
 export default function AdminBookingsPage() {
   const [bookings, setBookings] = useState<any[]>([]);
@@ -167,7 +168,7 @@ export default function AdminBookingsPage() {
                     <p className="col-span-2 mt-2"><strong>Issue Description:</strong> <br/><span className="text-sm text-slate-600">{selectedBooking.issueDescription || 'No description provided.'}</span></p>
 
                     <p className="col-span-2 text-lg border-t pt-3 mt-1 font-bold text-[#17307a]">
-                      Total Amount: ${selectedBooking.totalAmount && !isNaN(Number(selectedBooking.totalAmount)) ? Number(selectedBooking.totalAmount).toFixed(2) : '0.00'}
+                      Total Amount: {formatCurrency(selectedBooking.totalAmount || 0, selectedBooking.customerPhone)}
                     </p>
                   </div>
             ) : <p>Loading...</p>}

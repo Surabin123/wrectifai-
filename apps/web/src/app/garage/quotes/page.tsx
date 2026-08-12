@@ -6,6 +6,7 @@ import { garageNavItems } from '@/lib/garage-config';
 import { useState, useEffect } from 'react';
 import { getGarageIncomingRequests, QuoteRequestResponse, submitGarageQuote, fetchGarageQuotes, GarageQuote } from '@/lib/quotes-api';
 import Link from 'next/link';
+import { formatCurrency } from '@/lib/currency';
 
 export default function QuotesPage() {
   const [requests, setRequests] = useState<QuoteRequestResponse[]>([]);
@@ -223,7 +224,7 @@ export default function QuotesPage() {
                   )}
                   
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Labour Cost ($)</label>
+                    <label className="block font-bold text-slate-700 mb-1">Labour Cost</label>
                     <input
                       type="number"
                       required
@@ -234,7 +235,7 @@ export default function QuotesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Parts Cost ($)</label>
+                    <label className="block font-bold text-slate-700 mb-1">Parts Cost</label>
                     <input
                       type="number"
                       required
@@ -245,7 +246,7 @@ export default function QuotesPage() {
                     />
                   </div>
                   <div>
-                    <label className="block font-bold text-slate-700 mb-1">Total ($) (Auto)</label>
+                    <label className="block font-bold text-slate-700 mb-1">Total (Auto)</label>
                     <input
                       type="number"
                       disabled
@@ -350,19 +351,19 @@ export default function QuotesPage() {
                 <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-200">
                   <div>
                     <span className="font-bold text-slate-600 block">Labour Cost:</span>
-                    <span className="text-slate-800">${(viewDetailsQuote.quote.laborCost || 0).toFixed(2)}</span>
+                    <span className="text-slate-800">{formatCurrency(viewDetailsQuote.quote.laborCost || 0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
                   </div>
                   <div>
                     <span className="font-bold text-slate-600 block">Parts Cost:</span>
-                    <span className="text-slate-800">${(viewDetailsQuote.quote.partsCost || 0).toFixed(2)}</span>
+                    <span className="text-slate-800">{formatCurrency(viewDetailsQuote.quote.partsCost || 0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
                   </div>
                   <div>
                     <span className="font-bold text-slate-600 block">Other Charges:</span>
-                    <span className="text-slate-800">$0.00</span>
+                    <span className="text-slate-800">{formatCurrency(0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
                   </div>
                   <div className="col-span-2 bg-slate-50 p-3 rounded mt-2 border border-slate-200 flex justify-between items-center">
                     <span className="font-bold text-slate-700">Total Amount:</span>
-                    <span className="font-bold text-blue-700 text-lg">${(viewDetailsQuote.quote.totalCost || 0).toFixed(2)}</span>
+                    <span className="font-bold text-blue-700 text-lg">{formatCurrency(viewDetailsQuote.quote.totalCost || 0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
                   </div>
                 </div>
 

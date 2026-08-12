@@ -2563,7 +2563,7 @@ export function AIDiagnosePage() {
     applyDiagnoseFlow(initialIssueParam);
   };
 
-  const handleSelectOption = (questionId: string, option: string) => {
+  const handleSelectOption = async (questionId: string, option: string) => {
     if (isAnalyzingResults) return;
 
     // Prevent re-selecting options once chosen
@@ -2601,56 +2601,72 @@ export function AIDiagnosePage() {
       completedAnswersRef.current = nextAnswers;
       setDynamicAnswers(nextAnswers);
 
-      const nextIdx = currentQuestionIdx + 1;
-      if (nextIdx < dynamicQuestions.length) {
-        // More questions remain — ask the next one
-        setIsTyping(true);
-        setTypingText('WrectifAI is processing...');
-        setTimeout(() => {
-          setIsTyping(false);
+      setIsTyping(true);
+      setTypingText('WrectifAI is processing...');
+
+      try {
+        const payload = {
+          vehicleId: selectedVehicleId || '00000000-0000-0000-0000-000000000002',
+          symptomText: issueText,
+          stage: 'questions',
+          intakeAnswers: { qas: nextAnswers },
+        };
+        const response = await submitDiagnosis(payload) as any;
+
+        setIsTyping(false);
+
+        if (response && response.questions && response.questions.length > 0) {
+          const nextQuestion = response.questions[0];
+          const isNonAutomotive = response.questions.length === 1 && (response.questions[0].options.includes('Cancel') || response.questions[0].options.includes('Understood'));
+          
+          if (isNonAutomotive) {
+             setMessages((prev) => [
+               ...prev,
+               {
+                 id: `sys-reject-${Date.now()}`,
+                 sender: 'assistant',
+                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                 kind: 'message',
+                 text: 'Diagnosis session ended. Please describe an automotive issue to begin a new diagnosis.'
+               }
+             ]);
+             setHasStartedDiagnose(false);
+             setHasFailedDiagnose(true);
+             setDynamicQuestions([]);
+             setCurrentQuestionIdx(-1);
+             return;
+          }
+
+          setDynamicQuestions((prev) => [...prev, nextQuestion]);
+          const nextIdx = currentQuestionIdx + 1;
           setMessages((prev) => [
             ...prev,
             {
-              id: dynamicQuestions[nextIdx].id || `dyn-q-${nextIdx}-${Date.now()}`,
+              id: nextQuestion.id || `dyn-q-${nextIdx}-${Date.now()}`,
               sender: 'assistant',
               time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
               kind: 'question',
-              question: dynamicQuestions[nextIdx].question,
-              options: dynamicQuestions[nextIdx].options,
+              question: nextQuestion.question,
+              options: nextQuestion.options,
               selected: '',
             },
           ]);
           setCurrentQuestionIdx(nextIdx);
-        }, 1000);
-      } else {
-        const isNonAutomotive = dynamicQuestions.length === 1 && (dynamicQuestions[0].options.includes('Cancel') || dynamicQuestions[0].options.includes('Understood'));
-        if (isNonAutomotive) {
+        } else {
+          // Backend returned no questions, meaning we hit the limit, proceed to final analysis
           setIsTyping(true);
-          setTypingText('Processing...');
+          setTypingText('Analyzing diagnostics...');
           setTimeout(() => {
-            setIsTyping(false);
-            setMessages((prev) => [
-              ...prev,
-              {
-                id: `sys-reject-${Date.now()}`,
-                sender: 'assistant',
-                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                kind: 'message',
-                text: 'Diagnosis session ended. Please describe an automotive issue to begin a new diagnosis.'
-              }
-            ]);
-            setHasStartedDiagnose(false);
-            setDynamicQuestions([]);
-            setCurrentQuestionIdx(-1);
+            setHasStartedDiagnose(true);
+            setIsAnalyzingResults(true);
           }, 1000);
-          return;
         }
-
-        // All 5 questions answered — trigger final diagnosis, never ask another question
+      } catch (err) {
+        console.error('Failed to fetch next question:', err);
         setIsTyping(true);
-        setTypingText('Synthesizing details...');
+        setTypingText('Analyzing diagnostics...');
         setTimeout(() => {
-          setIsTyping(false);
+          setHasStartedDiagnose(true);
           setIsAnalyzingResults(true);
         }, 1000);
       }

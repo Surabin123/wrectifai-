@@ -7,6 +7,7 @@ import { Modal } from '@/components/common/modal';
 import { BookingDialog } from '@/components/customer/booking-dialog';
 import { fetchQuotes } from '@/lib/quotes-api';
 import type { QuoteItem } from '@/components/quotes/quotes-shared';
+import { formatCurrency } from '@/lib/currency';
 
 export function QuotesPage() {
   const router = useRouter();
@@ -15,6 +16,21 @@ export function QuotesPage() {
   const [bookingQuote, setBookingQuote] = useState<QuoteItem | null>(null);
   const [viewQuote, setViewQuote] = useState<QuoteItem | null>(null);
   const [viewDetailsQuote, setViewDetailsQuote] = useState<QuoteItem | null>(null);
+  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('wrectifai-user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user && user.mobile_number) {
+          setUserPhone(user.mobile_number);
+        } else if (user && user.phone) {
+          setUserPhone(user.phone);
+        }
+      }
+    } catch(e) {}
+  }, []);
 
   const formatStatus = (status?: string) => {
     if (!status) return 'Pending';
@@ -116,7 +132,7 @@ export function QuotesPage() {
                       {(quote as any).garageName || quote.garage}
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-800">
-                      {quote.price || `$${(quote as any).amount || (quote as any).totalCost || 0}`}
+                      {quote.price ? quote.price : formatCurrency((quote as any).amount || (quote as any).totalCost || 0, userPhone)}
                     </td>
                     <td className="px-6 py-4 text-slate-600">
                       {quote.time || 'N/A'}
@@ -215,19 +231,19 @@ export function QuotesPage() {
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Labour Cost</span>
-              <p className="font-semibold">{viewQuote.details?.labour ? `USD ${viewQuote.details.labour}` : 'N/A'}</p>
+              <p className="font-semibold">{viewQuote.details?.labour ? formatCurrency(viewQuote.details.labour, userPhone) : 'N/A'}</p>
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Parts Cost</span>
-              <p className="font-semibold">{viewQuote.details?.parts ? `USD ${viewQuote.details.parts}` : 'N/A'}</p>
+              <p className="font-semibold">{viewQuote.details?.parts ? formatCurrency(viewQuote.details.parts, userPhone) : 'N/A'}</p>
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Other Charges</span>
-              <p className="font-semibold">{viewQuote.details?.other ? `USD ${viewQuote.details.other}` : 'N/A'}</p>
+              <p className="font-semibold">{viewQuote.details?.other ? formatCurrency(viewQuote.details.other, userPhone) : 'N/A'}</p>
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Total Amount</span>
-              <p className="font-bold text-blue-700">{viewQuote.price || `$${(viewQuote as any).amount || (viewQuote as any).totalCost || 0}`}</p>
+              <p className="font-bold text-blue-700">{formatCurrency(viewQuote.price || (viewQuote as any).amount || (viewQuote as any).totalCost || 0, userPhone)}</p>
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Estimated Days</span>

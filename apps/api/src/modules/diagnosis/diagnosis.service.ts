@@ -208,11 +208,24 @@ export class DiagnosisService {
       console.error('Failed to retrieve matched issues from database:', dbErr);
     }
     let previousAnswersContext = '';
+    let questionsAskedCount = 0;
     if (intakeAnswers) {
       const qas = intakeAnswers.qas || intakeAnswers.answers;
       if (qas && Object.keys(qas).length > 0) {
+        questionsAskedCount = Object.keys(qas).length;
         previousAnswersContext = `\n\nPrevious questions asked and user's answers:\n${Object.entries(qas).map(([q, a]) => `- Q: ${q}\n  A: ${a}`).join('\n')}`;
       }
+    }
+
+    if (questionsAskedCount >= 4) {
+      return {
+        questions: [],
+        matchedIssues: matchedIssues.map(issue => ({
+          id: issue.id,
+          issue_name: issue.issue_name,
+          safety_critical: issue.safety_critical,
+        })),
+      };
     }
 
 
@@ -268,29 +281,25 @@ export class DiagnosisService {
         const llmRaw = await generateText({
           model: modelInstance,
           system: `You are an expert automotive diagnostic assistant for a ${vehicle.year} ${vehicle.make} ${vehicle.model}.
-Your task is to generate EXACTLY 5 follow-up diagnostic questions for the reported symptom.
+Your task is to generate EXACTLY 1 follow-up diagnostic question for the reported symptom, strictly based on the user's previous answers if any exist.
 
 CRITICAL RULE:
 - If the reported symptom is NOT related to automotive issues, vehicles, cars, or driving, you MUST REJECT it. Return EXACTLY 1 question object with the question "I only assess automotive issues. Please describe a vehicle problem." and options ["Understood", "Cancel"].
 
-Step 1 – Identify the single primary vehicle subsystem affected by the symptom.
-Step 2 – Generate EXACTLY 5 questions that are specific to that subsystem only.
 Rules:
-- Every question MUST be directly relevant to the reported symptom and the identified subsystem.
+- The question MUST logically follow from the context of previous answers to actively drill down into the root cause.
 - Never ask generic cross-system questions.
 - Never ask about vehicle model/year.
-- Each question must have 3–5 concise, mutually exclusive answer options.
-- Questions must progressively narrow the diagnosis.
-- Return EXACTLY 5 question objects (unless rejecting non-automotive inputs as per the CRITICAL RULE).
-- IMPORTANT: You must output ONLY a valid raw JSON object with the following schema, and absolutely NO markdown formatting or other text:
+- The question must have 3–5 concise, mutually exclusive answer options.
+- You must output ONLY a valid raw JSON object with the following schema, and absolutely NO markdown formatting or other text:
 {
   "questions": [
-    { "question": "The question text", "options": ["Option 1", "Option 2", "Option 3"] }
+    { "question": "The strictly contextual follow-up question text", "options": ["Option 1", "Option 2", "Option 3"] }
   ]
 }`,
           messages: [{
             role: 'user',
-            content: `Symptom reported: "${symptomText}"${previousAnswersContext}\n\nGenerate exactly 5 diagnostic questions specific to this symptom's subsystem. Return ONLY JSON.`,
+            content: `Symptom reported: "${symptomText}"${previousAnswersContext}\n\nGenerate exactly 1 logical follow-up question based tightly on the previous answers. Return ONLY JSON.`,
           }],
         });
 
@@ -777,7 +786,8 @@ The required JSON schema is:
     }
     const modelInstance = aiProvider(env.llmModel);
 
-    const systemPrompt = `You are WrectifAI, an expert automotive diagnostic assistant. The user is currently diagnosing a ${vehicle.year} ${vehicle.make} ${vehicle.model}. Be concise, helpful, and directly address their questions.`;
+    const systemPrompt = `You are WrectifAI, an expert automotive diagnostic assistant. The user is currently diagnosing a ${vehicle.year} ${vehicle.make} ${vehicle.model}. 
+You must act as a highly intelligent mechanic. Crucially, your follow-up questions MUST be strictly based on the user's PREVIOUS answers to drill down logically into the root cause. Do NOT ask generic predefined questions. Use the context of what they just said to formulate the next logical diagnostic step. Be concise and helpful.`;
 
     const messages = [
       { role: 'system', content: systemPrompt },

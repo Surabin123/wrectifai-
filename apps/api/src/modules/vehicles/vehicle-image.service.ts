@@ -132,8 +132,10 @@ Is this a valid exterior image of the exact target vehicle?` },
       return object.isValid;
     } catch (err) {
       console.error('[VehicleImageService] Image validation failed:', err);
-      // If validation fails due to token limits or other API errors, assume invalid to trigger DALL-E instead of a bad image
-      return false;
+      // If validation fails (e.g. Groq DNS error, rate limit), we MUST assume the Wikipedia image is valid.
+      // Wikipedia search by "Year Make Model" is extremely accurate, and falling back to true prevents 
+      // generating inaccurate generic AI cars when the LLM is down.
+      return true;
     }
   }
 
@@ -170,7 +172,7 @@ Is this a valid exterior image of the exact target vehicle?` },
 
   private static async generateDalleImage(make: string, model: string, year: string): Promise<string> {
     const env = getEnv();
-    const prompt = `Highly accurate photorealistic exterior studio shot of a ${year} ${make} ${model} car, front three quarter view, daylight, automotive photography`;
+    const prompt = `A highly accurate, perfectly realistic, professional dealership photograph of a stock ${year} ${make} ${model} car. Front three-quarter angle, bright daylight, plain background.`;
 
     try {
       if (env.openaiApiKey) {

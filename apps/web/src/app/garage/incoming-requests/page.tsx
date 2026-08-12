@@ -5,6 +5,7 @@ import { DashboardHeader } from '@/components/common/dashboard-header';
 import { garageNavItems } from '@/lib/garage-config';
 import { useEffect, useState } from 'react';
 import { getGarageIncomingBookings, updateBookingStatus } from '@/lib/quotes-api';
+import { formatCurrency } from '@/lib/currency';
 
 export default function IncomingRequestsPage() {
   const [bookings, setBookings] = useState<any[]>([]);
@@ -170,7 +171,7 @@ export default function IncomingRequestsPage() {
                 </div>
                 <div>
                   <span className="font-bold text-slate-600">Quote Amount:</span>
-                  <p className="text-green-700 font-bold bg-slate-50 p-2 mt-1 rounded border border-slate-200">${selectedBooking.quoteAmount || selectedBooking.totalAmount}</p>
+                  <p className="text-green-700 font-bold bg-slate-50 p-2 mt-1 rounded border border-slate-200">{formatCurrency(selectedBooking.quoteAmount || selectedBooking.totalAmount || 0, selectedBooking.customerPhone)}</p>
                 </div>
                 <div>
                   <span className="font-bold text-slate-600">Issue Description:</span>

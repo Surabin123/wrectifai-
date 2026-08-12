@@ -250,7 +250,7 @@ adminRouter.post('/users', async (req, res) => {
 adminRouter.get('/bookings', async (req, res) => {
   try {
     const result = await query(
-      `SELECT b.id, u.name as "customerName", g.name as "garageName", b.status, b.created_at as "createdAt",
+      `SELECT b.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", b.status, b.created_at as "createdAt",
               b.scheduled_at as "serviceDate", b.total_amount as "totalAmount", v.make as "vehicleMake", v.model as "vehicleModel"
        FROM bookings b
        LEFT JOIN users u ON b.customer_id = u.id
@@ -338,7 +338,7 @@ adminRouter.post('/service-requests', async (req, res) => {
 adminRouter.get('/service-requests', async (req, res) => {
   try {
       const result = await query(
-        `SELECT DISTINCT ON (qr.created_at) qr.id, u.name as "customerName", g.name as "garageName", 
+        `SELECT DISTINCT ON (qr.created_at) qr.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", 
                 COALESCE(
                   NULLIF((SELECT string_agg(i->>'title', ', ') FROM diagnosis_results dres, jsonb_array_elements(dres.issues) i WHERE dres.diagnosis_request_id = qr.diagnosis_request_id), ''),
                   NULLIF((SELECT symptom_text FROM diagnosis_requests dr WHERE dr.id = qr.diagnosis_request_id), ''),
@@ -362,7 +362,7 @@ adminRouter.get('/service-requests', async (req, res) => {
 adminRouter.get('/quotes', async (req, res) => {
   try {
     const result = await query(
-      `SELECT q.id, u.name as "customerName", g.name as "garageName", q.amount as "totalAmount"
+      `SELECT q.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", q.amount as "totalAmount"
        FROM quotes q
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
        LEFT JOIN users u ON qr.customer_id = u.id

@@ -9,6 +9,7 @@ import { Card } from '@/components/common/card';
 import { Modal } from '@/components/common/modal';
 import { Button } from '@/components/common/button';
 import { Car, Clock, Settings, CheckCircle } from 'lucide-react';
+import { formatCurrency } from '@/lib/currency';
 
 export default function ActiveJobsPage() {
   const [jobs, setJobs] = useState<any[]>([]);
@@ -101,7 +102,7 @@ export default function ActiveJobsPage() {
         >
           <div className="p-4 space-y-4">
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Labor Cost ($)</label>
+              <label className="block text-sm font-bold text-slate-700 mb-1">Labor Cost</label>
               <input 
                 type="number" 
                 className="w-full border rounded-lg p-2 text-sm"
@@ -111,7 +112,7 @@ export default function ActiveJobsPage() {
               />
             </div>
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Parts Cost ($)</label>
+              <label className="block text-sm font-bold text-slate-700 mb-1">Parts Cost</label>
               <input 
                 type="number" 
                 className="w-full border rounded-lg p-2 text-sm"

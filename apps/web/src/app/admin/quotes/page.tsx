@@ -5,6 +5,7 @@ import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
 import { formatAdminStatus } from '@/utils/admin-status';
+import { formatCurrency } from '@/lib/currency';
 
 export default function AdminQuotesPage() {
   const [quotes, setQuotes] = useState<any[]>([]);
@@ -154,7 +155,7 @@ export default function AdminQuotesPage() {
                    <p className="col-span-2 mt-2"><strong>Issue Description:</strong> <br/><span className="text-sm text-slate-600">{selectedQuote.issueDescription || 'No description provided.'}</span></p>
 
                    <p className="col-span-2 text-lg border-t pt-3 mt-1 font-bold text-[#17307a]">
-                     Total Amount: ${selectedQuote.totalAmount && !isNaN(Number(selectedQuote.totalAmount)) ? Number(selectedQuote.totalAmount).toFixed(2) : '0.00'}
+                     Total Amount: {formatCurrency(selectedQuote.totalAmount || 0, selectedQuote.customerPhone)}
                    </p>
                  </div>
                </div>
@@ -168,7 +169,7 @@ export default function AdminQuotesPage() {
            <div className="grid grid-cols-1 gap-4">
              <div><label className="block text-xs font-semibold mb-1">Customer ID (Optional)</label><input className="w-full border rounded p-2 text-sm" value={formData.customerId} onChange={e => setFormData({...formData, customerId: e.target.value})} /></div>
              <div><label className="block text-xs font-semibold mb-1">Garage ID (Optional)</label><input className="w-full border rounded p-2 text-sm" value={formData.garageId} onChange={e => setFormData({...formData, garageId: e.target.value})} /></div>
-             <div><label className="block text-xs font-semibold mb-1">Amount ($)</label><input type="number" className="w-full border rounded p-2 text-sm" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} /></div>
+             <div><label className="block text-xs font-semibold mb-1">Amount</label><input type="number" className="w-full border rounded p-2 text-sm" value={formData.amount} onChange={e => setFormData({...formData, amount: e.target.value})} /></div>
              <div><label className="block text-xs font-semibold mb-1">Status</label>
                <select className="w-full border rounded p-2 text-sm" value={formData.status} onChange={e => setFormData({...formData, status: e.target.value})}>
                  <option>pending</option>

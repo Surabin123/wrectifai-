@@ -16,6 +16,7 @@ import autoTable from 'jspdf-autotable';
 
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
+import { formatCurrency } from '@/lib/currency';
 
 const mockInitialTransactions = [
   { id: 1, date: '04 Aug 2026', time: '2:19 PM', desc: 'Added Money', subdesc: 'via UPI', type: 'Credit', amount: 1000.00, status: 'Completed', icon: ArrowDownToLine, color: 'text-green-600', bg: 'bg-green-50', customer: 'Surabi N', garage: 'N/A', vehicle: 'N/A', invoice: 'INV-1001', method: 'UPI (surabi@okaxis)' },
@@ -37,7 +38,18 @@ const mockInitialTransactions = [
 
 export function WalletPaymentsPage() {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState('All');
+  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    try {
+      const userStr = localStorage.getItem('wrectifai-user');
+      if (userStr) {
+        const user = JSON.parse(userStr);
+        if (user && user.mobile_number) setUserPhone(user.mobile_number);
+        else if (user && user.phone) setUserPhone(user.phone);
+      }
+    } catch(e) {}
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   
   const [transactions, setTransactions] = useState(() => {
@@ -192,7 +204,7 @@ export function WalletPaymentsPage() {
             <Card className="flex-1 p-6 relative overflow-hidden bg-gradient-to-r from-blue-50 to-white shadow-sm rounded-[24px]">
               <div className="relative z-10 w-2/3">
                 <h3 className="text-slate-900 font-bold mb-1 text-sm">Wallet Balance</h3>
-                <p className="text-4xl font-extrabold text-slate-900 mb-1">${balance.toFixed(2)}</p>
+                <p className="text-4xl font-extrabold text-slate-900 mb-1">{formatCurrency(balance, userPhone)}</p>
                 <p className="text-slate-500 text-xs mb-6">Total Balance</p>
                 <Button onClick={() => setIsAddMoneyOpen(true)} className="bg-blue-600 text-white font-bold hover:bg-blue-700 shadow-sm"><Plus className="w-4 h-4 mr-2"/> Add Money</Button>
               </div>
@@ -207,15 +219,15 @@ export function WalletPaymentsPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-600">Main Balance</span>
-                    <span className="font-bold text-slate-900">${(balance - 50).toFixed(2)}</span>
+                    <span className="font-bold text-slate-900">{formatCurrency(balance - 50, userPhone)}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-600">Bonus Balance</span>
-                    <span className="font-bold text-green-600">$50.00</span>
+                    <span className="font-bold text-green-600">{formatCurrency(50, userPhone)}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-600">Pending Refunds</span>
-                    <span className="font-bold text-orange-500">$0.00</span>
+                    <span className="font-bold text-orange-500">{formatCurrency(0, userPhone)}</span>
                   </div>
                 </div>
               </div>
