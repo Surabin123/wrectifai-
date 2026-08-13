@@ -35,14 +35,14 @@ export default function LoginPage() {
   useEffect(() => {
     if (isAuthenticated && user) {
       if (user.roles?.includes('admin')) {
-        router.replace('/admin/dashboard');
+        window.location.href = '/admin/dashboard';
       } else if (user.roles?.includes('garage')) {
-        router.replace('/garage/dashboard');
+        window.location.href = '/garage/dashboard';
       } else {
-        router.replace('/dashboard');
+        window.location.href = '/dashboard';
       }
     }
-  }, [isAuthenticated, user, router]);
+  }, [isAuthenticated, user]);
 
   const [mobileNumber, setMobileNumber] = useState('');
   const [countryCode, setCountryCode] = useState('+91');
@@ -70,11 +70,13 @@ export default function LoginPage() {
   const handleIdentifierChange = (val: string) => {
     if (val.includes('@') || /[a-zA-Z]/.test(val)) {
       setIsEmailMode(true);
-      setEmail(val);
+      setEmail(val.toLowerCase().replace(/[^a-z0-9@.]/g, ''));
       setMobileNumber('');
     } else {
       setIsEmailMode(false);
-      setMobileNumber(val);
+      const digitsOnly = val.replace(/\D/g, '');
+      const maxLen = countryCode === '+971' ? 9 : 10;
+      setMobileNumber(digitsOnly.slice(0, maxLen));
       setEmail('');
     }
   };
@@ -510,7 +512,13 @@ export default function LoginPage() {
 
           <button
             type="submit"
-            disabled={isSubmitting || (isEmailMode ? (!email.trim() || !password.trim()) : (!mobileNumber.trim() || (isOtpSent && otp.length !== 6)))}
+            disabled={
+              isSubmitting || 
+              (isEmailMode 
+                ? (!email.trim() || !password.trim()) 
+                : (mobileNumber.trim().length !== (countryCode === '+971' ? 9 : 10) || (isOtpSent && otp.length !== 6))
+              )
+            }
             className="w-full h-11 rounded-xl bg-[#1a56db] text-white text-[13px] font-semibold hover:bg-[#1546b5] transition-all flex items-center justify-center mt-2 disabled:opacity-50 shadow-sm shadow-[#1a56db]/10"
           >
             {isSubmitting

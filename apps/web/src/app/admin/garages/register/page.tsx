@@ -1,8 +1,48 @@
 'use client';
 import { Card } from '@/components/common/card';
 import { Check, ShieldCheck, HeadphonesIcon } from 'lucide-react';
+import { useState } from 'react';
+import { apiClient } from '@/lib/api-client';
+import { useRouter } from 'next/navigation';
 
 export default function RegisterGaragePage() {
+  const router = useRouter();
+  const [formData, setFormData] = useState({
+    name: '',
+    type: '',
+    registrationNumber: '',
+    phone: '',
+    email: '',
+    city: '',
+    address: '',
+    ownerName: '' // Will just pass a default for now if empty
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  const handleSubmit = async () => {
+    setErrorMsg('');
+    if (!formData.name || !formData.phone || !formData.email || !formData.city || !formData.address) {
+       setErrorMsg('Please fill out all required fields marked with *');
+       return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await apiClient.post('/admin/onboarding/garages', {
+        ...formData,
+        state: 'State', // Mock
+        pincode: '000000', // Mock
+        ownerName: 'Garage Admin'
+      });
+      router.push('/admin/garages');
+    } catch (err) {
+      console.error(err);
+      setErrorMsg('Failed to register garage. It may already exist.');
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
       <div className="mb-6">
@@ -48,11 +88,11 @@ export default function RegisterGaragePage() {
             <div className="grid grid-cols-2 gap-6 mb-6">
                <div>
                  <label className="block text-xs font-bold text-slate-700 mb-2">Garage Name <span className="text-red-500">*</span></label>
-                 <input type="text" placeholder="Enter garage or business name" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                 <input type="text" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} placeholder="Enter garage or business name" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                </div>
                <div>
                  <label className="block text-xs font-bold text-slate-700 mb-2">Garage Type <span className="text-red-500">*</span></label>
-                 <select className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
+                 <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
                    <option value="">Select garage type</option>
                    <option value="authorized">Authorized Service Center</option>
                    <option value="independent">Independent Garage</option>
@@ -62,7 +102,7 @@ export default function RegisterGaragePage() {
                </div>
                <div>
                  <label className="block text-xs font-bold text-slate-700 mb-2">Registration Number <span className="text-slate-400 font-normal">(Optional)</span></label>
-                 <input type="text" placeholder="Enter registration number" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                 <input type="text" value={formData.registrationNumber} onChange={e => setFormData({...formData, registrationNumber: e.target.value})} placeholder="Enter registration number" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                </div>
                <div>
                  <label className="block text-xs font-bold text-slate-700 mb-2">Established Year</label>
@@ -80,16 +120,16 @@ export default function RegisterGaragePage() {
                  <label className="block text-xs font-bold text-slate-700 mb-2">Phone Number <span className="text-red-500">*</span></label>
                  <div className="flex gap-2">
                    <select className="border rounded-lg px-3 py-2.5 text-sm bg-white outline-none w-24"><option>+91</option></select>
-                   <input type="text" placeholder="Enter phone number" className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                   <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} placeholder="Enter phone number" className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                  </div>
                </div>
                <div>
                  <label className="block text-xs font-bold text-slate-700 mb-2">Email Address <span className="text-red-500">*</span></label>
-                 <input type="text" placeholder="Enter email address" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                 <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} placeholder="Enter email address" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                </div>
                <div>
                  <label className="block text-xs font-bold text-slate-700 mb-2">City <span className="text-red-500">*</span></label>
-                 <select className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
+                 <select value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
                    <option value="">Select city</option>
                    <option value="Bangalore">Bangalore</option>
                    <option value="Hyderabad">Hyderabad</option>
@@ -100,15 +140,15 @@ export default function RegisterGaragePage() {
                  </select>
                </div>
                <div>
-                 <label className="block text-xs font-bold text-slate-700 mb-2">Area / Locality <span className="text-red-500">*</span></label>
+                 <label className="block text-xs font-bold text-slate-700 mb-2">Area / Locality</label>
                  <input type="text" placeholder="Enter area or locality" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                </div>
             </div>
             
             <div className="mb-6">
                <label className="block text-xs font-bold text-slate-700 mb-2">Complete Address <span className="text-red-500">*</span></label>
-               <textarea placeholder="Enter complete address" className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none h-24 focus:border-blue-500"></textarea>
-               <div className="text-right text-[10px] text-slate-400 mt-1">0/200</div>
+               <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Enter complete address" className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none h-24 focus:border-blue-500"></textarea>
+               <div className="text-right text-[10px] text-slate-400 mt-1">{formData.address.length}/200</div>
             </div>
             
             <div className="mb-8">
@@ -117,9 +157,13 @@ export default function RegisterGaragePage() {
                <div className="text-right text-[10px] text-slate-400 mt-1">0/300</div>
             </div>
             
+            {errorMsg && <p className="text-red-500 text-xs font-bold mb-4">{errorMsg}</p>}
+            
             <div className="flex justify-between items-center pt-4 border-t border-slate-100">
-               <button className="border border-slate-200 text-slate-600 px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-slate-50">Cancel</button>
-               <button className="bg-blue-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-blue-700 shadow-md">Save & Continue &rarr;</button>
+               <button onClick={() => router.push('/admin/garages')} className="border border-slate-200 text-slate-600 px-6 py-2.5 rounded-lg text-sm font-bold hover:bg-slate-50">Cancel</button>
+               <button onClick={handleSubmit} disabled={isSubmitting} className="bg-blue-600 text-white px-8 py-2.5 rounded-lg text-sm font-bold flex items-center gap-2 hover:bg-blue-700 shadow-md disabled:opacity-50">
+                 {isSubmitting ? 'Saving...' : 'Save & Continue'} &rarr;
+               </button>
             </div>
           </div>
 

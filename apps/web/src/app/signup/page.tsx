@@ -19,8 +19,21 @@ interface AuthResponse {
 }
 
 export default function SignupPage() {
-  const { isAuthenticated, login } = useAuth();
+  const { isAuthenticated, login, user } = useAuth();
   const router = useRouter();
+
+  // Redirect authenticated users to their role-based dashboard
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      if (user.roles?.includes('admin')) {
+        window.location.href = '/admin/dashboard';
+      } else if (user.roles?.includes('garage')) {
+        window.location.href = '/garage/dashboard';
+      } else {
+        window.location.href = '/dashboard';
+      }
+    }
+  }, [isAuthenticated, user]);
 
   // Form states
   const [name, setName] = useState('');
@@ -149,10 +162,8 @@ export default function SignupPage() {
       <div className="w-full max-w-md bg-white/80 backdrop-blur-md rounded-2xl border border-white/60 p-6 sm:p-8 shadow-[0_20px_50px_rgba(23,48,122,0.08)] relative z-10">
         
         {/* Logo and Header */}
-        <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center h-12 w-12 rounded-xl bg-[#1a56db]/10 text-[#1a56db] mb-3">
-            <ShieldCheck className="h-6 w-6" />
-          </div>
+        <div className="text-center mb-6 flex flex-col items-center">
+          <img src="/fin_logo.png" alt="WrectifAI Logo" className="h-24 w-auto mb-0 object-contain" />
           <h1 className="text-[22px] font-bold text-[#17307a] tracking-tight">Create Account</h1>
           <p className="text-[12.5px] text-[#5f7099] mt-1 font-medium">Sign up to access specialized vehicle services</p>
         </div>
@@ -209,7 +220,11 @@ export default function SignupPage() {
                 required
                 autoComplete="off"
                 value={mobileNumber}
-                onChange={(e) => setMobileNumber(e.target.value)}
+                onChange={(e) => {
+                  const digitsOnly = e.target.value.replace(/\D/g, '');
+                  const maxLen = countryCode === '+971' ? 9 : 10;
+                  setMobileNumber(digitsOnly.slice(0, maxLen));
+                }}
                 placeholder="9876543210"
                 className="h-11 w-full bg-transparent px-3.5 text-[13px] text-[#17307a] placeholder-[#8ea0c7] outline-none"
               />
@@ -228,7 +243,10 @@ export default function SignupPage() {
                 required
                 autoComplete="off"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value.toLowerCase().replace(/[^a-z0-9@.]/g, '');
+                  setEmail(val);
+                }}
                 placeholder="email@example.com"
                 className="h-11 w-full rounded-xl border border-[#dbe6ff] bg-white pl-10 pr-3.5 text-[13px] text-[#17307a] placeholder-[#8ea0c7] outline-none transition-all focus:border-[#1a56db] focus:ring-2 focus:ring-[#1a56db]/10"
               />
@@ -271,7 +289,14 @@ export default function SignupPage() {
 
           <button
             type="submit"
-            disabled={isSubmitting || !name.trim() || !mobileNumber.trim() || !email.trim() || !password.trim() || !confirmPassword.trim()}
+            disabled={
+              isSubmitting || 
+              !name.trim() || 
+              mobileNumber.trim().length !== (countryCode === '+971' ? 9 : 10) || 
+              !email.trim() || 
+              !password.trim() || 
+              !confirmPassword.trim()
+            }
             className="w-full h-11 rounded-xl bg-[#1a56db] text-white text-[13px] font-semibold hover:bg-[#1546b5] transition-all flex items-center justify-center disabled:opacity-50 shadow-sm shadow-[#1a56db]/10 mt-4"
           >
             {isSubmitting ? 'Signing Up...' : 'Sign Up'}
