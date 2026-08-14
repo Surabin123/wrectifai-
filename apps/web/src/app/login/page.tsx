@@ -14,6 +14,7 @@ import { apiClient } from '@/lib/api-client';
 import { setLocationCookie } from '@/utils/location';
 import { auth } from '@/lib/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+import { COUNTRIES, getCountryByCallingCode } from '@/lib/countries';
 
 interface AuthResponse {
   accessToken: string;
@@ -428,18 +429,22 @@ export default function LoginPage() {
                 </span>
               ) : (
                 <div className="relative flex items-center bg-[#f8fafe] border-r border-[#dbe6ff] hover:bg-[#f0f4fd] transition-colors shrink-0">
+                  <div className="relative">
                   <select
                     value={countryCode}
                     onChange={(e) => setCountryCode(e.target.value)}
-                    className="pl-3 pr-7 py-3 bg-transparent text-[12.5px] text-[#17307a] outline-none font-semibold cursor-pointer appearance-none z-10"
+                    className="appearance-none pl-2 pr-6 py-3 bg-[#f8fafe] text-[12.5px] text-[#17307a] border-r border-[#dbe6ff] outline-none font-semibold cursor-pointer hover:bg-[#f0f4fd] transition-colors"
                   >
-                    <option value="+91">IN (+91)</option>
-                    <option value="+1">US (+1)</option>
-                    <option value="+971">AE (+971)</option>
+                    {COUNTRIES.map(c => (
+                      <option key={c.isoCode} value={c.callingCode}>
+                        {c.name} ({c.callingCode})
+                      </option>
+                    ))}
                   </select>
                   <div className="absolute right-2 top-1/2 -translate-y-1/2 pointer-events-none text-[#8ea0c7]">
                     <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="m6 9 6 6 6-6"/></svg>
                   </div>
+                </div>
                 </div>
               )}
               <input

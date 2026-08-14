@@ -12,7 +12,7 @@ adminRouter.use(requireRole(['admin']));
 adminRouter.get('/stats', async (req, res) => {
   try {
     const customersCount = await query(`SELECT COUNT(*) FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id WHERE r.code = 'customer'`);
-    const garagesCount = await query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'approved'`);
+    const garagesCount = await query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'active'`);
     const pendingCount = await query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'pending'`);
     const bookingsCount = await query(`SELECT COUNT(*) FROM bookings WHERE status IN ('confirmed', 'inService')`);
     const quotesCount = await query(`SELECT COUNT(*) FROM quotes`);
@@ -23,7 +23,7 @@ adminRouter.get('/stats', async (req, res) => {
       SELECT g.id, g.name, u.name as "ownerName", u.mobile_number as phone, g.city, g.created_at as "createdAt", g.approval_status as "approvalStatus"
       FROM garages g
       LEFT JOIN users u ON g.owner_user_id = u.id
-      WHERE g.approval_status = 'approved'
+      WHERE g.approval_status = 'active'
       ORDER BY g.created_at DESC
       LIMIT 12
     `);
@@ -70,65 +70,56 @@ adminRouter.get('/onboarding/garages', async (req, res) => {
 
 adminRouter.post('/onboarding/garages', async (req, res) => {
   try {
-    const { name, phone, email, registrationNumber, address, city, state, pincode, ownerName } = req.body;
+    const { 
+      name, type, registrationNumber, phone, email, city, address, 
+      ownerName, ownerPhone, password, 
+      services, workingHours,
+      country, locale, businessCurrency
+    } = req.body;
     
-    // Enforce idempotency: find existing garage
-    const duplicateCheck = await query(
-      `SELECT g.id, g.owner_user_id FROM garages g
-       LEFT JOIN users u ON g.owner_user_id = u.id
-       WHERE LOWER(g.name) = LOWER($1)
-          OR (u.mobile_number = $2 AND $2 IS NOT NULL AND $2 != '')
-          OR (u.email = $3 AND $3 IS NOT NULL AND $3 != '')
-          OR (g.address = $4 AND $4 IS NOT NULL AND $4 != '')
-       LIMIT 1`,
-      [name, phone || '', email || '', address || '']
+    // Hash password
+    const bcrypt = require('bcryptjs');
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+    
+    // Create Owner User
+    const newUser = await query(
+      `INSERT INTO users (name, mobile_number, email, password_hash, status, country, locale) VALUES ($1, $2, $3, $4, 'active', $5, $6) RETURNING id`,
+      [ownerName, ownerPhone || phone, email, passwordHash, country || null, locale || null]
     );
-
-    let garageId = null;
-
-    if (duplicateCheck.rows.length > 0) {
-      garageId = duplicateCheck.rows[0].id;
-    }
-
-    // Always fetch or create a user for this email/phone to map the garage correctly
-    const userCheck = await query(`SELECT id FROM users WHERE (mobile_number = $1 AND $1 != '') OR (email = $2 AND $2 != '') LIMIT 1`, [phone || '', email || '']);
+    const ownerId = newUser.rows[0].id;
     
-    let resolvedUserId = null;
-    if (userCheck.rows.length > 0) {
-      resolvedUserId = userCheck.rows[0].id;
-      // Ensure this existing user has the garage role
-      const roleResult = await query("SELECT id FROM roles WHERE code = 'garage'");
-      if (roleResult.rows.length > 0) {
-        await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [resolvedUserId, roleResult.rows[0].id]);
-      }
-    } else {
-      const newUser = await query(
-        `INSERT INTO users (name, mobile_number, email, status) VALUES ($1, $2, $3, 'active') RETURNING id`,
-        [ownerName || 'Garage Owner', phone || null, email || null]
-      );
-      resolvedUserId = newUser.rows[0].id;
-      
-      const roleResult = await query("SELECT id FROM roles WHERE code = 'garage'");
-      if (roleResult.rows.length > 0) {
-        await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [resolvedUserId, roleResult.rows[0].id]);
-      }
+    // Assign Garage Role
+    const roleResult = await query("SELECT id FROM roles WHERE code = 'garage'");
+    if (roleResult.rows.length > 0) {
+      await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [ownerId, roleResult.rows[0].id]);
     }
 
-    if (garageId) {
-      // Map the garage to the newly resolved user
-      await query(`UPDATE garages SET owner_user_id = $1 WHERE id = $2`, [resolvedUserId, garageId]);
-      return success(res, { id: garageId, message: 'Existing garage mapped successfully' }, 200);
-    }
-
-    // Only fallback if NO garage existed (though user strictly mandated NO new garages, we'll keep the insert as a fallback but for the demo it should never reach here since the 12 exist).
+    // Insert Garage
     const newGarage = await query(
-      `INSERT INTO garages (name, address, city, state, postal_code, owner_user_id, approval_status, is_approved)
-       VALUES ($1, $2, $3, $4, $5, $6, 'approved', true) RETURNING id`,
-      [name, address, city, state, pincode, resolvedUserId]
+      `INSERT INTO garages (name, address, city, owner_user_id, approval_status, is_approved, country, locale, business_currency)
+       VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7) RETURNING id`,
+      [name, address, city, ownerId, country || null, locale || null, businessCurrency || 'USD']
     );
+    const garageId = newGarage.rows[0].id;
 
-    return success(res, { id: newGarage.rows[0].id }, 201);
+    // Insert Services
+    if (services && Array.isArray(services)) {
+      for (const serviceName of services) {
+        await query(
+          `INSERT INTO services (garage_id, name, description, price, duration_mins) VALUES ($1, $2, $3, $4, $5)`,
+          [garageId, serviceName, 'General service', 0, 60]
+        );
+      }
+    }
+
+    // Note: workingHours, documents etc. can be stored in respective tables if schema allows.
+    // For now we persist what the database schema supports natively.
+    // Services are added to the 'services' table which allows them to appear on the customer side.
+
+    return success(res, { id: garageId, message: 'Garage registered successfully' }, 201);
   } catch (err) {
+    console.error('Garage registration error:', err);
     return error(res, 'Failed to register garage', 'DATABASE_ERROR', 500);
   }
 });
@@ -139,7 +130,7 @@ adminRouter.post('/onboarding/garages/:id/verify-status', async (req, res) => {
     if (!['verify', 'reject'].includes(action)) {
       return error(res, 'Invalid action', 'INVALID_ACTION', 400);
     }
-    const status = action === 'verify' ? 'approved' : 'rejected';
+    const status = action === 'verify' ? 'active' : 'rejected';
     const is_approved = action === 'verify';
     
     const result = await query(
@@ -169,7 +160,7 @@ adminRouter.post('/onboarding/garages/:id/:action', async (req, res) => {
     if (!['approve', 'reject', 'suspend', 'delete'].includes(action)) {
       return error(res, 'Invalid action', 'INVALID_ACTION', 400);
     }
-    const status = action === 'approve' ? 'approved' : action === 'reject' ? 'rejected' : action === 'delete' ? 'deleted' : 'suspended';
+    const status = action === 'approve' ? 'active' : action === 'reject' ? 'rejected' : action === 'delete' ? 'deleted' : 'inactive';
     const is_approved = action === 'approve';
     
     const result = await query(

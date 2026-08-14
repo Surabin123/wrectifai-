@@ -682,7 +682,7 @@ export function GarageDetailPage({
                             </div>
                             <div className="text-right">
                               <div className="text-[14px] font-extrabold text-[#159a5d]">
-                                USD {svc.price}
+                                {(garage as any).business_currency || 'USD'} {svc.price}
                               </div>
                             </div>
                           </div>

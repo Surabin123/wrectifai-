@@ -11,6 +11,7 @@ import OtpInput from '@/components/common/otp-input';
 import { useGoogleLogin } from '@react-oauth/google';
 import { auth } from '@/lib/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
+import { COUNTRIES, getCountryByCallingCode } from '@/lib/countries';
 
 interface AuthResponse {
   accessToken: string;

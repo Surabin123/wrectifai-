@@ -84,19 +84,19 @@ export function QuoteDetailsModal({ quote, onClose, onBookNow, showBookNow = fal
             {quote.laborCost != null && (
               <div>
                 <span className="font-bold text-slate-500 block mb-1 text-xs uppercase tracking-wider">Labour Cost</span>
-                <p className="text-slate-800 font-medium">USD {quote.laborCost}</p>
+                <p className="text-slate-800 font-medium">{quote.currency || 'USD'} {quote.laborCost}</p>
               </div>
             )}
             {quote.partsCost != null && (
               <div>
                 <span className="font-bold text-slate-500 block mb-1 text-xs uppercase tracking-wider">Parts Cost</span>
-                <p className="text-slate-800 font-medium">USD {quote.partsCost}</p>
+                <p className="text-slate-800 font-medium">{quote.currency || 'USD'} {quote.partsCost}</p>
               </div>
             )}
             {quote.totalCost != null && (
               <div>
                 <span className="font-bold text-slate-500 block mb-1 text-xs uppercase tracking-wider">Total Cost</span>
-                <p className="text-[#17307a] font-bold text-lg">USD {quote.totalCost}</p>
+                <p className="text-[#17307a] font-bold text-lg">{quote.currency || 'USD'} {quote.totalCost}</p>
               </div>
             )}
             {quote.estimatedDays != null && (

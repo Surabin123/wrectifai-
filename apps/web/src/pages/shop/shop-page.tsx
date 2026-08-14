@@ -10,6 +10,7 @@ import Image from 'next/image';
 import { cn } from '@/lib/utils';
 
 import { TopNavbar } from '@/components/home/top-navbar';
+import { DashboardShell } from '@/components/home/dashboard-shell';
 import { formatCurrency } from '@/lib/currency';
 
 export const initialMockProducts: any[] = [

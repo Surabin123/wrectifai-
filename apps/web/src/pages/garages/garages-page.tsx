@@ -428,11 +428,11 @@ function GaragesContent() {
     moreFilters: 'all',
   });
 
-  const [userCity, setUserCity] = useState('Hyderabad');
+  const [userCity, setUserCity] = useState('');
 
   useEffect(() => {
     const handleCityChange = () => {
-      const city = getLocationCookie('wrectifai_city') || 'Hyderabad';
+      const city = getLocationCookie('wrectifai_city') || '';
       setUserCity(city);
     };
     handleCityChange();

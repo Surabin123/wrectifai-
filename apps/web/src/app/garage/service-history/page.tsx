@@ -134,7 +134,7 @@ export default function ServiceHistoryPage() {
                           </div>
                        </td>
                        <td className="p-4 align-top"><p className="text-xs font-bold text-slate-700">{h.issueSummary}</p></td>
-                       <td className="p-4 align-top text-xs font-bold text-[#17307a]">USD {h.quoteAmount}</td>
+                       <td className="p-4 align-top text-xs font-bold text-[#17307a]">{(h as any).currency || 'USD'} {h.quoteAmount}</td>
                        <td className="p-4 align-top text-[10px] text-slate-500"><p>{formatTime(h.completionDate).date}</p><p>{formatTime(h.completionDate).time}</p></td>
                        <td className="p-4 align-top text-right">
                          <span className="inline-block px-3 py-1 rounded-full text-[10px] font-bold bg-green-50 text-green-600 mb-3 text-center">Completed</span>
@@ -174,7 +174,7 @@ export default function ServiceHistoryPage() {
                 <div><span className="font-bold">Customer Name:</span> {bookingDetails.customerName || 'N/A'}</div>
                 <div><span className="font-bold">Garage:</span> {bookingDetails.garageName}</div>
                 <div><span className="font-bold">Vehicle:</span> {bookingDetails.vehicleMake} {bookingDetails.vehicleModel}</div>
-                <div><span className="font-bold">Quote Amount:</span> USD {bookingDetails.totalAmount}</div>
+                <div><span className="font-bold">Quote Amount:</span> {(bookingDetails as any).currency || 'USD'} {bookingDetails.totalAmount}</div>
                 <div><span className="font-bold">Appointment:</span> {new Date(bookingDetails.scheduledAt).toLocaleString()}</div>
                 <div><span className="font-bold">Completion Date:</span> {new Date(bookingDetails.updatedAt).toLocaleString()}</div>
               </div>

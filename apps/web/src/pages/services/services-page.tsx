@@ -39,11 +39,11 @@ export function ServicesPage() {
   const [selectedService, setSelectedService] = useState<any>(null);
   const [isGarageModalOpen, setIsGarageModalOpen] = useState(false);
   const [services, setServices] = useState(initialMockServices);
-  const [userCity, setUserCity] = useState('Hyderabad');
+  const [userCity, setUserCity] = useState('');
 
   useEffect(() => {
     const handleCityChange = () => {
-      setUserCity(getLocationCookie('wrectifai_city') || 'Hyderabad');
+      setUserCity(getLocationCookie('wrectifai_city') || '');
     };
     handleCityChange();
     window.addEventListener('city-changed', handleCityChange);

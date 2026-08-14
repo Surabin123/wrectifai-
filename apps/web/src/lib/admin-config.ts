@@ -16,7 +16,7 @@ export const adminNavItems: AdminNavItem[] = [
     slug: 'garages',
     children: [
       { label: 'All Garages', href: '/admin/garages', slug: 'all-garages' },
-      { label: 'Pending Approvals', href: '/admin/garages/pending-approvals', slug: 'pending-approvals' },
+
       { label: 'Register Garage', href: '/admin/garages/register', slug: 'register-garage' },
       { label: 'Suspended Garages', href: '/admin/garages/suspended', slug: 'suspended-garages' },
     ]

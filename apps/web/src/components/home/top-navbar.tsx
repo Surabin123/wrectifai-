@@ -16,8 +16,8 @@ import { getChatHistory } from '@/lib/diagnosis-api';
 import Image from 'next/image';
 
 const IN_CITIES = [
-  'Hyderabad', 'Bengaluru', 'Mumbai', 'Delhi', 'Chennai', 
-  'Pune', 'Kolkata', 'Ahmedabad', 'Jaipur', 'Kochi'
+  
+  
 ];
 
 const US_CITIES = [
@@ -33,7 +33,7 @@ const AE_CITIES = [
 export function TopNavbar() {
   const [query, setQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
-  const [selectedCity, setSelectedCity] = useState('Hyderabad');
+  const [selectedCity, setSelectedCity] = useState('Location');
   const [citySearch, setCitySearch] = useState('');
   const [currentCities, setCurrentCities] = useState<string[]>(IN_CITIES);
   

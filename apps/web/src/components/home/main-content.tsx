@@ -1008,7 +1008,7 @@ export function MainContent() {
         if (parts.length === 2) return parts.pop()?.split(';').shift();
         return null;
       };
-      const city = getCookie('wrectifai_city') || 'Hyderabad';
+      const city = getCookie('wrectifai_city') || 'Location';
       setUserCity(decodeURIComponent(city));
     };
     

@@ -24,7 +24,7 @@ function mapGarageDbRow(g: any) {
     badge: g.badge ? (badgeMap[g.badge] || g.badge) : null,
     image: g.image || null,
     chips: g.specializations || [],
-    verified: g.approval_status === 'approved',
+    verified: g.approval_status === 'active',
     responseMins: g.responseMins !== null && g.responseMins !== undefined ? Number(g.responseMins) : 30,
   };
 }
@@ -38,7 +38,7 @@ garagesRouter.get('/', async (req, res) => {
               g.image, g.response_mins as "responseMins",
               (SELECT badge_key FROM garage_badges gb WHERE gb.garage_id = g.id AND gb.active = true LIMIT 1) as badge
        FROM garages g
-       WHERE g.approval_status = 'approved'`
+       WHERE g.approval_status = 'active'`
     );
     const mapped = result.rows.map(mapGarageDbRow);
     return success(res, mapped);
@@ -108,7 +108,7 @@ garagesRouter.get('/search', async (req, res) => {
   try {
     const { rating, specialization, price_range, lat, lng, distance } = req.query;
 
-    const conditions: string[] = ["g.approval_status = 'approved'"];
+    const conditions: string[] = ["g.approval_status = 'active'"];
     const params: any[] = [];
 
     if (rating) {

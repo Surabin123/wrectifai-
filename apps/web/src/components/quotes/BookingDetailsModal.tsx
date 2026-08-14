@@ -52,13 +52,13 @@ export function BookingDetailsModal({ booking, onClose, actions }: BookingDetail
             {booking.laborCost != null && (
               <div>
                 <span className="font-bold text-slate-600">Labour Cost:</span>
-                <p className="text-slate-800">USD {booking.laborCost}</p>
+                <p className="text-slate-800">{booking.currency || 'USD'} {booking.laborCost}</p>
               </div>
             )}
             {booking.partsCost != null && (
               <div>
                 <span className="font-bold text-slate-600">Parts Cost:</span>
-                <p className="text-slate-800">USD {booking.partsCost}</p>
+                <p className="text-slate-800">{booking.currency || 'USD'} {booking.partsCost}</p>
               </div>
             )}
             {booking.estimatedDays != null && (
@@ -73,7 +73,7 @@ export function BookingDetailsModal({ booking, onClose, actions }: BookingDetail
               <div>
                 <span className="font-bold text-slate-600">Total Cost:</span>
                 <p className="text-slate-800 font-bold text-lg text-[#17307a]">
-                  USD {booking.totalCost}
+                  {booking.currency || 'USD'} {booking.totalCost}
                 </p>
               </div>
             )}

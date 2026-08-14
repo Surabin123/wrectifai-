@@ -137,7 +137,7 @@ export default function GarageDashboard() {
                               <p className="text-xs text-slate-400 truncate">ETA: {quote.etaNote || (quote.etaDays ? `${quote.etaDays} Days` : 'N/A')}</p>
                             </div>
                             <div className="text-right">
-                              <p className="text-sm font-bold">USD {quote.totalCost?.toLocaleString()}</p>
+                              <p className="text-sm font-bold">{quote.currency || 'USD'} {quote.totalCost?.toLocaleString()}</p>
                               <p className="text-[10px] text-blue-600 font-medium">{formatTime(quote.createdAt)}</p>
                             </div>
                           </div>
