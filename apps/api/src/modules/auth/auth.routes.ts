@@ -145,7 +145,7 @@ authRouter.post('/check-user', async (req, res, next) => {
 });
 
 authRouter.post('/register', async (req, res, next) => {
-  let { mobileNumber, name, otp, email, password, role = 'customer' } = req.body;
+  let { mobileNumber, name, otp, email, password, role = 'customer', country } = req.body;
   if (email) email = email.toLowerCase();
   
   if (!name) {

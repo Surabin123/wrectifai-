@@ -229,40 +229,20 @@ export function GarageDetailPage({
   );
   const isQuoteContext = mode === 'quote-context' && Boolean(quoteContext);
 
-  const reviews = [
-    {
-      avatar: 'AR',
-      name: 'Arjun R.',
-      status: 'Verified Customer',
-      date: '5 days ago',
-      rating: 5,
-      text: 'Excellent service and professional staff. They explained everything clearly and fixed my car on time.',
-    },
-    {
-      avatar: 'SM',
-      name: 'Suresh M.',
-      status: 'Verified Customer',
-      date: '1 week ago',
-      rating: 4.8,
-      text: 'Very helpful team, free pickup and drop was extremely convenient. Highly recommend their service!',
-    },
-    {
-      avatar: 'KP',
-      name: 'Kiran P.',
-      status: 'Verified Customer',
-      date: '2 weeks ago',
-      rating: 5,
-      text: 'Best AC service I have had. Honest pricing and transparent updates throughout the day.',
-    },
-    {
-      avatar: 'RN',
-      name: 'Rahul N.',
-      status: 'Verified Customer',
-      date: '3 weeks ago',
-      rating: 4.5,
-      text: 'Very neat work. The technicians are highly skilled and explain the root cause of the issue before starting repair.',
-    },
-  ];
+  const [reviews, setReviews] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!initialGarage.id) return;
+    let active = true;
+    apiClient.get(`/garages/${initialGarage.id}/reviews`)
+      .then((res: any) => {
+        if (active && res.data) {
+          setReviews(res.data);
+        }
+      })
+      .catch(console.error);
+    return () => { active = false; };
+  }, [initialGarage.id]);
 
   const handleBookAppointment = async () => {
     setIsBookingModalOpen(true);
@@ -283,12 +263,6 @@ export function GarageDetailPage({
         garageId={garage.id || ''} 
         onSubmitSuccess={() => {
           setRequestStatus('quote_success');
-          const notifs = JSON.parse(localStorage.getItem('wrectifai_notifications') || '[]');
-          notifs.unshift({ id: Date.now(), type: 'Quote', title: 'New Quote Request', desc: `Customer requested a quote from ${garage.name}.`, time: 'Just now', read: false, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'Admin' });
-          notifs.unshift({ id: Date.now() + 1, type: 'Quote', title: 'New Quote Request', desc: `You received a new quote request from a customer.`, time: 'Just now', read: false, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'Garage' });
-          notifs.unshift({ id: Date.now() + 2, type: 'Quote', title: 'Quote Requested', desc: `You successfully sent a quote request to ${garage.name}.`, time: 'Just now', read: false, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'Customer' });
-          localStorage.setItem('wrectifai_notifications', JSON.stringify(notifs));
-          window.dispatchEvent(new Event('notifications-updated'));
         }} 
       />
       <BookingModal 
@@ -297,12 +271,6 @@ export function GarageDetailPage({
         garageId={garage.id || ''} 
         onSubmitSuccess={() => {
           setRequestStatus('booking_success');
-          const notifs = JSON.parse(localStorage.getItem('wrectifai_notifications') || '[]');
-          notifs.unshift({ id: Date.now(), type: 'Booking', title: 'New Booking', desc: `Customer booked an appointment at ${garage.name}.`, time: 'Just now', read: false, icon: 'Calendar', color: 'text-blue-500', bg: 'bg-blue-50', audience: 'Admin' });
-          notifs.unshift({ id: Date.now() + 1, type: 'Booking', title: 'New Booking', desc: `You received a new booking from a customer.`, time: 'Just now', read: false, icon: 'Calendar', color: 'text-blue-500', bg: 'bg-blue-50', audience: 'Garage' });
-          notifs.unshift({ id: Date.now() + 2, type: 'Booking', title: 'Booking Confirmed', desc: `Your appointment at ${garage.name} has been booked.`, time: 'Just now', read: false, icon: 'Calendar', color: 'text-blue-500', bg: 'bg-blue-50', audience: 'Customer' });
-          localStorage.setItem('wrectifai_notifications', JSON.stringify(notifs));
-          window.dispatchEvent(new Event('notifications-updated'));
         }} 
       />
 

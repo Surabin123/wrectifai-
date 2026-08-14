@@ -38,7 +38,7 @@ garagesRouter.get('/', async (req, res) => {
               g.image, g.response_mins as "responseMins",
               (SELECT badge_key FROM garage_badges gb WHERE gb.garage_id = g.id AND gb.active = true LIMIT 1) as badge
        FROM garages g
-       WHERE g.approval_status = 'active'`
+       WHERE g.approval_status = 'approved'`
     );
     const mapped = result.rows.map(mapGarageDbRow);
     return success(res, mapped);
@@ -108,7 +108,7 @@ garagesRouter.get('/search', async (req, res) => {
   try {
     const { rating, specialization, price_range, lat, lng, distance, city } = req.query;
 
-    const conditions: string[] = ["g.approval_status = 'active'"];
+    const conditions: string[] = ["g.approval_status = 'approved'"];
     const params: any[] = [];
 
     if (rating) {
@@ -183,6 +183,26 @@ garagesRouter.get('/:id', async (req, res) => {
       'DATABASE_ERROR',
       500
     );
+  }
+});
+
+garagesRouter.get('/:id/reviews', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, customer_name as "name", rating, text, created_at as "date", 
+              'Verified Customer' as "status"
+       FROM garage_reviews
+       WHERE garage_id = $1
+       ORDER BY created_at DESC`,
+      [req.params.id]
+    );
+    const reviews = result.rows.map(r => ({
+      ...r,
+      avatar: r.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
+    }));
+    return success(res, reviews);
+  } catch (err) {
+    return error(res, 'Failed to fetch reviews', 'DATABASE_ERROR', 500);
   }
 });
 

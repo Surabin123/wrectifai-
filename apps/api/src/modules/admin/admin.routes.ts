@@ -101,7 +101,8 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       name, type, registrationNumber, phone, email, city, address, 
       ownerName, ownerPhone, password, 
       services, workingHours,
-      country, locale, businessCurrency
+      country, locale, businessCurrency,
+      chips, image
     } = req.body;
     
     // Hash password
@@ -124,9 +125,9 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
 
     // Insert Garage
     const newGarage = await query(
-      `INSERT INTO garages (name, address, city, owner_user_id, approval_status, is_approved, country, locale, business_currency)
-       VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7) RETURNING id`,
-      [name, address, city, ownerId, country || null, locale || null, businessCurrency || 'USD']
+      `INSERT INTO garages (name, address, city, owner_user_id, approval_status, is_approved, country, locale, business_currency, specializations, image)
+       VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9) RETURNING id`,
+      [name, address, city, ownerId, country || null, locale || null, businessCurrency || 'USD', chips || [], image || null]
     );
     const garageId = newGarage.rows[0].id;
 

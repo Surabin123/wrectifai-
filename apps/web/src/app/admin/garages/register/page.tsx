@@ -35,6 +35,8 @@ export default function RegisterGaragePage() {
     ownerIdDoc: null as any,
     addressProofDoc: null as any,
     services: [] as string[],
+    chips: [] as string[],
+    image: null as any,
     workingHours: {
       monday: { open: true, start: '09:00 AM', end: '07:00 PM', hasBreak: false, breakStart: '', breakEnd: '' },
       tuesday: { open: true, start: '09:00 AM', end: '07:00 PM', hasBreak: false, breakStart: '', breakEnd: '' },
@@ -109,8 +111,8 @@ export default function RegisterGaragePage() {
     }
 
     if (step === 3) {
-      if (!formData.businessRegDoc || !formData.businessLicenseDoc || !formData.ownerIdDoc || !formData.addressProofDoc) {
-        setErrorMsg('Please upload all mandatory documents to proceed.');
+      if (!formData.image || !formData.businessRegDoc || !formData.businessLicenseDoc || !formData.ownerIdDoc || !formData.addressProofDoc) {
+        setErrorMsg('Please upload all mandatory documents including the garage image to proceed.');
         return;
       }
     }
@@ -156,6 +158,8 @@ export default function RegisterGaragePage() {
         ownerPhone: formData.sameAsGaragePhone ? (formData.countryCode + formData.phone) : (formData.ownerCountryCode + formData.ownerPhone),
         password: formData.password,
         services: formData.services,
+        chips: formData.chips,
+        image: formData.image,
         workingHours: formData.workingHours,
         country: selectedCountry?.isoCode || null,
         businessCurrency: selectedCountry?.currencyCode || 'USD',
@@ -200,7 +204,15 @@ export default function RegisterGaragePage() {
         return;
       }
       setErrorMsg('');
-      setFormData(prev => ({ ...prev, [field]: file }));
+      if (field === 'image') {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setFormData(prev => ({ ...prev, [field]: reader.result as string }));
+        };
+        reader.readAsDataURL(file);
+      } else {
+        setFormData(prev => ({ ...prev, [field]: file }));
+      }
     }
   };
 
@@ -345,6 +357,29 @@ export default function RegisterGaragePage() {
                    <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} maxLength={200} placeholder="A multi-brand automotive service center providing vehicle maintenance..." className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none h-24 focus:border-blue-500"></textarea>
                    <div className="text-right text-[10px] text-slate-400 mt-1">{formData.description.length}/200</div>
                 </div>
+
+                <div className="mb-8">
+                  <label className="block text-xs font-bold text-slate-700 mb-2">Highlights (Chips)</label>
+                  <p className="text-xs text-slate-500 mb-3">Select features to highlight on your garage card.</p>
+                  <div className="flex flex-wrap gap-2">
+                    {['Free Pickup & Drop', 'Genuine Parts', 'Warranty', 'Expert Mechanics', 'AC Lounge'].map(chip => (
+                      <button
+                        key={chip}
+                        onClick={() => {
+                          setFormData(prev => ({
+                            ...prev,
+                            chips: prev.chips.includes(chip) ? prev.chips.filter(c => c !== chip) : [...prev.chips, chip]
+                          }));
+                        }}
+                        className={`px-3 py-1.5 rounded-full border text-xs font-medium transition-colors ${
+                          formData.chips.includes(chip) ? 'bg-blue-50 border-blue-200 text-blue-700' : 'bg-white border-slate-200 text-slate-600 hover:border-blue-200'
+                        }`}
+                      >
+                        {chip}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </>
             )}
 
@@ -442,6 +477,7 @@ export default function RegisterGaragePage() {
                 <div className="space-y-6">
                   {/* Document Box Component */}
                   {[
+                    { id: 'image', label: 'Garage Display Picture / Profile Image', req: true },
                     { id: 'businessRegDoc', label: 'Business Registration Document', req: true },
                     { id: 'businessLicenseDoc', label: 'Business License / Trade License', req: true },
                     { id: 'ownerIdDoc', label: 'Owner Identity Proof', req: true },
@@ -642,6 +678,8 @@ export default function RegisterGaragePage() {
                        <div><p className="text-slate-500 text-xs mb-1">Email</p><p className="font-bold">{formData.email}</p></div>
                        <div><p className="text-slate-500 text-xs mb-1">Location</p><p className="font-bold">{formData.city}, {formData.area}</p></div>
                        <div className="col-span-2"><p className="text-slate-500 text-xs mb-1">Address</p><p className="font-bold truncate">{formData.address}</p></div>
+                       <div className="col-span-2"><p className="text-slate-500 text-xs mb-1">Highlights</p><p className="font-bold truncate">{formData.chips.length > 0 ? formData.chips.join(', ') : 'None'}</p></div>
+                       <div className="col-span-2"><p className="text-slate-500 text-xs mb-1">Garage Image</p><p className="font-bold text-green-600">{formData.image ? 'Uploaded' : 'Missing'}</p></div>
                      </div>
                    </div>
 
