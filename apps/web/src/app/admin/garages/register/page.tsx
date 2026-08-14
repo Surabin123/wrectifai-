@@ -50,19 +50,18 @@ export default function RegisterGaragePage() {
   const [errorMsg, setErrorMsg] = useState('');
   
   const getCitiesForCountry = (code: string): string[] => {
-    // Cities can be dynamic or fetched from API, return empty for free text
-    return [];
+    switch (code) {
+      case '+91': return ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai'];
+      case '+1': return ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'];
+      case '+971': return ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Fujairah'];
+      default: return [];
+    }
   };
 
   const getPhoneError = (code: string, phone: string) => {
-    const selectedCountry = getCountryByCallingCode(code);
-    if (selectedCountry) {
-      if (phone.length < selectedCountry.phoneValidation.minLength || phone.length > selectedCountry.phoneValidation.maxLength) {
-        return `Phone number must be between ${selectedCountry.phoneValidation.minLength} and ${selectedCountry.phoneValidation.maxLength} digits for ${selectedCountry.name}.`;
-      }
-    } else {
-      if (phone.length < 6 || phone.length > 15) return 'Phone number must be between 6 and 15 digits.';
-    }
+    if (code === '+91' && phone.length !== 10) return 'Phone number must be exactly 10 digits for India.';
+    if (code === '+1' && phone.length !== 10) return 'Phone number must be exactly 10 digits for USA.';
+    if (code === '+971' && phone.length !== 9) return 'Phone number must be exactly 9 digits for UAE.';
     return null;
   };
 
@@ -190,12 +189,43 @@ export default function RegisterGaragePage() {
 
   const handleUpload = (field: string, e: any) => {
     if (e.target.files && e.target.files[0]) {
-      setFormData(prev => ({ ...prev, [field]: e.target.files[0] }));
+      const file = e.target.files[0];
+      const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+      if (!validTypes.includes(file.type)) {
+        setErrorMsg('Only PDF, JPG, or PNG files are supported.');
+        return;
+      }
+      if (file.size > 10 * 1024 * 1024) {
+        setErrorMsg('File size must be less than 10MB.');
+        return;
+      }
+      setErrorMsg('');
+      setFormData(prev => ({ ...prev, [field]: file }));
     }
   };
 
   const removeUpload = (field: string) => {
     setFormData(prev => ({ ...prev, [field]: null }));
+  };
+
+  const handleSelectAllServices = () => {
+    const allServices = [
+      'Oil & Filter Change', 'Periodic Maintenance', 'Brake Service', 'Battery Replacement', 'AC Service', 'Engine Service', 'Transmission Service', 'Wheel Alignment', 'Wheel Balancing', 'Tire Replacement',
+      'Computer Diagnostics', 'Engine Diagnostics', 'Electrical Diagnostics', 'Battery Diagnostics', 'ECU Diagnostics',
+      'Engine Repair', 'Transmission Repair', 'Suspension Repair', 'Steering Repair', 'Brake Repair', 'Electrical Repair',
+      'Dent Repair', 'Painting', 'Car Washing', 'Detailing', 'Ceramic Coating', 'Windshield Replacement',
+      'EV Diagnostics', 'EV Battery Service', 'EV Charging', 'EV Motor Service'
+    ];
+    const customServices = formData.services.filter(s => !allServices.includes(s));
+    setFormData(prev => ({...prev, services: [...allServices, ...customServices]}));
+  };
+
+  const [newService, setNewService] = useState('');
+  const addCustomService = () => {
+    if (newService.trim() && !formData.services.includes(newService.trim())) {
+      setFormData(prev => ({...prev, services: [...prev.services, newService.trim()]}));
+      setNewService('');
+    }
   };
 
   return (
@@ -237,7 +267,7 @@ export default function RegisterGaragePage() {
                    </div>
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Garage Type <span className="text-red-500">*</span></label>
-                     <select value={formData.type} onChange={e => setFormData({...formData, type: e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
+                     <select value={['General Service Garage', 'Specialist Workshop', 'Authorized Service Center', 'Body & Paint Shop', 'Tire & Wheel Center', 'EV Service Center', 'Multi-Brand Service Center', ''].includes(formData.type) ? formData.type : 'Other'} onChange={e => setFormData({...formData, type: e.target.value === 'Other' ? 'Other ' : e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700 mb-2">
                        <option value="">Select garage type</option>
                        <option value="General Service Garage">General Service Garage</option>
                        <option value="Specialist Workshop">Specialist Workshop</option>
@@ -248,6 +278,9 @@ export default function RegisterGaragePage() {
                        <option value="Multi-Brand Service Center">Multi-Brand Service Center</option>
                        <option value="Other">Other</option>
                      </select>
+                     {(!['General Service Garage', 'Specialist Workshop', 'Authorized Service Center', 'Body & Paint Shop', 'Tire & Wheel Center', 'EV Service Center', 'Multi-Brand Service Center', ''].includes(formData.type)) && (
+                       <input type="text" value={formData.type === 'Other ' ? '' : formData.type} onChange={e => setFormData({...formData, type: e.target.value})} placeholder="Please specify garage type" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                     )}
                    </div>
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Registration Number <span className="text-slate-400 font-normal">(Optional)</span></label>
@@ -265,22 +298,17 @@ export default function RegisterGaragePage() {
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Phone Number <span className="text-red-500">*</span></label>
                      <div className="flex gap-2">
-                       <select value={['+91', '+1', '+971'].includes(formData.countryCode) ? formData.countryCode : 'Other'} onChange={e => {
-                         if (e.target.value === 'Other') {
-                           setFormData({...formData, countryCode: '+', city: ''})
-                         } else {
-                           setFormData({...formData, countryCode: e.target.value, city: ''})
-                         }
-                       }} className="border rounded-lg px-3 py-2.5 text-sm bg-white outline-none w-24">
-                         <option value="+91">+91 (IN)</option>
-                         <option value="+1">+1 (US)</option>
-                         <option value="+971">+971 (AE)</option>
-                         <option value="Other">Other</option>
+                       <select value={formData.countryCode} onChange={e => {
+                         setFormData({...formData, countryCode: e.target.value, city: ''})
+                       }} className="border rounded-lg px-3 py-2.5 text-sm bg-white outline-none w-28">
+                         <option value="+91">IN (+91)</option>
+                         <option value="+1">US (+1)</option>
+                         <option value="+971">AE (+971)</option>
                        </select>
-                       {!['+91', '+1', '+971'].includes(formData.countryCode) && (
-                         <input type="text" value={formData.countryCode} onChange={e => setFormData({...formData, countryCode: e.target.value})} placeholder="Code" className="w-20 border rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
-                       )}
-                       <input type="text" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value.replace(/\D/g, '')})} placeholder="Enter phone number" className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                       <input type="text" value={formData.phone} onChange={e => {
+                         const maxLen = formData.countryCode === '+971' ? 9 : 10;
+                         setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, maxLen)});
+                       }} placeholder="Enter phone number" className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                      </div>
                    </div>
                    <div>
@@ -308,14 +336,14 @@ export default function RegisterGaragePage() {
                 
                 <div className="mb-6">
                    <label className="block text-xs font-bold text-slate-700 mb-2">Complete Address <span className="text-red-500">*</span></label>
-                   <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} placeholder="Example: 125 Broadway, Manhattan, New York, NY 10006" className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none h-24 focus:border-blue-500"></textarea>
+                   <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} maxLength={200} placeholder="Example: 125 Broadway, Manhattan, New York, NY 10006" className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none h-24 focus:border-blue-500"></textarea>
                    <div className="text-right text-[10px] text-slate-400 mt-1">{formData.address.length}/200</div>
                 </div>
                 
                 <div className="mb-8">
                    <label className="block text-xs font-bold text-slate-700 mb-2">Garage Description <span className="text-slate-400 font-normal">(Optional)</span></label>
-                   <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} placeholder="A multi-brand automotive service center providing vehicle maintenance..." className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none h-24 focus:border-blue-500"></textarea>
-                   <div className="text-right text-[10px] text-slate-400 mt-1">{formData.description.length}/300</div>
+                   <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} maxLength={200} placeholder="A multi-brand automotive service center providing vehicle maintenance..." className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none h-24 focus:border-blue-500"></textarea>
+                   <div className="text-right text-[10px] text-slate-400 mt-1">{formData.description.length}/200</div>
                 </div>
               </>
             )}
@@ -339,22 +367,17 @@ export default function RegisterGaragePage() {
                      </label>
                      {!formData.sameAsGaragePhone && (
                        <div className="flex gap-2">
-                         <select value={['+91', '+1', '+971'].includes(formData.ownerCountryCode) ? formData.ownerCountryCode : 'Other'} onChange={e => {
-                           if (e.target.value === 'Other') {
-                             setFormData({...formData, ownerCountryCode: '+'})
-                           } else {
-                             setFormData({...formData, ownerCountryCode: e.target.value})
-                           }
-                         }} className="border rounded-lg px-3 py-2.5 text-sm bg-white outline-none w-24">
-                           <option value="+91">+91 (IN)</option>
-                           <option value="+1">+1 (US)</option>
-                           <option value="+971">+971 (AE)</option>
-                           <option value="Other">Other</option>
+                         <select value={formData.ownerCountryCode} onChange={e => {
+                           setFormData({...formData, ownerCountryCode: e.target.value})
+                         }} className="border rounded-lg px-3 py-2.5 text-sm bg-white outline-none w-28">
+                           <option value="+91">IN (+91)</option>
+                           <option value="+1">US (+1)</option>
+                           <option value="+971">AE (+971)</option>
                          </select>
-                         {!['+91', '+1', '+971'].includes(formData.ownerCountryCode) && (
-                           <input type="text" value={formData.ownerCountryCode} onChange={e => setFormData({...formData, ownerCountryCode: e.target.value})} placeholder="Code" className="w-20 border rounded-lg px-3 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
-                         )}
-                         <input type="text" value={formData.ownerPhone} onChange={e => setFormData({...formData, ownerPhone: e.target.value.replace(/\D/g, '')})} placeholder="Enter owner phone" className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                         <input type="text" value={formData.ownerPhone} onChange={e => {
+                           const maxLen = formData.ownerCountryCode === '+971' ? 9 : 10;
+                           setFormData({...formData, ownerPhone: e.target.value.replace(/\D/g, '').slice(0, maxLen)});
+                         }} placeholder="Enter owner phone" className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                        </div>
                      )}
                   </div>
@@ -459,10 +482,15 @@ export default function RegisterGaragePage() {
             {/* STEP 4 */}
             {step === 4 && (
               <>
-                <h2 className="text-xl font-bold text-[#17307a] mb-1">Services Offered</h2>
-                <p className="text-xs text-slate-500 mb-8">Select the services available at this garage.</p>
+                <div className="flex justify-between items-end mb-8">
+                  <div>
+                    <h2 className="text-xl font-bold text-[#17307a] mb-1">Services Offered</h2>
+                    <p className="text-xs text-slate-500">Select the services available at this garage.</p>
+                  </div>
+                  <button onClick={handleSelectAllServices} className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg border border-blue-100 hover:bg-blue-100 transition-colors">Select All Services</button>
+                </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10 mb-8">
                   {/* Category */}
                   <div>
                     <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">General Maintenance</h3>
@@ -517,6 +545,23 @@ export default function RegisterGaragePage() {
                       ))}
                     </div>
                   </div>
+                </div>
+
+                <div className="border-t pt-6 border-slate-200">
+                  <h3 className="font-bold text-sm text-[#17307a] mb-4">Other Services</h3>
+                  <div className="flex gap-2 max-w-md">
+                    <input type="text" value={newService} onChange={e => setNewService(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCustomService()} placeholder="Type custom service name..." className="flex-1 border rounded-lg px-4 py-2 text-sm outline-none focus:border-blue-500" />
+                    <button onClick={addCustomService} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><Plus className="w-4 h-4"/> Add</button>
+                  </div>
+                  {formData.services.filter(s => !['Oil & Filter Change', 'Periodic Maintenance', 'Brake Service', 'Battery Replacement', 'AC Service', 'Engine Service', 'Transmission Service', 'Wheel Alignment', 'Wheel Balancing', 'Tire Replacement', 'Computer Diagnostics', 'Engine Diagnostics', 'Electrical Diagnostics', 'Battery Diagnostics', 'ECU Diagnostics', 'Engine Repair', 'Transmission Repair', 'Suspension Repair', 'Steering Repair', 'Brake Repair', 'Electrical Repair', 'Dent Repair', 'Painting', 'Car Washing', 'Detailing', 'Ceramic Coating', 'Windshield Replacement', 'EV Diagnostics', 'EV Battery Service', 'EV Charging', 'EV Motor Service'].includes(s)).length > 0 && (
+                    <div className="flex flex-wrap gap-2 mt-4">
+                      {formData.services.filter(s => !['Oil & Filter Change', 'Periodic Maintenance', 'Brake Service', 'Battery Replacement', 'AC Service', 'Engine Service', 'Transmission Service', 'Wheel Alignment', 'Wheel Balancing', 'Tire Replacement', 'Computer Diagnostics', 'Engine Diagnostics', 'Electrical Diagnostics', 'Battery Diagnostics', 'ECU Diagnostics', 'Engine Repair', 'Transmission Repair', 'Suspension Repair', 'Steering Repair', 'Brake Repair', 'Electrical Repair', 'Dent Repair', 'Painting', 'Car Washing', 'Detailing', 'Ceramic Coating', 'Windshield Replacement', 'EV Diagnostics', 'EV Battery Service', 'EV Charging', 'EV Motor Service'].includes(s)).map(s => (
+                        <span key={s} className="bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
+                          {s} <button onClick={() => toggleService(s)} className="text-blue-400 hover:text-blue-700"><X className="w-3 h-3"/></button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </>
             )}
@@ -637,9 +682,9 @@ export default function RegisterGaragePage() {
 
                  </div>
 
-                 <div className="bg-blue-50 border border-blue-100 rounded-lg p-5 flex gap-4 items-start mt-8">
-                    <Info className="w-5 h-5 text-blue-600 flex-shrink-0" />
-                    <p className="text-sm text-blue-800 leading-relaxed font-medium">By registering this garage, a garage account will be created using the provided email address and password. The garage will become available in the system immediately after successful registration.</p>
+                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mt-8">
+                    <h4 className="text-sm font-bold text-slate-800 mb-1">Account Creation</h4>
+                    <p className="text-xs text-slate-600 leading-relaxed">A garage account will be created using the registered email address. The garage will be activated immediately after successful registration and will be available to customers.</p>
                  </div>
               </div>
             )}

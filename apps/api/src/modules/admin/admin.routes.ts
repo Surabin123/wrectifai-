@@ -68,6 +68,33 @@ adminRouter.get('/onboarding/garages', async (req, res) => {
   }
 });
 
+adminRouter.get('/onboarding/garages/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const garageResult = await query(`
+      SELECT g.*, u.name as "ownerName", u.mobile_number as "ownerPhone", u.email as "ownerEmail"
+      FROM garages g
+      LEFT JOIN users u ON g.owner_user_id = u.id
+      WHERE g.id = $1
+    `, [id]);
+    
+    if (garageResult.rows.length === 0) {
+      return error(res, 'Garage not found', 'NOT_FOUND', 404);
+    }
+    
+    const servicesResult = await query(`SELECT * FROM services WHERE garage_id = $1`, [id]);
+    const docsResult = await query(`SELECT * FROM garage_documents WHERE garage_id = $1`, [id]);
+    
+    const garageData = garageResult.rows[0];
+    garageData.servicesList = servicesResult.rows;
+    garageData.docsList = docsResult.rows;
+    
+    return success(res, garageData);
+  } catch (err) {
+    return error(res, 'Failed to fetch garage details', 'DATABASE_ERROR', 500);
+  }
+});
+
 adminRouter.post('/onboarding/garages', async (req, res) => {
   try {
     const { 
@@ -154,14 +181,13 @@ adminRouter.post('/onboarding/garages/:id/verify-status', async (req, res) => {
   }
 });
 
-adminRouter.post('/onboarding/garages/:id/:action', async (req, res) => {
+adminRouter.put('/garages/:id/status', async (req, res) => {
   try {
-    const { action } = req.params;
-    if (!['approve', 'reject', 'suspend', 'delete'].includes(action)) {
+    const { status } = req.body;
+    if (!['active', 'inactive', 'suspended', 'rejected', 'deleted'].includes(status)) {
       return error(res, 'Invalid action', 'INVALID_ACTION', 400);
     }
-    const status = action === 'approve' ? 'active' : action === 'reject' ? 'rejected' : action === 'delete' ? 'deleted' : 'inactive';
-    const is_approved = action === 'approve';
+    const is_approved = (status === 'active');
     
     const result = await query(
       `UPDATE garages SET approval_status = $1, is_approved = $2 WHERE id = $3 RETURNING id`,
@@ -242,7 +268,8 @@ adminRouter.get('/bookings', async (req, res) => {
   try {
     const result = await query(
       `SELECT b.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", b.status, b.created_at as "createdAt",
-              b.scheduled_at as "serviceDate", b.total_amount as "totalAmount", v.make as "vehicleMake", v.model as "vehicleModel",
+              b.scheduled_at as "serviceDate", b.total_amount as "totalAmount", COALESCE(b.currency, g.business_currency, 'USD') as "currency",
+              v.make as "vehicleMake", v.model as "vehicleModel",
               v.vin as "vin", b.quote_id as "quoteId", q.eta_days as "estimatedDays", qr.issue_summary as "issueDescription", qr.preferred_date as "preferredDate",
               (SELECT status FROM payments p WHERE p.booking_id = b.id ORDER BY p.created_at DESC LIMIT 1) as "paymentStatus"
        FROM bookings b
@@ -359,6 +386,7 @@ adminRouter.get('/quotes', async (req, res) => {
   try {
     const result = await query(
       `SELECT q.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", q.amount as "totalAmount",
+              COALESCE(q.currency, g.business_currency, 'USD') as "currency",
               q.status, q.created_at as "createdAt", q.eta_days as "estimatedDays",
               v.make as "vehicleMake", v.model as "vehicleModel", v.vin as "vin",
               qr.preferred_date as "preferredDate", qr.issue_summary as "issueDescription"

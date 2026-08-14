@@ -13,18 +13,6 @@ export interface CountryConfig {
 
 export const COUNTRIES: CountryConfig[] = [
   {
-    isoCode: 'JP',
-    name: 'Japan',
-    callingCode: '+81',
-    currencyCode: 'JPY',
-    currencySymbol: '¥',
-    locale: 'ja-JP',
-    phoneValidation: {
-      minLength: 10,
-      maxLength: 11
-    }
-  },
-  {
     isoCode: 'IN',
     name: 'India',
     callingCode: '+91',

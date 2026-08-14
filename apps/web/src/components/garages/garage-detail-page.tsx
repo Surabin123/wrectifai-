@@ -42,6 +42,7 @@ import type { DiagnoseIssue } from '@/components/ai-diagnose/diagnose-flow-share
 import { createBooking } from '@/lib/bookings-api';
 import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
+import { formatCurrency } from '@/lib/currency';
 
 interface GarageDetailPageProps {
   garage: Garage;
@@ -221,6 +222,7 @@ export function GarageDetailPage({
   const [reviewPage, setReviewPage] = useState(0);
   const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
+  const [moreServicesModalOpen, setMoreServicesModalOpen] = useState(false);
 
   const detailImageSources = [garage.image].filter((src): src is string =>
     Boolean(src)
@@ -466,19 +468,13 @@ export function GarageDetailPage({
                     Garage Highlights
                   </h3>
                   <ul className="space-y-3">
-                    {[
-                      { label: 'Certified Technicians', icon: Wrench },
-                      { label: 'Advanced Diagnostic Tools', icon: Gauge },
-                      { label: 'Genuine Spare Parts', icon: Shield },
-                      { label: 'Transparent Pricing', icon: Tag },
-                      { label: '4000+ Happy Customers', icon: Star },
-                    ].map((hl, index) => (
+                    {garage.chips.map((chip, index) => (
                       <li
                         key={index}
                         className="flex items-center gap-3 text-[11px] font-bold text-[#42548a]"
                       >
-                        <hl.icon className="h-4 w-4 shrink-0 text-[#1a56db]" />
-                        <span className="truncate">{hl.label}</span>
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-[#1a56db]" />
+                        <span className="truncate">{chip}</span>
                       </li>
                     ))}
                   </ul>
@@ -638,7 +634,15 @@ export function GarageDetailPage({
                     {servicesOffered.map((svc, index) => (
                       <div
                         key={index}
-                        className="flex flex-col items-center justify-center rounded-[16px] border border-[#e2eefc] bg-white p-2 py-2.5 text-center shadow-[0_8px_20px_rgba(22,48,112,0.03)] transition-all hover:border-[#1a56db]/30 hover:shadow-[0_12px_28px_rgba(26,86,219,0.06)]"
+                        onClick={() => {
+                          if (svc.name === 'More Services') {
+                            setMoreServicesModalOpen(true);
+                          }
+                        }}
+                        className={cn(
+                          "flex flex-col items-center justify-center rounded-[16px] border border-[#e2eefc] bg-white p-2 py-2.5 text-center shadow-[0_8px_20px_rgba(22,48,112,0.03)] transition-all hover:border-[#1a56db]/30 hover:shadow-[0_12px_28px_rgba(26,86,219,0.06)]",
+                          svc.name === 'More Services' ? 'cursor-pointer' : ''
+                        )}
                       >
                         <div className="mb-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-[#f0f4ff] text-[#1a56db]">
                           <svc.icon className="h-4 w-4" />
@@ -651,99 +655,63 @@ export function GarageDetailPage({
                   </div>
                 </section>
 
-                {/* Service Catalog */}
-                {services && services.length > 0 && (
+
+
+                {/* Why Choose Us */}
+                {garage.chips && garage.chips.length > 0 && (
                   <section className="space-y-3.5">
                     <h2 className="text-[14.5px] font-bold text-[#17307a]">
-                      Service Catalog
+                      Why Choose {garage.name}?
                     </h2>
-                    <div className="grid gap-3 sm:grid-cols-2">
-                      {services.map((svc) => (
-                        <div key={svc.id} className="rounded-[16px] border border-[#e2eefc] bg-white p-4 shadow-[0_4px_12px_rgba(22,48,112,0.02)] transition-all hover:border-[#1a56db]/30 hover:shadow-[0_8px_20px_rgba(26,86,219,0.05)]">
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <div className="text-[13px] font-bold text-[#17307a]">
-                                {svc.name}
-                              </div>
-                              <div className="mt-1 flex items-center gap-2 text-[11px] font-medium text-[#62749f]">
-                                <span className="rounded-full bg-[#f0f4ff] px-2 py-0.5 text-[10px] text-[#1a56db]">
-                                  {svc.category}
-                                </span>
-                                <span className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3" />
-                                  {svc.duration_mins} mins
-                                </span>
-                              </div>
-                              {svc.description && (
-                                <p className="mt-2.5 text-[11px] leading-relaxed text-[#536891]">
-                                  {svc.description}
-                                </p>
-                              )}
-                            </div>
-                            <div className="text-right">
-                              <div className="text-[14px] font-extrabold text-[#159a5d]">
-                                {(garage as any).business_currency || 'USD'} {svc.price}
-                              </div>
-                            </div>
+                    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+                      {[
+                        {
+                          id: 'Warranty',
+                          title: 'Warranty',
+                          desc: 'On select repairs and services',
+                          icon: Shield,
+                        },
+                        {
+                          id: 'Inspection',
+                          title: 'Inspection',
+                          desc: 'Vehicle checkup',
+                          icon: Eye,
+                        },
+                        {
+                          id: 'Pickup',
+                          title: 'Pickup & Drop',
+                          desc: 'Available on request',
+                          icon: MapPin,
+                        },
+                        {
+                          id: 'Parts',
+                          title: 'Genuine Parts',
+                          desc: 'Original parts used',
+                          icon: Sparkles,
+                        },
+                      ]
+                        .filter(item => garage.chips.some(chip => chip.includes(item.id) || chip.includes(item.title)))
+                        .map((item, index) => (
+                        <div
+                          key={index}
+                          className="flex items-center gap-2.5 rounded-[16px] border border-[#e2e8f0] bg-[#f1f5f9] px-3 py-3 text-left overflow-hidden"
+                        >
+                          <div className="flex shrink-0 items-center justify-center text-[#21834c]">
+                            <item.icon className="h-4.5 w-4.5" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-[11px] font-bold text-[#17307a] whitespace-nowrap">
+                              {item.title}
+                            </h4>
+                            <p className="mt-0.5 text-[9.5px] font-normal text-[#17307a] whitespace-nowrap">
+                              {item.desc}
+                            </p>
                           </div>
                         </div>
                       ))}
                     </div>
                   </section>
                 )}
-
-                {/* Why Choose Us */}
-                <section className="space-y-3.5">
-                  <h2 className="text-[14.5px] font-bold text-[#17307a]">
-                    Why Choose {garage.name}?
-                  </h2>
-                  <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
-                    {[
-                      {
-                        title: '1 Month Warranty',
-                        desc: 'On all repairs and services',
-                        icon: Shield,
-                      },
-                      {
-                        title: 'Free Inspection',
-                        desc: 'Complete vehicle checkup',
-                        icon: Eye,
-                      },
-                      {
-                        title: 'Free Pickup & Drop',
-                        desc: 'Within 10 km radius',
-                        icon: MapPin,
-                      },
-                      {
-                        title: 'Pay After Service',
-                        desc: 'No upfront payment',
-                        icon: CheckCircle2,
-                      },
-                      {
-                        title: 'Genuine Parts',
-                        desc: '100% original parts used',
-                        icon: Sparkles,
-                      },
-                    ].map((item, index) => (
-                      <div
-                        key={index}
-                        className="flex items-center gap-2.5 rounded-[16px] border border-[#e2e8f0] bg-[#f1f5f9] px-3 py-3 text-left overflow-hidden"
-                      >
-                        <div className="flex shrink-0 items-center justify-center text-[#21834c]">
-                          <item.icon className="h-4.5 w-4.5" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <h4 className="text-[11px] font-bold text-[#17307a] whitespace-nowrap">
-                            {item.title}
-                          </h4>
-                          <p className="mt-0.5 text-[9.5px] font-normal text-[#17307a] whitespace-nowrap">
-                            {item.desc}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
 
                 {/* Customer Reviews */}
                 <section className="space-y-4">
@@ -1052,6 +1020,41 @@ export function GarageDetailPage({
             >
               ✓ OK
             </Button>
+          </div>
+        </Modal>
+
+        {/* More Services Modal */}
+        <Modal
+          isOpen={moreServicesModalOpen}
+          onClose={() => setMoreServicesModalOpen(false)}
+          title="All Garage Services"
+          className="max-w-xl"
+        >
+          <div className="py-2">
+            <div className="grid gap-3 sm:grid-cols-2">
+              {services && services.length > 0 ? (
+                services.map((svc) => (
+                  <div key={svc.id} className="rounded-[16px] border border-[#e2eefc] bg-white p-4 shadow-[0_4px_12px_rgba(22,48,112,0.02)] transition-all">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-[13px] font-bold text-[#17307a]">
+                          {svc.name}
+                        </div>
+                        <div className="mt-1 flex items-center gap-2 text-[11px] font-medium text-[#62749f]">
+                          <span className="rounded-full bg-[#f0f4ff] px-2 py-0.5 text-[10px] text-[#1a56db]">
+                            {svc.category}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div className="col-span-2 text-center py-6 text-slate-500 text-sm">
+                  No additional services listed.
+                </div>
+              )}
+            </div>
           </div>
         </Modal>
       </div>

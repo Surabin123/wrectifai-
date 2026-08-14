@@ -35,7 +35,8 @@ import { resultIssues } from '@/components/ai-diagnose/diagnose-flow-shared';
 
 import { GarageDetailPage } from '@/components/garages/garage-detail-page';
 import { fetchGarages, type Garage as ApiGarage } from '@/lib/garages-api';
-import { getLocationCookie, formatCurrency } from '@/utils/location';
+import { getLocationCookie } from '@/utils/location';
+import { formatCurrency } from '@/lib/currency';
 
 type FilterKey =
   | 'rating'
@@ -294,11 +295,17 @@ function GarageCard({
 
         <div className="mt-2 flex items-center gap-3 text-[11px] text-[#6173a1]">
           <div className="flex shrink-0 items-center gap-1.5">
-            <Star className="h-4 w-4 fill-[#ff9f1a] text-[#ff9f1a]" />
-            <span className="font-semibold text-[#f28c28]">
-              {rating.toFixed(1)}
-            </span>
-            <span>({reviews})</span>
+            <Star className={cn("h-4 w-4", reviews > 0 ? "fill-[#ff9f1a] text-[#ff9f1a]" : "text-[#9aa8c6]")} />
+            {reviews > 0 ? (
+              <>
+                <span className="font-semibold text-[#f28c28]">
+                  {rating.toFixed(1)}
+                </span>
+                <span>({reviews})</span>
+              </>
+            ) : (
+              <span className="font-semibold text-[#9aa8c6]">No reviews yet</span>
+            )}
           </div>
           <span className="shrink-0 text-[#9aa8c6]">•</span>
           <span className="min-w-0 truncate">{location}</span>
@@ -397,9 +404,9 @@ function mapBackendGarageToFrontend(g: any, userCity: string): Garage {
     badge,
     badgeTone: getGarageBadgeTone(badge),
     name,
-    rating: Number(g.rating) || 4.5,
-    reviews: Number(g.reviews) || 0,
-    location: userCity,
+    rating: g.rating ? Number(g.rating) : 0,
+    reviews: g.reviews ? Number(g.reviews) : 0,
+    location: g.location || 'Not Specified',
     distanceKm,
     responseMins,
     chips,
@@ -445,7 +452,7 @@ function GaragesContent() {
 
   useEffect(() => {
     let active = true;
-    fetchGarages()
+    fetchGarages(userCity)
       .then((data) => {
         if (active && data && data.length > 0) {
           const merged = data.map(g => mapBackendGarageToFrontend(g, userCity));

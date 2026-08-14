@@ -16,8 +16,7 @@ import { getChatHistory } from '@/lib/diagnosis-api';
 import Image from 'next/image';
 
 const IN_CITIES = [
-  
-  
+  'Bengaluru', 'Mumbai', 'Kochi', 'Delhi', 'Hyderabad', 'Chennai'
 ];
 
 const US_CITIES = [
@@ -30,12 +29,20 @@ const AE_CITIES = [
   'Ras Al Khaimah', 'Fujairah', 'Umm Al Quwain', 'Al Ain'
 ];
 
+const ALL_CITIES = [...IN_CITIES, ...US_CITIES, ...AE_CITIES];
+
+function getCountryCodeForCity(city: string) {
+  if (IN_CITIES.includes(city)) return '+91';
+  if (US_CITIES.includes(city)) return '+1';
+  if (AE_CITIES.includes(city)) return '+971';
+  return '+91';
+}
+
 export function TopNavbar() {
   const [query, setQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedCity, setSelectedCity] = useState('Location');
   const [citySearch, setCitySearch] = useState('');
-  const [currentCities, setCurrentCities] = useState<string[]>(IN_CITIES);
   
   const [cartCount, setCartCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
@@ -97,21 +104,14 @@ export function TopNavbar() {
       if (e.key === 'wrectifai_notifications') updateNotifications();
     });
     
-    // Load country and set cities
-    const countryCode = getLocationCookie('wrectifai_country_code');
-    let activeCities = IN_CITIES;
-    if (countryCode === '+1') activeCities = US_CITIES;
-    else if (countryCode === '+971') activeCities = AE_CITIES;
-    
-    setCurrentCities(activeCities);
-
     // Load city from cookie
     const savedCity = getLocationCookie('wrectifai_city');
-    if (savedCity && activeCities.includes(savedCity)) {
+    if (savedCity && ALL_CITIES.includes(savedCity)) {
       setSelectedCity(savedCity);
     } else {
-      setSelectedCity(activeCities[0]);
-      setLocationCookie('wrectifai_city', activeCities[0]);
+      setSelectedCity(IN_CITIES[0]);
+      setLocationCookie('wrectifai_city', IN_CITIES[0]);
+      setLocationCookie('wrectifai_country_code', getCountryCodeForCity(IN_CITIES[0]));
     }
     
     return () => {
@@ -140,7 +140,7 @@ export function TopNavbar() {
     }
   };
 
-  const filteredCities = currentCities.filter(city =>
+  const filteredCities = ALL_CITIES.filter(city =>
     city.toLowerCase().includes(citySearch.toLowerCase())
   );
 
@@ -212,6 +212,7 @@ export function TopNavbar() {
                       onClick={() => {
                         setSelectedCity(city);
                         setLocationCookie('wrectifai_city', city);
+                        setLocationCookie('wrectifai_country_code', getCountryCodeForCity(city));
                         window.dispatchEvent(new Event('city-changed'));
                         setIsDropdownOpen(false);
                       }}

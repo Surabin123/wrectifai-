@@ -98,7 +98,7 @@ export default function AdminQuotesPage() {
                     <tr key={i} onClick={() => { setSelectedQuote(q); setIsModalOpen(true); }} className="hover:bg-slate-50/50 cursor-pointer transition-colors">
                       <td className="p-4 text-sm font-semibold text-slate-900 truncate">{q.customerName || 'N/A'}</td>
                       <td className="p-4 text-sm text-slate-700 truncate">{q.garageName || 'N/A'}</td>
-                      <td className="p-4 text-sm text-slate-700">{formatCurrency(q.totalAmount || 0, q.customerPhone)}</td>
+                      <td className="p-4 text-sm text-slate-700">{formatCurrency(q.totalAmount || 0, q.currency || 'USD')}</td>
                       <td className="p-4 text-sm text-slate-700">N/A</td>
                       <td className="p-4 text-sm text-slate-700">
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase border ${isQuoted ? 'bg-green-50 text-green-700 border-green-100' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
@@ -106,7 +106,6 @@ export default function AdminQuotesPage() {
                         </span>
                       </td>
                       <td className="p-4 text-right">
-                         <button className="text-slate-400 hover:text-blue-600 px-2"><Eye className="w-4 h-4 inline"/></button>
                       </td>
                     </tr>
                   )
@@ -125,7 +124,7 @@ export default function AdminQuotesPage() {
         </div>
       </Card>
       
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Quote Details">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Quote Details" className="max-w-2xl">
          <div className="space-y-4">
             {selectedQuote ? (
                <div className="grid grid-cols-2 gap-4 text-sm text-slate-700 bg-slate-50 p-4 rounded-lg border border-slate-100">
@@ -175,7 +174,7 @@ export default function AdminQuotesPage() {
                  </div>
 
                  <div className="space-y-1 col-span-2 text-lg border-t pt-3 mt-1 font-bold text-[#17307a]">
-                   Total Amount: {formatCurrency(selectedQuote.totalAmount || 0, selectedQuote.customerPhone)}
+                   Total Amount: {formatCurrency(selectedQuote.totalAmount || 0, selectedQuote.currency || 'USD')}
                  </div>
                </div>
             ) : <p>Loading...</p>}

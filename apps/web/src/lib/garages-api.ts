@@ -37,8 +37,9 @@ export interface Promo {
   themePreset: string;
 }
 
-export async function fetchGarages(): Promise<Garage[]> {
-  return apiClient.get('/garages/search');
+export async function fetchGarages(city?: string): Promise<Garage[]> {
+  const url = city ? `/garages/search?city=${encodeURIComponent(city)}` : '/garages/search';
+  return apiClient.get(url);
 }
 
 export async function fetchGarage(id: string): Promise<Garage> {

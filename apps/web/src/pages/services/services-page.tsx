@@ -7,10 +7,12 @@ import { useRouter } from 'next/navigation';
 import { Search, ChevronRight, Wrench, CheckCircle, ChevronDown, Check, Star, Filter, MapPin } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/utils/cn';
-import { formatCurrency, getLocationCookie } from '@/utils/location';
+import { setLocationCookie, getLocationCookie } from '@/utils/location';
+import { formatCurrency } from '@/lib/currency';
 import { Modal } from '@/components/common/modal';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
+// Trigger recompile
 
 export const initialMockServices = [
   { id: 1, name: 'Oil Change', category: 'Maintenance', desc: 'Engine oil replacement with premium quality oil for better performance.', price: '10', img: '/assets/engine_oil_bottle.png' },

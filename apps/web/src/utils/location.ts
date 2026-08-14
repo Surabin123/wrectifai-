@@ -28,13 +28,4 @@ export function getCurrencyForCountryCode(countryCode: string | null): string {
   }
 }
 
-export function formatCurrency(amount: number, countryCode: string | null = null): string {
-  const code = getCurrencyForCountryCode(countryCode || getLocationCookie('wrectifai_country_code'));
-  if (code === 'USD') {
-    return `$${amount.toLocaleString('en-US')}`;
-  }
-  if (code === 'AED') {
-    return `AED ${amount.toLocaleString('en-AE')}`;
-  }
-  return `₹${amount.toLocaleString('en-IN')}`;
-}
+

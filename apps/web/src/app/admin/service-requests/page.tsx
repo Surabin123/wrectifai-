@@ -107,7 +107,6 @@ function AdminServiceRequestsContent() {
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                       <button className="text-slate-400 hover:text-blue-600 px-2"><Eye className="w-4 h-4 inline"/></button>
                     </td>
                   </tr>
                 ))

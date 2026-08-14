@@ -437,7 +437,7 @@ export default function LoginPage() {
                   >
                     {COUNTRIES.map(c => (
                       <option key={c.isoCode} value={c.callingCode}>
-                        {c.name} ({c.callingCode})
+                        {c.isoCode} ({c.callingCode})
                       </option>
                     ))}
                   </select>

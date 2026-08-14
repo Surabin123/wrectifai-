@@ -106,7 +106,7 @@ garagesRouter.get('/my-inventory', authenticate, async (req, res) => {
 
 garagesRouter.get('/search', async (req, res) => {
   try {
-    const { rating, specialization, price_range, lat, lng, distance } = req.query;
+    const { rating, specialization, price_range, lat, lng, distance, city } = req.query;
 
     const conditions: string[] = ["g.approval_status = 'active'"];
     const params: any[] = [];
@@ -119,6 +119,11 @@ garagesRouter.get('/search', async (req, res) => {
     if (specialization) {
       params.push(specialization);
       conditions.push(`$${params.length} = ANY(g.specializations)`);
+    }
+
+    if (city) {
+      params.push(city);
+      conditions.push(`g.city = $${params.length}`);
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;

@@ -1,16 +1,32 @@
 'use client';
 import { Card } from '@/components/common/card';
-import { Search, Plus, Eye, CheckCircle2, PauseCircle, Clock } from 'lucide-react';
+import { Search, Plus, Eye, CheckCircle2, PauseCircle, MoreVertical, Edit, ShieldAlert, ShieldCheck, MapPin, Mail, Phone, Calendar, Clock, FileText } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
 
 export default function AllGaragesPage() {
   const [garages, setGarages] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [selectedGarage, setSelectedGarage] = useState<any>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  
   const [actionModal, setActionModal] = useState<{isOpen: boolean, id: string, action: string}>({isOpen: false, id: '', action: ''});
+  const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState<'down' | 'up'>('down');
+
+  const handleDropdownClick = (e: React.MouseEvent, id: string) => {
+    if (openDropdownId === id) {
+      setOpenDropdownId(null);
+      return;
+    }
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    const isNearBottom = window.innerHeight - rect.bottom < 150;
+    setDropdownPosition(isNearBottom ? 'up' : 'down');
+    setOpenDropdownId(id);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -30,10 +46,11 @@ export default function AllGaragesPage() {
 
   const handleVerify = async (id: string, action: string) => {
     try {
-      await apiClient.post(`/admin/onboarding/garages/${id}/${action}`, {});
+      const status = action === 'activate' ? 'active' : action === 'suspend' ? 'suspended' : action;
+      await apiClient.put(`/admin/garages/${id}/status`, { status });
       await loadData();
       if (selectedGarage && selectedGarage.id === id) {
-        setSelectedGarage(null);
+        handleViewDetails(id); // refresh details
       }
       setActionModal({isOpen: false, id: '', action: ''});
     } catch (err) {
@@ -41,12 +58,27 @@ export default function AllGaragesPage() {
     }
   };
 
+  const handleViewDetails = async (id: string) => {
+    setDetailsLoading(true);
+    setSelectedGarage({ id, loading: true }); // Open modal immediately with loading state
+    setOpenDropdownId(null);
+    try {
+      const data = await apiClient.get<any>(`/admin/onboarding/garages/${id}`);
+      setSelectedGarage(data);
+    } catch (err) {
+      console.error('Failed to load garage details', err);
+      setSelectedGarage(null);
+    } finally {
+      setDetailsLoading(false);
+    }
+  };
+
   const totalGarages = garages.length;
   const activeGarages = garages.filter(g => g.approvalStatus === 'active').length;
-  const inactiveGarages = garages.filter(g => g.approvalStatus === 'inactive').length;
+  const inactiveGarages = garages.filter(g => g.approvalStatus === 'inactive' || g.approvalStatus === 'suspended').length;
 
   const formatTime = (isoString: string) => {
-    if (!isoString) return '';
+    if (!isoString) return 'N/A';
     return new Date(isoString).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
   };
 
@@ -84,7 +116,7 @@ export default function AllGaragesPage() {
         </Card>
       </div>
 
-      <Card className="p-0 overflow-hidden shadow-sm">
+      <Card className="p-0 shadow-sm">
         <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white">
            <div className="relative w-80">
              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
@@ -113,9 +145,9 @@ export default function AllGaragesPage() {
                 </tr>
             ) : (
                 garages.map(g => (
-                <tr key={g.id} className="hover:bg-slate-50 bg-white transition-colors">
+                <tr key={g.id} className="hover:bg-slate-50 bg-white transition-colors relative">
                     <td className="p-4">
-                        <p className="text-sm font-bold text-[#17307a] leading-tight">{g.name}</p>
+                        <button onClick={() => handleViewDetails(g.id)} className="text-sm font-bold text-blue-600 hover:text-blue-800 hover:underline leading-tight text-left text-ellipsis overflow-hidden whitespace-nowrap max-w-[200px]">{g.name}</button>
                     </td>
                     <td className="p-4">
                         <p className="text-xs font-bold text-[#17307a] leading-tight">{g.ownerName || 'N/A'}</p>
@@ -128,15 +160,26 @@ export default function AllGaragesPage() {
                     </td>
                     <td className="p-4 text-xs text-slate-600">{formatTime(g.createdAt)}</td>
                     <td className="p-4 text-right">
-                    <div className="flex gap-2 justify-end items-center">
-                        <button onClick={() => setSelectedGarage(g)} className="p-1.5 rounded-md hover:bg-blue-50 text-blue-500 border border-slate-200 bg-white"><Eye className="w-3.5 h-3.5"/></button>
-                        {g.approvalStatus === 'active' && (
-                          <button onClick={() => setActionModal({isOpen: true, id: g.id, action: 'suspend'})} className="text-[10px] bg-red-50 text-red-700 px-3 py-1.5 rounded-lg border border-red-100 hover:bg-red-100 font-bold transition-colors">Suspend</button>
-                        )}
-                        {g.approvalStatus === 'inactive' && (
-                          <button onClick={() => setActionModal({isOpen: true, id: g.id, action: 'activate'})} className="text-[10px] bg-green-50 text-green-700 px-3 py-1.5 rounded-lg border border-green-100 hover:bg-green-100 font-bold transition-colors">Make Active</button>
-                        )}
-                    </div>
+                      <div className="flex gap-2 justify-end items-center relative">
+                          <div className="relative">
+                            <button onClick={(e) => handleDropdownClick(e, g.id)} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 border border-slate-200 bg-white" title="More Actions">
+                              <MoreVertical className="w-3.5 h-3.5"/>
+                            </button>
+                            {openDropdownId === g.id && (
+                              <div className={`absolute right-0 ${dropdownPosition === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'} w-40 bg-white border border-slate-200 rounded-lg shadow-xl z-50 py-1 overflow-hidden`}>
+                                <button onClick={() => { setOpenDropdownId(null); handleViewDetails(g.id); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Eye className="w-3.5 h-3.5"/> View Details</button>
+                                
+                                <div className="border-t border-slate-100 my-1"></div>
+                                
+                                {g.approvalStatus === 'active' ? (
+                                  <button onClick={() => { setOpenDropdownId(null); setActionModal({isOpen: true, id: g.id, action: 'suspend'}); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2"><ShieldAlert className="w-3.5 h-3.5"/> Suspend</button>
+                                ) : (
+                                  <button onClick={() => { setOpenDropdownId(null); setActionModal({isOpen: true, id: g.id, action: 'activate'}); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-green-600 hover:bg-green-50 flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5"/> Make Active</button>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                      </div>
                     </td>
                 </tr>
                 ))
@@ -145,40 +188,169 @@ export default function AllGaragesPage() {
         </table>
       </Card>
 
-      <Modal isOpen={!!selectedGarage} onClose={() => setSelectedGarage(null)} title="Garage Details" className="max-w-2xl">
-        {selectedGarage && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-2 gap-4">
+      {/* Details Modal */}
+      <Modal isOpen={!!selectedGarage} onClose={() => setSelectedGarage(null)} title="Garage Profile" className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        {selectedGarage?.loading ? (
+           <div className="p-12 text-center text-slate-500 text-sm flex-1">Loading garage profile...</div>
+        ) : selectedGarage && (
+          <div className="flex-1 overflow-y-auto pr-2 pb-4 space-y-8 custom-scrollbar">
+            
+            {/* Header Section */}
+            <div className="flex justify-between items-start border-b border-slate-100 pb-6">
               <div>
-                <p className="text-xs text-slate-500 font-bold mb-1">Garage Name</p>
-                <p className="text-sm font-semibold text-slate-900">{selectedGarage.name}</p>
+                <h2 className="text-2xl font-black text-[#17307a] mb-2">{selectedGarage.name}</h2>
+                <div className="flex gap-4 items-center text-xs text-slate-600 font-medium">
+                   <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400"/> {selectedGarage.city || 'City N/A'}, {selectedGarage.country || 'Country N/A'}</span>
+                   <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-400"/> Joined {formatTime(selectedGarage.createdAt)}</span>
+                </div>
               </div>
               <div>
-                <p className="text-xs text-slate-500 font-bold mb-1">Owner Name</p>
-                <p className="text-sm font-semibold text-slate-900">{selectedGarage.ownerName || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 font-bold mb-1">Address</p>
-                <p className="text-sm font-semibold text-slate-900">{selectedGarage.address || 'N/A'}, {selectedGarage.city || 'N/A'}</p>
-              </div>
-              <div>
-                <p className="text-xs text-slate-500 font-bold mb-1">Status</p>
-                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${selectedGarage.approvalStatus === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                   {selectedGarage.approvalStatus || 'Unknown'}
+                <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase border shadow-sm ${selectedGarage.approvalStatus === 'active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
+                   Status: {selectedGarage.approvalStatus || 'Unknown'}
                 </span>
               </div>
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Garage Information */}
+              <div className="space-y-4">
+                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 border-b pb-2">Garage Information</h3>
+                 <div className="grid grid-cols-2 gap-y-4 gap-x-4">
+                    <div>
+                      <p className="text-[11px] text-slate-500 font-bold mb-0.5">Garage Type</p>
+                      <p className="text-sm font-semibold text-slate-800">{selectedGarage.type || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-500 font-bold mb-0.5">Registration Number</p>
+                      <p className="text-sm font-semibold text-slate-800">{selectedGarage.registrationNumber || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-500 font-bold mb-0.5">Established Year</p>
+                      <p className="text-sm font-semibold text-slate-800">{selectedGarage.establishedYear || 'Not provided'}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[11px] text-slate-500 font-bold mb-0.5">Description</p>
+                      <p className="text-sm font-medium text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">{selectedGarage.description || 'No description provided.'}</p>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Owner & Account */}
+              <div className="space-y-4">
+                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 border-b pb-2">Owner & Account</h3>
+                 <div className="bg-blue-50/50 p-4 rounded-xl border border-blue-100/50 space-y-4">
+                    <div>
+                      <p className="text-[11px] text-blue-500 font-bold mb-0.5">Owner Full Name</p>
+                      <p className="text-sm font-bold text-[#17307a]">{selectedGarage.ownerName || 'Not provided'}</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-[11px] text-blue-500 font-bold mb-0.5">Phone Number</p>
+                        <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400"/> {selectedGarage.ownerPhone || 'Not provided'}</p>
+                      </div>
+                      <div>
+                        <p className="text-[11px] text-blue-500 font-bold mb-0.5">Login Email</p>
+                        <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400"/> {selectedGarage.ownerEmail || 'Not provided'}</p>
+                      </div>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Location */}
+              <div className="space-y-4">
+                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 border-b pb-2">Location</h3>
+                 <div className="grid grid-cols-2 gap-y-4 gap-x-4">
+                    <div>
+                      <p className="text-[11px] text-slate-500 font-bold mb-0.5">Country</p>
+                      <p className="text-sm font-semibold text-slate-800">{selectedGarage.country || 'Not provided'}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] text-slate-500 font-bold mb-0.5">City</p>
+                      <p className="text-sm font-semibold text-slate-800">{selectedGarage.city || 'Not provided'}</p>
+                    </div>
+                    <div className="col-span-2">
+                      <p className="text-[11px] text-slate-500 font-bold mb-0.5">Complete Address</p>
+                      <p className="text-sm font-semibold text-slate-800 bg-slate-50 p-3 rounded-lg border border-slate-100">{selectedGarage.address || 'Not provided'}</p>
+                    </div>
+                 </div>
+              </div>
+
+              {/* Working Hours */}
+              <div className="space-y-4">
+                 <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 border-b pb-2">Working Hours</h3>
+                 {selectedGarage.businessHours ? (
+                   <div className="text-sm text-slate-700 font-medium">Configured in system.</div>
+                 ) : (
+                   <div className="flex items-center gap-2 text-sm text-slate-500 italic bg-slate-50 p-3 rounded-lg border border-slate-100">
+                     <Clock className="w-4 h-4" /> Not provided
+                   </div>
+                 )}
+              </div>
+            </div>
+
+            {/* Services */}
+            <div className="space-y-4 pt-4">
+               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 border-b pb-2">Services Offered</h3>
+               {selectedGarage.servicesList && selectedGarage.servicesList.length > 0 ? (
+                 <div className="flex flex-wrap gap-2">
+                   {selectedGarage.servicesList.map((s: any, idx: number) => (
+                     <span key={idx} className="bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm">
+                       {s.name}
+                     </span>
+                   ))}
+                 </div>
+               ) : (
+                 <p className="text-sm text-slate-500 italic">No services registered.</p>
+               )}
+            </div>
+
+            {/* Documents */}
+            <div className="space-y-4 pt-4">
+               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 border-b pb-2">Business Documents</h3>
+               {selectedGarage.docsList && selectedGarage.docsList.length > 0 ? (
+                 <div className="grid grid-cols-2 gap-4">
+                   {selectedGarage.docsList.map((doc: any, idx: number) => (
+                     <div key={idx} className="border border-slate-200 rounded-lg p-3 flex items-center justify-between bg-white hover:border-blue-200 transition-colors">
+                       <div className="flex items-center gap-3 overflow-hidden">
+                         <div className="w-10 h-10 bg-slate-50 rounded flex items-center justify-center text-slate-400 flex-shrink-0">
+                           <FileText className="w-5 h-5"/>
+                         </div>
+                         <div className="overflow-hidden">
+                           <p className="text-sm font-bold text-slate-800 truncate">{doc.doc_type || 'Document'}</p>
+                           <p className="text-[10px] font-bold text-slate-500 uppercase">{doc.verification_status || 'Pending'}</p>
+                         </div>
+                       </div>
+                       {doc.file_url && (
+                         <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline">View</a>
+                       )}
+                     </div>
+                   ))}
+                 </div>
+               ) : (
+                 <p className="text-sm text-slate-500 italic bg-slate-50 p-4 rounded-lg border border-slate-100 text-center">No documents uploaded.</p>
+               )}
+            </div>
+            
           </div>
         )}
       </Modal>
 
+      {/* Action Confirmation Modal */}
       <Modal isOpen={actionModal.isOpen} onClose={() => setActionModal({isOpen: false, id: '', action: ''})} title="Confirm Action" className="max-w-md">
-        <p className="text-sm text-slate-600 mb-6">Are you sure you want to {actionModal.action === 'activate' ? 'activate' : 'suspend'} this garage?</p>
+        <p className="text-sm text-slate-600 mb-6 leading-relaxed">Are you sure you want to <strong>{actionModal.action === 'activate' ? 'activate' : 'suspend'}</strong> this garage? This will immediately affect their visibility in the system.</p>
         <div className="flex justify-end gap-3">
-           <button onClick={() => setActionModal({isOpen: false, id: '', action: ''})} className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200">Cancel</button>
-           <button onClick={() => handleVerify(actionModal.id, actionModal.action)} className={`px-4 py-2 text-sm font-bold text-white rounded-lg ${actionModal.action === 'activate' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>Confirm</button>
+           <button onClick={() => setActionModal({isOpen: false, id: '', action: ''})} className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors">Cancel</button>
+           <button onClick={() => handleVerify(actionModal.id, actionModal.action)} className={`px-4 py-2 text-sm font-bold text-white rounded-lg shadow-sm transition-colors flex items-center gap-2 ${actionModal.action === 'activate' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
+             {actionModal.action === 'activate' ? <CheckCircle2 className="w-4 h-4"/> : <ShieldAlert className="w-4 h-4"/>} Confirm
+           </button>
         </div>
       </Modal>
+      
+      {/* Global click handler to close dropdown */}
+      {openDropdownId && (
+        <div className="fixed inset-0 z-0" onClick={() => setOpenDropdownId(null)}></div>
+      )}
     </div>
   );
 }
+

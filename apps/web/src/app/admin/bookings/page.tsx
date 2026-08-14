@@ -113,7 +113,6 @@ export default function AdminBookingsPage() {
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                       <button className="text-slate-400 hover:text-blue-600 px-2"><Eye className="w-4 h-4 inline"/></button>
                     </td>
                   </tr>
                 ))
@@ -131,7 +130,7 @@ export default function AdminBookingsPage() {
         </div>
       </Card>
       
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Booking Details">
+      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Booking Details" className="max-w-2xl">
          <div className="space-y-4">
              {selectedBooking ? (
                <div className="grid grid-cols-2 gap-4 text-sm text-slate-700 bg-slate-50 p-4 rounded-lg border border-slate-100">
@@ -178,7 +177,7 @@ export default function AdminBookingsPage() {
                  </div>
 
                  <div className="space-y-1 col-span-2 text-lg border-t pt-3 mt-1 font-bold text-[#17307a]">
-                   Total Amount: {formatCurrency(selectedBooking.totalAmount || 0, selectedBooking.customerPhone)}
+                   Total Amount: {formatCurrency(selectedBooking.totalAmount || 0, selectedBooking.currency || 'USD')}
                  </div>
                </div>
             ) : <p>Loading...</p>}
