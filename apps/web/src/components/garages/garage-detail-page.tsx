@@ -381,20 +381,24 @@ export function GarageDetailPage({
                       </span>
                     </div>
                     <span className="text-[#cbd4e6]">•</span>
-                    <div className="flex items-center gap-1">
-                      <MapPin className="h-4 w-4 text-[#1a56db]" />
-                      <span>{garage.distanceKm.toFixed(1)} km away</span>
-                    </div>
+                    {garage.distanceKm != null && (
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        <MapPin className="h-3.5 w-3.5 shrink-0 text-[#17307a]" />
+                        <span>{garage.distanceKm.toFixed(1)} km away</span>
+                      </div>
+                    )}
                     <span className="text-[#cbd4e6]">•</span>
                     <span>{garage.location}</span>
                   </div>
 
                   {/* Response / Time Pills */}
                   <div className="flex flex-wrap gap-2.5 pt-1.5">
-                    <div className="flex items-center gap-2 rounded-full bg-[#f0f4ff] px-3.5 py-1.5 text-[10px] font-bold text-[#1a56db]">
-                      <Clock className="h-4 w-4" />
-                      <span>{garage.responseMins} mins response time</span>
-                    </div>
+                    {garage.responseMins != null && (
+                      <div className="flex items-center gap-2 rounded-full bg-[#f0f4ff] px-3.5 py-1.5 text-[10px] font-bold text-[#1a56db]">
+                        <Clock className="h-4 w-4" />
+                        <span>{garage.responseMins} mins response time</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2 rounded-full bg-[#eefbf3] px-3.5 py-1.5 text-[10px] font-bold text-[#228453]">
                       <Clock className="h-4 w-4" />
                       <span>Open until 10:00 PM</span>
@@ -534,10 +538,12 @@ export function GarageDetailPage({
                             </span>
                           </div>
                           <div className="flex items-start gap-2">
-                            <Clock className="mt-0.5 h-4 w-4 shrink-0 text-[#1a56db]" />
-                            <span>
-                              Garage response time: {garage.responseMins} mins
-                            </span>
+                            {garage.responseMins != null && (
+                              <div className="flex items-center gap-2">
+                                <Clock className="h-3.5 w-3.5" />
+                                Garage response time: {garage.responseMins} mins
+                              </div>
+                            )}
                           </div>
                           <div className="flex items-start gap-2">
                             <Tag className="mt-0.5 h-4 w-4 shrink-0 text-[#1a56db]" />

@@ -18,6 +18,7 @@ export interface User {
   roles: string[];
   mobileNumber?: string;
   status?: string;
+  country?: string;
 }
 
 export interface AuthContextType {

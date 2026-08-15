@@ -38,7 +38,9 @@ export interface Promo {
 }
 
 export async function fetchGarages(city?: string): Promise<Garage[]> {
-  const url = city ? `/garages/search?city=${encodeURIComponent(city)}` : '/garages/search';
+  // When no city is specified, fetch ALL approved garages (display context is set by the UI).
+  // When a city is specified, use the search endpoint with city filter (future real-location use).
+  const url = city ? `/garages/search?city=${encodeURIComponent(city)}` : '/garages';
   return apiClient.get(url);
 }
 

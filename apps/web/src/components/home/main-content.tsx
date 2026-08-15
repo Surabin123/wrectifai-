@@ -550,7 +550,7 @@ function GarageCard({
   return (
     <Card className="overflow-hidden rounded-[16px] shadow-[0_12px_26px_rgba(20,44,112,0.08)]">
       <div className={cn('relative h-[86px] bg-gradient-to-r', artwork)}>
-        {image && <Image src={image} alt={name} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />}
+        <Image src={image || '/assets/garage_1_1778071156220.png'} alt={name} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(5,8,17,0.3))]" />
         <div className="absolute inset-x-3 top-3 flex items-start justify-between">
           {badge ? <Badge tone={tone}>{badge}</Badge> : <div />}
@@ -594,11 +594,13 @@ function GarageCard({
             <span className="truncate">{location}</span>
           </div>
           <div className="flex items-center justify-between gap-2 pt-0.5">
-            <div className="flex items-center gap-1.5 shrink-0">
-              <MapPin className="h-3.5 w-3.5 shrink-0 text-[#17307a]" />
-              <span>{distance || '2.5 km'}</span>
-            </div>
-            {price && <span className="font-bold text-[#16a34a]">{price}</span>}
+            {distance && (
+              <div className="flex items-center gap-1.5 shrink-0">
+                <MapPin className="h-3.5 w-3.5 shrink-0 text-[#17307a]" />
+                <span>{distance}</span>
+              </div>
+            )}
+            {price && <span className="font-bold text-[#16a34a]">{formatCurrency(price)}</span>}
           </div>
         </div>
       </div>
@@ -977,7 +979,7 @@ function CareTips({
 
 export function MainContent() {
   const [searchTerm, setSearchTerm] = useState('');
-  const [userCity, setUserCity] = useState<string>('Bengaluru');
+  const [userCity, setUserCity] = useState<string>('');
   const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
   const [garagesList, setGaragesList] = useState<Garage[]>([]);
   const [dealsList, setDealsList] = useState<Deal[]>([]);
@@ -1024,13 +1026,18 @@ export function MainContent() {
 
   useEffect(() => {
     let active = true;
+    // Fetch ALL approved garages — city is display context only, not a DB filter.
     fetchGarages()
       .then((data) => {
         if (active && data && data.length > 0) {
-          // Re-map with the current userCity
+          // Inject the selected city as the display location on every garage card.
           const mapped = data.map((g: any) => ({
             ...g,
-            location: userCity
+            rating: g.rating_avg ? Number(g.rating_avg) : (g.rating ? Number(g.rating) : 0),
+            reviews: g.rating_count ? Number(g.rating_count) : (g.reviews ? Number(g.reviews) : 0),
+            distance: typeof g.distance_km !== 'undefined' ? `${g.distance_km} km` : g.distance,
+            responseMins: typeof g.response_mins !== 'undefined' ? Number(g.response_mins) : g.responseMins,
+            location: (userCity && userCity !== 'Location') ? userCity : (g.location || g.city || 'Not Specified'),
           }));
           setGaragesList(mapped as unknown as Garage[]);
         }
@@ -1042,6 +1049,8 @@ export function MainContent() {
       active = false;
     };
   }, [userCity]);
+
+
 
   useEffect(() => {
     let active = true;

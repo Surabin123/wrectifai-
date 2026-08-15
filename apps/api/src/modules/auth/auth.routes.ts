@@ -104,6 +104,7 @@ export async function handleUserLoginOrRegister(email: string, name: string) {
       name: user.name,
       mobileNumber: user.mobile_number,
       status: user.status,
+      country: user.country,
       roles,
     },
     accessToken,

@@ -1,49 +1,35 @@
 'use client';
 
 import { FormEvent, useEffect, useRef, useState } from 'react';
-import { ChevronDown, Search, History, X } from 'lucide-react';
+import { ChevronDown, Search, History, X, Trash2, ShoppingCart, Heart } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Input } from '@/components/common/input';
 import { topNavIcons } from '@/components/home/data';
 import { cn } from '@/utils/cn';
 import { useAuth } from '@/lib/auth-context';
-import { setLocationCookie, getLocationCookie } from '@/utils/location';
+import {
+  COUNTRIES,
+  detectCountryFromPhone,
+  getCountryForCity,
+  getSavedDialCode,
+  saveCity,
+  initLocationForUser,
+  setLocationCookie,
+} from '@/utils/location';
 import { Modal } from '@/components/common/modal';
 import { Button } from '@/components/common/button';
-import { Trash2, ShoppingCart, Heart } from 'lucide-react';
 import { getChatHistory } from '@/lib/diagnosis-api';
 import Image from 'next/image';
-
-const IN_CITIES = [
-  'Bengaluru', 'Mumbai', 'Kochi', 'Delhi', 'Hyderabad', 'Chennai'
-];
-
-const US_CITIES = [
-  'New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix',
-  'San Antonio', 'San Diego', 'Dallas', 'Austin', 'San Jose'
-];
-
-const AE_CITIES = [
-  'Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 
-  'Ras Al Khaimah', 'Fujairah', 'Umm Al Quwain', 'Al Ain'
-];
-
-const ALL_CITIES = [...IN_CITIES, ...US_CITIES, ...AE_CITIES];
-
-function getCountryCodeForCity(city: string) {
-  if (IN_CITIES.includes(city)) return '+91';
-  if (US_CITIES.includes(city)) return '+1';
-  if (AE_CITIES.includes(city)) return '+971';
-  return '+91';
-}
 
 export function TopNavbar() {
   const [query, setQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedCity, setSelectedCity] = useState('Location');
   const [citySearch, setCitySearch] = useState('');
-  
+  const [isTypingCustom, setIsTypingCustom] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   const [cartCount, setCartCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
   const [notificationCount, setNotificationCount] = useState(3);
@@ -51,13 +37,13 @@ export function TopNavbar() {
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [pastMessages, setPastMessages] = useState<any[]>([]);
-  
+
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Authentication context
   const { user, logout } = useAuth();
 
-  // Close dropdown on click outside
+  // Close dropdown on click outside + initialise carts/notifications + location
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -65,8 +51,8 @@ export function TopNavbar() {
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
-    
-    // Listen for cart and wishlist updates
+
+    // Cart / wishlist / notification helpers
     const updateCart = () => {
       const items = localStorage.getItem('shopCart');
       setCartCount(items ? JSON.parse(items).length : 0);
@@ -84,36 +70,34 @@ export function TopNavbar() {
         const isAdmin = user?.roles?.includes('admin');
         const isGarage = user?.roles?.includes('garage');
         const audienceRole = isAdmin ? 'Admin' : isGarage ? 'Garage' : 'Customer';
-        
-        const relevantNotifs = parsed.filter((n: any) => 
+        const relevantNotifs = parsed.filter((n: any) =>
           n.audience === 'All' || n.audience === audienceRole
         );
         setNotificationCount(relevantNotifs.filter((n: any) => !n.read).length);
       }
     };
-    
-    // Initial load
+
     updateCart();
     updateWishlist();
     updateNotifications();
-    
+
     window.addEventListener('cart-updated', updateCart);
     window.addEventListener('wishlist-updated', updateWishlist);
     window.addEventListener('notifications-updated', updateNotifications);
     window.addEventListener('storage', (e) => {
       if (e.key === 'wrectifai_notifications') updateNotifications();
     });
-    
-    // Load city from cookie
-    const savedCity = getLocationCookie('wrectifai_city');
-    if (savedCity && ALL_CITIES.includes(savedCity)) {
-      setSelectedCity(savedCity);
-    } else {
-      setSelectedCity(IN_CITIES[0]);
-      setLocationCookie('wrectifai_city', IN_CITIES[0]);
-      setLocationCookie('wrectifai_country_code', getCountryCodeForCity(IN_CITIES[0]));
-    }
-    
+
+    // ── Location initialisation ────────────────────────────────────────────────
+    // Priority:
+    //   1. Authenticated user's DB country or phone country
+    //   2. Saved cookie → user has already chosen a city within their country
+    //   3. Fallback → India
+    const city = initLocationForUser(user);
+    setSelectedCity(city);
+    window.dispatchEvent(new Event('city-changed'));
+    // ──────────────────────────────────────────────────────────────────────────
+
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       window.removeEventListener('cart-updated', updateCart);
@@ -128,11 +112,7 @@ export function TopNavbar() {
     event.preventDefault();
     const path = window.location.pathname;
     const isLocalSearch = ['/services', '/shop', '/shop-all', '/wallet-payments', '/offers', '/car-tips'].includes(path);
-    
-    if (isLocalSearch) {
-      return; // Handled by local pages
-    }
-    
+    if (isLocalSearch) return;
     if (query.trim()) {
       router.push(`/garages?search=${encodeURIComponent(query.trim())}`);
     } else {
@@ -140,13 +120,32 @@ export function TopNavbar() {
     }
   };
 
-  const filteredCities = ALL_CITIES.filter(city =>
+  // ── City dropdown list ────────────────────────────────────────────────────────
+  // Show only the cities that belong to the user's detected/saved country.
+  // Priority: 1. DB country, 2. Phone detection, 3. Guest Cookie, 4. Fallback
+  const savedDialCode = getSavedDialCode();
+  
+  let activeCountry = COUNTRIES[0];
+  if (user) {
+    if (user.country) {
+      activeCountry = COUNTRIES.find(c => c.name === user.country || c.code === user.country) || detectCountryFromPhone(user.mobileNumber);
+    } else {
+      activeCountry = detectCountryFromPhone(user.mobileNumber);
+    }
+  } else if (savedDialCode) {
+    activeCountry = COUNTRIES.find(c => c.dialCode === savedDialCode) ?? COUNTRIES[0];
+  }
+
+  const activeCityList = activeCountry.cities;
+
+  const filteredCities = activeCityList.filter(city =>
     city.toLowerCase().includes(citySearch.toLowerCase())
   );
+  // ─────────────────────────────────────────────────────────────────────────────
 
   return (
     <header className="w-full flex flex-wrap items-center justify-between gap-3 lg:flex-nowrap lg:gap-6">
-      
+
       {/* Left Section: Mobile Menu & Location Dropdown */}
       <div className="flex items-center gap-2 sm:gap-3 shrink-0">
         <button
@@ -167,7 +166,8 @@ export function TopNavbar() {
             type="button"
             onClick={() => {
               setIsDropdownOpen(!isDropdownOpen);
-              setCitySearch(''); // Reset search on toggle
+              setCitySearch('');
+              setIsTypingCustom(false);
             }}
             className="flex h-10 shrink-0 items-center gap-[10px] rounded-lg border border-[#dbe6ff] bg-white px-3.5 text-[13px] font-semibold text-[#17307a] hover:bg-[#fcfdff] transition-all shadow-sm focus:outline-none focus:ring-0 focus:border-[#dbe6ff] focus-visible:outline-none focus-visible:ring-0 active:border-[#dbe6ff] active:ring-0"
           >
@@ -189,20 +189,54 @@ export function TopNavbar() {
 
           {isDropdownOpen && (
             <div className="absolute left-0 top-full z-50 mt-2 w-[165px] rounded-xl border border-[#e4ecff] bg-white p-2.5 shadow-[0_12px_30px_rgba(23,48,122,0.12)]">
-              {/* Search input bar - rounded-lg matches cities tiles */}
-              <div className="relative mb-2">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8ea0c7]" />
-                <input
-                  type="text"
-                  value={citySearch}
-                  onChange={(e) => setCitySearch(e.target.value)}
-                  placeholder="Search your city..."
-                  className="h-[36px] w-full rounded-lg border border-[#7fa5f7] bg-white pl-9 pr-3 text-[12.5px] text-[#17307a] placeholder-[#8ea0c7] outline-none transition-all focus:border-[#4d82f3] focus:ring-1 focus:ring-[#4d82f3]"
-                  autoFocus
-                />
+              {/* Search / custom-city input */}
+              <div className="relative mb-2 flex items-center gap-1">
+                <div className="relative flex-1">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-[#8ea0c7]" />
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    value={citySearch}
+                    onChange={(e) => setCitySearch(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && citySearch.trim()) {
+                        e.preventDefault();
+                        const city = citySearch.trim();
+                        const countryForCity = getCountryForCity(city);
+                        setSelectedCity(city);
+                        saveCity(city, countryForCity.dialCode);
+                        window.dispatchEvent(new Event('city-changed'));
+                        setIsDropdownOpen(false);
+                        setIsTypingCustom(false);
+                      }
+                    }}
+                    placeholder={isTypingCustom ? 'Type city...' : 'Search your city...'}
+                    className="h-[36px] w-full rounded-lg border border-[#7fa5f7] bg-white pl-9 pr-3 text-[12.5px] text-[#17307a] placeholder-[#8ea0c7] outline-none transition-all focus:border-[#4d82f3] focus:ring-1 focus:ring-[#4d82f3]"
+                    autoFocus
+                  />
+                </div>
+                {isTypingCustom && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (citySearch.trim()) {
+                        const city = citySearch.trim();
+                        const countryForCity = getCountryForCity(city);
+                        setSelectedCity(city);
+                        saveCity(city, countryForCity.dialCode);
+                        window.dispatchEvent(new Event('city-changed'));
+                        setIsDropdownOpen(false);
+                        setIsTypingCustom(false);
+                      }
+                    }}
+                    className="h-[36px] shrink-0 rounded-lg bg-[#1a56db] px-3 text-[11px] font-semibold text-white transition-colors hover:bg-[#174ec4]"
+                  >
+                    Set
+                  </button>
+                )}
               </div>
 
-              {/* City options list - constrained to show exactly 5 options at a time */}
+              {/* City list */}
               <div className="max-h-[175px] overflow-y-auto pr-0.5 [scrollbar-width:thin] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-blue-100 [&::-webkit-scrollbar-thumb]:rounded-full">
                 {filteredCities.length > 0 ? (
                   filteredCities.map((city) => (
@@ -210,17 +244,17 @@ export function TopNavbar() {
                       key={city}
                       type="button"
                       onClick={() => {
+                        const countryForCity = getCountryForCity(city);
                         setSelectedCity(city);
-                        setLocationCookie('wrectifai_city', city);
-                        setLocationCookie('wrectifai_country_code', getCountryCodeForCity(city));
+                        saveCity(city, countryForCity.dialCode);
                         window.dispatchEvent(new Event('city-changed'));
                         setIsDropdownOpen(false);
                       }}
                       className={cn(
-                        "flex h-[34px] w-full items-center rounded-lg px-2.5 text-left text-[13px] font-semibold transition-colors",
-                        city === selectedCity 
-                          ? "bg-[#1a56db] text-white" 
-                          : "text-[#17307a] hover:bg-[#f2f6ff]"
+                        'flex h-[34px] w-full items-center rounded-lg px-2.5 text-left text-[13px] font-semibold transition-colors',
+                        city === selectedCity
+                          ? 'bg-[#1a56db] text-white'
+                          : 'text-[#17307a] hover:bg-[#f2f6ff]'
                       )}
                     >
                       {city}
@@ -228,8 +262,22 @@ export function TopNavbar() {
                   ))
                 ) : (
                   <div className="py-3 text-center text-[11px] font-normal text-[#17307a]">
-                    No cities found
+                    Not in list. Press Enter to use &ldquo;{citySearch}&rdquo;
                   </div>
+                )}
+
+                {!isTypingCustom && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsTypingCustom(true);
+                      setCitySearch('');
+                      searchInputRef.current?.focus();
+                    }}
+                    className="flex h-[34px] w-full items-center rounded-lg px-2.5 text-left text-[13px] font-semibold transition-colors text-[#17307a] hover:bg-[#f2f6ff] mt-1 border-t border-[#f2f6ff]"
+                  >
+                    Other
+                  </button>
                 )}
               </div>
             </div>
@@ -245,11 +293,7 @@ export function TopNavbar() {
           onChange={(event) => {
             const newQuery = event.target.value;
             setQuery(newQuery);
-            window.dispatchEvent(
-              new CustomEvent('dashboard-search', {
-                detail: newQuery.trim(),
-              })
-            );
+            window.dispatchEvent(new CustomEvent('dashboard-search', { detail: newQuery.trim() }));
           }}
           className="h-10 rounded-lg pl-11 pr-4 w-full"
           placeholder="Search for services, parts, garages..."
@@ -264,8 +308,7 @@ export function TopNavbar() {
           onClick={async () => {
             const savedVehicleStr = localStorage.getItem('wrectifai_selected_vehicle');
             const vId = savedVehicleStr ? JSON.parse(savedVehicleStr).id : 'guest';
-            
-            // Try fetching from DB first (if authenticated/not guest)
+
             if (vId !== 'guest') {
               try {
                 const response = await getChatHistory(vId);
@@ -275,16 +318,14 @@ export function TopNavbar() {
                   return;
                 }
               } catch (e) {
-                // Suppress API/Fetch error to prevent disruption, proceed to localStorage fallback
+                // suppress; fall through to localStorage
               }
             }
 
-            // Fallback to localStorage
             const saved = localStorage.getItem(`ai_chat_history_${vId}`);
             if (saved) {
               try { setPastMessages(JSON.parse(saved)); } catch (e) { setPastMessages([]); }
             } else { setPastMessages([]); }
-            
             setIsHistoryModalOpen(true);
           }}
           className="relative h-9 w-9 lg:h-10 lg:w-10 shrink-0 flex items-center justify-center rounded-full bg-white text-[#17307a] shadow-sm ring-1 ring-[#e5ecfb] hover:bg-[#f2f6ff]"
@@ -300,14 +341,14 @@ export function TopNavbar() {
               if (label === 'Wishlist') {
                 setIsWishlistOpen(true);
               } else if (href.startsWith('#')) {
-                // If it's a hash, dispatch an event or do nothing for now since it's mock
+                // hash links – handled elsewhere
               } else {
                 router.push(href);
               }
             }}
             className={cn(
-              "relative h-9 w-9 lg:h-10 lg:w-10 shrink-0 flex items-center justify-center rounded-full bg-white text-[#17307a] shadow-sm ring-1 ring-[#e5ecfb]",
-              label !== 'Notifications' ? "hidden lg:flex" : "flex"
+              'relative h-9 w-9 lg:h-10 lg:w-10 shrink-0 flex items-center justify-center rounded-full bg-white text-[#17307a] shadow-sm ring-1 ring-[#e5ecfb]',
+              label !== 'Notifications' ? 'hidden lg:flex' : 'flex'
             )}
           >
             <Icon className="h-4 w-4 lg:h-[18px] lg:w-[18px]" />
@@ -359,6 +400,7 @@ export function TopNavbar() {
         )}
       </div>
 
+      {/* Wishlist Modal */}
       <Modal isOpen={isWishlistOpen} onClose={() => setIsWishlistOpen(false)} title="Your Wishlist">
         {wishlistItems.length === 0 ? (
           <div className="py-8 text-center text-slate-500">
@@ -383,9 +425,9 @@ export function TopNavbar() {
                         <p className="text-xs text-slate-500">{item.category}</p>
                       </div>
                       <div className="flex flex-col gap-2 shrink-0">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
+                        <Button
+                          variant="outline"
+                          size="sm"
                           className="h-8 text-xs text-red-500 border-red-100 hover:bg-red-50"
                           onClick={() => {
                             const newWishlist = wishlistItems.filter((i: any) => i.id !== item.id);
@@ -409,59 +451,54 @@ export function TopNavbar() {
                 <p className="text-slate-500 text-sm py-2">No saved products yet.</p>
               ) : (
                 <div className="space-y-3">
-            {wishlistItems.filter((i) => i.type !== 'garage').map((item) => (
-              <div key={item.id} className="flex gap-4 p-3 bg-white rounded-xl border border-slate-100 shadow-sm items-center">
-                <div className="w-16 h-16 bg-slate-50 rounded-lg flex items-center justify-center relative overflow-hidden shrink-0">
-                  <Image src={item.img} alt={item.name} fill className="object-contain p-2" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <h4 className="font-bold text-sm text-slate-900 truncate">{item.name}</h4>
-                  <p className="text-xs text-slate-500">{item.category}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="font-bold text-slate-900 text-sm">{item.price}</span>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2 shrink-0">
-                  <Button 
-                    size="sm" 
-                    className="h-8 text-xs bg-blue-600 text-white"
-                    onClick={() => {
-                      const cart = JSON.parse(sessionStorage.getItem('shopCart') || '[]');
-                      const existing = cart.find((i: any) => i.id === item.id);
-                      let newCart;
-                      if (existing) {
-                        newCart = cart.map((i: any) => i.id === item.id ? { ...i, quantity: (i.quantity || 1) + 1 } : i);
-                      } else {
-                        newCart = [...cart, { ...item, quantity: 1 }];
-                      }
-                      sessionStorage.setItem('shopCart', JSON.stringify(newCart));
-                      window.dispatchEvent(new Event('cart-updated'));
-                      
-                      // Remove from wishlist after adding to cart
-                      const newWishlist = wishlistItems.filter((i: any) => i.id !== item.id);
-                      setWishlistItems(newWishlist);
-                      localStorage.setItem('shopWishlist', JSON.stringify(newWishlist));
-                      window.dispatchEvent(new Event('wishlist-updated'));
-                    }}
-                  >
-                    <ShoppingCart className="w-3 h-3 mr-1" /> Add
-                  </Button>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="h-8 text-xs text-red-500 border-red-100 hover:bg-red-50"
-                    onClick={() => {
-                      const newWishlist = wishlistItems.filter((i: any) => i.id !== item.id);
-                      setWishlistItems(newWishlist);
-                      localStorage.setItem('shopWishlist', JSON.stringify(newWishlist));
-                      window.dispatchEvent(new Event('wishlist-updated'));
-                    }}
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
-              </div>
-            ))}
+                  {wishlistItems.filter((i) => i.type !== 'garage').map((item) => (
+                    <div key={item.id} className="flex gap-4 p-3 bg-white rounded-xl border border-slate-100 shadow-sm items-center">
+                      <div className="w-16 h-16 bg-slate-50 rounded-lg flex items-center justify-center relative overflow-hidden shrink-0">
+                        <Image src={item.img} alt={item.name} fill className="object-contain p-2" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-bold text-sm text-slate-900 truncate">{item.name}</h4>
+                        <p className="text-xs text-slate-500">{item.category}</p>
+                        <div className="flex items-center gap-2 mt-1">
+                          <span className="font-bold text-slate-900 text-sm">{item.price}</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-col gap-2 shrink-0">
+                        <Button
+                          size="sm"
+                          className="h-8 text-xs bg-blue-600 text-white"
+                          onClick={() => {
+                            const cart = JSON.parse(sessionStorage.getItem('shopCart') || '[]');
+                            const existing = cart.find((i: any) => i.id === item.id);
+                            const newCart = existing
+                              ? cart.map((i: any) => i.id === item.id ? { ...i, quantity: (i.quantity || 1) + 1 } : i)
+                              : [...cart, { ...item, quantity: 1 }];
+                            sessionStorage.setItem('shopCart', JSON.stringify(newCart));
+                            window.dispatchEvent(new Event('cart-updated'));
+                            const newWishlist = wishlistItems.filter((i: any) => i.id !== item.id);
+                            setWishlistItems(newWishlist);
+                            localStorage.setItem('shopWishlist', JSON.stringify(newWishlist));
+                            window.dispatchEvent(new Event('wishlist-updated'));
+                          }}
+                        >
+                          <ShoppingCart className="w-3 h-3 mr-1" /> Add
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 text-xs text-red-500 border-red-100 hover:bg-red-50"
+                          onClick={() => {
+                            const newWishlist = wishlistItems.filter((i: any) => i.id !== item.id);
+                            setWishlistItems(newWishlist);
+                            localStorage.setItem('shopWishlist', JSON.stringify(newWishlist));
+                            window.dispatchEvent(new Event('wishlist-updated'));
+                          }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
@@ -469,7 +506,7 @@ export function TopNavbar() {
         )}
       </Modal>
 
-
+      {/* Past Conversations Modal */}
       {isHistoryModalOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#070e20]/60 p-4 backdrop-blur-sm">
           <div className="flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">

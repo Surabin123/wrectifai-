@@ -56,8 +56,8 @@ export type Garage = {
   rating: number;
   reviews: number;
   location: string;
-  distanceKm: number;
-  responseMins: number;
+  distanceKm?: number;
+  responseMins?: number;
   chips: string[];
   facade: string;
   tone: string;
@@ -312,14 +312,18 @@ function GarageCard({
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-5 text-[11.5px] font-semibold text-[#17307a]">
-          <div className="flex items-center gap-2">
-            <MapPin className="h-4 w-4 text-[#1a56db]" />
-            {formatDistance(distanceKm)}
-          </div>
-          <div className="flex items-center gap-2">
-            <Clock3 className="h-4 w-4 text-[#1a56db]" />
-            {formatResponse(responseMins)}
-          </div>
+          {distanceKm != null && (
+            <div className="flex items-center gap-2">
+              <MapPin className="h-4 w-4 text-[#1a56db]" />
+              {formatDistance(distanceKm)}
+            </div>
+          )}
+          {responseMins != null && (
+            <div className="flex items-center gap-2">
+              <Clock3 className="h-4 w-4 text-[#1a56db]" />
+              {formatResponse(responseMins)}
+            </div>
+          )}
         </div>
 
         <div className="mt-2.5 flex flex-wrap gap-2">
@@ -391,22 +395,26 @@ function parseDistanceKm(distance: any): number {
   return isNaN(num) ? 3.0 : num;
 }
 
-function mapBackendGarageToFrontend(g: any, userCity: string): Garage {
+function mapBackendGarageToFrontend(g: any, displayCity: string): Garage {
   const name = g.name;
   const badge = g.badge || '';
   const chips = g.chips && g.chips.length > 0 ? g.chips : ['General Service'];
   const image = g.image || '/assets/garage_1_1778071156220.png';
-  const distanceKm = parseDistanceKm(g.distance) || 3.0;
-  const responseMins = Number(g.responseMins) || 30;
+  
+  // Use actual values from the database, do not hardcode 3.0 or 30.
+  // The database provides distance_km and response_mins.
+  const distanceKm = typeof g.distance_km !== 'undefined' ? Number(g.distance_km) : (parseDistanceKm(g.distance) || undefined);
+  const responseMins = typeof g.response_mins !== 'undefined' ? Number(g.response_mins) : (g.responseMins ? Number(g.responseMins) : undefined);
 
   return {
     id: g.id,
     badge,
     badgeTone: getGarageBadgeTone(badge),
     name,
-    rating: g.rating ? Number(g.rating) : 0,
-    reviews: g.reviews ? Number(g.reviews) : 0,
-    location: g.location || 'Not Specified',
+    rating: g.rating_avg ? Number(g.rating_avg) : (g.rating ? Number(g.rating) : 0),
+    reviews: g.rating_count ? Number(g.rating_count) : (g.reviews ? Number(g.reviews) : 0),
+    // Display the user's selected city as the location context, per requirements.
+    location: displayCity && displayCity !== 'Location' ? displayCity : (g.location || g.city || 'Not Specified'),
     distanceKm,
     responseMins,
     chips,
@@ -452,9 +460,12 @@ function GaragesContent() {
 
   useEffect(() => {
     let active = true;
-    fetchGarages(userCity)
+    // Fetch ALL approved garages — no city filter.
+    // The selected city acts as display context only; it does not filter DB rows.
+    // When real per-city garage registration is implemented, this can be changed.
+    fetchGarages()
       .then((data) => {
-        if (active && data && data.length > 0) {
+        if (active && data) {
           const merged = data.map(g => mapBackendGarageToFrontend(g, userCity));
           setGaragesList(merged);
         }
@@ -543,13 +554,13 @@ function GaragesContent() {
       if (filters.rating !== 'all' && garage.rating < Number(filters.rating)) {
         return false;
       }
-      if (filters.distance === '3' && garage.distanceKm >= 3) {
+      if (filters.distance === '3' && (garage.distanceKm ?? Infinity) >= 3) {
         return false;
       }
-      if (filters.distance === '5' && garage.distanceKm >= 5) {
+      if (filters.distance === '5' && (garage.distanceKm ?? Infinity) >= 5) {
         return false;
       }
-      if (filters.distance === '6+' && garage.distanceKm < 6) {
+      if (filters.distance === '6+' && (garage.distanceKm ?? Infinity) < 6) {
         return false;
       }
       if (
@@ -580,7 +591,7 @@ function GaragesContent() {
       }
       if (
         filters.responseTime !== 'all' &&
-        garage.responseMins > Number(filters.responseTime)
+        (garage.responseMins ?? Infinity) > Number(filters.responseTime)
       ) {
         return false;
       }
@@ -621,10 +632,10 @@ function GaragesContent() {
         return b.rating - a.rating;
       }
       if (sortBy === 'distance') {
-        return a.distanceKm - b.distanceKm;
+        return (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity);
       }
       if (sortBy === 'response') {
-        return a.responseMins - b.responseMins;
+        return (a.responseMins ?? Infinity) - (b.responseMins ?? Infinity);
       }
       return (
         b.rating * 10 + b.reviews / 100 - (a.rating * 10 + a.reviews / 100)
