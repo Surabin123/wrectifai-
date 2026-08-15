@@ -5,11 +5,13 @@ import { useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useRouter } from 'next/navigation';
 import { COUNTRIES, getCountryByCallingCode } from '@/lib/countries';
+import { Modal } from '@/components/common/modal';
 
 
 export default function RegisterGaragePage() {
   const router = useRouter();
   const [step, setStep] = useState(1);
+  const [previewModal, setPreviewModal] = useState({ isOpen: false, url: '', type: '', name: '' });
   const [formData, setFormData] = useState({
     name: '',
     type: '',
@@ -160,6 +162,11 @@ export default function RegisterGaragePage() {
         services: formData.services,
         chips: formData.chips,
         image: formData.image,
+        description: formData.description,
+        businessRegDoc: formData.businessRegDoc,
+        businessLicenseDoc: formData.businessLicenseDoc,
+        ownerIdDoc: formData.ownerIdDoc,
+        addressProofDoc: formData.addressProofDoc,
         workingHours: formData.workingHours,
         country: selectedCountry?.isoCode || null,
         businessCurrency: selectedCountry?.currencyCode || 'USD',
@@ -194,25 +201,37 @@ export default function RegisterGaragePage() {
   const handleUpload = (field: string, e: any) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-      if (!validTypes.includes(file.type)) {
-        setErrorMsg('Only PDF, JPG, or PNG files are supported.');
-        return;
-      }
-      if (file.size > 10 * 1024 * 1024) {
-        setErrorMsg('File size must be less than 10MB.');
-        return;
-      }
-      setErrorMsg('');
+      
       if (field === 'image') {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          setFormData(prev => ({ ...prev, [field]: reader.result as string }));
-        };
-        reader.readAsDataURL(file);
+        if (file.type !== 'image/png') {
+          setErrorMsg('Garage Display/Profile Image must be a PNG file.');
+          return;
+        }
+        if (file.size > 2 * 1024 * 1024) {
+          setErrorMsg('Garage Display/Profile Image must be less than 2MB.');
+          return;
+        }
       } else {
-        setFormData(prev => ({ ...prev, [field]: file }));
+        const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+        if (!validTypes.includes(file.type)) {
+          setErrorMsg('Only PDF, JPG, or PNG files are supported for business documents.');
+          return;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          setErrorMsg('Business Document must be less than 10MB.');
+          return;
+        }
       }
+      
+      setErrorMsg('');
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData(prev => ({ 
+          ...prev, 
+          [field]: { name: file.name, type: file.type, size: file.size, data: reader.result as string } 
+        }));
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -488,21 +507,21 @@ export default function RegisterGaragePage() {
                       <div key={doc.id} className="border border-slate-200 rounded-lg p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-blue-300 transition-colors">
                         <div>
                           <h4 className="font-bold text-sm text-slate-800">{doc.label} {doc.req && <span className="text-red-500">*</span>}</h4>
-                          <p className="text-[11px] text-slate-500 mt-1">PDF, JPG or PNG • Max 10 MB</p>
+                          <p className="text-[11px] text-slate-500 mt-1">{doc.id === 'image' ? 'PNG ONLY • Max 2 MB' : 'PDF, JPG or PNG • Max 10 MB'}</p>
                         </div>
                         {file ? (
                           <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg flex items-center justify-between gap-4 w-full md:w-64">
-                            <div className="flex items-center gap-2 truncate">
+                            <div className="flex items-center gap-2 truncate cursor-pointer hover:text-green-900 group" onClick={() => setPreviewModal({isOpen: true, url: file.data, type: file.type, name: file.name})}>
                               <Check className="w-4 h-4 flex-shrink-0" />
-                              <span className="text-xs truncate font-medium">{file.name}</span>
+                              <span className="text-xs truncate font-medium group-hover:underline">{file.name}</span>
                             </div>
-                            <button onClick={() => removeUpload(doc.id)} className="text-slate-400 hover:text-red-500">
+                            <button onClick={() => removeUpload(doc.id)} className="text-slate-400 hover:text-red-500" title="Remove Document">
                               <X className="w-4 h-4" />
                             </button>
                           </div>
                         ) : (
                           <div className="relative">
-                            <input type="file" id={doc.id} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept=".pdf,.png,.jpg,.jpeg" onChange={(e) => handleUpload(doc.id, e)} />
+                            <input type="file" id={doc.id} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept={doc.id === 'image' ? ".png" : ".pdf,.png,.jpg,.jpeg"} onChange={(e) => handleUpload(doc.id, e)} />
                             <div className="bg-white border border-slate-200 px-4 py-2 rounded-lg text-sm text-slate-600 font-medium flex items-center gap-2 hover:bg-slate-50 transition-colors pointer-events-none w-full md:w-64 justify-center">
                               <Upload className="w-4 h-4" /> Upload Document
                             </div>
@@ -790,6 +809,23 @@ export default function RegisterGaragePage() {
           </Card>
         </div>
       </div>
+
+      <Modal isOpen={previewModal.isOpen} onClose={() => setPreviewModal({isOpen: false, url: '', type: '', name: ''})} title={previewModal.name} className="max-w-4xl max-h-[90vh]">
+        <div className="w-full h-[70vh] flex items-center justify-center bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+          {previewModal.type.startsWith('image/') ? (
+            <img src={previewModal.url} alt={previewModal.name} className="max-w-full max-h-full object-contain" />
+          ) : previewModal.type === 'application/pdf' ? (
+            <object data={previewModal.url} type="application/pdf" className="w-full h-full">
+               <iframe src={previewModal.url} className="w-full h-full border-none">
+                 <p>This browser does not support PDFs. Please download the PDF to view it.</p>
+               </iframe>
+            </object>
+          ) : (
+            <p className="text-slate-500 text-sm">Cannot preview this file type.</p>
+          )}
+        </div>
+      </Modal>
+
     </div>
   );
 }

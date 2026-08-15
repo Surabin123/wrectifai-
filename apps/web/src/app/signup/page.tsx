@@ -115,7 +115,8 @@ export default function SignupPage() {
         email,
         password,
         mobileNumber: sanitizedPhone,
-        role: 'customer'
+        role: 'customer',
+        country: getCountryByCallingCode(countryCode)?.isoCode || 'IN'
       });
       
       setLocationCookie('wrectifai_country_code', countryCode);

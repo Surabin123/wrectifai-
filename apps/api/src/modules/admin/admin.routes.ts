@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
 import { query } from '../../config/database';
+import fs from 'fs';
+import path from 'path';
 
 export const adminRouter = Router();
 
@@ -123,13 +125,63 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [ownerId, roleResult.rows[0].id]);
     }
 
+    // Backend validation for documents
+    if (image) {
+      if (image.type !== 'image/png') return error(res, 'Profile Image must be a PNG file.', 'VALIDATION_ERROR', 400);
+      if (image.size && image.size > 2 * 1024 * 1024) return error(res, 'Profile Image must be less than 2MB.', 'VALIDATION_ERROR', 400);
+    }
+
+    const { businessRegDoc, businessLicenseDoc, ownerIdDoc, addressProofDoc } = req.body;
+    const docs = [
+      { obj: businessRegDoc, type: 'Business Registration' },
+      { obj: businessLicenseDoc, type: 'Business License' },
+      { obj: ownerIdDoc, type: 'Owner Identity Proof' },
+      { obj: addressProofDoc, type: 'Address Proof' }
+    ];
+
+    for (const doc of docs) {
+      if (doc.obj) {
+        const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+        if (!validTypes.includes(doc.obj.type)) return error(res, `Invalid file type for ${doc.type}.`, 'VALIDATION_ERROR', 400);
+        if (doc.obj.size && doc.obj.size > 10 * 1024 * 1024) return error(res, `${doc.type} must be less than 10MB.`, 'VALIDATION_ERROR', 400);
+      }
+    }
+
+    // Helper to save base64 files
+    const saveBase64File = (fileObj: any, folder: string) => {
+      if (!fileObj || !fileObj.data) return null;
+      const match = fileObj.data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (!match || match.length !== 3) return null;
+      const ext = fileObj.name.split('.').pop() || 'png';
+      const filename = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+      const fullPath = path.join(process.cwd(), 'uploads', folder);
+      if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
+      fs.writeFileSync(path.join(fullPath, filename), Buffer.from(match[2], 'base64') as any);
+      return `/uploads/${folder}/${filename}`;
+    };
+
+    const imagePath = saveBase64File(image, 'garages');
+
     // Insert Garage
     const newGarage = await query(
-      `INSERT INTO garages (name, address, city, owner_user_id, approval_status, is_approved, country, locale, business_currency, specializations, image)
-       VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9) RETURNING id`,
-      [name, address, city, ownerId, country || null, locale || null, businessCurrency || 'USD', chips || [], image || null]
+      `INSERT INTO garages (name, address, city, owner_user_id, approval_status, is_approved, country, locale, business_currency, specializations, image, description, working_hours)
+       VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+      [name, address, city, ownerId, country || null, locale || null, businessCurrency || 'USD', chips || [], imagePath || null, req.body.description || null, workingHours || null]
     );
     const garageId = newGarage.rows[0].id;
+
+    // Insert Documents
+    for (const doc of docs) {
+      if (doc.obj) {
+        const docPath = saveBase64File(doc.obj, 'garages/documents');
+        if (docPath) {
+          await query(
+            `INSERT INTO garage_documents (garage_id, doc_type, file_url, verification_status) VALUES ($1, $2, $3, 'approved')`,
+            [garageId, doc.type, docPath]
+          );
+        }
+      }
+    }
 
     // Insert Services
     if (services && Array.isArray(services)) {
@@ -141,9 +193,8 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       }
     }
 
-    // Note: workingHours, documents etc. can be stored in respective tables if schema allows.
+    // Note: workingHours can be stored in respective tables if schema allows.
     // For now we persist what the database schema supports natively.
-    // Services are added to the 'services' table which allows them to appear on the customer side.
 
     return success(res, { id: garageId, message: 'Garage registered successfully' }, 201);
   } catch (err) {
@@ -223,6 +274,41 @@ adminRouter.get('/users', async (req, res) => {
   } catch (err) {
     console.error('Fetch users error:', err);
     return error(res, 'Failed to fetch users', 'DATABASE_ERROR', 500);
+  }
+});
+
+// GET Customer details
+adminRouter.get('/users/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    const userRes = await query(`SELECT id, name, email, mobile_number as phone, created_at as joined, status FROM users WHERE id = $1`, [userId]);
+    if (userRes.rows.length === 0) return error(res, 'User not found', 'NOT_FOUND', 404);
+    const user = userRes.rows[0];
+
+    const vehiclesRes = await query(`SELECT id, make, model, year, vin, plate_number as "plateNumber" FROM vehicles WHERE customer_id = $1`, [userId]);
+    const bookingsRes = await query(`
+      SELECT b.id, b.status, b.created_at as "createdAt", g.name as "garageName", v.make as "vehicleMake", v.model as "vehicleModel", 
+             b.total_amount as "amount", COALESCE(b.currency, g.business_currency, 'USD') as currency
+      FROM bookings b
+      LEFT JOIN garages g ON b.garage_id = g.id
+      LEFT JOIN vehicles v ON b.vehicle_id = v.id
+      WHERE b.customer_id = $1 ORDER BY b.created_at DESC`, [userId]);
+    const quotesRes = await query(`
+      SELECT q.id, q.status, q.created_at as "createdAt", g.name as "garageName", v.make as "vehicleMake", v.model as "vehicleModel", 
+             q.amount, COALESCE(q.currency, g.business_currency, 'USD') as currency
+      FROM quotes q
+      LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
+      LEFT JOIN garages g ON q.garage_id = g.id
+      LEFT JOIN vehicles v ON qr.vehicle_id = v.id
+      WHERE qr.customer_id = $1 ORDER BY q.created_at DESC`, [userId]);
+
+    user.vehicles = vehiclesRes.rows;
+    user.bookings = bookingsRes.rows;
+    user.quotes = quotesRes.rows;
+
+    return success(res, user);
+  } catch (err) {
+    return error(res, 'Failed to fetch user details', 'DATABASE_ERROR', 500);
   }
 });
 

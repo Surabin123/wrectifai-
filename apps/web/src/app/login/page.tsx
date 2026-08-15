@@ -226,6 +226,7 @@ export default function LoginPage() {
         const data = await apiClient.post<AuthResponse>('/auth/login', {
           mobileNumber: mobileNumber.replace(/\s+/g, ''),
           otp,
+          country: getCountryByCallingCode(countryCode)?.isoCode || 'IN'
         });
         setLocationCookie('wrectifai_country_code', countryCode);
         login(data.accessToken, data.refreshToken, data.user);

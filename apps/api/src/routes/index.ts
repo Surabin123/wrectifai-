@@ -40,6 +40,11 @@ apiRouter.use('/admin', adminRouter);
 apiRouter.use('/wallet', walletRouter);
 apiRouter.use('/offers', offersRouter);
 
+apiRouter.get('/debug-garages', async (req, res) => {
+  const result = await query('SELECT id, name, approval_status, is_approved FROM garages');
+  return res.json(result.rows);
+});
+
 apiRouter.get('/promos', async (req, res) => {
   try {
     const result = await query('SELECT * FROM promos ORDER BY relevance DESC');

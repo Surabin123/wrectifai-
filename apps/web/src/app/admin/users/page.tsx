@@ -10,6 +10,9 @@ export default function CustomersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
   
+  const [selectedUser, setSelectedUser] = useState<any>(null);
+  const [detailsLoading, setDetailsLoading] = useState(false);
+  
   const [actionModal, setActionModal] = useState<{isOpen: boolean, id: string, action: string, type: 'confirm' | 'error', message: string}>({isOpen: false, id: '', action: '', type: 'confirm', message: ''});
 
   const loadData = async () => {
@@ -35,6 +38,20 @@ export default function CustomersPage() {
     } catch (err) {
       setActionModal({isOpen: true, id: '', action: '', type: 'error', message: `Failed to ${action} customer.`});
       console.error('Failed to update status', err);
+    }
+  };
+
+  const handleViewDetails = async (id: string) => {
+    setSelectedUser({ id, loading: true });
+    setDetailsLoading(true);
+    try {
+      const data = await apiClient.get<any>(`/admin/users/${id}`);
+      setSelectedUser(data);
+    } catch (err) {
+      console.error('Failed to load user details', err);
+      setSelectedUser(null);
+    } finally {
+      setDetailsLoading(false);
     }
   };
 
@@ -89,7 +106,7 @@ export default function CustomersPage() {
               ) : (
                 filtered.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-4 text-sm font-semibold text-slate-900 truncate" title={c.name}>{c.name}</td>
+                    <td className="p-4 text-sm font-semibold text-slate-900 truncate"><button onClick={() => handleViewDetails(c.id)} className="text-blue-600 hover:underline">{c.name}</button></td>
                     <td className="p-4 text-sm text-slate-700 truncate" title={c.email}>{c.email}</td>
                     <td className="p-4 text-sm text-slate-700 truncate">{c.phone || 'N/A'}</td>
                     <td className="p-4 text-sm text-slate-700">{c.vehicles > 0 ? `${c.vehicles} Vehicle(s)` : 'None'}</td>
@@ -129,9 +146,107 @@ export default function CustomersPage() {
       
       <Modal isOpen={actionModal.isOpen && actionModal.type === 'error'} onClose={() => setActionModal({isOpen: false, id: '', action: '', type: 'confirm', message: ''})} title="Error" className="max-w-md">
         <p className="text-sm text-slate-600 mb-6">{actionModal.message}</p>
-        <div className="flex justify-end gap-3">
-           <button onClick={() => setActionModal({isOpen: false, id: '', action: '', type: 'confirm', message: ''})} className="px-4 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700">Close</button>
-        </div>
+      </Modal>
+
+      {/* Customer Details Modal */}
+      <Modal isOpen={!!selectedUser} onClose={() => setSelectedUser(null)} title="Customer Profile" className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+        {selectedUser?.loading ? (
+          <div className="p-12 text-center text-slate-500 text-sm flex-1">Loading customer profile...</div>
+        ) : selectedUser && (
+          <div className="flex-1 overflow-y-auto pr-2 pb-4 space-y-6 custom-scrollbar">
+            
+            {/* Header Section */}
+            <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+              <div>
+                <h2 className="text-xl font-bold text-slate-900 mb-1">{selectedUser.name}</h2>
+                <div className="text-sm text-slate-600 space-x-4">
+                  <span>{selectedUser.email}</span>
+                  <span>{selectedUser.phone || 'No Phone'}</span>
+                </div>
+              </div>
+              <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase border ${
+                 selectedUser.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-700 border-orange-200'
+              }`}>
+                 {selectedUser.status}
+              </span>
+            </div>
+
+            {/* Vehicles */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 mb-3 border-b pb-1">Registered Vehicles</h3>
+              {selectedUser.vehicles && selectedUser.vehicles.length > 0 ? (
+                <div className="grid grid-cols-2 gap-3">
+                  {selectedUser.vehicles.map((v: any) => (
+                    <div key={v.id} className="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <p className="font-bold text-slate-800 text-sm">{v.make} {v.model} {v.year ? `(${v.year})` : ''}</p>
+                      <p className="text-xs text-slate-500 mt-1">VIN: {v.vin || 'N/A'}</p>
+                      <p className="text-xs text-slate-500">Plate: {v.plateNumber || 'N/A'}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="text-sm text-slate-500">No vehicles registered.</p>}
+            </div>
+
+            {/* Quotes */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 mb-3 border-b pb-1">Quote History</h3>
+              {selectedUser.quotes && selectedUser.quotes.length > 0 ? (
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-xs text-slate-500">
+                      <th className="py-2 px-3 font-semibold">Date</th>
+                      <th className="py-2 px-3 font-semibold">Garage</th>
+                      <th className="py-2 px-3 font-semibold">Amount</th>
+                      <th className="py-2 px-3 font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedUser.quotes.map((q: any) => (
+                      <tr key={q.id} className="border-b border-slate-100">
+                        <td className="py-2 px-3 text-slate-700">{new Date(q.createdAt).toLocaleDateString()}</td>
+                        <td className="py-2 px-3 text-slate-700">{q.garageName || 'Unknown'}</td>
+                        <td className="py-2 px-3 font-medium">{q.amount ? `${q.currency} ${q.amount}` : '-'}</td>
+                        <td className="py-2 px-3">
+                          <span className="text-xs px-2 py-0.5 rounded-full border bg-slate-50 uppercase text-slate-600">{q.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : <p className="text-sm text-slate-500">No quotes requested.</p>}
+            </div>
+
+            {/* Bookings */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 mb-3 border-b pb-1">Booking History</h3>
+              {selectedUser.bookings && selectedUser.bookings.length > 0 ? (
+                <table className="w-full text-left text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-100 text-xs text-slate-500">
+                      <th className="py-2 px-3 font-semibold">Date</th>
+                      <th className="py-2 px-3 font-semibold">Garage</th>
+                      <th className="py-2 px-3 font-semibold">Amount</th>
+                      <th className="py-2 px-3 font-semibold">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {selectedUser.bookings.map((b: any) => (
+                      <tr key={b.id} className="border-b border-slate-100">
+                        <td className="py-2 px-3 text-slate-700">{new Date(b.createdAt).toLocaleDateString()}</td>
+                        <td className="py-2 px-3 text-slate-700">{b.garageName || 'Unknown'}</td>
+                        <td className="py-2 px-3 font-medium">{b.amount ? `${b.currency} ${b.amount}` : '-'}</td>
+                        <td className="py-2 px-3">
+                          <span className="text-xs px-2 py-0.5 rounded-full border bg-slate-50 uppercase text-slate-600">{b.status}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              ) : <p className="text-sm text-slate-500">No bookings made.</p>}
+            </div>
+
+          </div>
+        )}
       </Modal>
     </div>
   );

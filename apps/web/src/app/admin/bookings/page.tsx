@@ -113,6 +113,9 @@ export default function AdminBookingsPage() {
                       </span>
                     </td>
                     <td className="p-4 text-right">
+                        <button onClick={(e) => { e.stopPropagation(); setSelectedBooking(b); setIsModalOpen(true); }} className="p-1.5 rounded-md hover:bg-slate-100 text-slate-500 border border-slate-200 bg-white" title="View Details">
+                          <Eye className="w-3.5 h-3.5"/>
+                        </button>
                     </td>
                   </tr>
                 ))

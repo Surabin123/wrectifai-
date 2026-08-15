@@ -16,6 +16,7 @@ export default function AllGaragesPage() {
   const [actionModal, setActionModal] = useState<{isOpen: boolean, id: string, action: string}>({isOpen: false, id: '', action: ''});
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState<'down' | 'up'>('down');
+  const [previewModal, setPreviewModal] = useState({ isOpen: false, url: '', name: '' });
 
   const handleDropdownClick = (e: React.MouseEvent, id: string) => {
     if (openDropdownId === id) {
@@ -154,8 +155,8 @@ export default function AllGaragesPage() {
                     </td>
                     <td className="p-4 text-xs text-slate-600">{g.city || 'N/A'}</td>
                     <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${g.approvalStatus === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-red-50 text-red-600 border-red-100'}`}>
-                        {g.approvalStatus === 'inactive' ? 'INACTIVE' : (g.approvalStatus || 'Unknown')}
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${g.approvalStatus === 'inactive' || g.approvalStatus === 'suspended' ? 'bg-red-50 text-red-600 border-red-100' : 'bg-green-50 text-green-600 border-green-100'}`}>
+                        {g.approvalStatus === 'inactive' || g.approvalStatus === 'suspended' ? g.approvalStatus : 'ACTIVE'}
                     </span>
                     </td>
                     <td className="p-4 text-xs text-slate-600">{formatTime(g.createdAt)}</td>
@@ -205,8 +206,8 @@ export default function AllGaragesPage() {
                 </div>
               </div>
               <div>
-                <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase border shadow-sm ${selectedGarage.approvalStatus === 'active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'}`}>
-                   Status: {selectedGarage.approvalStatus || 'Unknown'}
+                <span className={`px-4 py-1.5 rounded-full text-xs font-bold uppercase border shadow-sm ${selectedGarage.approvalStatus === 'inactive' || selectedGarage.approvalStatus === 'suspended' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-green-50 text-green-700 border-green-200'}`}>
+                   Status: {selectedGarage.approvalStatus === 'inactive' || selectedGarage.approvalStatus === 'suspended' ? selectedGarage.approvalStatus : 'ACTIVE'}
                 </span>
               </div>
             </div>
@@ -215,20 +216,8 @@ export default function AllGaragesPage() {
               {/* Garage Information */}
               <div className="space-y-4">
                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 border-b pb-2">Garage Information</h3>
-                 <div className="grid grid-cols-2 gap-y-4 gap-x-4">
-                    <div>
-                      <p className="text-[11px] text-slate-500 font-bold mb-0.5">Garage Type</p>
-                      <p className="text-sm font-semibold text-slate-800">{selectedGarage.type || 'Not provided'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-slate-500 font-bold mb-0.5">Registration Number</p>
-                      <p className="text-sm font-semibold text-slate-800">{selectedGarage.registrationNumber || 'Not provided'}</p>
-                    </div>
-                    <div>
-                      <p className="text-[11px] text-slate-500 font-bold mb-0.5">Established Year</p>
-                      <p className="text-sm font-semibold text-slate-800">{selectedGarage.establishedYear || 'Not provided'}</p>
-                    </div>
-                    <div className="col-span-2">
+                 <div className="grid grid-cols-1 gap-y-4 gap-x-4">
+                    <div className="col-span-1">
                       <p className="text-[11px] text-slate-500 font-bold mb-0.5">Description</p>
                       <p className="text-sm font-medium text-slate-700 leading-relaxed bg-slate-50 p-3 rounded-lg border border-slate-100">{selectedGarage.description || 'No description provided.'}</p>
                     </div>
@@ -243,14 +232,10 @@ export default function AllGaragesPage() {
                       <p className="text-[11px] text-blue-500 font-bold mb-0.5">Owner Full Name</p>
                       <p className="text-sm font-bold text-[#17307a]">{selectedGarage.ownerName || 'Not provided'}</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-4">
+                    <div className="grid grid-cols-1 gap-4">
                       <div>
                         <p className="text-[11px] text-blue-500 font-bold mb-0.5">Phone Number</p>
                         <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5"><Phone className="w-3.5 h-3.5 text-slate-400"/> {selectedGarage.ownerPhone || 'Not provided'}</p>
-                      </div>
-                      <div>
-                        <p className="text-[11px] text-blue-500 font-bold mb-0.5">Login Email</p>
-                        <p className="text-sm font-semibold text-slate-800 flex items-center gap-1.5"><Mail className="w-3.5 h-3.5 text-slate-400"/> {selectedGarage.ownerEmail || 'Not provided'}</p>
                       </div>
                     </div>
                  </div>
@@ -321,7 +306,10 @@ export default function AllGaragesPage() {
                          </div>
                        </div>
                        {doc.file_url && (
-                         <a href={doc.file_url} target="_blank" rel="noreferrer" className="text-xs font-bold text-blue-600 hover:underline">View</a>
+                         <button onClick={() => {
+                           const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL?.replace('/api/v1', '') || 'http://localhost:3000';
+                           setPreviewModal({isOpen: true, url: baseUrl + doc.file_url, name: doc.doc_type});
+                         }} className="text-xs font-bold text-blue-600 hover:underline">View</button>
                        )}
                      </div>
                    ))}
@@ -343,6 +331,21 @@ export default function AllGaragesPage() {
            <button onClick={() => handleVerify(actionModal.id, actionModal.action)} className={`px-4 py-2 text-sm font-bold text-white rounded-lg shadow-sm transition-colors flex items-center gap-2 ${actionModal.action === 'activate' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
              {actionModal.action === 'activate' ? <CheckCircle2 className="w-4 h-4"/> : <ShieldAlert className="w-4 h-4"/>} Confirm
            </button>
+        </div>
+      </Modal>
+
+      {/* Document Preview Modal */}
+      <Modal isOpen={previewModal.isOpen} onClose={() => setPreviewModal({isOpen: false, url: '', name: ''})} title={previewModal.name} className="max-w-4xl max-h-[90vh]">
+        <div className="w-full h-[70vh] flex items-center justify-center bg-slate-100 rounded-lg overflow-hidden border border-slate-200">
+          {previewModal.url.toLowerCase().endsWith('.pdf') ? (
+            <object data={previewModal.url} type="application/pdf" className="w-full h-full">
+               <iframe src={previewModal.url} className="w-full h-full border-none">
+                 <p>This browser does not support PDFs. Please download the PDF to view it.</p>
+               </iframe>
+            </object>
+          ) : (
+            <img src={previewModal.url} alt={previewModal.name} className="max-w-full max-h-full object-contain" />
+          )}
         </div>
       </Modal>
       

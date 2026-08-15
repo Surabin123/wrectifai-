@@ -287,11 +287,17 @@ authRouter.post('/login', async (req, res, next) => {
           if (mobileNumber === '9876543210') {
             user.name = user.name || 'User';
           }
+          // Sync the selected country from the login form
+          const countryToSave = req.body.country || 'IN';
+          if (user.country !== countryToSave) {
+            await query('UPDATE users SET country = $1 WHERE id = $2', [countryToSave, user.id]);
+            user.country = countryToSave;
+          }
         } else {
           // If user doesn't exist, auto-register them
           const userResult = await query(
-            "INSERT INTO users (mobile_number, name, status) VALUES ($1, $2, 'active') RETURNING id, mobile_number, name, status",
-            [mobileNumber, mobileNumber === '9876543210' ? 'User' : 'Customer']
+            "INSERT INTO users (mobile_number, name, status, country) VALUES ($1, $2, 'active', $3) RETURNING id, mobile_number, name, status, country",
+            [mobileNumber, mobileNumber === '9876543210' ? 'User' : 'Customer', req.body.country || 'IN']
           );
           user = userResult.rows[0];
           const roleResult = await query("SELECT id FROM roles WHERE code = 'customer'");

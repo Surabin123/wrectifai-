@@ -746,60 +746,66 @@ export function GarageDetailPage({
                       ))}
                     </div>
 
-                    <div className="relative flex min-h-[160px] flex-col justify-between rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)]">
-                      <div>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef4ff] text-[11px] font-bold text-[#1a56db]">
-                              {reviews[reviewPage].avatar}
-                            </div>
-                            <div>
-                              <div className="text-[11px] font-bold text-[#17307a]">
-                                {reviews[reviewPage].name}
+                    {reviews.length > 0 ? (
+                      <div className="relative flex min-h-[160px] flex-col justify-between rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)]">
+                        <div>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef4ff] text-[11px] font-bold text-[#1a56db]">
+                                {reviews[reviewPage]?.avatar}
                               </div>
-                              <div className="flex items-center gap-1 text-[9.5px] font-medium text-[#228453]">
-                                <CheckCircle2 className="h-3 w-3 fill-[#228453] text-white" />
-                                <span>{reviews[reviewPage].status}</span>
+                              <div>
+                                <div className="text-[11px] font-bold text-[#17307a]">
+                                  {reviews[reviewPage]?.name}
+                                </div>
+                                <div className="flex items-center gap-1 text-[9.5px] font-medium text-[#228453]">
+                                  <CheckCircle2 className="h-3 w-3 fill-[#228453] text-white" />
+                                  <span>{reviews[reviewPage]?.status}</span>
+                                </div>
                               </div>
                             </div>
+                            <span className="text-[9.5px] font-bold text-[#8a99ad]">
+                              {reviews[reviewPage]?.date}
+                            </span>
                           </div>
-                          <span className="text-[9.5px] font-bold text-[#8a99ad]">
-                            {reviews[reviewPage].date}
-                          </span>
+
+                          <div className="mt-2.5 flex items-center gap-0.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star
+                                key={i}
+                                className={cn(
+                                  'h-3.5 w-3.5',
+                                  i < Math.floor(reviews[reviewPage]?.rating || 0)
+                                    ? 'fill-[#ff9f1a] text-[#ff9f1a]'
+                                    : 'text-[#cbd4e6]'
+                                )}
+                              />
+                            ))}
+                          </div>
+
+                          <p className="mt-2.5 text-[11px] font-medium leading-[1.5] text-[#536891]">
+                            &quot;{reviews[reviewPage]?.text}&quot;
+                          </p>
                         </div>
 
-                        <div className="mt-2.5 flex items-center gap-0.5">
-                          {Array.from({ length: 5 }).map((_, i) => (
-                            <Star
+                        <div className="flex justify-center gap-1.5 pt-3">
+                          {reviews.map((_, i) => (
+                            <button
                               key={i}
+                              onClick={() => setReviewPage(i)}
                               className={cn(
-                                'h-3.5 w-3.5',
-                                i < Math.floor(reviews[reviewPage].rating)
-                                  ? 'fill-[#ff9f1a] text-[#ff9f1a]'
-                                  : 'text-[#cbd4e6]'
+                                'h-2 w-2 rounded-full transition-colors',
+                                i === reviewPage ? 'bg-[#1a56db]' : 'bg-[#cbd4e6]'
                               )}
                             />
                           ))}
                         </div>
-
-                        <p className="mt-2.5 text-[11px] font-medium leading-[1.5] text-[#536891]">
-                          &quot;{reviews[reviewPage].text}&quot;
-                        </p>
                       </div>
-
-                      <div className="flex justify-center gap-1.5 pt-3">
-                        {reviews.map((_, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setReviewPage(i)}
-                            className={cn(
-                              'h-2 w-2 rounded-full transition-colors',
-                              i === reviewPage ? 'bg-[#1a56db]' : 'bg-[#cbd4e6]'
-                            )}
-                          />
-                        ))}
+                    ) : (
+                      <div className="relative flex min-h-[160px] flex-col justify-center items-center rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)]">
+                        <span className="text-[12px] font-semibold text-[#8a99ad]">No reviews yet</span>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </section>
               </>
