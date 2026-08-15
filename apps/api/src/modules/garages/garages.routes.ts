@@ -188,19 +188,56 @@ garagesRouter.get('/:id', async (req, res) => {
 
 garagesRouter.get('/:id/reviews', async (req, res) => {
   try {
-    const result = await query(
-      `SELECT id, customer_name as "name", rating, text, created_at as "date", 
-              'Verified Customer' as "status"
-       FROM garage_reviews
-       WHERE garage_id = $1
-       ORDER BY created_at DESC`,
-      [req.params.id]
-    );
-    const reviews = result.rows.map(r => ({
+    const [reviewsResult, statsResult] = await Promise.all([
+      query(
+        `SELECT r.id, COALESCE(u.name, r.customer_name) as "name", r.rating, r.text, r.created_at as "date", 
+                'Verified Customer' as "status", r.likes_count as "likes", r.unlikes_count as "unlikes",
+                (SELECT COUNT(*) FROM garage_review_replies WHERE review_id = r.id) as "replies"
+         FROM garage_reviews r
+         LEFT JOIN users u ON r.customer_id = u.id
+         WHERE r.garage_id = $1
+         ORDER BY r.created_at DESC`,
+        [req.params.id]
+      ),
+      query(
+        `SELECT rating, COUNT(*) as count FROM garage_reviews WHERE garage_id = $1 GROUP BY rating`,
+        [req.params.id]
+      )
+    ]);
+
+    const reviews = reviewsResult.rows.map(r => ({
       ...r,
-      avatar: r.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
+      avatar: (r.name || 'U').split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
     }));
-    return success(res, reviews);
+
+    const totalReviews = reviews.length;
+    let averageRating = 0;
+    const distribution = {
+      1: { count: 0, pct: '0%' },
+      2: { count: 0, pct: '0%' },
+      3: { count: 0, pct: '0%' },
+      4: { count: 0, pct: '0%' },
+      5: { count: 0, pct: '0%' }
+    };
+
+    if (totalReviews > 0) {
+      let totalStars = 0;
+      statsResult.rows.forEach((row: any) => {
+        const star = Math.round(Number(row.rating));
+        const count = Number(row.count);
+        totalStars += Number(row.rating) * count;
+        if (star >= 1 && star <= 5) {
+          distribution[star as 1|2|3|4|5].count += count;
+        }
+      });
+      averageRating = totalStars / totalReviews;
+      
+      for (let i = 1; i <= 5; i++) {
+        distribution[i as 1|2|3|4|5].pct = Math.round((distribution[i as 1|2|3|4|5].count / totalReviews) * 100) + '%';
+      }
+    }
+
+    return success(res, { reviews, stats: { totalReviews, averageRating, distribution } });
   } catch (err) {
     return error(res, 'Failed to fetch reviews', 'DATABASE_ERROR', 500);
   }

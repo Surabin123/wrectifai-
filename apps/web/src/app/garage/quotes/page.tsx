@@ -107,7 +107,6 @@ export default function QuotesPage() {
                <table className="w-full text-left border-collapse text-sm">
                  <thead className="bg-slate-100">
                    <tr>
-                     <th className="p-4 font-bold text-slate-600 border-b">Quote ID</th>
                      <th className="p-4 font-bold text-slate-600 border-b">Customer</th>
                      <th className="p-4 font-bold text-slate-600 border-b">Vehicle</th>
                      <th className="p-4 font-bold text-slate-600 border-b">Created</th>
@@ -125,11 +124,10 @@ export default function QuotesPage() {
                           <td colSpan={6} className="p-8 text-center text-slate-500">No records found.</td>
                        </tr>
                    ) : requests.map(req => (
-                     <tr key={req.id} className="hover:bg-slate-50">
-                       <td className="p-4 text-slate-800 font-medium">REQ-{req.id.substring(0,8).toUpperCase()}</td>
-                       <td className="p-4 text-slate-700">{req.customerName || 'Customer'}</td>
-                       <td className="p-4 text-slate-700">{req.vehicle?.make} {req.vehicle?.model} {req.vehicle?.year}</td>
-                       <td className="p-4 text-slate-600">{formatTime(req.createdAt)}</td>
+                      <tr key={req.id} className="hover:bg-slate-50">
+                        <td className="p-4 text-slate-700">{req.customerName || 'Customer'}</td>
+                        <td className="p-4 text-slate-700">{req.vehicle?.make} {req.vehicle?.model} {req.vehicle?.year}</td>
+                        <td className="p-4 text-slate-600">{formatTime(req.createdAt)}</td>
                         <td className="p-4 text-slate-600 uppercase text-xs font-bold">
                            {req.status === 'open' ? 'Pending Quote' : req.status === 'quoted' ? 'Quote Sent' : req.status === 'selected' ? 'Booked' : req.status}
                         </td>
@@ -307,10 +305,6 @@ export default function QuotesPage() {
                 <button onClick={() => setViewDetailsQuote(null)} className="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
               </div>
               <div className="p-6 overflow-y-auto space-y-4 text-sm">
-                <div>
-                  <span className="font-bold text-slate-600 block">Quote ID:</span>
-                  <p className="text-slate-800">{viewDetailsQuote.quote.id}</p>
-                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <span className="font-bold text-slate-600 block">Customer Name:</span>
@@ -351,19 +345,19 @@ export default function QuotesPage() {
                 <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-200">
                   <div>
                     <span className="font-bold text-slate-600 block">Labour Cost:</span>
-                    <span className="text-slate-800">{formatCurrency(viewDetailsQuote.quote.laborCost || 0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
+                    <span className="text-slate-800">{formatCurrency(viewDetailsQuote.quote.laborCost || 0, viewDetailsQuote.quote.currency)}</span>
                   </div>
                   <div>
                     <span className="font-bold text-slate-600 block">Parts Cost:</span>
-                    <span className="text-slate-800">{formatCurrency(viewDetailsQuote.quote.partsCost || 0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
+                    <span className="text-slate-800">{formatCurrency(viewDetailsQuote.quote.partsCost || 0, viewDetailsQuote.quote.currency)}</span>
                   </div>
                   <div>
                     <span className="font-bold text-slate-600 block">Other Charges:</span>
-                    <span className="text-slate-800">{formatCurrency(0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
+                    <span className="text-slate-800">{formatCurrency(0, viewDetailsQuote.quote.currency)}</span>
                   </div>
                   <div className="col-span-2 bg-slate-50 p-3 rounded mt-2 border border-slate-200 flex justify-between items-center">
                     <span className="font-bold text-slate-700">Total Amount:</span>
-                    <span className="font-bold text-blue-700 text-lg">{formatCurrency(viewDetailsQuote.quote.totalCost || 0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
+                    <span className="font-bold text-blue-700 text-lg">{formatCurrency(viewDetailsQuote.quote.totalCost || 0, viewDetailsQuote.quote.currency)}</span>
                   </div>
                 </div>
 

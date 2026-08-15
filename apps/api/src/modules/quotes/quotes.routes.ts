@@ -502,7 +502,7 @@ quotesRouter.get('/garage/active-jobs', authenticate, async (req, res) => {
     }
 
     const result = await query(
-      `SELECT b.id as "id", b.quote_id as "quoteRequestId", b.total_amount as "amount", 'active' as "quoteStatus", b.created_at as "quoteCreatedAt", NULL as "details",
+      `SELECT b.id as "id", b.quote_id as "quoteRequestId", b.total_amount as "amount", b.currency as "currency", 'active' as "quoteStatus", b.created_at as "quoteCreatedAt", NULL as "details",
               b.booking_type as "issueSummary", NULL as "requestStatus",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear",
               u.name as "customerName", NULL as "customerAvatar",
@@ -534,7 +534,7 @@ quotesRouter.get('/garage/quotes', authenticate, async (req, res) => {
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(
-      `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount as "totalCost", q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.eta_days as "etaDays", q.details->>'etaNote' as "etaNote", q.status as "quoteStatus", q.created_at as "createdAt", q.details,
+      `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount as "totalCost", q.currency as "currency", q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.eta_days as "etaDays", q.details->>'etaNote' as "etaNote", q.status as "quoteStatus", q.created_at as "createdAt", q.details,
               qr.issue_summary as "issueSummary",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear",
               u.name as "customerName", u.mobile_number as "customerPhone", u.email as "customerEmail", NULL as "customerAvatar",
@@ -573,7 +573,7 @@ quotesRouter.get('/garage/completed-jobs', authenticate, async (req, res) => {
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(
-      `SELECT b.id, b.status as "bookingStatus", b.created_at as "completionDate",
+      `SELECT b.id, b.status as "bookingStatus", b.created_at as "completionDate", b.currency as "currency",
               COALESCE(b.total_amount, q.amount) as "quoteAmount", q.details,
               COALESCE(qr.issue_summary, b.booking_type) as "issueSummary",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear",

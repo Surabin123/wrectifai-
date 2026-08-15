@@ -88,7 +88,7 @@ export default function CompletedJobsPage() {
                         <td className="px-6 py-4 text-gray-700">
                           <p className="line-clamp-2" title={job.issueSummary}>{job.issueSummary}</p>
                         </td>
-                        <td className="px-6 py-4 font-bold text-right text-[#17307a] whitespace-nowrap">{formatCurrency(job.quoteAmount || 0, (job as any).customerContact || (job as any).customerPhone)}</td>
+                        <td className="px-6 py-4 font-bold text-right text-[#17307a] whitespace-nowrap">{formatCurrency(job.quoteAmount || 0, job.currency)}</td>
                         <td className="px-6 py-4 text-gray-500 whitespace-nowrap">
                           {new Date(job.completionDate).toLocaleDateString()}
                         </td>

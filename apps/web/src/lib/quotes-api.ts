@@ -36,6 +36,7 @@ export interface QuoteRequestResponse {
     etaNote?: string;
     remarks?: string;
     status: string;
+    currency?: string;
   } | null;
 }
 
@@ -110,6 +111,7 @@ export interface GarageActiveJob {
   bookingStatus?: string | null;
   bookingDate?: string | null;
   serviceType?: string | null;
+  currency?: string;
 }
 
 export async function fetchGarageActiveJobs(): Promise<GarageActiveJob[]> {
@@ -133,6 +135,7 @@ export interface GarageQuote {
   vehicleYear: number;
   customerName: string;
   customerAvatar: string | null;
+  currency?: string;
 }
 
 export async function fetchGarageQuotes(): Promise<GarageQuote[]> {
@@ -152,6 +155,7 @@ export interface GarageCompletedJob {
   customerName: string;
   customerContact: string | null;
   customerAvatar: string | null;
+  currency?: string;
 }
 
 export async function fetchGarageCompletedJobs(): Promise<GarageCompletedJob[]> {

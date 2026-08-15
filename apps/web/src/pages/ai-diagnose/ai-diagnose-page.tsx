@@ -2294,15 +2294,14 @@ export function AIDiagnosePage() {
   const progress = useMemo(() => {
     if (isDiagnosed) return 100;
     if (isAnalyzingResults) return 90;
-    if (!selectedVehicleId) return 0;
-    if (!hasStartedDiagnose) return 20;
+    if (!hasStartedDiagnose) return 0;
 
     // We have started diagnosis and are answering questions
     if (dynamicQuestions.length > 0 && currentQuestionIdx >= 0) {
-      return 40 + Math.round((currentQuestionIdx / dynamicQuestions.length) * 40);
+      return 20 + Math.round((currentQuestionIdx / dynamicQuestions.length) * 60);
     }
-    return 40;
-  }, [isDiagnosed, isAnalyzingResults, selectedVehicleId, hasStartedDiagnose, dynamicQuestions, currentQuestionIdx]);
+    return 20;
+  }, [isDiagnosed, isAnalyzingResults, hasStartedDiagnose, dynamicQuestions, currentQuestionIdx]);
 
   const stepTitle = useMemo(() => {
     if (progress === 100) return 'Analysis Complete!';

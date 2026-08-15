@@ -50,11 +50,13 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
     url += `?${searchParams.toString()}`;
   }
 
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+
   let config: RequestOptions = {
     ...options,
     credentials: 'include', // Send HttpOnly cookies automatically
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
       ...options.headers,
     },
   };
@@ -144,19 +146,23 @@ async function handleResponse<T = unknown>(response: Response): Promise<T> {
 apiClient.get = <T = unknown>(path: string, options?: RequestOptions) =>
   apiClient<T>(path, { ...options, method: 'GET' });
 
-apiClient.post = <T = unknown>(path: string, body?: unknown, options?: RequestOptions) =>
-  apiClient<T>(path, {
+apiClient.post = <T = unknown>(path: string, body?: unknown, options?: RequestOptions) => {
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  return apiClient<T>(path, {
     ...options,
     method: 'POST',
-    body: body !== undefined ? JSON.stringify(body) : undefined
+    body: isFormData ? body : (body !== undefined ? JSON.stringify(body) : undefined)
   });
+};
 
-apiClient.put = <T = unknown>(path: string, body?: unknown, options?: RequestOptions) =>
-  apiClient<T>(path, {
+apiClient.put = <T = unknown>(path: string, body?: unknown, options?: RequestOptions) => {
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData;
+  return apiClient<T>(path, {
     ...options,
     method: 'PUT',
-    body: body !== undefined ? JSON.stringify(body) : undefined
+    body: isFormData ? body : (body !== undefined ? JSON.stringify(body) : undefined)
   });
+};
 
 apiClient.patch = <T = unknown>(path: string, body?: unknown, options?: RequestOptions) =>
   apiClient<T>(path, {

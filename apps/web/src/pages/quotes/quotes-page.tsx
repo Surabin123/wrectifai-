@@ -119,7 +119,7 @@ export function QuotesPage() {
                       {(quote as any).garageName || quote.garage}
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-800">
-                      {formatCurrency(quote.price || (quote as any).amount || (quote as any).totalCost || 0, userPhone)}
+                      {formatCurrency(quote.price || (quote as any).amount || (quote as any).totalCost || 0, quote.currency)}
                     </td>
                     <td className="px-6 py-4 text-slate-600">
                       {quote.time || 'N/A'}
@@ -185,10 +185,6 @@ export function QuotesPage() {
         <Modal isOpen={true} onClose={() => setViewQuote(null)} title="Quote Details" className="max-w-2xl">
           <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm text-slate-700">
             <div>
-              <span className="block font-bold text-slate-500 mb-1">Quote ID</span>
-              <p className="font-semibold">{viewQuote.id}</p>
-            </div>
-            <div>
               <span className="block font-bold text-slate-500 mb-1">Created Date</span>
               <p className="font-semibold">{viewQuote.requestCreatedAt ? new Date(viewQuote.requestCreatedAt).toLocaleString() : 'N/A'}</p>
             </div>
@@ -218,19 +214,19 @@ export function QuotesPage() {
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Labour Cost</span>
-              <p className="font-semibold">{viewQuote.details?.labour ? formatCurrency(viewQuote.details.labour, userPhone) : 'N/A'}</p>
+              <p className="font-semibold">{viewQuote.details?.labour ? formatCurrency(viewQuote.details.labour, viewQuote.currency) : 'N/A'}</p>
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Parts Cost</span>
-              <p className="font-semibold">{viewQuote.details?.parts ? formatCurrency(viewQuote.details.parts, userPhone) : 'N/A'}</p>
+              <p className="font-semibold">{viewQuote.details?.parts ? formatCurrency(viewQuote.details.parts, viewQuote.currency) : 'N/A'}</p>
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Other Charges</span>
-              <p className="font-semibold">{viewQuote.details?.other ? formatCurrency(viewQuote.details.other, userPhone) : 'N/A'}</p>
+              <p className="font-semibold">{viewQuote.details?.other ? formatCurrency(viewQuote.details.other, viewQuote.currency) : 'N/A'}</p>
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Total Amount</span>
-              <p className="font-bold text-blue-700">{formatCurrency(viewQuote.price || (viewQuote as any).amount || (viewQuote as any).totalCost || 0, userPhone)}</p>
+              <p className="font-bold text-blue-700">{formatCurrency(viewQuote.price || (viewQuote as any).amount || (viewQuote as any).totalCost || 0, viewQuote.currency)}</p>
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Estimated Days</span>
@@ -271,14 +267,6 @@ export function QuotesPage() {
         <Modal isOpen={true} onClose={() => setViewDetailsQuote(null)} title="Booking Details" className="max-w-2xl">
           <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm text-slate-700">
             <div>
-              <span className="block font-bold text-slate-500 mb-1">Booking ID</span>
-              <p className="font-semibold">{viewDetailsQuote.bookingDetails?.id || 'N/A'}</p>
-            </div>
-            <div>
-              <span className="block font-bold text-slate-500 mb-1">Quote ID</span>
-              <p className="font-semibold">{viewDetailsQuote.id}</p>
-            </div>
-            <div>
               <span className="block font-bold text-slate-500 mb-1">Garage Name</span>
               <p className="font-semibold">{viewDetailsQuote.garage}</p>
             </div>
@@ -308,7 +296,7 @@ export function QuotesPage() {
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Quote Amount</span>
-              <p className="font-semibold text-blue-700">{viewDetailsQuote.price || 'N/A'}</p>
+              <p className="font-semibold text-blue-700">{viewDetailsQuote.price ? formatCurrency(viewDetailsQuote.price, viewDetailsQuote.currency) : 'N/A'}</p>
             </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Preferred Date</span>

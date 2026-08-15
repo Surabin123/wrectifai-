@@ -243,7 +243,7 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
 
     const result = await query(
       `SELECT b.id, b.customer_id as "customerId", b.vehicle_id as "vehicleId", b.quote_id as "quoteId",
-              b.scheduled_at as "scheduledAt", b.status, b.total_amount as "totalAmount", b.created_at as "createdAt",
+              b.scheduled_at as "scheduledAt", b.status, b.total_amount as "totalAmount", b.currency as "currency", b.created_at as "createdAt",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vin",
               u.name as "customerName", u.mobile_number as "customerPhone", p.avatar_url as "customerAvatar",
               q.details as "quoteDetails", q.amount as "quoteAmount", q.eta_days as "estimatedDays",

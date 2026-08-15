@@ -230,14 +230,16 @@ export function GarageDetailPage({
   const isQuoteContext = mode === 'quote-context' && Boolean(quoteContext);
 
   const [reviews, setReviews] = useState<any[]>([]);
+  const [reviewStats, setReviewStats] = useState<any>(null);
 
   useEffect(() => {
     if (!initialGarage.id) return;
     let active = true;
     apiClient.get(`/garages/${initialGarage.id}/reviews`)
       .then((res: any) => {
-        if (active && res.data) {
-          setReviews(res.data);
+        if (active && res) {
+          if (res.reviews) setReviews(res.reviews);
+          if (res.stats) setReviewStats(res.stats);
         }
       })
       .catch(console.error);
@@ -695,7 +697,7 @@ export function GarageDetailPage({
                   <div className="grid gap-4 md:grid-cols-[200px_1fr_1fr]">
                     <div className="flex flex-col items-center justify-center rounded-[20px] border border-[#e2eefc] bg-white p-6 text-center">
                       <span className="text-[38px] font-extrabold tracking-tight text-[#17307a]">
-                        {garage.rating.toFixed(1)}
+                        {reviewStats?.averageRating ? reviewStats.averageRating.toFixed(1) : garage.rating.toFixed(1)}
                       </span>
                       <div className="my-1.5 flex items-center gap-0.5">
                         {Array.from({ length: 5 }).map((_, i) => (
@@ -719,31 +721,28 @@ export function GarageDetailPage({
                     </div>
 
                     <div className="rounded-[20px] border border-[#e2eefc] bg-white p-5 space-y-2.5 flex flex-col justify-center">
-                      {[
-                        { stars: 5, pct: '62%', count: '60' },
-                        { stars: 4, pct: '25%', count: '24' },
-                        { stars: 3, pct: '8%', count: '8' },
-                        { stars: 2, pct: '3%', count: '3' },
-                        { stars: 1, pct: '2%', count: '1' },
-                      ].map((row) => (
-                        <div
-                          key={row.stars}
-                          className="flex items-center gap-3 text-[10px] font-bold text-[#536891]"
-                        >
-                          <span className="w-2.5 text-right">{row.stars}</span>
-                          <Star className="h-3.5 w-3.5 fill-[#cbd4e6] text-[#cbd4e6]" />
-                          <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#f0f4ff]">
-                            <div
-                              className="h-full rounded-full bg-[#1aa14a]"
-                              style={{ width: row.pct }}
-                            />
+                      {[5, 4, 3, 2, 1].map((stars) => {
+                        const rowData = reviewStats?.distribution?.[stars] || { count: 0, pct: '0%' };
+                        return (
+                          <div
+                            key={stars}
+                            className="flex items-center gap-3 text-[10px] font-bold text-[#536891]"
+                          >
+                            <span className="w-2.5 text-right">{stars}</span>
+                            <Star className="h-3.5 w-3.5 fill-[#cbd4e6] text-[#cbd4e6]" />
+                            <div className="h-2 flex-1 overflow-hidden rounded-full bg-[#f0f4ff]">
+                              <div
+                                className="h-full rounded-full bg-[#1aa14a]"
+                                style={{ width: rowData.pct }}
+                              />
+                            </div>
+                            <span className="w-8 text-right">{rowData.pct}</span>
+                            <span className="w-8 text-right text-[#8a99ad]">
+                              ({rowData.count})
+                            </span>
                           </div>
-                          <span className="w-8 text-right">{row.pct}</span>
-                          <span className="w-8 text-right text-[#8a99ad]">
-                            ({row.count})
-                          </span>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
 
                     {reviews.length > 0 ? (
@@ -786,6 +785,21 @@ export function GarageDetailPage({
                           <p className="mt-2.5 text-[11px] font-medium leading-[1.5] text-[#536891]">
                             &quot;{reviews[reviewPage]?.text}&quot;
                           </p>
+
+                          <div className="mt-3 flex items-center gap-4 text-[10px] font-semibold text-[#8a99ad]">
+                            <button className="flex items-center gap-1 hover:text-[#1a56db] transition-colors">
+                              <Heart className="h-3.5 w-3.5" />
+                              <span>{reviews[reviewPage]?.likes || 0}</span>
+                            </button>
+                            {/* <button className="flex items-center gap-1 hover:text-[#e53e3e] transition-colors">
+                              <ThumbsDown className="h-3.5 w-3.5" />
+                              <span>{reviews[reviewPage]?.unlikes || 0}</span>
+                            </button> */}
+                            <button className="flex items-center gap-1 hover:text-[#1a56db] transition-colors">
+                              <MessageSquare className="h-3.5 w-3.5" />
+                              <span>{reviews[reviewPage]?.replies || 0} replies</span>
+                            </button>
+                          </div>
                         </div>
 
                         <div className="flex justify-center gap-1.5 pt-3">

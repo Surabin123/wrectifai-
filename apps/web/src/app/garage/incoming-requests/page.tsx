@@ -171,7 +171,7 @@ export default function IncomingRequestsPage() {
                 </div>
                 <div>
                   <span className="font-bold text-slate-600">Quote Amount:</span>
-                  <p className="text-green-700 font-bold bg-slate-50 p-2 mt-1 rounded border border-slate-200">{formatCurrency(selectedBooking.quoteAmount || selectedBooking.totalAmount || 0, selectedBooking.customerPhone)}</p>
+                  <p className="text-green-700 font-bold bg-slate-50 p-2 mt-1 rounded border border-slate-200">{formatCurrency(selectedBooking.quoteAmount || selectedBooking.totalAmount || 0, selectedBooking.currency)}</p>
                 </div>
                 <div>
                   <span className="font-bold text-slate-600">Issue Description:</span>

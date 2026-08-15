@@ -197,9 +197,6 @@ export function BookingsPage() {
                         b.status === 'cancelled' ? 'Cancelled' :
                         b.status}
                     </span>
-                    <span className="text-[10px] text-[#8a96b8] font-semibold font-mono">
-                      ID: {b.id.substring(0, 8)}
-                    </span>
                   </div>
 
                   <h3 className="text-[14.5px] font-bold text-[#17307a]">{b.garageName || 'Garage'}</h3>
@@ -236,7 +233,7 @@ export function BookingsPage() {
                 <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-center gap-2 border-t sm:border-t-0 border-[#eef3ff] pt-3 sm:pt-0">
                   <div className="text-left sm:text-right">
                     <p className="text-[10px] font-bold text-[#8a96b8] uppercase">Total Cost</p>
-                    <p className="text-[15.5px] font-extrabold text-[#17307a]">{formatCurrency(b.totalAmount, userPhone)}</p>
+                    <p className="text-[15.5px] font-extrabold text-[#17307a]">{formatCurrency(b.totalAmount, b.currency)}</p>
                   </div>
 
                   <div className="flex gap-2">
@@ -267,14 +264,6 @@ export function BookingsPage() {
       {viewDetailsBooking && (
         <Modal isOpen={true} onClose={() => setViewDetailsBooking(null)} title="Booking Details" className="max-w-2xl">
           <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm text-slate-700">
-            <div>
-              <span className="block font-bold text-slate-500 mb-1">Booking ID</span>
-              <p className="font-semibold">{viewDetailsBooking.id}</p>
-            </div>
-            <div>
-              <span className="block font-bold text-slate-500 mb-1">Quote ID</span>
-              <p className="font-semibold">{viewDetailsBooking.quoteId || 'N/A'}</p>
-            </div>
             <div>
               <span className="block font-bold text-slate-500 mb-1">Garage Name</span>
               <p className="font-semibold">{viewDetailsBooking.garageName}</p>
