@@ -19,6 +19,7 @@ export type QuoteItem = {
   requestCreatedAt?: string;
   requestIssueSummary?: string;
   preferredDate?: string;
+  currency?: string;
   vehicle?: {
     make: string;
     model: string;

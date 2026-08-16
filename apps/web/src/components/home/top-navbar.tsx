@@ -22,6 +22,13 @@ import { Button } from '@/components/common/button';
 import { getChatHistory } from '@/lib/diagnosis-api';
 import Image from 'next/image';
 
+const getMediaUrl = (url: string) => {
+  if (url.startsWith('http')) return url;
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
+  const hostUrl = baseUrl.replace(/\/api(\/v1)?\/?$/, '');
+  return `${hostUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+};
+
 export function TopNavbar() {
   const [query, setQuery] = useState('');
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -533,9 +540,29 @@ export function TopNavbar() {
                     )}
                     <div className={`flex flex-col ${msg.sender === 'user' ? 'items-end' : 'items-start'} mb-3`}>
                       <span className="mb-1 text-[11px] font-bold text-gray-400">{msg.time}</span>
-                      <div className={`max-w-[85%] rounded-2xl p-3.5 text-[13.5px] leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-[#2451f6] text-white' : 'bg-[#f4f7ff] text-[#17307a]'}`}>
-                        {msg.text || msg.question}
-                      </div>
+                      
+                      {msg.mediaUrls && msg.mediaUrls.length > 0 && (
+                        <div className="mb-2 flex flex-wrap gap-2 justify-end">
+                          {msg.mediaUrls.map((url: string, imgIdx: number) => (
+                            <div key={imgIdx} className="relative h-20 w-20 overflow-hidden rounded-md border border-[#c7d8ff] bg-white">
+                              <Image
+                                src={getMediaUrl(url)}
+                                alt="Attached media"
+                                fill
+                                className="object-cover"
+                                unoptimized
+                              />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Only render the text bubble if there's actual text */}
+                      {(msg.text || msg.question) && (
+                        <div className={`max-w-[85%] rounded-2xl p-3.5 text-[13.5px] leading-relaxed shadow-sm ${msg.sender === 'user' ? 'bg-[#2451f6] text-white' : 'bg-[#f4f7ff] text-[#17307a]'}`}>
+                          {msg.text || msg.question}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))

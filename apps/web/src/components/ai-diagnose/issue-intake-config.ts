@@ -15,6 +15,7 @@ export type DiagnosticIssueResult = {
   risks: string[];
   estimatedCost: string;
   imageSrc: string;
+  category?: string;
 };
 
 export type IssueCategoryConfig = {

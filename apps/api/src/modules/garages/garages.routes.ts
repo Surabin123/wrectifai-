@@ -188,26 +188,60 @@ garagesRouter.get('/:id', async (req, res) => {
 
 garagesRouter.get('/:id/reviews', async (req, res) => {
   try {
-    const [reviewsResult, statsResult] = await Promise.all([
+    const currentUserId = req.query.userId as string | undefined;
+
+    const [reviewsResult, statsResult, repliesResult] = await Promise.all([
       query(
         `SELECT r.id, COALESCE(u.name, r.customer_name) as "name", r.rating, r.text, r.created_at as "date", 
                 'Verified Customer' as "status", r.likes_count as "likes", r.unlikes_count as "unlikes",
-                (SELECT COUNT(*) FROM garage_review_replies WHERE review_id = r.id) as "replies"
+                EXISTS (
+                  SELECT 1 FROM garage_review_likes grl 
+                  WHERE grl.review_id = r.id AND grl.customer_id = $2 AND grl.vote_type = 'like'
+                ) as "isLikedByUser",
+                EXISTS (
+                  SELECT 1 FROM garage_review_likes grl 
+                  WHERE grl.review_id = r.id AND grl.customer_id = $2 AND grl.vote_type = 'unlike'
+                ) as "isUnlikedByUser"
          FROM garage_reviews r
          LEFT JOIN users u ON r.customer_id = u.id
          WHERE r.garage_id = $1
          ORDER BY r.created_at DESC`,
-        [req.params.id]
+        [req.params.id, currentUserId || null]
       ),
       query(
         `SELECT rating, COUNT(*) as count FROM garage_reviews WHERE garage_id = $1 GROUP BY rating`,
         [req.params.id]
+      ),
+      query(
+        `SELECT rr.id, rr.review_id, rr.text, rr.created_at, rr.user_id, rr.garage_id,
+                COALESCE(u.name, g.name) as author_name
+         FROM garage_review_replies rr
+         LEFT JOIN users u ON rr.user_id = u.id
+         LEFT JOIN garage_reviews r ON rr.review_id = r.id
+         LEFT JOIN garages g ON rr.garage_id = g.id
+         WHERE r.garage_id = $1
+         ORDER BY rr.created_at ASC`,
+         [req.params.id]
       )
     ]);
+
+    const repliesByReviewId: Record<string, any[]> = {};
+    for (const reply of repliesResult.rows) {
+      if (!repliesByReviewId[reply.review_id]) repliesByReviewId[reply.review_id] = [];
+      repliesByReviewId[reply.review_id].push({
+        id: reply.id,
+        text: reply.text,
+        date: reply.created_at,
+        authorName: reply.author_name,
+        isGarageOwner: !!reply.garage_id
+      });
+    }
 
     const reviews = reviewsResult.rows.map(r => ({
       ...r,
       avatar: (r.name || 'U').split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
+      replies: repliesByReviewId[r.id] || [],
+      repliesCount: repliesByReviewId[r.id]?.length || 0
     }));
 
     const totalReviews = reviews.length;

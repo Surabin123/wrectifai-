@@ -33,6 +33,7 @@ interface LlmIssue {
   confidence: number;
   estimatedPriceRange: { min: number; max: number };
   name: string;
+  category?: string;
   description?: string;
   risks?: string[];
   imageSrc?: string;
@@ -78,6 +79,12 @@ import {
   CarFront,
   Wind,
   X,
+  BatteryWarning,
+  Flame,
+  Activity,
+  CircleStop,
+  Car,
+  Thermometer,
   type LucideIcon,
 } from 'lucide-react';
 import {
@@ -91,7 +98,7 @@ import { TopNavbar } from '@/components/home/top-navbar';
 import { Card } from '@/components/common/card';
 import { cn } from '@/utils/cn';
 import { VehicleSelector } from '@/components/common/vehicle-selector';
-import { submitDiagnosis, chatDiagnosis, syncChatHistory, type DiagnosisResponse } from '../../lib/diagnosis-api';
+import { submitDiagnosis, chatDiagnosis, syncChatHistory, uploadMedia, type DiagnosisResponse } from '../../lib/diagnosis-api';
 import { getVehicleImage } from '@/lib/vehicle-image-catalog';
 
 function getBadgeForIssue(name: string, overallRisk?: string, index?: number) {
@@ -116,6 +123,7 @@ function mapLlmIssueToDiagnosticResult(llmIssue: LlmIssue, index: number, overal
   const estimatedCost = `$${priceRange.min} - $${priceRange.max}`;
   const id = `llm_issue_${index}`;
   const title = llmIssue.name;
+  const category = llmIssue.category;
 
   const { badge, badgeClass } = getBadgeForIssue(title, overallRisk, index);
 
@@ -125,9 +133,9 @@ function mapLlmIssueToDiagnosticResult(llmIssue: LlmIssue, index: number, overal
   if (index === 0 && diySteps && diySteps.length > 0) {
     const reasoningStep = diySteps.find(step => step.toLowerCase().includes('why this diagnosis') || step.toLowerCase().includes('technical reasoning'));
     if (reasoningStep) {
-        reasoning = reasoningStep.replace(/^(?:\\*\\*)?(?:why this diagnosis\\??|technical reasoning):?(?:\\*\\*)?\\s*/i, '');
+      reasoning = reasoningStep.replace(/^(?:\\*\\*)?(?:why this diagnosis\\??|technical reasoning):?(?:\\*\\*)?\\s*/i, '');
     } else {
-        reasoning = diySteps[0];
+      reasoning = diySteps[0];
     }
   }
 
@@ -142,6 +150,7 @@ function mapLlmIssueToDiagnosticResult(llmIssue: LlmIssue, index: number, overal
     badgeClass,
     description: reasoning,
     match,
+    category,
     risks: [capitalizedRisk],
     estimatedCost,
     imageSrc: getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year),
@@ -172,6 +181,7 @@ type ChatEntry =
     time: string;
     kind: 'reply';
     text: string;
+    mediaUrls?: string[];
   };
 
 
@@ -318,7 +328,7 @@ const resultTrustItems = [
   },
 ];
 
-const DEFAULT_ISSUE_TEXT = 'I need help diagnosing my car issue.';
+const DEFAULT_ISSUE_TEXT = 'Diagnostic media provided for analysis.';
 
 type AnswerMap = Record<string, string>;
 
@@ -354,9 +364,34 @@ const homeSubheadingClass = 'ui-subheading';
 const homeBodyStrongClass = 'ui-body-strong';
 
 function getIssueVisualMeta(issue: DiagnosticIssueResult) {
+  const issueId = issue.id.toLowerCase();
+  const issueTitle = issue.title.toLowerCase();
+  const category = (issue.category || '').toLowerCase();
+
+  // Engine Noise / Fuel / Combustion
   if (
-    issue.id.includes('refrigerant') ||
-    issue.title.toLowerCase().includes('refrigerant')
+    category.includes('engine') ||
+    issueId.includes('engine') ||
+    issueTitle.includes('engine') ||
+    issueId.includes('oil') ||
+    issueId.includes('timing') ||
+    issueId.includes('fuel')
+  ) {
+    return {
+      icon: Flame,
+      accentClass: 'text-[#eab308]',
+      fillClass: 'bg-[#fefce8]',
+    };
+  }
+
+  // AC System / Cooling / HVAC
+  if (
+    category.includes('hvac') ||
+    category.includes('cooling') ||
+    issueId.includes('refrigerant') ||
+    issueTitle.includes('refrigerant') ||
+    issueId.includes('ac_') ||
+    issueTitle.includes('ac ')
   ) {
     return {
       icon: Snowflake,
@@ -365,16 +400,94 @@ function getIssueVisualMeta(issue: DiagnosticIssueResult) {
     };
   }
 
+  // Air / Filters / Blowers
   if (
-    issue.id.includes('blower') ||
-    issue.id.includes('filter') ||
-    issue.title.toLowerCase().includes('blower') ||
-    issue.title.toLowerCase().includes('filter')
+    category.includes('filter') ||
+    category.includes('air') ||
+    issueId.includes('blower') ||
+    issueId.includes('filter') ||
+    issueTitle.includes('blower') ||
+    issueTitle.includes('filter') ||
+    issueId.includes('intake')
   ) {
     return {
       icon: Wind,
       accentClass: 'text-[#f59a23]',
       fillClass: 'bg-[#fff7ed]',
+    };
+  }
+
+  // Brakes
+  if (
+    category.includes('brake') ||
+    issueId.includes('brake') ||
+    issueTitle.includes('brake') ||
+    issueId.includes('rotor') ||
+    issueId.includes('pad') ||
+    issueId.includes('caliper')
+  ) {
+    return {
+      icon: CircleStop,
+      accentClass: 'text-[#ea3838]',
+      fillClass: 'bg-[#fef1f1]',
+    };
+  }
+
+  // Battery / Starting / Electrical
+  if (
+    category.includes('electrical') ||
+    category.includes('battery') ||
+    issueId.includes('start') ||
+    issueTitle.includes('start') ||
+    issueId.includes('battery') ||
+    issueId.includes('ignition') ||
+    issueId.includes('motor')
+  ) {
+    return {
+      icon: BatteryWarning,
+      accentClass: 'text-[#8b5cf6]',
+      fillClass: 'bg-[#f5f3ff]',
+    };
+  }
+
+  // Low Pickup / Performance
+  if (
+    category.includes('performance') ||
+    issueId.includes('pickup') ||
+    issueTitle.includes('pickup') ||
+    issueId.includes('performance')
+  ) {
+    return {
+      icon: Gauge,
+      accentClass: 'text-[#0ea5e9]',
+      fillClass: 'bg-[#f0f9ff]',
+    };
+  }
+
+  // Steering / Suspension / Wheels / Tire
+  if (
+    category.includes('suspension') ||
+    category.includes('steering') ||
+    category.includes('tire') ||
+    issueId.includes('steering') ||
+    issueTitle.includes('steering') ||
+    issueId.includes('suspension') ||
+    issueId.includes('wheel') ||
+    issueId.includes('alignment')
+  ) {
+    return {
+      icon: Activity,
+      accentClass: 'text-[#10b981]',
+      fillClass: 'bg-[#ecfdf5]',
+    };
+  }
+  
+  // Body
+  if (category.includes('body') || issueTitle.includes('body') || issueTitle.includes('dent') || issueTitle.includes('scratch')) {
+    return {
+      icon: Settings,
+      accentClass: 'text-[#64748b]',
+      fillClass: 'bg-[#f8fafc]',
     };
   }
 
@@ -394,7 +507,6 @@ function IssueVisual({
   size?: number;
   vehicleImageSrc?: string;
 }) {
-  const [hasImageError, setHasImageError] = useState(false);
   const { icon: Icon, accentClass, fillClass } = getIssueVisualMeta(issue);
 
   return (
@@ -405,22 +517,10 @@ function IssueVisual({
       )}
       style={{ width: size, height: size }}
     >
-      {!hasImageError ? (
-        <Image
-          src={vehicleImageSrc || issue.imageSrc}
-          alt={issue.title}
-          width={size}
-          height={size}
-          className="object-contain p-2"
-          onError={() => setHasImageError(true)}
-          unoptimized={true}
-        />
-      ) : (
-        <Icon
-          className={cn('h-[52%] w-[52%]', accentClass)}
-          strokeWidth={2.2}
-        />
-      )}
+      <Icon
+        className={cn('h-[52%] w-[52%]', accentClass)}
+        strokeWidth={2.2}
+      />
     </div>
   );
 }
@@ -984,14 +1084,14 @@ type ReasoningState = {
 
 function extractEvidencePipeline(symptoms: string[], notes = ""): Observation[] {
   const obs: Observation[] = [];
-  
+
   symptoms.forEach(s => {
     obs.push({ type: 'symptom', value: s.toLowerCase(), source: 'questionnaire' });
   });
 
   if (notes) {
     const notesLower = notes.toLowerCase();
-    
+
     // Extract maintenance
     const maintenanceKeywords = ['replace', 'new', 'refill', 'recharge', 'service', 'flush', 'jump', 'change'];
     maintenanceKeywords.forEach(k => {
@@ -1010,7 +1110,7 @@ function extractEvidencePipeline(symptoms: string[], notes = ""): Observation[] 
 
     // Extract raw symptoms if none of the above matched distinctly, or just add the whole note
     if (obs.filter(o => o.source === 'additional_info').length === 0) {
-       obs.push({ type: 'symptom', value: notesLower, source: 'additional_info' });
+      obs.push({ type: 'symptom', value: notesLower, source: 'additional_info' });
     }
   }
   return obs;
@@ -1036,7 +1136,7 @@ function evaluateCandidates(observations: Observation[]): CandidateDiagnosis[] {
   // Evaluate against observations
   observations.forEach(obs => {
     const val = obs.value;
-    
+
     // AC
     if (val.includes("ac ") || val.includes("cool") || val.includes("air")) {
       candidates.find(c => c.id === "ac_leak")!.supportedBy.push(obs);
@@ -1114,7 +1214,7 @@ function reasonOverEvidencePipeline(candidates: CandidateDiagnosis[]): Candidate
 
   // Filter to only those with support
   let viable = candidates.filter(c => c.supportedBy.length > 0);
-  
+
   if (viable.length === 0) {
     viable = [{
       id: "mech_general",
@@ -1144,7 +1244,7 @@ function calculateConfidence(state: ReasoningState): number {
   if (state.mostProbable) {
     // Increase for multiple supporting observations
     if (state.mostProbable.supportedBy.length > 1) confidence += 15;
-    
+
     // Increase if alternative was explicitly eliminated
     const eliminatedAlts = state.candidates.filter(c => c.eliminated && c.id.split('_')[0] === state.mostProbable!.id.split('_')[0]);
     if (eliminatedAlts.length > 0) confidence += 10;
@@ -1166,7 +1266,7 @@ function generateNaturalSummary(state: ReasoningState): string {
 
   const hasAddInfo = state.observations.some(o => o.source === 'additional_info');
   const addInfoObs = state.observations.find(o => o.source === 'additional_info');
-  
+
   const eliminatedAlt = state.candidates.find(c => c.eliminated && c.id.split('_')[0] === primary.id.split('_')[0]);
 
   let summary = "";
@@ -1447,9 +1547,9 @@ function DiagnoseResultsScreen({
           </Card>
 
           <Card className="rounded-[22px] border-[#e6ecfb] bg-white px-4 py-4 shadow-[0_12px_30px_rgba(37,73,153,0.04)]">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <h2 className={homeSectionHeadingClass}>Top Possible Issues</h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className={homeSectionHeadingClass}>Top Possible Issues</h2>
                 <span className="text-[11px] text-[#5f7099]">
                   (Select one or more to request quotes)
                 </span>
@@ -1642,7 +1742,7 @@ function DiagnoseResultsScreen({
       {isDiyDrawerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6">
           <div className="absolute inset-0 bg-[#0f172a]/40 backdrop-blur-sm transition-opacity" onClick={() => setIsDiyDrawerOpen(false)} />
-          
+
           {(diyType === 'repair' || diyType === 'troubleshooting') && nextSteps && nextSteps.length > 0 ? (
             <div className="relative w-full max-w-2xl bg-white shadow-2xl rounded-[24px] flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-200">
               <div className="flex items-center justify-between border-b border-[#e6ecfb] px-6 py-5 bg-white z-10 rounded-t-[24px]">
@@ -1653,7 +1753,7 @@ function DiagnoseResultsScreen({
                   <X className="h-5 w-5" />
                 </button>
               </div>
-              
+
               <div className="flex-1 overflow-y-auto px-6 py-6">
                 <div className="mb-6 rounded-[16px] border border-[#dbe6ff] bg-[#fbfcff] p-5">
                   <div className="flex items-center gap-2 font-bold text-[#17307a] mb-2">
@@ -2127,7 +2227,7 @@ function normalizeInput(text: string): string {
 
 function extractEntities(text: string): ExtractedEntity[] {
   const entities: ExtractedEntity[] = [];
-  
+
   for (const [category, keywords] of Object.entries(ENTITY_DICTIONARY)) {
     for (const keyword of keywords) {
       if (text.includes(keyword)) {
@@ -2145,19 +2245,19 @@ function extractEntities(text: string): ExtractedEntity[] {
 function determineMissingContext(entities: ExtractedEntity[], turns: number): { isSufficient: boolean, missing: IntentCategory[] } {
   const hasSymptom = entities.some(e => e.category === 'symptom' || e.category === 'warning_light');
   const hasCondition = entities.some(e => e.category === 'operating_condition' || e.category === 'timing' || e.category === 'environmental' || e.category === 'recent_event');
-  
+
   const missing: IntentCategory[] = [];
-  
+
   if (!hasSymptom) {
     missing.push('symptom');
-  } else if (!hasCondition && turns < 2) { 
+  } else if (!hasCondition && turns < 2) {
     // Ask for condition if we have a symptom but no condition, up to a limit
     missing.push('operating_condition');
   }
 
   // It is sufficient if we have a symptom, and we've either collected condition/context or we've asked at least twice.
   const isSufficient = hasSymptom && (hasCondition || turns >= 2);
-  
+
   return { isSufficient, missing };
 }
 
@@ -2202,6 +2302,10 @@ export function AIDiagnosePage() {
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(
     initialFlow.activeCategoryId
   );
+
+  // Persist media across the whole session even when composer is cleared
+  const sessionMediaRef = useRef<Array<{ mediaType: 'image' | 'video' | 'audio'; url: string; name: string }>>([]);
+
   const [messages, setMessages] = useState<ChatEntry[]>(() => {
     return [{
       id: 'msg-initial',
@@ -2219,16 +2323,54 @@ export function AIDiagnosePage() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const vId = selectedVehicleId || 'guest';
-      const saved = localStorage.getItem(`ai_chat_history_${vId}`);
-      if (saved) {
-        try {
-          setPreviousHistory(JSON.parse(saved));
-        } catch (e) {
-          setPreviousHistory([]);
+
+      const loadHistory = async () => {
+        let savedHistory: ChatEntry[] = [];
+
+        // 1. Try backend
+        if (vId !== 'guest') {
+          try {
+            // Dynamically import to avoid circular dep or top-level await issues if any
+            const { getChatHistory } = await import('../../lib/diagnosis-api');
+            const res = await getChatHistory(vId);
+            if (res?.messages && res.messages.length > 0) {
+              savedHistory = res.messages;
+            }
+          } catch (e) {
+            // Ignore API error
+          }
         }
-      } else {
-        setPreviousHistory([]);
-      }
+
+        // 2. Fallback to localStorage
+        if (savedHistory.length === 0) {
+          const saved = localStorage.getItem(`ai_chat_history_${vId}`);
+          if (saved) {
+            try {
+              savedHistory = JSON.parse(saved);
+            } catch (e) {
+              savedHistory = [];
+            }
+          }
+        }
+
+        setPreviousHistory(savedHistory);
+
+        // 3. Restore sessionMediaRef
+        const restoredMedia: { mediaType: 'image' | 'video' | 'audio', url: string, name: string }[] = [];
+        savedHistory.forEach(entry => {
+          if ('mediaUrls' in entry && entry.mediaUrls && entry.mediaUrls.length > 0) {
+            entry.mediaUrls.forEach((url: string) => {
+              if (!restoredMedia.some(m => m.url === url)) {
+                // We default to 'image' for chat history media since that's what we currently render
+                restoredMedia.push({ mediaType: 'image', url, name: 'history_media' });
+              }
+            });
+          }
+        });
+        sessionMediaRef.current = restoredMedia;
+      };
+
+      loadHistory();
     }
   }, [selectedVehicleId]);
 
@@ -2240,9 +2382,9 @@ export function AIDiagnosePage() {
       const vId = selectedVehicleId || 'guest';
       // Combine all previous history with the entire current session
       const combined = [...previousHistory, ...messages];
-      
+
       localStorage.setItem(`ai_chat_history_${vId}`, JSON.stringify(combined));
-      
+
       // Fire-and-forget background sync to PostgreSQL (safe fallback)
       if (vId !== 'guest') {
         syncChatHistory(vId, combined).catch(err => {
@@ -2277,7 +2419,20 @@ export function AIDiagnosePage() {
   const [apiError, setApiError] = useState<string | null>(null);
   const [timerFinished, setTimerFinished] = useState(false);
   const [customResultIssues, setCustomResultIssues] = useState<DiagnosticIssueResult[] | null>(null);
-  const [attachedMedia, setAttachedMedia] = useState<Array<{ mediaType: 'image' | 'video' | 'audio'; base64: string; name: string }>>([]);
+  type MediaStatus = 'UPLOAD_PENDING' | 'UPLOAD_SUCCESS' | 'UPLOAD_FAILED' | 'VALIDATION_PENDING' | 'VALIDATION_SUCCESS' | 'VALIDATION_REJECTED' | 'VALIDATION_UNAVAILABLE' | 'AVAILABLE_FOR_DIAGNOSIS';
+
+  interface AttachedMedia {
+    id: string;
+    mediaType: 'image' | 'video' | 'audio';
+    file?: File;
+    name: string;
+    url?: string;
+    previewUrl: string;
+    status: MediaStatus;
+    errorMessage?: string;
+  }
+
+  const [attachedMedia, setAttachedMedia] = useState<AttachedMedia[]>([]);
   const [isRecording, setIsRecording] = useState(false);
   const imageInputRef = useRef<HTMLInputElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -2360,7 +2515,10 @@ export function AIDiagnosePage() {
   }, [messages, isTyping]);
 
   const startDiagnoseSession = async (vehicleId: string, symptom: string) => {
-    if (!vehicleId || !symptom || symptom === DEFAULT_ISSUE_TEXT) return;
+    const hasMedia = sessionMediaRef.current.length > 0;
+    // Allow proceeding if we have media, even with a default symptom text
+    if (!vehicleId || !symptom) return;
+    if (!hasMedia && symptom === DEFAULT_ISSUE_TEXT) return;
     if (hasStartedDiagnose) return;
 
     setHasStartedDiagnose(true);
@@ -2371,6 +2529,7 @@ export function AIDiagnosePage() {
       const response = await submitDiagnosis({
         vehicleId,
         symptomText: symptom,
+        media: sessionMediaRef.current.map(m => ({ mediaType: m.mediaType as 'image' | 'video' | 'audio', url: m.url! })),
         stage: 'questions',
       });
 
@@ -2417,14 +2576,14 @@ export function AIDiagnosePage() {
       const errStatus = (err as any)?.status;
       const isUnavailable = errMessage.includes('temporarily unavailable') || errMessage.includes('AI diagnostic');
       const isAuthError = errStatus === 401 || errStatus === 403 || errMessage.toLowerCase().includes('session') || errMessage.toLowerCase().includes('log in');
-      
+
       let displayMessage = 'I had trouble connecting. Please check your internet connection and try submitting your symptom again.';
       if (isAuthError) {
         displayMessage = 'Your session has expired or is invalid. Please log out and log back in, then try again.';
       } else if (isUnavailable) {
         displayMessage = 'The AI diagnostic service is temporarily unavailable. Please wait a moment and try submitting your symptom again.';
       }
-      
+
       setMessages((prev) => [
         ...prev,
         {
@@ -2448,10 +2607,11 @@ export function AIDiagnosePage() {
           const allAnswers = Object.keys(completedAnswersRef.current).length > 0
             ? completedAnswersRef.current
             : dynamicAnswers;
+
           const payload = {
             vehicleId: selectedVehicleId || '00000000-0000-0000-0000-000000000002',
             symptomText: issueText,
-            media: attachedMedia.map(m => ({ mediaType: m.mediaType, base64: m.base64 })),
+            media: sessionMediaRef.current.map(m => ({ mediaType: m.mediaType as 'image' | 'video' | 'audio', url: m.url! })),
             intakeAnswers: {
               questions: dynamicQuestions.map(q => q.question),
               qas: allAnswers,
@@ -2464,7 +2624,7 @@ export function AIDiagnosePage() {
             setApiError(response.message || "We couldn't generate the diagnosis right now. Please try again.");
             return;
           }
-          
+
           setApiResult(response);
 
           if (response.result && response.result.issues) {
@@ -2528,6 +2688,7 @@ export function AIDiagnosePage() {
     setHasStartedDiagnose(false);
     setAccumulatedIntakeContext('');
     setClarificationTurns(0);
+    sessionMediaRef.current = [];
   };
 
   useEffect(() => {
@@ -2551,6 +2712,7 @@ export function AIDiagnosePage() {
     completedAnswersRef.current = {};
     setHasStartedDiagnose(false);
     setHasFailedDiagnose(false);
+    sessionMediaRef.current = [];
     setApiResult(null);
     setApiError(null);
     setTimerFinished(false);
@@ -2607,6 +2769,7 @@ export function AIDiagnosePage() {
         const payload = {
           vehicleId: selectedVehicleId || '00000000-0000-0000-0000-000000000002',
           symptomText: issueText,
+          media: sessionMediaRef.current.map(m => ({ mediaType: m.mediaType as 'image' | 'video' | 'audio', url: m.url! })),
           stage: 'questions' as const,
           intakeAnswers: { qas: nextAnswers },
         };
@@ -2617,23 +2780,23 @@ export function AIDiagnosePage() {
         if (response && response.questions && response.questions.length > 0) {
           const nextQuestion = response.questions[0];
           const isNonAutomotive = response.questions.length === 1 && (response.questions[0].options.includes('Cancel') || response.questions[0].options.includes('Understood'));
-          
+
           if (isNonAutomotive) {
-             setMessages((prev) => [
-               ...prev,
-               {
-                 id: `sys-reject-${Date.now()}`,
-                 sender: 'assistant',
-                 time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-                 kind: 'message',
-                 text: 'Diagnosis session ended. Please describe an automotive issue to begin a new diagnosis.'
-               }
-             ]);
-             setHasStartedDiagnose(false);
-             setHasFailedDiagnose(true);
-             setDynamicQuestions([]);
-             setCurrentQuestionIdx(-1);
-             return;
+            setMessages((prev) => [
+              ...prev,
+              {
+                id: `sys-reject-${Date.now()}`,
+                sender: 'assistant',
+                time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                kind: 'message',
+                text: 'Diagnosis session ended. Please describe an automotive issue to begin a new diagnosis.'
+              }
+            ]);
+            setHasStartedDiagnose(false);
+            setHasFailedDiagnose(true);
+            setDynamicQuestions([]);
+            setCurrentQuestionIdx(-1);
+            return;
           }
 
           setDynamicQuestions((prev) => [...prev, nextQuestion]);
@@ -2697,13 +2860,13 @@ export function AIDiagnosePage() {
 
   const nextSteps = apiResult && apiResult.result && apiResult.result.diyAllowed && rawDiySteps.length > 0
     ? rawDiySteps
-        .filter(s => !s.toLowerCase().startsWith('diy category:'))
-        .map((stepText: string, index: number) => ({
-          step: `0${index + 1}`,
-          title: `Step ${index + 1}`,
-          body: stepText,
-          meta: diyType === 'troubleshooting' ? 'Troubleshooting' : 'DIY Guidance',
-        }))
+      .filter(s => !s.toLowerCase().startsWith('diy category:'))
+      .map((stepText: string, index: number) => ({
+        step: `0${index + 1}`,
+        title: `Step ${index + 1}`,
+        body: stepText,
+        meta: diyType === 'troubleshooting' ? 'Troubleshooting' : 'DIY Guidance',
+      }))
     : undefined;
 
   const confidenceScore = apiResult?.result?.confidenceScore;
@@ -2724,17 +2887,40 @@ export function AIDiagnosePage() {
   ) => {
     const files = Array.from(e.target.files ?? []);
     if (!files.length) return;
-    const converted = await Promise.all(
-      files.map(async (file) => ({
-        mediaType,
-        base64: await fileToBase64(file),
-        name: file.name,
-      }))
-    );
-    setAttachedMedia((prev) => [...prev, ...converted]);
-    // reset so the same file can be re-selected
+
+    const newMedia: AttachedMedia[] = files.map(file => ({
+      id: Math.random().toString(36).substring(7),
+      mediaType,
+      file,
+      name: file.name,
+      previewUrl: URL.createObjectURL(file),
+      status: 'UPLOAD_PENDING'
+    }));
+
+    setAttachedMedia(prev => [...prev, ...newMedia]);
+
+    newMedia.forEach(async (mediaItem) => {
+      try {
+        const res = await uploadMedia(mediaItem.file!);
+
+        setAttachedMedia(prev => prev.map(m => {
+          if (m.id === mediaItem.id) {
+            return { ...m, status: 'AVAILABLE_FOR_DIAGNOSIS', url: res.url };
+          }
+          return m;
+        }));
+      } catch (err: any) {
+        setAttachedMedia(prev => prev.map(m => {
+          if (m.id === mediaItem.id) {
+            return { ...m, status: 'UPLOAD_FAILED', errorMessage: err.message || 'Failed to upload media' };
+          }
+          return m;
+        }));
+      }
+    });
+
     e.target.value = '';
-  }, [fileToBase64]);
+  }, []);
 
   const handleToggleRecording = useCallback(async () => {
     if (isRecording) {
@@ -2748,15 +2934,29 @@ export function AIDiagnosePage() {
       recorder.ondataavailable = (e) => {
         if (e.data.size > 0) audioChunksRef.current.push(e.data);
       };
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         const blob = new Blob(audioChunksRef.current, { type: 'audio/wav' });
-        const reader = new FileReader();
-        reader.onload = () => {
-          const base64 = reader.result as string;
-          const name = `recording-${Date.now()}.wav`;
-          setAttachedMedia((prev) => [...prev, { mediaType: 'audio', base64, name }]);
+        const name = `recording-${Date.now()}.wav`;
+        const file = new File([blob], name, { type: 'audio/wav' });
+
+        const newAudio: AttachedMedia = {
+          id: Math.random().toString(36).substring(7),
+          mediaType: 'audio',
+          file,
+          name,
+          previewUrl: '', // No preview for audio right now
+          status: 'UPLOAD_PENDING'
         };
-        reader.readAsDataURL(blob);
+
+        setAttachedMedia(prev => [...prev, newAudio]);
+
+        try {
+          const res = await uploadMedia(file);
+          setAttachedMedia(prev => prev.map(m => m.id === newAudio.id ? { ...m, status: 'AVAILABLE_FOR_DIAGNOSIS', url: res.url } : m));
+        } catch (err: any) {
+          setAttachedMedia(prev => prev.map(m => m.id === newAudio.id ? { ...m, status: 'UPLOAD_FAILED', errorMessage: err.message } : m));
+        }
+
         stream.getTracks().forEach((t) => t.stop());
         setIsRecording(false);
       };
@@ -2768,36 +2968,88 @@ export function AIDiagnosePage() {
     }
   }, [isRecording]);
 
-  const removeMedia = useCallback((idx: number) => {
-    setAttachedMedia((prev) => prev.filter((_, i) => i !== idx));
+  const removeMedia = useCallback((id: string) => {
+    setAttachedMedia((prev) => {
+      const item = prev.find(m => m.id === id);
+      if (item && item.previewUrl) URL.revokeObjectURL(item.previewUrl);
+      return prev.filter((m) => m.id !== id);
+    });
   }, []);
 
   const handleSendMessage = async () => {
     if (isAnalyzingResults) return;
     if (!selectedVehicleId) return;
+
     const inputMsg = typedMessage.trim();
-    if (!inputMsg) return;
+    const readyMedia = attachedMedia.filter(m => m.status === 'AVAILABLE_FOR_DIAGNOSIS' && m.url);
+    const pendingMedia = attachedMedia.filter(m => m.status === 'UPLOAD_PENDING');
+
+    // If upload is still in-flight, don't send yet
+    if (pendingMedia.length > 0) return;
+
+    // Allow sending with ONLY media (no typed text) — generate a smart default symptom
+    const hasMedia = readyMedia.length > 0;
+    if (!inputMsg && !hasMedia) {
+      // Nothing to send — show a hint
+      setMessages(prev => [
+        ...prev,
+        {
+          id: `bot-hint-${Date.now()}`,
+          sender: 'assistant',
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          kind: 'message',
+          text: 'Please describe your vehicle\'s issue or upload a photo/video of the problem to start diagnosis.',
+        } as ChatEntry,
+      ]);
+      return;
+    }
+
+    // If only media was provided (no text), create a descriptive symptom from media type
+    const effectiveMsg = inputMsg || (
+      readyMedia.some(m => m.mediaType === 'image')
+        ? 'Please diagnose my vehicle based on the uploaded image.'
+        : readyMedia.some(m => m.mediaType === 'video')
+          ? 'Please diagnose my vehicle based on the uploaded video.'
+          : readyMedia.some(m => m.mediaType === 'audio')
+            ? 'Please diagnose my vehicle based on the recorded sound.'
+            : 'Please help diagnose my vehicle.'
+    );
+
+    // Store any successful media into the session ref so it persists across API calls
+    const successfulMedia = readyMedia.filter(m => m.status === 'AVAILABLE_FOR_DIAGNOSIS' && m.url);
+    successfulMedia.forEach(m => {
+      if (!sessionMediaRef.current.some(sm => sm.url === m.url)) {
+        sessionMediaRef.current.push({ mediaType: m.mediaType, url: m.url!, name: m.name });
+      }
+    });
 
     // Show user's message in the chat
     const currentTime = new Date().toLocaleTimeString([], {
       hour: '2-digit',
       minute: '2-digit',
     });
+
+    // Extract image urls for the chat entry
+    const newImages = successfulMedia.filter(m => m.mediaType === 'image').map(m => m.url!);
+
     const userMsg: ChatEntry = {
       id: `user-manual-${Date.now()}`,
       sender: 'user',
       time: currentTime,
       kind: 'reply',
-      text: inputMsg,
+      text: inputMsg || (newImages.length > 0 ? '' : `📎 ${readyMedia.map(m => m.name).join(', ')}`),
+      mediaUrls: newImages.length > 0 ? newImages : undefined,
     };
     setMessages((prev) => [...prev, userMsg]);
     setTypedMessage('');
+    // CLEAR COMPOSER ATTACHMENTS AFTER SEND
+    setAttachedMedia([]);
 
     // If we haven't started the session yet, this input is the initial symptom!
     if (!hasStartedDiagnose) {
-      setIssueText(inputMsg);
+      setIssueText(effectiveMsg);
       setHasFailedDiagnose(false);
-      startDiagnoseSession(selectedVehicleId, inputMsg);
+      startDiagnoseSession(selectedVehicleId, effectiveMsg);
       return;
     }
 
@@ -2824,13 +3076,13 @@ export function AIDiagnosePage() {
     // Free-form chat context update after diagnosis is complete
     setIsTyping(true);
     setTypingText('WrectifAI is thinking...');
-    
+
     try {
       const historyForApi = messages.map(m => ({
         role: m.sender === 'user' ? 'user' : 'assistant',
         content: (m as any).text || (m as any).question || ''
       })).filter(m => m.content !== '');
-      
+
       historyForApi.push({ role: 'user', content: inputMsg });
 
       const reply = await chatDiagnosis({
@@ -2911,7 +3163,7 @@ export function AIDiagnosePage() {
                 const payload = {
                   vehicleId: selectedVehicleId || '00000000-0000-0000-0000-000000000002',
                   symptomText: newSymptom,
-                  media: attachedMedia.map(m => ({ mediaType: m.mediaType, base64: m.base64 })),
+                  media: sessionMediaRef.current.map(m => ({ mediaType: m.mediaType as 'image' | 'video' | 'audio', url: m.url })),
                   intakeAnswers: {
                     questions: dynamicQuestions.map(q => q.question),
                     qas: dynamicAnswers,
@@ -3073,9 +3325,26 @@ export function AIDiagnosePage() {
                                         {entry.time}
                                       </span>
                                     </div>
-                                    <p className="text-[12px] leading-6 text-[#17307a]">
-                                      {entry.text}
-                                    </p>
+                                    {entry.mediaUrls && entry.mediaUrls.length > 0 && (
+                                      <div className="mb-2 flex flex-wrap gap-2">
+                                        {entry.mediaUrls.map((url, i) => (
+                                          <div key={i} className="relative h-20 w-20 overflow-hidden rounded-md border border-[#c7d8ff]">
+                                            <Image
+                                              src={getMediaUrl(url)}
+                                              alt="Attached media"
+                                              fill
+                                              className="object-cover"
+                                              unoptimized
+                                            />
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                    {entry.text && (
+                                      <p className="text-[12px] leading-6 text-[#17307a]">
+                                        {entry.text}
+                                      </p>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -3296,8 +3565,8 @@ export function AIDiagnosePage() {
                     disabled={!selectedVehicleId || isAnalyzingResults}
                     onClick={handleToggleRecording}
                     className={`flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording
-                        ? 'text-red-500 animate-pulse'
-                        : 'hover:text-[#1a56db]'
+                      ? 'text-red-500 animate-pulse'
+                      : 'hover:text-[#1a56db]'
                       }`}
                   >
                     <Mic className="h-3.5 w-3.5 text-[#6a8cff]" />
@@ -3309,22 +3578,49 @@ export function AIDiagnosePage() {
                 {/* Media preview chips */}
                 {attachedMedia.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {attachedMedia.map((m, idx) => (
+                    {attachedMedia.map((m) => (
                       <div
-                        key={idx}
-                        className="flex items-center gap-1.5 rounded-full border border-[#d6e4ff] bg-[#eef4ff] px-2.5 py-1 text-[10px] font-medium text-[#1a56db]"
+                        key={m.id}
+                        title={m.errorMessage || m.status}
+                        className={cn(
+                          "flex items-center gap-1.5 rounded-[12px] border px-2.5 py-1 text-[10px] font-medium transition-all relative overflow-hidden",
+                          (m.status === 'UPLOAD_FAILED') ? "border-red-200 bg-red-50 text-red-600" :
+                            (m.status === 'UPLOAD_PENDING') ? "border-amber-200 bg-amber-50 text-amber-600" :
+                              "border-[#d6e4ff] bg-[#eef4ff] text-[#1a56db]"
+                        )}
                       >
-                        {m.mediaType === 'image' && <ImageIcon className="h-3 w-3 shrink-0" />}
-                        {m.mediaType === 'video' && <Video className="h-3 w-3 shrink-0" />}
-                        {m.mediaType === 'audio' && <Mic className="h-3 w-3 shrink-0" />}
-                        <span className="max-w-[120px] truncate">{m.name}</span>
+                        {m.mediaType === 'image' && m.previewUrl ? (
+                          <div className="relative h-6 w-6 shrink-0 overflow-hidden rounded-[4px] bg-black/5">
+                            <img src={m.previewUrl} alt={m.name} className="h-full w-full object-cover" />
+                          </div>
+                        ) : (
+                          <>
+                            {m.mediaType === 'image' && <ImageIcon className="h-3 w-3 shrink-0" />}
+                            {m.mediaType === 'video' && <Video className="h-3 w-3 shrink-0" />}
+                            {m.mediaType === 'audio' && <Mic className="h-3 w-3 shrink-0" />}
+                          </>
+                        )}
+                        <div className="flex flex-col">
+                          <span className="max-w-[120px] truncate leading-tight">{m.name}</span>
+                          {(m.status === 'UPLOAD_PENDING') && (
+                            <span className="text-[8px] opacity-70 animate-pulse leading-none">Uploading</span>
+                          )}
+                          {(m.status === 'UPLOAD_FAILED') && (
+                            <span className="text-[8px] opacity-70 leading-none truncate max-w-[120px]" title={m.errorMessage}>{m.errorMessage || 'Failed'}</span>
+                          )}
+                        </div>
                         <button
                           type="button"
-                          onClick={() => removeMedia(idx)}
-                          className="ml-0.5 flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full bg-[#c1d5ff] text-[#1a56db] hover:bg-red-100 hover:text-red-500 transition-colors"
+                          onClick={() => removeMedia(m.id)}
+                          className={cn(
+                            "ml-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full transition-colors",
+                            (m.status === 'UPLOAD_FAILED') ? "bg-red-100 hover:bg-red-200 text-red-600" :
+                              (m.status === 'UPLOAD_PENDING') ? "bg-amber-100 hover:bg-amber-200 text-amber-600" :
+                                "bg-[#c1d5ff] text-[#1a56db] hover:bg-red-100 hover:text-red-500"
+                          )}
                           aria-label="Remove"
                         >
-                          <X className="h-2 w-2" />
+                          <X className="h-2.5 w-2.5" />
                         </button>
                       </div>
                     ))}
@@ -3337,14 +3633,28 @@ export function AIDiagnosePage() {
                     value={typedMessage}
                     onChange={(e) => setTypedMessage(e.target.value)}
                     onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                    placeholder={selectedVehicleId ? "Type additional details or ask a question..." : "Please select a vehicle to start diagnosing..."}
+                    placeholder={
+                      !selectedVehicleId
+                        ? 'Please select a vehicle to start diagnosing...'
+                        : attachedMedia.some(m => m.status === 'UPLOAD_PENDING')
+                          ? 'Waiting for upload to finish...'
+                          : attachedMedia.some(m => m.status === 'AVAILABLE_FOR_DIAGNOSIS')
+                            ? 'Photo attached — click ➤ to start diagnosis, or add details here...'
+                            : 'Describe your vehicle issue here, or upload a photo above...'
+                    }
                     disabled={isAnalyzingResults || !selectedVehicleId}
                     className="w-full bg-transparent py-2 text-[12px] text-[#17307a] placeholder-[#a7b2ca] outline-none border-none focus:ring-0 shadow-none disabled:cursor-not-allowed"
                   />
                   <button
                     type="button"
                     onClick={handleSendMessage}
-                    disabled={isAnalyzingResults || !selectedVehicleId}
+                    disabled={
+                      isAnalyzingResults ||
+                      !selectedVehicleId ||
+                      attachedMedia.some(m => m.status === 'UPLOAD_PENDING') ||
+                      // Disabled only if BOTH no text AND no ready media
+                      (!typedMessage.trim() && !attachedMedia.some(m => m.status === 'AVAILABLE_FOR_DIAGNOSIS'))
+                    }
                     className="ml-auto flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#1a56db]/5 text-[#1a56db] hover:bg-[#1a56db] hover:text-white transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <Send className="h-4 w-4" />
@@ -3498,5 +3808,12 @@ export function AIDiagnosePage() {
     </DashboardShell>
   );
 }
+
+const getMediaUrl = (url: string) => {
+  if (url.startsWith('http')) return url;
+  const baseUrl = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
+  const hostUrl = baseUrl.replace(/\/api(\/v1)?\/?$/, '');
+  return `${hostUrl}${url.startsWith('/') ? '' : '/'}${url}`;
+};
 
 export default AIDiagnosePage;

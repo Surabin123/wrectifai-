@@ -34,7 +34,7 @@ export type DiagnosisResult = z.infer<typeof diagnosisResultSchema>;
 
 export interface MediaInput {
   mediaType: 'image' | 'video' | 'audio';
-  base64: string;
+  url: string;
 }
 
 const ALLOWED_MEDIA = {
@@ -100,45 +100,116 @@ export class DiagnosisService {
 
   static async analyzeImage(base64Image: string): Promise<string> {
     const env = getEnv();
+    // Always use Groq for vision — the vision model is configured separately
+    const apiKey = env.groqApiKey;
+    const baseURL = 'https://api.groq.com/openai/v1';
+
+    if (!apiKey) throw new Error('GROQ_API_KEY is not set — required for image analysis');
+
+    // Ensure proper data URI prefix for whichever image format was uploaded
+    let inferredMime = 'image/jpeg';
+    if (base64Image.startsWith('iVBORw')) inferredMime = 'image/png';
+    else if (base64Image.startsWith('UklGR')) inferredMime = 'image/webp';
+    else if (base64Image.startsWith('R0lGOD')) inferredMime = 'image/gif';
+
+    const imageDataUri = base64Image.startsWith('data:image/')
+      ? base64Image
+      : `data:${inferredMime};base64,${base64Image}`;
+
+    // Determine actual mime type from data URI
+    const mimeMatch = imageDataUri.match(/^data:([^;]+);base64,/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+
+    // Use raw fetch with OpenAI-compatible image_url format (required by qwen and most Groq vision models)
+    try {
+      const payload = {
+        model: env.imageLlmModel,
+        messages: [{
+          role: 'user',
+          content: [
+            {
+              type: 'text',
+              text: 'You are an expert automotive damage inspector. Analyze this vehicle image in detail. Describe: (1) what part of the vehicle is shown, (2) any visible damage, cracks, wear, corrosion, fluid leaks, warning lights, or mechanical issues, (3) the severity of any damage. Be specific and technical. If no damage is visible, say so clearly.'
+            },
+            {
+              type: 'image_url',
+              image_url: { url: imageDataUri }
+            }
+          ]
+        }],
+        max_tokens: 500,
+      };
+
+      const response = await fetch(`${baseURL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errBody = await response.text();
+        console.error('[analyzeImage] Vision API error:', response.status, errBody);
+        return '';
+      }
+
+      const data = await response.json() as any;
+      let rawText: string = data?.choices?.[0]?.message?.content ?? '';
+      // Strip <think>...</think> reasoning blocks emitted by Qwen/CoT models
+      rawText = rawText.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+      console.log('[analyzeImage] Vision analysis result:', rawText.slice(0, 200));
+      return rawText;
+    } catch (err) {
+      console.error('[analyzeImage] Failed:', err);
+      return '';
+    }
+  }
+
+  static async validateImageRelevance(base64Image: string, mimeType: string): Promise<{ isValid: boolean; reason?: string }> {
+    const env = getEnv();
     const apiKey = env.imageLlmProvider === 'groq' ? env.groqApiKey : env.openaiApiKey;
     const baseURL = env.imageLlmProvider === 'groq' ? 'https://api.groq.com/openai/v1' : undefined;
 
-    if (!apiKey) throw new Error(`API key for ${env.imageLlmProvider} is not set`);
+    if (!apiKey) {
+      return { isValid: false, reason: 'Image validation is temporarily unavailable. Please try again.' };
+    }
 
     const imageUrl = base64Image.startsWith('data:image/')
       ? base64Image
-      : `data:image/jpeg;base64,${base64Image}`;
-
-    let mimeType = 'image/jpeg';
-    const match = imageUrl.match(/^data:([^;]+);base64,/);
-    if (match) {
-      mimeType = match[1];
-    }
-
-    const { createOpenAI } = await dynamicImport('@ai-sdk/openai');
-    const { generateText } = await dynamicImport('ai');
-
-    const aiProvider = createOpenAI({ apiKey, ...(baseURL ? { baseURL } : {}), fetch });
+      : `data:image/${mimeType.split('/')[1] || 'jpeg'};base64,${base64Image}`;
 
     try {
+      const { createOpenAI } = await dynamicImport('@ai-sdk/openai');
+      const { generateText } = await dynamicImport('ai');
+
+      const aiProvider = createOpenAI({ apiKey, ...(baseURL ? { baseURL } : {}), fetch });
+
       const { text } = await generateText({
         model: aiProvider(env.imageLlmModel),
         messages: [{
           role: 'user',
           content: [
-            { type: 'text', text: 'Analyze this vehicle image. Describe any visible damage, wear, warning lights, or mechanical issues you can see.' },
+            { type: 'text', text: 'Is this an image of a vehicle, car part, dashboard, or something related to automotive diagnostics? Reply ONLY with YES or NO.' },
             {
-              type: 'file',
-              data: imageUrl,
-              mediaType: mimeType,
+              type: 'image',
+              image: imageUrl,
             },
           ],
         }],
       });
-      return text;
+
+      const isRelevant = text.trim().toUpperCase().includes('YES');
+      if (isRelevant) {
+        return { isValid: true };
+      } else {
+        return { isValid: false, reason: 'Image does not appear to be vehicle-related. Please upload a clear photo of the car or issue.' };
+      }
     } catch (err) {
-      console.error('Image analysis failed:', err);
-      return '';
+      console.error('Image validation failed (fail closed):', err);
+      // Fail closed as per strict requirements
+      return { isValid: false, reason: 'Image validation is temporarily unavailable. Please try again.' };
     }
   }
 
@@ -176,12 +247,13 @@ export class DiagnosisService {
     customerId: string,
     vehicleId: string,
     symptomText: string,
-    intakeAnswers?: { 
-      category?: string; 
-      answers?: Record<string, string>; 
-      questions?: string[]; 
+    intakeAnswers?: {
+      category?: string;
+      answers?: Record<string, string>;
+      questions?: string[];
       qas?: Record<string, string>;
-    }
+    },
+    mediaInputs: Array<{ mediaType: string; url: string }> = []
   ) {
     const env = getEnv();
 
@@ -228,6 +300,53 @@ export class DiagnosisService {
       };
     }
 
+    let finalSymptomText = symptomText;
+
+    // Evaluate media if present
+    if (mediaInputs && mediaInputs.length > 0) {
+      const validatedMedia = mediaInputs.map(input => {
+        const relativePath = input.url.replace(/^\//, '');
+        const absolutePath = path.join(process.cwd(), relativePath);
+        if (fs.existsSync(absolutePath)) {
+          return {
+            mediaType: input.mediaType,
+            buffer: fs.readFileSync(absolutePath),
+            url: input.url
+          };
+        }
+        return null;
+      }).filter(Boolean);
+
+      const [imageDescriptions, audioTranscripts] = await Promise.all([
+        Promise.all(
+          validatedMedia
+            .filter(m => m?.mediaType === 'image')
+            .map(m => DiagnosisService.analyzeImage(m!.buffer.toString('base64')))
+        ),
+        Promise.all(
+          validatedMedia
+            .filter(m => m?.mediaType === 'audio')
+            .map(m => DiagnosisService.transcribeAudio(m!.buffer.toString('base64'), 'audio/wav'))
+        ),
+      ]);
+
+      const transcriptText = audioTranscripts.filter(Boolean).join('\n');
+      if (transcriptText) {
+        finalSymptomText = `${finalSymptomText}\n\n[Transcribed Audio]: ${transcriptText}`;
+      }
+
+      const imageContext = imageDescriptions.filter(Boolean).length > 0
+        ? `\n\nImage Analysis:\n${imageDescriptions.map((d, i) => `- Image #${i + 1}: ${d}`).join('\n')}`
+        : '';
+        
+      finalSymptomText += imageContext;
+
+      // Handle video explicitly to avoid non-automotive rejection for video uploads
+      if (validatedMedia.some(m => m?.mediaType === 'video')) {
+        finalSymptomText += `\n\n[System Note]: The user uploaded a video. Direct video analysis is unavailable. You MUST acknowledge this by stating: "Video uploaded successfully, but automatic video analysis is unavailable." Then, address any text they provided and ask your follow-up question.`;
+      }
+    }
+
 
     // ── Diagnostic logging helper ──────────────────────────────────────────
     const logLlmAttempt = (attempt: number) => {
@@ -266,7 +385,7 @@ export class DiagnosisService {
       try {
         const { createOpenAI } = await dynamicImport('@ai-sdk/openai');
         const { generateText } = await dynamicImport('ai');
-        
+
         let aiProvider;
         if (env.llmProvider === 'groq') {
           if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');
@@ -277,14 +396,18 @@ export class DiagnosisService {
         }
         const modelInstance = aiProvider(env.llmModel);
 
-        // system + user message split for better structured-output compliance on Groq
+        // Determine if we have media analysis in the context — if so, do NOT trigger non-automotive rejection
+        const hasMediaAnalysis = finalSymptomText.includes('Image Analysis:') || finalSymptomText.includes('The user uploaded a video');
+
         const llmRaw = await generateText({
           model: modelInstance,
           system: `You are an expert automotive diagnostic assistant for a ${vehicle.year} ${vehicle.make} ${vehicle.model}.
 Your task is to generate EXACTLY 1 follow-up diagnostic question for the reported symptom, strictly based on the user's previous answers if any exist.
 
-CRITICAL RULE:
-- If the reported symptom is NOT related to automotive issues, vehicles, cars, or driving, you MUST REJECT it. Return EXACTLY 1 question object with the question "I only assess automotive issues. Please describe a vehicle problem." and options ["Understood", "Cancel"].
+${hasMediaAnalysis
+              ? 'Media (image or video) of the vehicle/part has been submitted and the findings or system notes are included in the symptom description below. You MUST first explicitly acknowledge this, state what you observe or need based on the media, and then ask a follow-up question directly relevant to the visible damage or issue. Combine your observation and question into the single "question" string.'
+              : `CRITICAL RULE:\n- If the reported symptom is NOT related to automotive issues, vehicles, cars, or driving, you MUST REJECT it. Return EXACTLY 1 question object with the question "I only assess automotive issues. Please describe a vehicle problem." and options ["Understood", "Cancel"].`
+            }
 
 Rules:
 - The question MUST logically follow from the context of previous answers to actively drill down into the root cause.
@@ -294,23 +417,25 @@ Rules:
 - You must output ONLY a valid raw JSON object with the following schema, and absolutely NO markdown formatting or other text:
 {
   "questions": [
-    { "question": "The strictly contextual follow-up question text", "options": ["Option 1", "Option 2", "Option 3"] }
+    { "question": "The strictly contextual follow-up observation and question text", "options": ["Option 1", "Option 2", "Option 3"] }
   ]
 }`,
           messages: [{
             role: 'user',
-            content: `Symptom reported: "${symptomText}"${previousAnswersContext}\n\nGenerate exactly 1 logical follow-up question based tightly on the previous answers. Return ONLY JSON.`,
+            content: `Symptom reported: "${finalSymptomText}"${previousAnswersContext}\n\nGenerate exactly 1 logical follow-up question based tightly on the previous answers. Return ONLY JSON.`,
           }],
         });
 
         // Parse the generated text into JSON
         let text = llmRaw.text.trim();
-        if (text.startsWith('```json')) text = text.replace(/^```json\n?/, '').replace(/\n?```$/, '');
+        // Strip reasoning tags that Qwen models produce
+        text = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
+        if (text.startsWith('```json')) text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
         llmResultObject = JSON.parse(text);
-        
+
         // Ensure it's roughly the right shape
         if (!llmResultObject?.questions || !Array.isArray(llmResultObject.questions)) {
-           throw new Error('LLM did not return a valid questions array');
+          throw new Error('LLM did not return a valid questions array');
         }
 
         console.log(`[Diagnosis:generateQuestions] LLM attempt ${attempt} SUCCESS — received ${llmResultObject.questions.length} questions`);
@@ -363,50 +488,33 @@ Rules:
     vehicleId: string,
     symptomText: string,
     mediaInputs: MediaInput[] = [],
-    intakeAnswers?: { 
-      category?: string; 
-      answers?: Record<string, string>; 
-      questions?: string[]; 
+    intakeAnswers?: {
+      category?: string;
+      answers?: Record<string, string>;
+      questions?: string[];
       qas?: Record<string, string>;
     }
   ) {
     const env = getEnv();
 
-    // Validate and decode media inputs upfront
+    // Validate and process uploaded media files
     const validatedMedia = mediaInputs.map(input => {
-      const matches = input.base64.match(/^data:([A-Za-z0-9+/.-]+);base64,(.+)$/);
-      let buffer: Buffer;
-      let mime = '';
+      // The file is already uploaded to the provided url (e.g., /uploads/diagnosis/filename.ext)
+      const relativePath = input.url.replace(/^\//, ''); // remove leading slash
+      const absolutePath = path.join(process.cwd(), relativePath);
 
-      if (matches && matches.length === 3) {
-        mime = matches[1].toLowerCase();
-        buffer = Buffer.from(matches[2], 'base64');
-      } else {
-        buffer = Buffer.from(input.base64, 'base64');
-        if (input.mediaType === 'image') mime = 'image/jpeg';
-        if (input.mediaType === 'audio') mime = 'audio/wav';
-        if (input.mediaType === 'video') mime = 'video/mp4';
+      if (!fs.existsSync(absolutePath)) {
+        throw new Error(`Uploaded file not found: ${input.url}`);
       }
 
-      const allowedMimes = ALLOWED_MEDIA[input.mediaType];
-      if (!allowedMimes) {
-        throw new Error(`Unsupported mediaType: ${input.mediaType}`);
-      }
-
-      const extension = allowedMimes[mime as keyof typeof allowedMimes];
-      if (!extension) {
-        throw new Error(`Unsupported or invalid MIME type for ${input.mediaType}: ${mime}`);
-      }
-
-      const maxSize = MAX_SIZES[input.mediaType];
-      if (buffer.length > maxSize) {
-        throw new Error(`File size exceeds the limit of ${maxSize / (1024 * 1024)}MB for ${input.mediaType}`);
-      }
+      const buffer = fs.readFileSync(absolutePath);
+      const ext = path.extname(absolutePath).replace('.', '') || 'tmp';
 
       return {
         mediaType: input.mediaType,
         buffer,
-        extension,
+        extension: ext,
+        url: input.url
       };
     });
 
@@ -437,29 +545,16 @@ Rules:
         return [];
       })
     ]);
-    
+
     const serviceHistory = historyRes.rows;
     let matchedIssues = matchedIssuesResult;
 
-    // 2. Save media files to local disk
-    const savedMediaPaths: { mediaType: 'image' | 'video' | 'audio'; url: string }[] = [];
-    const uploadsDir = path.join(process.cwd(), 'uploads');
-    
-    if (!fs.existsSync(uploadsDir)) {
-      fs.mkdirSync(uploadsDir, { recursive: true });
-    }
-
-    for (const media of validatedMedia) {
-      // ponytail: generate unique filename using stdlib
-      const filename = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}.${media.extension}`;
-      const filePath = path.join(uploadsDir, filename);
-      await fs.promises.writeFile(filePath, new Uint8Array(media.buffer));
-
-      savedMediaPaths.push({
-        mediaType: media.mediaType,
-        url: `/uploads/${filename}`,
-      });
-    }
+    // 2. We already have the media saved to disk via /upload-media.
+    // We just map the URLs.
+    const savedMediaPaths: { mediaType: 'image' | 'video' | 'audio'; url: string }[] = validatedMedia.map(m => ({
+      mediaType: m.mediaType,
+      url: m.url
+    }));
 
     let result: DiagnosisResult;
     let finalSymptomText = symptomText;
@@ -468,12 +563,12 @@ Rules:
     let llmResponseObj: any = null;
     let retries = 1;
     let lastError: any = null;
-    
+
     while (retries >= 0) {
       try {
         const { createOpenAI } = await dynamicImport('@ai-sdk/openai');
         const { generateText } = await dynamicImport('ai');
-        
+
         let aiProvider;
         if (env.llmProvider === 'groq') {
           if (!env.groqApiKey) throw new Error('GROQ_API_KEY is not defined');
@@ -484,45 +579,52 @@ Rules:
         }
         const modelInstance = aiProvider(env.llmModel);
 
-    let intakeText = '';
-    if (intakeAnswers) {
-      const qas = intakeAnswers.qas || intakeAnswers.answers;
-      if (qas && Object.keys(qas).length > 0) {
-        intakeText = `\nIntake Answers:\n${Object.entries(qas).map(([q, a]) => `- ${q}: ${a}`).join('\n')}`;
-      }
-    }
+        let intakeText = '';
+        if (intakeAnswers) {
+          const qas = intakeAnswers.qas || intakeAnswers.answers;
+          if (qas && Object.keys(qas).length > 0) {
+            intakeText = `\nIntake Answers:\n${Object.entries(qas).map(([q, a]) => `- ${q}: ${a}`).join('\n')}`;
+          }
+        }
 
-    // Process media in parallel before LLM call
-    const [imageDescriptions, audioTranscripts] = await Promise.all([
-      Promise.all(
-        mediaInputs
-          .filter(m => m.mediaType === 'image')
-          .map(m => DiagnosisService.analyzeImage(m.base64))
-      ),
-      Promise.all(
-        mediaInputs
-          .filter(m => m.mediaType === 'audio')
-          .map(m => DiagnosisService.transcribeAudio(m.base64, 'audio/wav'))
-      ),
-    ]);
+        // Process media in parallel before LLM call
+        const [imageDescriptions, audioTranscripts] = await Promise.all([
+          Promise.all(
+            validatedMedia
+              .filter(m => m.mediaType === 'image')
+              .map(m => DiagnosisService.analyzeImage(m.buffer.toString('base64')))
+          ),
+          Promise.all(
+            validatedMedia
+              .filter(m => m.mediaType === 'audio')
+              .map(m => DiagnosisService.transcribeAudio(m.buffer.toString('base64'), 'audio/wav'))
+          ),
+        ]);
 
-    // Append transcripts to symptomText so they persist to DB too
-    const transcriptText = audioTranscripts.filter(Boolean).join('\n');
-    finalSymptomText = transcriptText
-      ? `${symptomText}\n\n[Transcribed Audio]: ${transcriptText}`
-      : symptomText;
+        // Append transcripts to symptomText so they persist to DB too
+        const transcriptText = audioTranscripts.filter(Boolean).join('\n');
+        finalSymptomText = transcriptText
+          ? `${symptomText}\n\n[Transcribed Audio]: ${transcriptText}`
+          : symptomText;
 
-    // Build image context for prompt
-    const imageContext = imageDescriptions.filter(Boolean).length > 0
-      ? `\n\nImage Analysis:\n${imageDescriptions.map((d, i) => `- Image #${i + 1}: ${d}`).join('\n')}`
-      : '';
+        // Build image context for prompt
+        const imageContext = imageDescriptions.filter(Boolean).length > 0
+          ? `\n\nImage Analysis:\n${imageDescriptions.map((d, i) => `- Image #${i + 1}: ${d}`).join('\n')}`
+          : '';
 
-    // Format service history for the prompt
-    const serviceHistoryText = serviceHistory.length > 0
-      ? serviceHistory.map(h => `- [${new Date(h.service_date).toLocaleDateString()}] ${h.description} ($${h.cost || 0})`).join('\n')
-      : 'No prior service history recorded.';
+        finalSymptomText += imageContext;
 
-    const userPrompt = `Vehicle Context:
+        // Handle video explicitly in final diagnosis
+        if (validatedMedia.some(m => m.mediaType === 'video')) {
+          finalSymptomText += `\n\n[System Note]: The user uploaded a video, but direct video analysis is currently unavailable. Base your diagnosis on the user's description and answers.`;
+        }
+
+        // Format service history for the prompt
+        const serviceHistoryText = serviceHistory.length > 0
+          ? serviceHistory.map(h => `- [${new Date(h.service_date).toLocaleDateString()}] ${h.description} ($${h.cost || 0})`).join('\n')
+          : 'No prior service history recorded.';
+
+        const userPrompt = `Vehicle Context:
 - Make: ${vehicle.make}
 - Model: ${vehicle.model}
 - Year: ${vehicle.year}
@@ -537,7 +639,7 @@ ${intakeText}
 
 Please diagnose the issue.`;
 
-    const contentPayload: { type: 'text'; text: string }[] = [{ type: 'text', text: userPrompt + imageContext }];
+        const contentPayload: { type: 'text'; text: string }[] = [{ type: 'text', text: userPrompt + imageContext }];
 
 
         const systemPrompt = `You are WrectifAI, an advanced automotive diagnostic expert system.
@@ -582,6 +684,7 @@ The required JSON schema is:
   "issues": [
     {
       "name": "string",
+      "category": "string (e.g., engine, body, electrical, brake, battery, tire, hvac)",
       "confidence": "number (0-100)",
       "estimatedPriceRange": { "min": "number", "max": "number" },
       "requiredParts": ["string"]
@@ -593,7 +696,7 @@ The required JSON schema is:
   "diySteps": ["string"],
   "nextAction": "string (diy, bookGarage, buyParts)"
 }`;
-    
+
         const finalSystemPrompt = systemPrompt;
         const llmRaw = await generateText({
           model: modelInstance,
@@ -605,22 +708,38 @@ The required JSON schema is:
             },
           ],
         });
-        
+
         let text = llmRaw.text.trim();
+        // Strip reasoning tags that Qwen models produce
+        text = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
         text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
         llmResponseObj = JSON.parse(text);
-        
+
         // Rough validation
-        if (!llmResponseObj?.issues || !Array.isArray(llmResponseObj.issues) || typeof llmResponseObj.confidenceScore !== 'number') {
-           throw new Error('LLM returned invalid diagnosis structure');
+        if (!llmResponseObj?.issues || !Array.isArray(llmResponseObj.issues)) {
+          throw new Error('LLM returned invalid diagnosis structure');
         }
         
+        // Coerce confidenceScore to number
+        if (typeof llmResponseObj.confidenceScore === 'string') {
+          llmResponseObj.confidenceScore = parseInt(llmResponseObj.confidenceScore, 10);
+        }
+        if (isNaN(llmResponseObj.confidenceScore)) {
+          llmResponseObj.confidenceScore = 80;
+        }
+
         // Normalize nextAction to prevent DB constraint errors
         const allowedNextActions = ['diy', 'bookGarage', 'buyParts'];
         if (!allowedNextActions.includes(llmResponseObj.nextAction)) {
-           llmResponseObj.nextAction = 'bookGarage';
+          llmResponseObj.nextAction = 'bookGarage';
         }
-        
+        // Normalize riskLevel to lower case for DB constraint
+        if (llmResponseObj.riskLevel && typeof llmResponseObj.riskLevel === 'string') {
+          llmResponseObj.riskLevel = llmResponseObj.riskLevel.toLowerCase();
+        }
+        // Ensure diyAllowed is boolean
+        llmResponseObj.diyAllowed = llmResponseObj.diyAllowed === true || llmResponseObj.diyAllowed === 'true';
+
         break; // Success, exit retry loop
       } catch (err) {
         console.error(`LLM generation failed (retries left: ${retries}):`, err);
@@ -631,7 +750,7 @@ The required JSON schema is:
         retries--;
       }
     }
-    
+
     if (!llmResponseObj) {
       throw new Error(`Failed to generate LLM response: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
     }
@@ -679,6 +798,16 @@ The required JSON schema is:
       );
       const dbResult = resultInsertRes.rows[0];
 
+      // Add idempotently to Service History
+      // ON CONFLICT uses the unique index we created for diagnosis_request_id
+      const mainIssueTitle = result.issues && result.issues.length > 0 ? result.issues[0].name : 'AI Diagnosis';
+      await client.query(
+        `INSERT INTO vehicle_service_history (vehicle_id, service_date, description, cost, diagnosis_request_id)
+         VALUES ($1, NOW(), $2, 0, $3)
+         ON CONFLICT (diagnosis_request_id) DO NOTHING`,
+        [dbRequest.vehicle_id, `AI Diagnosis: ${mainIssueTitle}`, dbRequest.id]
+      );
+
       await client.query('COMMIT');
 
       return {
@@ -718,7 +847,7 @@ The required JSON schema is:
               dr.id as id
        FROM diagnosis_requests dr
        WHERE dr.id = $1 AND dr.customer_id = $2`;
-    
+
     const params = [diagnosisId, customerId];
     const reqRes = await query(queryStr, params);
 
@@ -765,7 +894,7 @@ The required JSON schema is:
   /**
    * Free-form chat with the AI assistant
    */
-  static async chat(customerId: string, vehicleId: string, conversationHistory: Array<{role: string, content: string}>) {
+  static async chat(customerId: string, vehicleId: string, conversationHistory: Array<{ role: string, content: string }>) {
     const vehicleRes = await query('SELECT make, model, year FROM vehicles WHERE id = $1 AND customer_id = $2', [vehicleId, customerId]);
     if (vehicleRes.rows.length === 0) {
       throw new Error('Vehicle not found or does not belong to the user');
@@ -812,8 +941,8 @@ You must act as a highly intelligent mechanic. Crucially, your follow-up questio
   ): DiagnosisResult {
     // ponytail: compile regex once with word boundaries to prevent false positives (like "absent" matching "abs")
     const safetyRegex = /\b(brake|steering|airbag|suspension|high-voltage|hybrid_battery|hybrid battery|stabilizer|abs)\b/i;
-    let hasSafetyCriticalIssue = result.issues.some(issue => safetyRegex.test(issue.name)) || 
-                                 safetyRegex.test(symptomText);
+    let hasSafetyCriticalIssue = result.issues.some(issue => safetyRegex.test(issue.name)) ||
+      safetyRegex.test(symptomText);
 
     if (matchedIssues.some(issue => issue.safety_critical)) {
       hasSafetyCriticalIssue = true;

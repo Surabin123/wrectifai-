@@ -43,6 +43,7 @@ import { createBooking } from '@/lib/bookings-api';
 import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
 import { formatCurrency } from '@/lib/currency';
+import { useAuth } from '@/lib/auth-context';
 
 interface GarageDetailPageProps {
   garage: Garage;
@@ -231,20 +232,104 @@ export function GarageDetailPage({
 
   const [reviews, setReviews] = useState<any[]>([]);
   const [reviewStats, setReviewStats] = useState<any>(null);
+  const { user } = useAuth();
+  
+  // New Review States
+  const [newReviewText, setNewReviewText] = useState('');
+  const [newReviewRating, setNewReviewRating] = useState(5);
+  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
+
+  // New Reply States
+  const [replyingToReviewId, setReplyingToReviewId] = useState<string | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [isSubmittingReply, setIsSubmittingReply] = useState(false);
+
+  const fetchReviews = async () => {
+    try {
+      const url = user?.id ? `/garages/${initialGarage.id}/reviews?userId=${user.id}` : `/garages/${initialGarage.id}/reviews`;
+      const res: any = await apiClient.get(url);
+      if (res && res.reviews) setReviews(res.reviews);
+      if (res && res.stats) setReviewStats(res.stats);
+    } catch (err) {
+      console.error('Failed to fetch reviews', err);
+    }
+  };
 
   useEffect(() => {
     if (!initialGarage.id) return;
-    let active = true;
-    apiClient.get(`/garages/${initialGarage.id}/reviews`)
-      .then((res: any) => {
-        if (active && res) {
-          if (res.reviews) setReviews(res.reviews);
-          if (res.stats) setReviewStats(res.stats);
-        }
-      })
-      .catch(console.error);
-    return () => { active = false; };
-  }, [initialGarage.id]);
+    fetchReviews();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialGarage.id, user?.id]);
+
+  const handleSubmitReview = async () => {
+    if (!newReviewText.trim()) return;
+    setIsSubmittingReview(true);
+    try {
+      await apiClient.post('/reviews', {
+        garageId: initialGarage.id,
+        rating: newReviewRating,
+        comment: newReviewText,
+      });
+      setNewReviewText('');
+      setNewReviewRating(5);
+      await fetchReviews();
+    } catch (err) {
+      console.error('Failed to submit review', err);
+    } finally {
+      setIsSubmittingReview(false);
+    }
+  };
+
+  const handleVote = async (reviewId: string, currentVote: 'like' | 'unlike' | 'none') => {
+    if (!user) return alert('Please login to vote');
+    try {
+      // Optimistic Update
+      setReviews(prev => prev.map(r => {
+        if (r.id !== reviewId) return r;
+        let newLikes = r.likes;
+        let newUnlikes = r.unlikes;
+        
+        if (r.isLikedByUser) newLikes = Math.max(0, newLikes - 1);
+        if (r.isUnlikedByUser) newUnlikes = Math.max(0, newUnlikes - 1);
+        
+        if (currentVote === 'like') newLikes += 1;
+        if (currentVote === 'unlike') newUnlikes += 1;
+        
+        return {
+          ...r,
+          likes: newLikes,
+          unlikes: newUnlikes,
+          isLikedByUser: currentVote === 'like',
+          isUnlikedByUser: currentVote === 'unlike'
+        };
+      }));
+      
+      await apiClient.post(`/reviews/${reviewId}/vote`, { voteType: currentVote });
+      // Fetch latest actual state
+      await fetchReviews();
+    } catch (err) {
+      console.error('Failed to vote', err);
+      await fetchReviews(); // Revert on failure
+    }
+  };
+
+  const handleSubmitReply = async (reviewId: string) => {
+    if (!replyText.trim()) return;
+    setIsSubmittingReply(true);
+    try {
+      await apiClient.post(`/reviews/${reviewId}/reply`, {
+        text: replyText,
+        garageId: initialGarage.id
+      });
+      setReplyText('');
+      setReplyingToReviewId(null);
+      await fetchReviews();
+    } catch (err) {
+      console.error('Failed to submit reply', err);
+    } finally {
+      setIsSubmittingReply(false);
+    }
+  };
 
   const handleBookAppointment = async () => {
     setIsBookingModalOpen(true);
@@ -782,47 +867,130 @@ export function GarageDetailPage({
                             ))}
                           </div>
 
-                          <p className="mt-2.5 text-[11px] font-medium leading-[1.5] text-[#536891]">
-                            &quot;{reviews[reviewPage]?.text}&quot;
-                          </p>
+                            <p className="mt-2.5 text-[11px] font-medium leading-[1.5] text-[#536891]">
+                              &quot;{reviews[reviewPage]?.text}&quot;
+                            </p>
 
-                          <div className="mt-3 flex items-center gap-4 text-[10px] font-semibold text-[#8a99ad]">
-                            <button className="flex items-center gap-1 hover:text-[#1a56db] transition-colors">
-                              <Heart className="h-3.5 w-3.5" />
-                              <span>{reviews[reviewPage]?.likes || 0}</span>
-                            </button>
-                            {/* <button className="flex items-center gap-1 hover:text-[#e53e3e] transition-colors">
-                              <ThumbsDown className="h-3.5 w-3.5" />
-                              <span>{reviews[reviewPage]?.unlikes || 0}</span>
-                            </button> */}
-                            <button className="flex items-center gap-1 hover:text-[#1a56db] transition-colors">
-                              <MessageSquare className="h-3.5 w-3.5" />
-                              <span>{reviews[reviewPage]?.replies || 0} replies</span>
-                            </button>
+                            <div className="mt-3 flex flex-col gap-3">
+                              {/* Replies */}
+                              {reviews[reviewPage]?.replies?.length > 0 && (
+                                <div className="rounded-lg bg-[#f8fafc] p-3 border border-[#e2eefc]">
+                                  {reviews[reviewPage].replies.map((reply: any) => (
+                                    <div key={reply.id} className="mb-2 last:mb-0">
+                                      <div className="flex items-center gap-1.5 mb-1">
+                                        <span className="text-[10px] font-bold text-[#17307a]">
+                                          {reply.authorName}
+                                        </span>
+                                        {reply.isGarageOwner && (
+                                          <span className="text-[9px] font-medium text-[#1a56db] bg-[#eef4ff] px-1.5 rounded-full">
+                                            Owner
+                                          </span>
+                                        )}
+                                      </div>
+                                      <p className="text-[10px] text-[#536891]">{reply.text}</p>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
+                              {/* Interaction Buttons */}
+                              <div className="flex items-center gap-4 text-[10px] font-semibold text-[#8a99ad]">
+                                <button 
+                                  onClick={() => handleVote(reviews[reviewPage].id, reviews[reviewPage].isLikedByUser ? 'none' : 'like')}
+                                  className={cn(
+                                    "flex items-center gap-1 transition-colors",
+                                    reviews[reviewPage]?.isLikedByUser ? "text-[#1a56db]" : "hover:text-[#1a56db]"
+                                  )}
+                                >
+                                  <Heart className={cn("h-3.5 w-3.5", reviews[reviewPage]?.isLikedByUser && "fill-[#1a56db]")} />
+                                  <span>{reviews[reviewPage]?.likes || 0}</span>
+                                </button>
+                                <button 
+                                  onClick={() => handleVote(reviews[reviewPage].id, reviews[reviewPage].isUnlikedByUser ? 'none' : 'unlike')}
+                                  className={cn(
+                                    "flex items-center gap-1 transition-colors",
+                                    reviews[reviewPage]?.isUnlikedByUser ? "text-[#e53e3e]" : "hover:text-[#e53e3e]"
+                                  )}
+                                >
+                                  <AlertCircle className="h-3.5 w-3.5" />
+                                  <span>{reviews[reviewPage]?.unlikes || 0}</span>
+                                </button>
+                                <button 
+                                  onClick={() => setReplyingToReviewId(replyingToReviewId === reviews[reviewPage].id ? null : reviews[reviewPage].id)}
+                                  className="flex items-center gap-1 hover:text-[#1a56db] transition-colors"
+                                >
+                                  <MessageSquare className="h-3.5 w-3.5" />
+                                  <span>Reply ({reviews[reviewPage]?.repliesCount || 0})</span>
+                                </button>
+                              </div>
+                              
+                              {/* Reply Input */}
+                              {replyingToReviewId === reviews[reviewPage].id && (
+                                <div className="mt-2 flex gap-2">
+                                  <input 
+                                    type="text" 
+                                    className="flex-1 text-[11px] rounded-lg border border-[#e2eefc] px-3 py-1.5 outline-none focus:border-[#1a56db]"
+                                    placeholder="Write a reply..."
+                                    value={replyText}
+                                    onChange={(e) => setReplyText(e.target.value)}
+                                  />
+                                  <Button size="sm" onClick={() => handleSubmitReply(reviews[reviewPage].id)} disabled={isSubmittingReply}>
+                                    Send
+                                  </Button>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex justify-center gap-1.5 pt-3">
+                            {reviews.map((_, i) => (
+                              <button
+                                key={i}
+                                onClick={() => setReviewPage(i)}
+                                className={cn(
+                                  'h-2 w-2 rounded-full transition-colors',
+                                  i === reviewPage ? 'bg-[#1a56db]' : 'bg-[#cbd4e6]'
+                                )}
+                              />
+                            ))}
                           </div>
                         </div>
-
-                        <div className="flex justify-center gap-1.5 pt-3">
-                          {reviews.map((_, i) => (
-                            <button
-                              key={i}
-                              onClick={() => setReviewPage(i)}
-                              className={cn(
-                                'h-2 w-2 rounded-full transition-colors',
-                                i === reviewPage ? 'bg-[#1a56db]' : 'bg-[#cbd4e6]'
-                              )}
-                            />
-                          ))}
+                      ) : (
+                        <div className="relative flex min-h-[160px] flex-col justify-center items-center rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)]">
+                          <span className="text-[12px] font-semibold text-[#8a99ad]">No reviews yet</span>
                         </div>
-                      </div>
-                    ) : (
-                      <div className="relative flex min-h-[160px] flex-col justify-center items-center rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)]">
-                        <span className="text-[12px] font-semibold text-[#8a99ad]">No reviews yet</span>
-                      </div>
-                    )}
-                  </div>
-                </section>
-              </>
+                      )}
+
+                      {/* Write Review Section */}
+                      {user && (user.roles?.includes('user') || user.roles?.includes('admin')) && (
+                        <div className="mt-6 rounded-[20px] border border-[#e2eefc] bg-[#f8fafc] p-5">
+                          <h4 className="text-[13px] font-bold text-[#17307a] mb-3">Write a Review</h4>
+                          <div className="flex items-center gap-2 mb-3">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button key={star} onClick={() => setNewReviewRating(star)}>
+                                <Star className={cn("h-5 w-5", star <= newReviewRating ? "fill-[#ff9f1a] text-[#ff9f1a]" : "text-[#cbd4e6]")} />
+                              </button>
+                            ))}
+                          </div>
+                          <textarea
+                            className="w-full rounded-xl border border-[#e2eefc] p-3 text-[12px] outline-none focus:border-[#1a56db] mb-3"
+                            rows={3}
+                            placeholder="Share your experience..."
+                            value={newReviewText}
+                            onChange={(e) => setNewReviewText(e.target.value)}
+                          />
+                          <Button 
+                            className="w-full md:w-auto"
+                            onClick={handleSubmitReview}
+                            disabled={!newReviewText.trim() || isSubmittingReview}
+                          >
+                            Submit Review
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                  </section>
+                </>
             )}
           </div>
 

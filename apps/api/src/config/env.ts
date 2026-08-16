@@ -47,7 +47,7 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     groqApiKey: anyKey,
     openaiApiKey: anyKey,
     imageLlmProvider: envSource.IMAGE_LLM_PROVIDER ?? provider,
-    imageLlmModel: envSource.IMAGE_LLM_MODEL ?? 'meta-llama/llama-4-scout-17b-16e-instruct',
+    imageLlmModel: envSource.IMAGE_LLM_MODEL ?? 'qwen/qwen3.6-27b',
     audioProvider: envSource.AUDIO_PROVIDER ?? provider,
     audioModel: envSource.AUDIO_MODEL ?? 'whisper-large-v3-turbo',
   };

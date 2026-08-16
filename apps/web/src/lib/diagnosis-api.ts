@@ -40,7 +40,7 @@ export interface DiagnosisResponse {
 export interface SubmitDiagnosisPayload {
   vehicleId: string;
   symptomText: string;
-  media?: Array<{ mediaType: 'image' | 'video' | 'audio'; base64: string }>;
+  media?: Array<{ mediaType: 'image' | 'video' | 'audio'; base64?: string; url?: string }>;
   intakeAnswers?: {
     category?: string | null;
     answers?: Record<string, string>;
@@ -55,6 +55,14 @@ export async function submitDiagnosis(payload: SubmitDiagnosisPayload): Promise<
   // handle 401 token-refresh automatically, and so the caller can show
   // the correct error message (e.g. session expired vs network error).
   return apiClient.post('/diagnosis', payload);
+}
+export async function uploadMedia(file: File): Promise<{ url: string, mimetype: string, size: number, isValid?: boolean, reason?: string }> {
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  // Use apiClient which handles auth tokens automatically
+  // It handles FormData implicitly by NOT setting Content-Type
+  return apiClient.post('/diagnosis/upload-media', formData);
 }
 
 export async function chatDiagnosis(payload: { vehicleId: string, conversationHistory: { role: string, content: string }[] }): Promise<any> {
