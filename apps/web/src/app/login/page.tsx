@@ -180,7 +180,7 @@ export default function LoginPage() {
         })
         .catch((error) => {
           // SILENT FALLBACK FOR DEMO: If billing or region fails, seamlessly mock it
-          if (error.code === 'auth/billing-not-enabled' || error.code === 'auth/operation-not-allowed') {
+          if (error.code === 'auth/billing-not-enabled' || error.code === 'auth/operation-not-allowed' || error.code === 'auth/internal-error') {
             setTimeout(() => {
               setIsOtpSent(true);
               setIsSubmitting(false);

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
 import { query } from '../../config/database';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export const quotesRouter = Router();
 
@@ -254,8 +255,21 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
 
     await query(`UPDATE quote_requests SET status = 'quoted' WHERE id = $1`, [req.params.quoteRequestId]);
 
+    // Fetch customerId for notification
+    const requestRes = await query('SELECT customer_id FROM quote_requests WHERE id = $1', [req.params.quoteRequestId]);
+    const customerId = requestRes.rows[0]?.customer_id;
+    if (customerId) {
+      await NotificationsService.createNotification({
+        userId: customerId,
+        type: 'Quote',
+        title: 'New Quote Received',
+        description: `A garage has sent a quote of $${amount} for your request.`
+      }).catch(err => console.error('Failed to create notification', err));
+    }
+
     return success(res, { success: true, quoteId: result.rows[0].id }, 201);
   } catch (err) {
+    console.error('Error creating quote:', err);
     return error(res, 'Database error', 'DATABASE_ERROR', 500);
   }
 });
@@ -294,6 +308,13 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
           [customerId, vehicleId, diagnosisRequestId || null, issueSummary, preferredDate || null, row.id]
         );
         createdRequests.push(result.rows[0]);
+        
+        await NotificationsService.createNotification({
+          garageId: row.id,
+          type: 'Quote',
+          title: 'New Quote Request',
+          description: `A customer requested a quote for: ${issueSummary}`
+        }).catch(err => console.error('Failed to create notification', err));
       }
       return success(res, createdRequests[0], 201);
     } else {
@@ -303,6 +324,14 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
          RETURNING id, customer_id as "customerId", vehicle_id as "vehicleId", diagnosis_request_id as "diagnosisRequestId", issue_summary as "issueSummary", preferred_date as "preferredDate", status, created_at as "createdAt"`,
         [customerId, vehicleId, diagnosisRequestId || null, issueSummary, preferredDate || null, garageId]
       );
+      
+      await NotificationsService.createNotification({
+        garageId: garageId,
+        type: 'Quote',
+        title: 'New Quote Request',
+        description: `A customer requested a quote for: ${issueSummary}`
+      }).catch(err => console.error('Failed to create notification', err));
+
       return success(res, result.rows[0], 201);
     }
   } catch (err: any) {

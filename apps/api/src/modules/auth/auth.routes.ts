@@ -13,6 +13,7 @@ import { query } from '../../config/database';
 import * as bcrypt from 'bcryptjs';
 import { authenticate, requireRole } from '../../middleware/auth';
 import { CookieOptions, Response } from 'express';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export const authRouter = Router();
 
@@ -230,6 +231,15 @@ authRouter.post('/register', async (req, res, next) => {
     await storeRefreshToken(user.id, refreshToken);
 
     setTokensInCookies(res, accessToken, refreshToken);
+
+    if (isNew && roles.includes('customer')) {
+      await NotificationsService.createNotification({
+        isAdmin: true,
+        type: 'System',
+        title: 'New Customer Registered',
+        description: `Customer ${user.name} has registered successfully.`
+      }).catch(err => console.error('Failed to create notification', err));
+    }
 
     return success(res, {
       user: {

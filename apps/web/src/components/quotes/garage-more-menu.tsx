@@ -10,6 +10,7 @@ import {
   Star,
   Store,
   Trash2,
+  Heart,
 } from 'lucide-react';
 
 type GarageMoreMenuProps = {
@@ -144,19 +145,11 @@ export function GarageMoreMenu({
             </button>
             <button
               type="button"
-              onClick={() => runAndClose(onCompareDetails)}
-              className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left text-[12.5px] font-semibold text-[#17307a] transition-colors hover:bg-[#f5f8ff]"
-            >
-              <Scale className="h-4 w-4 shrink-0 text-[#7a8bb8]" />
-              <span>Compare Details</span>
-            </button>
-            <button
-              type="button"
               onClick={() => runAndClose(onSaveGarage)}
               className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-2 text-left text-[12.5px] font-semibold text-[#17307a] transition-colors hover:bg-[#f5f8ff]"
             >
-              <Star className="h-4 w-4 shrink-0 text-[#7a8bb8]" />
-              <span>Save Garage</span>
+              <Heart className="h-4 w-4 shrink-0 text-[#7a8bb8]" />
+              <span>Save to Wishlist</span>
             </button>
             <button
               type="button"

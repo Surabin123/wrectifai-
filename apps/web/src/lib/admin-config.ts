@@ -31,6 +31,7 @@ export const adminNavItems: AdminNavItem[] = [
   { label: 'Bookings', icon: FileSpreadsheet, href: '/admin/bookings', slug: 'bookings' },
   { label: 'Quotes', icon: FileSpreadsheet, href: '/admin/quotes', slug: 'quotes' },
 
+  { label: 'Reviews', icon: FileSpreadsheet, href: '/admin/reviews', slug: 'reviews' },
   { label: 'Notifications', icon: Bell, href: '/admin/notifications', slug: 'notifications' },
 
   { label: 'Profile', icon: UserRound, href: '/admin/profile', slug: 'profile' },

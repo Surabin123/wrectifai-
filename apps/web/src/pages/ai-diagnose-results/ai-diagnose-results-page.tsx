@@ -217,7 +217,7 @@ export function AIDiagnoseResultsPage() {
               <div className="mt-4 divide-y divide-[#edf1fb]">
                 {resultIssues.map((issue, index) => {
                   const checked = selectedIssues.includes(issue.id);
-                  const finalImageSrc = getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year);
+                  const finalImageSrc = issue.imageSrc || '/assets/Engine_oil.png';
                   return (
                     <div key={issue.id} className="grid gap-4 py-5 md:grid-cols-[30px_70px_minmax(0,1fr)_90px_105px] md:items-center">
                       <div className="flex items-start justify-center pt-1">
@@ -246,7 +246,7 @@ export function AIDiagnoseResultsPage() {
                           width={72}
                           height={72}
                           className="h-[64px] w-[64px] object-contain"
-                          unoptimized={finalImageSrc.includes('/api/v1/vehicles/image')}
+                          unoptimized={true}
                         />
                       </div>
                       <div className="min-w-0">

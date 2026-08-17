@@ -100,6 +100,7 @@ import { cn } from '@/utils/cn';
 import { VehicleSelector } from '@/components/common/vehicle-selector';
 import { submitDiagnosis, chatDiagnosis, syncChatHistory, uploadMedia, type DiagnosisResponse } from '../../lib/diagnosis-api';
 import { getVehicleImage } from '@/lib/vehicle-image-catalog';
+import { formatCurrency } from '@/lib/currency';
 
 function getBadgeForIssue(name: string, overallRisk?: string, index?: number) {
   if (index === 0 && overallRisk) {
@@ -120,7 +121,18 @@ function getBadgeForIssue(name: string, overallRisk?: string, index?: number) {
 function mapLlmIssueToDiagnosticResult(llmIssue: LlmIssue, index: number, overallRisk?: string, diySteps?: string[], selectedVehicle?: Vehicle | null): DiagnosticIssueResult {
   const match = llmIssue.confidence;
   const priceRange = llmIssue.estimatedPriceRange;
-  const estimatedCost = `$${priceRange.min} - $${priceRange.max}`;
+  
+  let userPhone = '';
+  try {
+    const userStr = typeof window !== 'undefined' ? localStorage.getItem('user_profile') : null;
+    const user = userStr ? JSON.parse(userStr) : null;
+    userPhone = user?.phone || '';
+  } catch(e) {}
+  
+  const minCost = formatCurrency(priceRange.min, userPhone);
+  const maxCost = formatCurrency(priceRange.max, userPhone);
+  const estimatedCost = `${minCost} - ${maxCost}`;
+  
   const id = `llm_issue_${index}`;
   const title = llmIssue.name;
   const category = llmIssue.category;
@@ -367,135 +379,20 @@ function getIssueVisualMeta(issue: DiagnosticIssueResult) {
   const issueId = issue.id.toLowerCase();
   const issueTitle = issue.title.toLowerCase();
   const category = (issue.category || '').toLowerCase();
-
-  // Engine Noise / Fuel / Combustion
-  if (
-    category.includes('engine') ||
-    issueId.includes('engine') ||
-    issueTitle.includes('engine') ||
-    issueId.includes('oil') ||
-    issueId.includes('timing') ||
-    issueId.includes('fuel')
-  ) {
-    return {
-      icon: Flame,
-      accentClass: 'text-[#eab308]',
-      fillClass: 'bg-[#fefce8]',
-    };
-  }
-
-  // AC System / Cooling / HVAC
-  if (
-    category.includes('hvac') ||
-    category.includes('cooling') ||
-    issueId.includes('refrigerant') ||
-    issueTitle.includes('refrigerant') ||
-    issueId.includes('ac_') ||
-    issueTitle.includes('ac ')
-  ) {
-    return {
-      icon: Snowflake,
-      accentClass: 'text-[#1a56db]',
-      fillClass: 'bg-[#f4f8ff]',
-    };
-  }
-
-  // Air / Filters / Blowers
-  if (
-    category.includes('filter') ||
-    category.includes('air') ||
-    issueId.includes('blower') ||
-    issueId.includes('filter') ||
-    issueTitle.includes('blower') ||
-    issueTitle.includes('filter') ||
-    issueId.includes('intake')
-  ) {
-    return {
-      icon: Wind,
-      accentClass: 'text-[#f59a23]',
-      fillClass: 'bg-[#fff7ed]',
-    };
-  }
-
-  // Brakes
-  if (
-    category.includes('brake') ||
-    issueId.includes('brake') ||
-    issueTitle.includes('brake') ||
-    issueId.includes('rotor') ||
-    issueId.includes('pad') ||
-    issueId.includes('caliper')
-  ) {
-    return {
-      icon: CircleStop,
-      accentClass: 'text-[#ea3838]',
-      fillClass: 'bg-[#fef1f1]',
-    };
-  }
-
-  // Battery / Starting / Electrical
-  if (
-    category.includes('electrical') ||
-    category.includes('battery') ||
-    issueId.includes('start') ||
-    issueTitle.includes('start') ||
-    issueId.includes('battery') ||
-    issueId.includes('ignition') ||
-    issueId.includes('motor')
-  ) {
-    return {
-      icon: BatteryWarning,
-      accentClass: 'text-[#8b5cf6]',
-      fillClass: 'bg-[#f5f3ff]',
-    };
-  }
-
-  // Low Pickup / Performance
-  if (
-    category.includes('performance') ||
-    issueId.includes('pickup') ||
-    issueTitle.includes('pickup') ||
-    issueId.includes('performance')
-  ) {
-    return {
-      icon: Gauge,
-      accentClass: 'text-[#0ea5e9]',
-      fillClass: 'bg-[#f0f9ff]',
-    };
-  }
-
-  // Steering / Suspension / Wheels / Tire
-  if (
-    category.includes('suspension') ||
-    category.includes('steering') ||
-    category.includes('tire') ||
-    issueId.includes('steering') ||
-    issueTitle.includes('steering') ||
-    issueId.includes('suspension') ||
-    issueId.includes('wheel') ||
-    issueId.includes('alignment')
-  ) {
-    return {
-      icon: Activity,
-      accentClass: 'text-[#10b981]',
-      fillClass: 'bg-[#ecfdf5]',
-    };
-  }
   
-  // Body
-  if (category.includes('body') || issueTitle.includes('body') || issueTitle.includes('dent') || issueTitle.includes('scratch')) {
-    return {
-      icon: Settings,
-      accentClass: 'text-[#64748b]',
-      fillClass: 'bg-[#f8fafc]',
-    };
-  }
+  let emoji = '⚙️';
+  if (issueTitle.includes('battery') || issueTitle.includes('electrical')) emoji = '🔋';
+  else if (issueTitle.includes('brake') || issueId.includes('brake')) emoji = '🛑';
+  else if (issueTitle.includes('engine') || issueTitle.includes('motor')) emoji = '🚙';
+  else if (issueTitle.includes('oil') || issueTitle.includes('fluid') || issueTitle.includes('leak')) emoji = '💧';
+  else if (issueTitle.includes('tire') || issueTitle.includes('wheel') || issueTitle.includes('alignment') || category.includes('suspension')) emoji = '🛞';
+  else if (issueTitle.includes('ac ') || issueTitle.includes('a/c') || issueTitle.includes('coolant') || category.includes('cooling')) emoji = '❄️';
+  else if (issueTitle.includes('transmission') || issueTitle.includes('gear')) emoji = '🕹️';
+  else if (issueTitle.includes('scratch') || issueTitle.includes('dent') || issueTitle.includes('body')) emoji = '💥';
+  else if (issueTitle.includes('rust') || issueTitle.includes('corrosion')) emoji = '🟤';
+  else if (issueTitle.includes('exhaust') || issueTitle.includes('smoke')) emoji = '💨';
 
-  return {
-    icon: Settings,
-    accentClass: 'text-[#238453]',
-    fillClass: 'bg-[#f0fdf4]',
-  };
+  return { emoji, fillClass: 'bg-[#f8fafc]' };
 }
 
 function IssueVisual({
@@ -507,7 +404,7 @@ function IssueVisual({
   size?: number;
   vehicleImageSrc?: string;
 }) {
-  const { icon: Icon, accentClass, fillClass } = getIssueVisualMeta(issue);
+  const { emoji, fillClass } = getIssueVisualMeta(issue);
 
   return (
     <div
@@ -515,12 +412,9 @@ function IssueVisual({
         'flex items-center justify-center overflow-hidden rounded-[16px] border border-[#e8eefc] shadow-[0_8px_18px_rgba(20,44,112,0.04)]',
         fillClass
       )}
-      style={{ width: size, height: size }}
+      style={{ width: size, height: size, fontSize: size * 0.5 }}
     >
-      <Icon
-        className={cn('h-[52%] w-[52%]', accentClass)}
-        strokeWidth={2.2}
-      />
+      <span>{emoji}</span>
     </div>
   );
 }

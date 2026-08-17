@@ -9,65 +9,80 @@ import { cn } from '@/lib/utils';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
 
-const iconMap: Record<string, any> = { Calendar, Wallet, FileText, Bell, CheckCircle2, Clock, ShieldAlert };
+// Removed mock initialNotifications
+import { apiClient } from '@/lib/api-client';
 
-export const initialNotifications: any[] = [
-  { id: 1, type: 'Booking', title: 'Booking Confirmed', desc: 'Your service appointment at Metro Auto Bay is confirmed for Tomorrow, 10:00 AM.', time: '10 mins ago', read: false, icon: 'Calendar', color: 'text-blue-500', bg: 'bg-blue-50', audience: 'All' },
-  { id: 2, type: 'Payment', title: 'Payment Successful', desc: 'Payment of $120.00 for Oil Change has been processed successfully.', time: '2 hours ago', read: false, icon: 'Wallet', color: 'text-green-500', bg: 'bg-green-50', audience: 'All' },
-  { id: 3, type: 'Quote', title: 'New Quote Received', desc: 'SpeedCare Garage has sent a quote for Brake Pad Replacement.', time: '5 hours ago', read: true, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'All' },
-  { id: 4, type: 'System', title: 'Welcome to WrectifAI', desc: 'Complete your profile to get personalized service recommendations.', time: '1 day ago', read: true, icon: 'Bell', color: 'text-amber-500', bg: 'bg-amber-50', audience: 'All' },
-  { id: 5, type: 'Booking', title: 'Service Completed', desc: 'Your vehicle is ready for pickup from Tyre Hub.', time: '2 days ago', read: true, icon: 'CheckCircle2', color: 'text-green-500', bg: 'bg-green-50', audience: 'All' },
-  { id: 6, type: 'Reminder', title: 'Upcoming Service', desc: 'Your AC Service is due in 3 days. Book now to avoid rush.', time: '3 days ago', read: true, icon: 'Clock', color: 'text-orange-500', bg: 'bg-orange-50', audience: 'All' },
-  { id: 7, type: 'System', title: 'Security Alert', desc: 'New login detected from Chrome on Windows.', time: '1 week ago', read: true, icon: 'ShieldAlert', color: 'text-red-500', bg: 'bg-red-50', audience: 'All' },
-];
+const timeAgo = (date: Date) => {
+  const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+  if (seconds < 60) return 'Just now';
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+};
 
 export function Notifications() {
   const pathname = usePathname();
   const { user } = useAuth();
 
-  const [notifications, setNotificationsState] = useState(initialNotifications);
+  const [notifications, setNotifications] = useState<any[]>([]);
   const [filter, setFilter] = useState('All');
-  
 
-
-  const setNotifications = (newNotifications: any[]) => {
-    setNotificationsState(newNotifications);
-    localStorage.setItem('wrectifai_notifications', JSON.stringify(newNotifications));
-    window.dispatchEvent(new Event('notifications-updated'));
+  const fetchNotifications = async () => {
+    try {
+      let url = '/notifications';
+      if (user?.roles?.includes('garage') && (user as any)?.garageId) {
+        url += `?garageId=${(user as any).garageId}`;
+      }
+      const data = await apiClient<{ data: any[] }>(url);
+      if (data?.data) {
+        setNotifications(data.data);
+      }
+    } catch (err) {
+      console.error('Failed to fetch notifications', err);
+    }
   };
 
   useEffect(() => {
-    const stored = localStorage.getItem('wrectifai_notifications');
-    if (stored) {
-      setNotificationsState(JSON.parse(stored));
-    } else {
-      localStorage.setItem('wrectifai_notifications', JSON.stringify(initialNotifications));
-      setNotificationsState(initialNotifications);
-    }
-  }, []);
+    if (!user) return;
+    
+    fetchNotifications();
+    const interval = setInterval(() => {
+      fetchNotifications();
+    }, 15000); // Poll every 15s for "real-time"
 
-  const isAdmin = user?.roles?.includes('admin');
-  const isGarage = user?.roles?.includes('garage');
-  const audienceRole = isAdmin ? 'Admin' : isGarage ? 'Garage' : 'Customer';
+    return () => clearInterval(interval);
+  }, [user]);
 
-  const audienceFiltered = notifications.filter(n => 
-    n.audience === 'All' || n.audience === audienceRole
-  );
-
-  const filteredNotifications = audienceFiltered.filter(n => filter === 'All' || n.type === filter);
+  const filteredNotifications = notifications.filter(n => filter === 'All' || n.type === filter);
   
-  const unreadCount = audienceFiltered.filter(n => !n.read).length;
+  const unreadCount = notifications.filter(n => !n.is_read).length;
 
-  const markAllAsRead = () => {
-    setNotifications(notifications.map(n => ({ ...n, read: true })));
+  const markAllAsRead = async () => {
+    try {
+      let url = '/notifications/read-all';
+      if (user?.roles?.includes('garage') && (user as any)?.garageId) {
+        url += `?garageId=${(user as any).garageId}`;
+      }
+      await apiClient(url, { method: 'POST' });
+      setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+    } catch (err) {
+      console.error('Failed to mark all as read', err);
+    }
   };
 
-  const deleteNotification = (id: number) => {
-    setNotifications(notifications.filter(n => n.id !== id));
-  };
+  const markAsRead = async (id: string) => {
+    const notification = notifications.find(n => n.id === id);
+    if (notification?.is_read) return;
 
-  const markAsRead = (id: number) => {
-    setNotifications(notifications.map(n => n.id === id ? { ...n, read: true } : n));
+    try {
+      await apiClient(`/notifications/${id}/read`, { method: 'PATCH' });
+      setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+    } catch (err) {
+      console.error('Failed to mark as read', err);
+    }
   };
 
   return (
@@ -85,23 +100,6 @@ export function Notifications() {
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2">
-          {['All', 'Booking', 'Payment', 'Quote', 'System'].map(f => (
-            <button
-              key={f}
-              onClick={() => setFilter(f)}
-              className={cn(
-                "px-4 py-1.5 rounded-full text-xs font-semibold transition-colors",
-                filter === f 
-                  ? "bg-slate-800 text-white" 
-                  : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50"
-              )}
-            >
-              {f}
-            </button>
-          ))}
-        </div>
-
         <Card className="p-0 overflow-hidden border-slate-100 shadow-sm rounded-[16px]">
           {filteredNotifications.length === 0 ? (
             <div className="py-12 text-center text-slate-500">
@@ -112,37 +110,28 @@ export function Notifications() {
               {filteredNotifications.map(notification => (
                 <div 
                   key={notification.id} 
-                  className={cn("p-4 flex gap-4 transition-colors group relative", !notification.read ? "bg-blue-50/30" : "hover:bg-slate-50")}
+                  className={cn("p-4 flex gap-4 transition-colors group relative", !notification.is_read ? "bg-blue-50/30" : "hover:bg-slate-50")}
                   onClick={() => markAsRead(notification.id)}
                 >
-                  <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-1", notification.bg, notification.color)}>
-                    {(() => {
-                      const Icon = iconMap[notification.icon as string] || Bell;
-                      return <Icon className="w-5 h-5" />;
-                    })()}
+                  <div className={cn("w-10 h-10 rounded-full flex items-center justify-center shrink-0 mt-1 bg-blue-50 text-blue-500")}>
+                    <Bell className="w-5 h-5" />
                   </div>
                   <div className="flex-1 min-w-0 pr-8">
                     <div className="flex justify-between items-start mb-1">
-                      <h4 className={cn("text-sm font-bold truncate", !notification.read ? "text-slate-900" : "text-slate-700")}>
+                      <h4 className={cn("text-sm font-bold truncate", !notification.is_read ? "text-slate-900" : "text-slate-700")}>
                         {notification.title}
                       </h4>
                       <span className="text-[10px] font-semibold text-slate-400 whitespace-nowrap ml-2">
-                        {notification.time}
+                        {notification.created_at ? timeAgo(new Date(notification.created_at)) : 'Just now'}
                       </span>
                     </div>
-                    <p className={cn("text-xs line-clamp-2", !notification.read ? "text-slate-700 font-medium" : "text-slate-500")}>
-                      {notification.desc}
+                    <p className={cn("text-xs line-clamp-2", !notification.is_read ? "text-slate-700 font-medium" : "text-slate-500")}>
+                      {notification.description}
                     </p>
                   </div>
-                  {!notification.read && (
+                  {!notification.is_read && (
                     <div className="w-2 h-2 rounded-full bg-blue-600 absolute top-5 right-4"></div>
                   )}
-                  <button 
-                    onClick={(e) => { e.stopPropagation(); deleteNotification(notification.id); }}
-                    className="absolute bottom-4 right-4 text-xs font-bold text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                  >
-                    Delete
-                  </button>
                 </div>
               ))}
             </div>

@@ -124,14 +124,10 @@ export function Sidebar({
                 pathname.startsWith('/finding-quotes') ||
                 pathname.startsWith('/request-aent')
               : href === '/quotes'
-              ? pathname.startsWith('/quotes') ||
-                pathname.startsWith('/compare-quotes')
+              ? pathname.startsWith('/quotes')
               : pathname.startsWith(href)
             : false;
-          const showQuotesChildren =
-            href === '/quotes' &&
-            (pathname?.startsWith('/quotes') ||
-              pathname?.startsWith('/compare-quotes'));
+          const showQuotesChildren = false;
 
           return (
             <div key={label}>

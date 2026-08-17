@@ -5,6 +5,7 @@ import { query } from '../../config/database';
 import { validateOffer, recordOfferRedemption } from '../offers/offers.service';
 import { holdWalletBalance } from '../wallet/wallet.service';
 import { createRazorpayOrder } from '../payments/razorpay.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export const bookingsRouter = Router();
 
@@ -464,6 +465,15 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
 
     if (result.rows.length === 0) {
       return error(res, 'Booking not found', 'NOT_FOUND', 404);
+    }
+
+    if (dbStatus === 'completed') {
+      await NotificationsService.createNotification({
+        isAdmin: true,
+        type: 'Booking',
+        title: 'Service Completed',
+        description: `Booking ${bookingId} has been marked as completed.`
+      }).catch(err => console.error('Failed to create notification', err));
     }
 
     return success(res, result.rows[0], 200);

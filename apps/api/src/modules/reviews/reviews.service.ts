@@ -18,7 +18,7 @@ export class ReviewsService {
     const avgRating = parseFloat(res.rows[0].avg_rating).toFixed(1);
 
     await q(
-      `UPDATE garages SET rating = $1, review_count = $2 WHERE id = $3`,
+      `UPDATE garages SET rating_avg = $1, rating_count = $2 WHERE id = $3`,
       [avgRating, count, garageId]
     );
   }
@@ -29,7 +29,7 @@ export class ReviewsService {
       `SELECT 
         r.id, r.garage_id, r.customer_name, r.customer_id, r.rating, r.text as comment, r.created_at,
         r.likes_count, r.unlikes_count, r.replies_count,
-        u.first_name, u.last_name,
+        u.name as u_name,
         EXISTS (
           SELECT 1 FROM garage_review_likes grl 
           WHERE grl.review_id = r.id AND grl.customer_id = $2 AND grl.vote_type = 'like'
@@ -40,7 +40,7 @@ export class ReviewsService {
         ) as "isUnlikedByUser"
        FROM garage_reviews r
        LEFT JOIN users u ON r.customer_id = u.id
-       WHERE r.garage_id = $1
+       WHERE r.garage_id = $1 AND (r.is_hidden = FALSE OR r.is_hidden IS NULL)
        ORDER BY r.created_at DESC`,
       [garageId, currentUserId || null]
     );
@@ -53,7 +53,7 @@ export class ReviewsService {
       const repliesRes = await query(
         `SELECT rr.id, rr.review_id, rr.text, rr.created_at, 
                 rr.user_id, rr.garage_id,
-                u.first_name, u.last_name,
+                u.name as u_name,
                 g.name as garage_name
          FROM garage_review_replies rr
          LEFT JOIN users u ON rr.user_id = u.id
@@ -69,7 +69,7 @@ export class ReviewsService {
           id: reply.id,
           text: reply.text,
           createdAt: reply.created_at,
-          authorName: reply.garage_id ? reply.garage_name : `${reply.first_name} ${reply.last_name}`,
+          authorName: reply.garage_id ? reply.garage_name : (reply.u_name || 'Anonymous User'),
           isGarageOwner: !!reply.garage_id
         });
       }
@@ -79,7 +79,7 @@ export class ReviewsService {
       id: r.id,
       garageId: r.garage_id,
       customerId: r.customer_id,
-      customerName: r.customer_id ? `${r.first_name} ${r.last_name}` : r.customer_name,
+      customerName: r.customer_id ? (r.u_name || r.customer_name) : r.customer_name,
       rating: parseFloat(r.rating),
       comment: r.comment,
       createdAt: r.created_at,
@@ -188,5 +188,42 @@ export class ReviewsService {
     } finally {
       client.release();
     }
+  }
+
+  static async getAllReviews() {
+    const res = await query(
+      `SELECT 
+        r.id, r.garage_id, r.customer_name, r.customer_id, r.rating, r.text as comment, r.created_at, r.is_hidden,
+        r.likes_count, r.unlikes_count, r.replies_count,
+        u.name as u_name,
+        g.name as garage_name
+       FROM garage_reviews r
+       LEFT JOIN users u ON r.customer_id = u.id
+       LEFT JOIN garages g ON r.garage_id = g.id
+       ORDER BY r.created_at DESC`
+    );
+
+    return res.rows.map((r: any) => ({
+      id: r.id,
+      garageId: r.garage_id,
+      garageName: r.garage_name,
+      customerId: r.customer_id,
+      customerName: r.customer_id ? (r.u_name || r.customer_name) : r.customer_name,
+      rating: parseFloat(r.rating),
+      comment: r.comment,
+      createdAt: r.created_at,
+      isHidden: !!r.is_hidden,
+      likesCount: r.likes_count || 0,
+      unlikesCount: r.unlikes_count || 0,
+      repliesCount: r.replies_count || 0
+    }));
+  }
+
+  static async hideReview(reviewId: string) {
+    const res = await query(
+      `UPDATE garage_reviews SET is_hidden = TRUE WHERE id = $1 RETURNING *`,
+      [reviewId]
+    );
+    return res.rows[0];
   }
 }

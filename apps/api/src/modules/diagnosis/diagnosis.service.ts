@@ -405,12 +405,13 @@ export class DiagnosisService {
 Your task is to generate EXACTLY 1 follow-up diagnostic question for the reported symptom, strictly based on the user's previous answers if any exist.
 
 ${hasMediaAnalysis
-              ? 'Media (image or video) of the vehicle/part has been submitted and the findings or system notes are included in the symptom description below. You MUST first explicitly acknowledge this, state what you observe or need based on the media, and then ask a follow-up question directly relevant to the visible damage or issue. Combine your observation and question into the single "question" string.'
+              ? 'Media (image or video) of the vehicle/part has been submitted and the findings or system notes are included in the symptom description below. You MUST explicitly acknowledge this observation. Then, ask a follow-up question directly related to what the USER is experiencing or what they noticed. DO NOT ask the user to choose between mechanical next steps or repairs (e.g. do not ask "What is the most crucial next step?"). Ask about symptoms or conditions (e.g. "When does this happen?"). Combine your observation and question into the single "question" string.'
               : `CRITICAL RULE:\n- If the reported symptom is NOT related to automotive issues, vehicles, cars, or driving, you MUST REJECT it. Return EXACTLY 1 question object with the question "I only assess automotive issues. Please describe a vehicle problem." and options ["Understood", "Cancel"].`
             }
 
 Rules:
 - The question MUST logically follow from the context of previous answers to actively drill down into the root cause.
+- The question MUST ask about SYMPTOMS or USER OBSERVATIONS, NOT repair actions or mechanic choices.
 - Never ask generic cross-system questions.
 - Never ask about vehicle model/year.
 - The question must have 3–5 concise, mutually exclusive answer options.
@@ -803,8 +804,10 @@ The required JSON schema is:
       const mainIssueTitle = result.issues && result.issues.length > 0 ? result.issues[0].name : 'AI Diagnosis';
       await client.query(
         `INSERT INTO vehicle_service_history (vehicle_id, service_date, description, cost, diagnosis_request_id)
-         VALUES ($1, NOW(), $2, 0, $3)
-         ON CONFLICT (diagnosis_request_id) WHERE diagnosis_request_id IS NOT NULL DO NOTHING`,
+         SELECT $1, NOW(), $2, 0, $3
+         WHERE NOT EXISTS (
+           SELECT 1 FROM vehicle_service_history WHERE diagnosis_request_id = $3
+         )`,
         [dbRequest.vehicle_id, `AI Diagnosis: ${mainIssueTitle}`, dbRequest.id]
       );
 

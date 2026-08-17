@@ -348,8 +348,27 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
         return current;
       }
       return [...current, quoteId];
+      return [...current, quoteId];
     });
   }
+
+  const handleShareGarage = async (quote: any) => {
+    try {
+      const shareData = {
+        title: 'Check out this quote on WrectifAI',
+        text: `Here is a quote from ${quote.garageName || quote.garage} for ${quote.price}.`,
+        url: `${window.location.origin}/compare-quotes?ids=${quote.id}`
+      };
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else {
+        await navigator.clipboard.writeText(shareData.url);
+        alert('Link copied to clipboard!');
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   function rowHasDifferences(values: string[]) {
     if (values.length < 2) return true;
@@ -557,11 +576,8 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
                                 .getElementById('price-breakup')
                                 ?.scrollIntoView({ behavior: 'smooth' });
                             }}
-                            onCompareDetails={() => {
-                              document
-                                .getElementById('compare-details')
-                                ?.scrollIntoView({ behavior: 'smooth' });
-                            }}
+                            onSaveGarage={() => {}}
+                            onShareGarage={() => handleShareGarage(quote)}
                             onRemove={() => toggleQuote(quote.id)}
                           />
                         );

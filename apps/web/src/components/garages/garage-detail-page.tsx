@@ -236,7 +236,7 @@ export function GarageDetailPage({
   
   // New Review States
   const [newReviewText, setNewReviewText] = useState('');
-  const [newReviewRating, setNewReviewRating] = useState(5);
+  const [newReviewRating, setNewReviewRating] = useState(0);
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
   // New Reply States
@@ -271,7 +271,7 @@ export function GarageDetailPage({
         comment: newReviewText,
       });
       setNewReviewText('');
-      setNewReviewRating(5);
+      setNewReviewRating(0);
       await fetchReviews();
     } catch (err) {
       console.error('Failed to submit review', err);
@@ -468,31 +468,14 @@ export function GarageDetailPage({
                       </span>
                     </div>
                     <span className="text-[#cbd4e6]">•</span>
-                    {garage.distanceKm != null && (
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        <MapPin className="h-3.5 w-3.5 shrink-0 text-[#17307a]" />
-                        <span>{garage.distanceKm.toFixed(1)} km away</span>
-                      </div>
-                    )}
-                    <span className="text-[#cbd4e6]">•</span>
                     <span>{garage.location}</span>
                   </div>
 
                   {/* Response / Time Pills */}
                   <div className="flex flex-wrap gap-2.5 pt-1.5">
-                    {garage.responseMins != null && (
-                      <div className="flex items-center gap-2 rounded-full bg-[#f0f4ff] px-3.5 py-1.5 text-[10px] font-bold text-[#1a56db]">
-                        <Clock className="h-4 w-4" />
-                        <span>{garage.responseMins} mins response time</span>
-                      </div>
-                    )}
                     <div className="flex items-center gap-2 rounded-full bg-[#eefbf3] px-3.5 py-1.5 text-[10px] font-bold text-[#228453]">
                       <Clock className="h-4 w-4" />
-                      <span>Open until 10:00 PM</span>
-                    </div>
-                    <div className="flex items-center gap-2 rounded-full bg-[#fdf5ed] px-3.5 py-1.5 text-[10px] font-bold text-[#f28c28]">
-                      <Shield className="h-4 w-4" />
-                      <span>20+ years in service</span>
+                      <span>{new Date().getDay() === 0 ? 'Closed today' : new Date().getDay() === 6 ? 'Open until 5:00 PM' : 'Open until 7:00 PM'}</span>
                     </div>
                   </div>
 
@@ -777,31 +760,45 @@ export function GarageDetailPage({
                 {/* Customer Reviews */}
                 <section className="space-y-4">
                   <h2 className="text-[14.5px] font-bold text-[#17307a]">
-                    Customer Reviews ({garage.reviews})
+                    Customer Reviews ({reviewStats?.totalReviews ?? garage.reviews})
                   </h2>
                   <div className="grid gap-4 md:grid-cols-[200px_1fr_1fr]">
                     <div className="flex flex-col items-center justify-center rounded-[20px] border border-[#e2eefc] bg-white p-6 text-center">
                       <span className="text-[38px] font-extrabold tracking-tight text-[#17307a]">
-                        {reviewStats?.averageRating ? reviewStats.averageRating.toFixed(1) : garage.rating.toFixed(1)}
+                        {newReviewRating > 0 
+                          ? newReviewRating 
+                          : (reviewStats?.totalReviews > 0 ? Math.round(reviewStats.averageRating) : 0)}
                       </span>
                       <div className="my-1.5 flex items-center gap-0.5">
-                        {Array.from({ length: 5 }).map((_, i) => (
-                          <Star
-                            key={i}
-                            className={cn(
-                              'h-4 w-4',
-                              i < Math.floor(garage.rating)
-                                ? 'fill-[#ff9f1a] text-[#ff9f1a]'
-                                : 'text-[#dbe6ff]'
-                            )}
-                          />
-                        ))}
+                        {Array.from({ length: 5 }).map((_, i) => {
+                          const starValue = i + 1;
+                          const isFilled = starValue <= newReviewRating;
+                            
+                          return (
+                            <button 
+                              key={i} 
+                              onClick={() => setNewReviewRating(starValue)}
+                              className="focus:outline-none transition-transform hover:scale-110"
+                            >
+                              <Star
+                                className={cn(
+                                  'h-5 w-5',
+                                  isFilled
+                                    ? 'fill-[#ff9f1a] text-[#ff9f1a]'
+                                    : 'text-[#dbe6ff]'
+                                )}
+                              />
+                            </button>
+                          );
+                        })}
                       </div>
                       <span className="text-[12px] font-bold text-[#228453]">
-                        Excellent
+                        {newReviewRating > 0 
+                          ? (newReviewRating >= 5 ? 'Excellent' : newReviewRating >= 4 ? 'Good' : newReviewRating >= 3 ? 'Moderate' : newReviewRating >= 2 ? 'Bad' : 'Very Bad')
+                          : (reviewStats?.totalReviews > 0 ? 'Select to rate' : 'No Ratings')}
                       </span>
                       <span className="mt-1 text-[10px] font-semibold text-[#8a99ad]">
-                        {garage.reviews} reviews
+                        {newReviewRating > 0 ? 'Your Rating' : (reviewStats?.totalReviews > 0 ? 'Average Rating' : 'No reviews yet')}
                       </span>
                     </div>
 
@@ -830,166 +827,153 @@ export function GarageDetailPage({
                       })}
                     </div>
 
-                    {reviews.length > 0 ? (
-                      <div className="relative flex min-h-[160px] flex-col justify-between rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)]">
-                        <div>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef4ff] text-[11px] font-bold text-[#1a56db]">
-                                {reviews[reviewPage]?.avatar}
-                              </div>
-                              <div>
-                                <div className="text-[11px] font-bold text-[#17307a]">
-                                  {reviews[reviewPage]?.name}
-                                </div>
-                                <div className="flex items-center gap-1 text-[9.5px] font-medium text-[#228453]">
-                                  <CheckCircle2 className="h-3 w-3 fill-[#228453] text-white" />
-                                  <span>{reviews[reviewPage]?.status}</span>
-                                </div>
-                              </div>
-                            </div>
-                            <span className="text-[9.5px] font-bold text-[#8a99ad]">
-                              {reviews[reviewPage]?.date}
-                            </span>
-                          </div>
-
-                          <div className="mt-2.5 flex items-center gap-0.5">
-                            {Array.from({ length: 5 }).map((_, i) => (
-                              <Star
-                                key={i}
-                                className={cn(
-                                  'h-3.5 w-3.5',
-                                  i < Math.floor(reviews[reviewPage]?.rating || 0)
-                                    ? 'fill-[#ff9f1a] text-[#ff9f1a]'
-                                    : 'text-[#cbd4e6]'
-                                )}
-                              />
-                            ))}
-                          </div>
-
-                            <p className="mt-2.5 text-[11px] font-medium leading-[1.5] text-[#536891]">
-                              &quot;{reviews[reviewPage]?.text}&quot;
-                            </p>
-
-                            <div className="mt-3 flex flex-col gap-3">
-                              {/* Replies */}
-                              {reviews[reviewPage]?.replies?.length > 0 && (
-                                <div className="rounded-lg bg-[#f8fafc] p-3 border border-[#e2eefc]">
-                                  {reviews[reviewPage].replies.map((reply: any) => (
-                                    <div key={reply.id} className="mb-2 last:mb-0">
-                                      <div className="flex items-center gap-1.5 mb-1">
-                                        <span className="text-[10px] font-bold text-[#17307a]">
-                                          {reply.authorName}
-                                        </span>
-                                        {reply.isGarageOwner && (
-                                          <span className="text-[9px] font-medium text-[#1a56db] bg-[#eef4ff] px-1.5 rounded-full">
-                                            Owner
-                                          </span>
-                                        )}
-                                      </div>
-                                      <p className="text-[10px] text-[#536891]">{reply.text}</p>
-                                    </div>
-                                  ))}
-                                </div>
-                              )}
-
-                              {/* Interaction Buttons */}
-                              <div className="flex items-center gap-4 text-[10px] font-semibold text-[#8a99ad]">
-                                <button 
-                                  onClick={() => handleVote(reviews[reviewPage].id, reviews[reviewPage].isLikedByUser ? 'none' : 'like')}
-                                  className={cn(
-                                    "flex items-center gap-1 transition-colors",
-                                    reviews[reviewPage]?.isLikedByUser ? "text-[#1a56db]" : "hover:text-[#1a56db]"
-                                  )}
-                                >
-                                  <Heart className={cn("h-3.5 w-3.5", reviews[reviewPage]?.isLikedByUser && "fill-[#1a56db]")} />
-                                  <span>{reviews[reviewPage]?.likes || 0}</span>
-                                </button>
-                                <button 
-                                  onClick={() => handleVote(reviews[reviewPage].id, reviews[reviewPage].isUnlikedByUser ? 'none' : 'unlike')}
-                                  className={cn(
-                                    "flex items-center gap-1 transition-colors",
-                                    reviews[reviewPage]?.isUnlikedByUser ? "text-[#e53e3e]" : "hover:text-[#e53e3e]"
-                                  )}
-                                >
-                                  <AlertCircle className="h-3.5 w-3.5" />
-                                  <span>{reviews[reviewPage]?.unlikes || 0}</span>
-                                </button>
-                                <button 
-                                  onClick={() => setReplyingToReviewId(replyingToReviewId === reviews[reviewPage].id ? null : reviews[reviewPage].id)}
-                                  className="flex items-center gap-1 hover:text-[#1a56db] transition-colors"
-                                >
-                                  <MessageSquare className="h-3.5 w-3.5" />
-                                  <span>Reply ({reviews[reviewPage]?.repliesCount || 0})</span>
-                                </button>
-                              </div>
-                              
-                              {/* Reply Input */}
-                              {replyingToReviewId === reviews[reviewPage].id && (
-                                <div className="mt-2 flex gap-2">
-                                  <input 
-                                    type="text" 
-                                    className="flex-1 text-[11px] rounded-lg border border-[#e2eefc] px-3 py-1.5 outline-none focus:border-[#1a56db]"
-                                    placeholder="Write a reply..."
-                                    value={replyText}
-                                    onChange={(e) => setReplyText(e.target.value)}
-                                  />
-                                  <Button size="sm" onClick={() => handleSubmitReply(reviews[reviewPage].id)} disabled={isSubmittingReply}>
-                                    Send
-                                  </Button>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-
-                          <div className="flex justify-center gap-1.5 pt-3">
-                            {reviews.map((_, i) => (
-                              <button
-                                key={i}
-                                onClick={() => setReviewPage(i)}
-                                className={cn(
-                                  'h-2 w-2 rounded-full transition-colors',
-                                  i === reviewPage ? 'bg-[#1a56db]' : 'bg-[#cbd4e6]'
-                                )}
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="relative flex min-h-[160px] flex-col justify-center items-center rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)]">
-                          <span className="text-[12px] font-semibold text-[#8a99ad]">No reviews yet</span>
-                        </div>
-                      )}
-
-                      {/* Write Review Section */}
-                      {user && (user.roles?.includes('user') || user.roles?.includes('admin')) && (
-                        <div className="mt-6 rounded-[20px] border border-[#e2eefc] bg-[#f8fafc] p-5">
-                          <h4 className="text-[13px] font-bold text-[#17307a] mb-3">Write a Review</h4>
-                          <div className="flex items-center gap-2 mb-3">
-                            {[1, 2, 3, 4, 5].map((star) => (
-                              <button key={star} onClick={() => setNewReviewRating(star)}>
-                                <Star className={cn("h-5 w-5", star <= newReviewRating ? "fill-[#ff9f1a] text-[#ff9f1a]" : "text-[#cbd4e6]")} />
-                              </button>
-                            ))}
-                          </div>
-                          <textarea
-                            className="w-full rounded-xl border border-[#e2eefc] p-3 text-[12px] outline-none focus:border-[#1a56db] mb-3"
-                            rows={3}
-                            placeholder="Share your experience..."
-                            value={newReviewText}
-                            onChange={(e) => setNewReviewText(e.target.value)}
-                          />
-                          <Button 
-                            className="w-full md:w-auto"
-                            onClick={handleSubmitReview}
-                            disabled={!newReviewText.trim() || isSubmittingReview}
-                          >
-                            Submit Review
-                          </Button>
-                        </div>
-                      )}
+                    {/* Write Review Section (Moved to 3rd column) */}
+                    <div className="flex flex-col justify-between rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)]">
+                      <h4 className="text-[13px] font-bold text-[#17307a] mb-3">Write a comment</h4>
+                      <textarea
+                        className="w-full rounded-xl border border-[#e2eefc] p-3 text-[12px] outline-none focus:border-[#1a56db] mb-3 flex-1 resize-none"
+                        placeholder="Share your experience..."
+                        value={newReviewText}
+                        onChange={(e) => setNewReviewText(e.target.value)}
+                      />
+                      <Button 
+                        className="w-full"
+                        onClick={handleSubmitReview}
+                        disabled={!newReviewText.trim() || isSubmittingReview || newReviewRating === 0}
+                      >
+                        Submit Review
+                      </Button>
                     </div>
-                  </section>
+                  </div>
+
+                  {/* Reviews List */}
+                  {reviews.length > 0 && (
+                    <div className="relative flex flex-col justify-between rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)] mt-6">
+                      <div>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef4ff] text-[11px] font-bold text-[#1a56db]">
+                              {reviews[reviewPage]?.avatar}
+                            </div>
+                            <div>
+                              <div className="text-[11px] font-bold text-[#17307a]">
+                                {reviews[reviewPage]?.name}
+                              </div>
+                              <div className="flex items-center gap-1 text-[9.5px] font-medium text-[#228453]">
+                                <CheckCircle2 className="h-3 w-3 fill-[#228453] text-white" />
+                                <span>{reviews[reviewPage]?.status}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <span className="text-[9.5px] font-bold text-[#8a99ad]">
+                            {reviews[reviewPage]?.date}
+                          </span>
+                        </div>
+
+                        <div className="mt-2.5 flex items-center gap-0.5">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <Star
+                              key={i}
+                              className={cn(
+                                'h-3.5 w-3.5',
+                                i < Math.floor(reviews[reviewPage]?.rating || 0)
+                                  ? 'fill-[#ff9f1a] text-[#ff9f1a]'
+                                  : 'text-[#cbd4e6]'
+                              )}
+                            />
+                          ))}
+                        </div>
+
+                        <p className="mt-2.5 text-[11px] font-medium leading-[1.5] text-[#536891]">
+                          &quot;{reviews[reviewPage]?.text}&quot;
+                        </p>
+
+                        <div className="mt-3 flex flex-col gap-3">
+                          {/* Replies */}
+                          {reviews[reviewPage]?.replies?.length > 0 && (
+                            <div className="rounded-lg bg-[#f8fafc] p-3 border border-[#e2eefc]">
+                              {reviews[reviewPage].replies.map((reply: any) => (
+                                <div key={reply.id} className="mb-2 last:mb-0">
+                                  <div className="flex items-center gap-1.5 mb-1">
+                                    <span className="text-[10px] font-bold text-[#17307a]">
+                                      {reply.authorName}
+                                    </span>
+                                    {reply.isGarageOwner && (
+                                      <span className="text-[9px] font-medium text-[#1a56db] bg-[#eef4ff] px-1.5 rounded-full">
+                                        Owner
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-[10px] text-[#536891]">{reply.text}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {/* Interaction Buttons */}
+                          <div className="flex items-center gap-4 text-[10px] font-semibold text-[#8a99ad]">
+                            <button 
+                              onClick={() => handleVote(reviews[reviewPage].id, reviews[reviewPage].isLikedByUser ? 'none' : 'like')}
+                              className={cn(
+                                "flex items-center gap-1 transition-colors",
+                                reviews[reviewPage]?.isLikedByUser ? "text-[#1a56db]" : "hover:text-[#1a56db]"
+                              )}
+                            >
+                              <Heart className={cn("h-3.5 w-3.5", reviews[reviewPage]?.isLikedByUser && "fill-[#1a56db]")} />
+                              <span>{reviews[reviewPage]?.likes || 0}</span>
+                            </button>
+                            <button 
+                              onClick={() => handleVote(reviews[reviewPage].id, reviews[reviewPage].isUnlikedByUser ? 'none' : 'unlike')}
+                              className={cn(
+                                "flex items-center gap-1 transition-colors",
+                                reviews[reviewPage]?.isUnlikedByUser ? "text-[#e53e3e]" : "hover:text-[#e53e3e]"
+                              )}
+                            >
+                              <AlertCircle className="h-3.5 w-3.5" />
+                              <span>{reviews[reviewPage]?.unlikes || 0}</span>
+                            </button>
+                            <button 
+                              onClick={() => setReplyingToReviewId(replyingToReviewId === reviews[reviewPage].id ? null : reviews[reviewPage].id)}
+                              className="flex items-center gap-1 hover:text-[#1a56db] transition-colors"
+                            >
+                              <MessageSquare className="h-3.5 w-3.5" />
+                              <span>Reply ({reviews[reviewPage]?.repliesCount || 0})</span>
+                            </button>
+                          </div>
+                          
+                          {/* Reply Input */}
+                          {replyingToReviewId === reviews[reviewPage].id && (
+                            <div className="mt-2 flex gap-2">
+                              <input 
+                                type="text" 
+                                className="flex-1 text-[11px] rounded-lg border border-[#e2eefc] px-3 py-1.5 outline-none focus:border-[#1a56db]"
+                                placeholder="Write a reply..."
+                                value={replyText}
+                                onChange={(e) => setReplyText(e.target.value)}
+                              />
+                              <Button size="sm" onClick={() => handleSubmitReply(reviews[reviewPage].id)} disabled={isSubmittingReply}>
+                                Send
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex justify-center gap-1.5 pt-3 mt-4 border-t border-[#e2eefc]">
+                        {reviews.map((_, i) => (
+                          <button
+                            key={i}
+                            onClick={() => setReviewPage(i)}
+                            className={cn(
+                              'h-2 w-2 rounded-full transition-colors',
+                              i === reviewPage ? 'bg-[#1a56db]' : 'bg-[#cbd4e6]'
+                            )}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </section>
                 </>
             )}
           </div>

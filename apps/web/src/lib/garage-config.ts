@@ -8,6 +8,7 @@ export const garageNavItems: NavItem[] = [
   { label: 'Quotes', icon: FileText, href: '/garage/quotes', slug: 'quotes' },
   { label: 'Service History', icon: History, href: '/garage/service-history', slug: 'service-history' },
   { label: 'Customers', icon: Users, href: '/garage/customers', slug: 'customers' },
+  { label: 'Reviews', icon: Star, href: '/garage/reviews', slug: 'reviews' },
   { label: 'Profile', icon: UserRound, href: '/garage/profile', slug: 'profile' },
   { label: 'Settings', icon: Settings, href: '/garage/settings', slug: 'settings' },
   { label: 'Help & Support', icon: HelpCircle, href: '/garage/help', slug: 'help' },

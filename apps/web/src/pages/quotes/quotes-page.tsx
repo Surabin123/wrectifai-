@@ -18,6 +18,7 @@ export function QuotesPage() {
   const [bookingQuote, setBookingQuote] = useState<QuoteItem | null>(null);
   const [viewQuote, setViewQuote] = useState<QuoteItem | null>(null);
   const [viewDetailsQuote, setViewDetailsQuote] = useState<QuoteItem | null>(null);
+  const [activeTab, setActiveTab] = useState('All Quotes');
 
   const formatStatus = (status?: string) => {
     if (!status) return 'Pending';
@@ -92,71 +93,65 @@ export function QuotesPage() {
           </p>
         </div>
 
-        <div className="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-sm border-collapse">
-              <thead className="bg-slate-100 border-b border-slate-200">
-                <tr>
-                  <th className="px-6 py-4 font-bold text-slate-600">Garage</th>
-                  <th className="px-6 py-4 font-bold text-slate-600">Total</th>
-                  <th className="px-6 py-4 font-bold text-slate-600">Days</th>
-                  <th className="px-6 py-4 font-bold text-slate-600">Status</th>
-                  <th className="px-6 py-4 font-bold text-slate-600 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {loading ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">Loading quotes...</td>
-                  </tr>
-                ) : quotes.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="px-6 py-8 text-center text-slate-500">No quotes received yet.</td>
-                  </tr>
-                ) : quotes.map((quote) => (
-                  <tr key={quote.id} className="hover:bg-slate-50">
-                    <td className="px-6 py-4 font-medium text-slate-800">
-                      {(quote as any).garageName || quote.garage}
-                    </td>
-                    <td className="px-6 py-4 font-bold text-slate-800">
-                      {formatCurrency(quote.price || (quote as any).amount || (quote as any).totalCost || 0, quote.currency)}
-                    </td>
-                    <td className="px-6 py-4 text-slate-600">
-                      {quote.time || 'N/A'}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
-                        {formatStatus(quote.status)}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      {!quote.isBooked && quote.status !== 'rejected' && quote.status !== 'cancelled' && (
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => setViewQuote(quote)}
-                            className="bg-slate-100 text-slate-700 px-4 py-2 rounded font-bold text-sm hover:bg-slate-200 transition-colors"
-                          >
-                            View Quote
-                          </button>
-                        </div>
-                      )}
-                      {quote.isBooked && (
-                        <div className="flex items-center justify-end gap-2">
-                          <span className="text-emerald-600 font-bold text-sm px-3 py-2 bg-emerald-50 rounded">Booked ✓</span>
-                          <button
-                            onClick={() => setViewDetailsQuote(quote)}
-                            className="bg-slate-100 text-slate-700 px-4 py-2 rounded font-bold text-sm hover:bg-slate-200 transition-colors"
-                          >
-                            View Details
-                          </button>
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+        <div className="flex flex-wrap items-center gap-2 mt-4 mb-6">
+          {['All Quotes', 'New', 'Viewed'].map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-1.5 rounded-full text-xs font-semibold transition-colors ${activeTab === tab ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200 hover:bg-slate-50'}`}
+            >
+              {tab}
+            </button>
+          ))}
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-3">
+          {loading ? (
+            <div className="col-span-full py-8 text-center text-slate-500">Loading quotes...</div>
+          ) : quotes.filter(q => q.status !== 'expired' && q.status !== 'cancelled').filter(q => activeTab === 'All Quotes' || (activeTab === 'New' ? q.status === 'quoted' && !q.isBooked : q.status !== 'quoted')).length === 0 ? (
+            <div className="col-span-full py-8 text-center text-slate-500">No quotes found for this filter.</div>
+          ) : quotes.filter(q => q.status !== 'expired' && q.status !== 'cancelled').filter(q => activeTab === 'All Quotes' || (activeTab === 'New' ? q.status === 'quoted' && !q.isBooked : q.status !== 'quoted')).map((quote) => (
+            <div key={quote.id} className="bg-white rounded-[16px] shadow-sm border border-slate-200 p-5 flex flex-col hover:border-blue-300 transition-colors">
+              <div className="flex justify-between items-start mb-4">
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">{(quote as any).garageName || quote.garage}</h3>
+                  <div className="text-xs font-medium text-slate-500 mt-0.5">Response Time: {quote.time || '30 mins'}</div>
+                </div>
+                <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700">
+                  {formatStatus(quote.status)}
+                </span>
+              </div>
+              
+              <div className="mt-auto pt-4 border-t border-slate-100 flex items-center justify-between">
+                <div>
+                  <div className="text-xs text-slate-500 font-semibold mb-0.5">Total Amount</div>
+                  <div className="font-bold text-slate-800 text-xl">{formatCurrency(quote.price || (quote as any).amount || (quote as any).totalCost || 0, quote.currency)}</div>
+                </div>
+                
+                <div className="flex items-center gap-2">
+                  {!quote.isBooked && quote.status !== 'rejected' && quote.status !== 'cancelled' && (
+                    <button
+                      onClick={() => setViewQuote(quote)}
+                      className="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-700 transition-colors"
+                    >
+                      View
+                    </button>
+                  )}
+                  {quote.isBooked && (
+                    <>
+                      <span className="text-emerald-600 font-bold text-sm px-3 py-2 bg-emerald-50 rounded-lg">Booked</span>
+                      <button
+                        onClick={() => setViewDetailsQuote(quote)}
+                        className="bg-slate-100 text-slate-700 px-4 py-2 rounded-lg font-bold text-sm hover:bg-slate-200 transition-colors"
+                      >
+                        Details
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
       {bookingQuote && (

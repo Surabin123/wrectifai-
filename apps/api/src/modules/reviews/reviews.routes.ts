@@ -18,10 +18,15 @@ reviewsRouter.post('/', authenticate, async (req, res) => {
     }
 
     const userId = req.user?.userId;
-    const userRole = req.user?.role;
-    const customerName = req.user?.name || 'Anonymous User';
+    const userRoles = req.user?.roles || [];
+    const customerName = req.user?.name || 'Customer';
 
-    if (!userId || (userRole !== 'user' && userRole !== 'admin')) {
+    if (!userId) {
+      return error(res, 'Authentication required to submit a review', 'UNAUTHORIZED', 401);
+    }
+
+    // RBAC: Only allow users with the 'user' or 'customer' role to submit reviews
+    if (!userRoles.includes('user') && !userRoles.includes('customer')) {
       return error(res, 'Only customers can leave reviews', 'FORBIDDEN', 403);
     }
 
@@ -75,18 +80,50 @@ reviewsRouter.post('/:reviewId/reply', authenticate, async (req, res) => {
     }
 
     const userId = req.user?.userId;
-    const userRole = req.user?.role;
+    const userRoles = req.user?.roles || [];
     if (!userId) {
       return error(res, 'Authentication required to reply', 'UNAUTHORIZED', 401);
     }
 
     // Determine if garage owner or regular user
-    const isGarageOwner = userRole === 'garage' && !!garageId;
+    const isGarageOwner = userRoles.includes('garage') && !!garageId;
 
     const reply = await ReviewsService.replyToReview(req.params.reviewId, userId, text, isGarageOwner, garageId || null);
     return success(res, reply, 201);
   } catch (err: any) {
     console.error('Error replying to review:', err);
     return error(res, 'Failed to create reply', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// Admin: Get all reviews
+reviewsRouter.get('/', authenticate, async (req, res) => {
+  try {
+    const userRoles = req.user?.roles || [];
+    if (!userRoles.includes('admin')) {
+      return error(res, 'Only admins can view all reviews', 'FORBIDDEN', 403);
+    }
+    
+    const reviews = await ReviewsService.getAllReviews();
+    return success(res, reviews);
+  } catch (err: any) {
+    console.error('Error fetching all reviews:', err);
+    return error(res, 'Failed to fetch reviews', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// Admin: Hide a review
+reviewsRouter.patch('/:reviewId/hide', authenticate, async (req, res) => {
+  try {
+    const userRoles = req.user?.roles || [];
+    if (!userRoles.includes('admin')) {
+      return error(res, 'Only admins can hide reviews', 'FORBIDDEN', 403);
+    }
+    
+    const review = await ReviewsService.hideReview(req.params.reviewId);
+    return success(res, review);
+  } catch (err: any) {
+    console.error('Error hiding review:', err);
+    return error(res, 'Failed to hide review', 'INTERNAL_SERVER_ERROR', 500);
   }
 });

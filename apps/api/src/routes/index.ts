@@ -10,6 +10,7 @@ import { bookingsRouter } from '../modules/bookings/bookings.routes';
 import { marketplaceRouter } from '../modules/marketplace/marketplace.routes';
 import { paymentsRouter } from '../modules/payments/payments.routes';
 import { reviewsRouter } from '../modules/reviews/reviews.routes';
+import { notificationsRouter } from '../modules/notifications/notifications.routes';
 import { adminRouter } from '../modules/admin/admin.routes';
 import { walletRouter } from '../modules/wallet/wallet.routes';
 import { offersRouter } from '../modules/offers/offers.routes';
@@ -39,6 +40,7 @@ apiRouter.use('/reviews', reviewsRouter);
 apiRouter.use('/admin', adminRouter);
 apiRouter.use('/wallet', walletRouter);
 apiRouter.use('/offers', offersRouter);
+apiRouter.use('/notifications', notificationsRouter);
 
 apiRouter.get('/debug-garages', async (req, res) => {
   const result = await query('SELECT id, name, approval_status, is_approved FROM garages');

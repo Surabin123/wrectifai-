@@ -331,7 +331,7 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
                 <div key={issue.id} className="grid gap-4 py-5 md:grid-cols-[76px_minmax(0,1fr)_92px] md:items-center">
                   <div className="flex justify-center md:justify-start">
                     <Image
-                      src={getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
+                      src={issue.imageSrc || '/assets/Engine_oil.png'}
                       alt={issue.title}
                       width={72}
                       height={72}
