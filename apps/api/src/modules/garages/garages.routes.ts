@@ -189,10 +189,13 @@ garagesRouter.get('/:id', async (req, res) => {
 garagesRouter.get('/:id/reviews', async (req, res) => {
   try {
     const currentUserId = req.query.userId as string | undefined;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const offset = (page - 1) * limit;
 
-    const [reviewsResult, statsResult, repliesResult] = await Promise.all([
+    const [reviewsResult, statsResult, countResult] = await Promise.all([
       query(
-        `SELECT r.id, COALESCE(u.name, r.customer_name) as "name", r.rating, r.text, r.created_at as "date", 
+        `SELECT r.id, r.customer_id as "customerId", COALESCE(u.name, r.customer_name) as "name", r.rating, r.text, r.created_at as "date", 
                 'Verified Customer' as "status", r.likes_count as "likes", r.unlikes_count as "unlikes",
                 EXISTS (
                   SELECT 1 FROM garage_review_likes grl 
@@ -204,27 +207,36 @@ garagesRouter.get('/:id/reviews', async (req, res) => {
                 ) as "isUnlikedByUser"
          FROM garage_reviews r
          LEFT JOIN users u ON r.customer_id = u.id
-         WHERE r.garage_id = $1
-         ORDER BY r.created_at DESC`,
-        [req.params.id, currentUserId || null]
+         WHERE r.garage_id = $1 AND (r.is_hidden = FALSE OR r.is_hidden IS NULL)
+         ORDER BY r.created_at DESC
+         LIMIT $3 OFFSET $4`,
+        [req.params.id, currentUserId || null, limit, offset]
       ),
       query(
-        `SELECT rating, COUNT(*) as count FROM garage_reviews WHERE garage_id = $1 GROUP BY rating`,
+        `SELECT rating, COUNT(*) as count FROM garage_reviews WHERE garage_id = $1 AND (is_hidden = FALSE OR is_hidden IS NULL) GROUP BY rating`,
         [req.params.id]
       ),
       query(
+        `SELECT COUNT(*) as count FROM garage_reviews WHERE garage_id = $1 AND (is_hidden = FALSE OR is_hidden IS NULL)`,
+        [req.params.id]
+      )
+    ]);
+
+    const reviewIds = reviewsResult.rows.map(r => r.id);
+    let repliesResult = { rows: [] as any[] };
+    if (reviewIds.length > 0) {
+      repliesResult = await query(
         `SELECT rr.id, rr.review_id, rr.text, rr.created_at, rr.user_id, rr.garage_id,
                 COALESCE(u.name, g.name) as author_name
          FROM garage_review_replies rr
          LEFT JOIN users u ON rr.user_id = u.id
          LEFT JOIN garage_reviews r ON rr.review_id = r.id
          LEFT JOIN garages g ON rr.garage_id = g.id
-         WHERE r.garage_id = $1
+         WHERE rr.review_id = ANY($1)
          ORDER BY rr.created_at ASC`,
-         [req.params.id]
-      )
-    ]);
-
+         [reviewIds]
+      );
+    }
     const repliesByReviewId: Record<string, any[]> = {};
     for (const reply of repliesResult.rows) {
       if (!repliesByReviewId[reply.review_id]) repliesByReviewId[reply.review_id] = [];
@@ -244,7 +256,7 @@ garagesRouter.get('/:id/reviews', async (req, res) => {
       repliesCount: repliesByReviewId[r.id]?.length || 0
     }));
 
-    const totalReviews = reviews.length;
+    const totalReviews = parseInt(countResult.rows[0].count, 10);
     let averageRating = 0;
     const distribution = {
       1: { count: 0, pct: '0%' },
@@ -271,7 +283,14 @@ garagesRouter.get('/:id/reviews', async (req, res) => {
       }
     }
 
-    return success(res, { reviews, stats: { totalReviews, averageRating, distribution } });
+    return success(res, { 
+      reviews, 
+      stats: { totalReviews, averageRating, distribution },
+      total: totalReviews,
+      page,
+      limit,
+      totalPages: Math.ceil(totalReviews / limit)
+    });
   } catch (err) {
     return error(res, 'Failed to fetch reviews', 'DATABASE_ERROR', 500);
   }

@@ -26,8 +26,22 @@ export interface Review {
   replies: ReviewReply[];
 }
 
-export async function getGarageReviews(garageId: string, userId?: string): Promise<Review[]> {
-  const url = userId ? `/reviews/garage/${garageId}?userId=${userId}` : `/reviews/garage/${garageId}`;
+export interface PaginatedReviews {
+  data: Review[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+export async function getGarageReviews(garageId: string, userId?: string, page = 1, limit = 10, sortBy = 'newest'): Promise<PaginatedReviews> {
+  const urlParams = new URLSearchParams();
+  if (userId) urlParams.append('userId', userId);
+  urlParams.append('page', page.toString());
+  urlParams.append('limit', limit.toString());
+  urlParams.append('sortBy', sortBy);
+
+  const url = `/reviews/garage/${garageId}?${urlParams.toString()}`;
   return apiClient(url);
 }
 

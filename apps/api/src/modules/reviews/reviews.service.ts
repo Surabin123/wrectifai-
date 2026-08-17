@@ -23,8 +23,21 @@ export class ReviewsService {
     );
   }
 
-  static async getReviewsByGarage(garageId: string, currentUserId?: string) {
-    // We fetch reviews along with likes count, replies count, and whether the current user liked it
+  static async getReviewsByGarage(garageId: string, currentUserId?: string, page = 1, limit = 10, sortBy = 'newest') {
+    const offset = (page - 1) * limit;
+
+    // Get total count
+    const countRes = await query(
+      `SELECT COUNT(*) as count FROM garage_reviews WHERE garage_id = $1 AND (is_hidden = FALSE OR is_hidden IS NULL)`,
+      [garageId]
+    );
+    const total = parseInt(countRes.rows[0].count, 10);
+
+    let orderClause = 'ORDER BY r.created_at DESC';
+    if (sortBy === 'highest') orderClause = 'ORDER BY r.rating DESC';
+    else if (sortBy === 'lowest') orderClause = 'ORDER BY r.rating ASC';
+
+    // Fetch paginated reviews along with likes count, replies count, and whether the current user liked it
     const res = await query(
       `SELECT 
         r.id, r.garage_id, r.customer_name, r.customer_id, r.rating, r.text as comment, r.created_at,
@@ -41,11 +54,12 @@ export class ReviewsService {
        FROM garage_reviews r
        LEFT JOIN users u ON r.customer_id = u.id
        WHERE r.garage_id = $1 AND (r.is_hidden = FALSE OR r.is_hidden IS NULL)
-       ORDER BY r.created_at DESC`,
-      [garageId, currentUserId || null]
+       ${orderClause}
+       LIMIT $3 OFFSET $4`,
+      [garageId, currentUserId || null, limit, offset]
     );
 
-    // Fetch replies for each review
+    // Fetch replies for each paginated review
     const reviewIds = res.rows.map((r: any) => r.id);
     let repliesByReviewId: Record<string, any[]> = {};
     
@@ -75,7 +89,7 @@ export class ReviewsService {
       }
     }
 
-    return res.rows.map((r: any) => ({
+    const data = res.rows.map((r: any) => ({
       id: r.id,
       garageId: r.garage_id,
       customerId: r.customer_id,
@@ -85,11 +99,49 @@ export class ReviewsService {
       createdAt: r.created_at,
       likesCount: r.likes_count || 0,
       unlikesCount: r.unlikes_count || 0,
-      repliesCount: r.replies_count || 0,
-      isLikedByUser: r.isLikedByUser,
-      isUnlikedByUser: r.isUnlikedByUser,
       replies: repliesByReviewId[r.id] || []
     }));
+
+    const distribution = {
+      1: { count: 0, pct: '0%' },
+      2: { count: 0, pct: '0%' },
+      3: { count: 0, pct: '0%' },
+      4: { count: 0, pct: '0%' },
+      5: { count: 0, pct: '0%' }
+    };
+    
+    let averageRating = 0;
+
+    if (total > 0) {
+      const statsRes = await query(
+        `SELECT rating, COUNT(*) as count FROM garage_reviews WHERE garage_id = $1 AND (is_hidden = FALSE OR is_hidden IS NULL) GROUP BY rating`,
+        [garageId]
+      );
+      
+      let totalStars = 0;
+      statsRes.rows.forEach((row: any) => {
+        const star = Math.round(Number(row.rating));
+        const count = Number(row.count);
+        totalStars += Number(row.rating) * count;
+        if (star >= 1 && star <= 5) {
+          distribution[star as 1|2|3|4|5].count += count;
+        }
+      });
+      averageRating = totalStars / total;
+      
+      for (let i = 1; i <= 5; i++) {
+        distribution[i as 1|2|3|4|5].pct = Math.round((distribution[i as 1|2|3|4|5].count / total) * 100) + '%';
+      }
+    }
+
+    return {
+      data,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      stats: { averageRating: averageRating.toFixed(1), distribution }
+    };
   }
 
   static async createReview(garageId: string, customerId: string, customerName: string, rating: number, text: string) {
@@ -180,8 +232,27 @@ export class ReviewsService {
       );
 
       await client.query(`UPDATE garage_reviews SET replies_count = replies_count + 1 WHERE id = $1`, [reviewId]);
+      const reply = res.rows[0];
+      
+      let authorName = 'Anonymous User';
+      if (isGarageOwner && garageId) {
+        const garageRes = await client.query('SELECT name FROM garages WHERE id = $1', [garageId]);
+        if (garageRes.rows.length > 0) authorName = garageRes.rows[0].name;
+      } else if (userId) {
+        const userRes = await client.query('SELECT name FROM users WHERE id = $1', [userId]);
+        if (userRes.rows.length > 0) authorName = userRes.rows[0].name;
+      }
+
+      const formattedReply = {
+        id: reply.id,
+        text: reply.text,
+        createdAt: reply.created_at,
+        authorName,
+        isGarageOwner: !!reply.garage_id
+      };
+
       await client.query('COMMIT');
-      return res.rows[0];
+      return formattedReply;
     } catch (err) {
       await client.query('ROLLBACK');
       throw err;

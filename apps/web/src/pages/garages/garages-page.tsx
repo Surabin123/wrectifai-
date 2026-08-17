@@ -942,13 +942,15 @@ function GaragesContent() {
         <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-2">
             {paginatedGarages.map((garage) => (
-              <div key={garage.name} className="relative group">
-                <div className="absolute inset-0 z-0" onClick={() => router.push(`/garages?garage=${encodeURIComponent(garage.name)}`)} />
+              <div key={garage.name} className="relative group cursor-pointer" onClick={() => router.push(`/garages?garage=${encodeURIComponent(garage.name)}`)}>
                 <GarageCard
                   {...garage}
                   compact
                   isWishlisted={wishlistItems.some((i: any) => i.id === garage.id || i.id === garage.name || i.name === garage.name)}
-                  onClick={(e) => toggleWishlist(e, garage)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toggleWishlist(e, garage);
+                  }}
                 />
               </div>
             ))}
@@ -993,12 +995,14 @@ function GaragesContent() {
       ) : (
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
           {paginatedGarages.map((garage) => (
-            <div key={garage.name} className="relative group">
-              <div className="absolute inset-0 z-0 cursor-pointer" onClick={() => router.push(`/garages?garage=${encodeURIComponent(garage.name)}`)} />
+            <div key={garage.name} className="relative group cursor-pointer" onClick={() => router.push(`/garages?garage=${encodeURIComponent(garage.name)}`)}>
               <GarageCard
                 {...garage}
                 isWishlisted={wishlistItems.some((i: any) => i.id === garage.id || i.id === garage.name || i.name === garage.name)}
-                onClick={(e) => toggleWishlist(e, garage)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleWishlist(e, garage);
+                }}
               />
             </div>
           ))}

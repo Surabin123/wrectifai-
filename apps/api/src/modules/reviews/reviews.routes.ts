@@ -33,6 +33,9 @@ reviewsRouter.post('/', authenticate, async (req, res) => {
     const review = await ReviewsService.createReview(garageId, userId, customerName, rating, comment || '');
     return success(res, review, 201);
   } catch (err: any) {
+    if (err.code === '23505') {
+      return error(res, 'You have already reviewed this garage', 'CONFLICT', 409);
+    }
     console.error('Error creating review:', err);
     return error(res, 'Failed to create review', 'INTERNAL_SERVER_ERROR', 500);
   }
@@ -41,9 +44,13 @@ reviewsRouter.post('/', authenticate, async (req, res) => {
 // Get reviews for a garage
 reviewsRouter.get('/garage/:garageId', async (req, res) => {
   try {
-    const currentUserId = req.query.userId as string | undefined; // Optional current user for liked status
-    const reviews = await ReviewsService.getReviewsByGarage(req.params.garageId, currentUserId);
-    return success(res, reviews);
+    const currentUserId = req.query.userId as string | undefined;
+    const page = parseInt(req.query.page as string) || 1;
+    const limit = parseInt(req.query.limit as string) || 10;
+    const sortBy = (req.query.sortBy as string) || 'newest';
+    
+    const result = await ReviewsService.getReviewsByGarage(req.params.garageId, currentUserId, page, limit, sortBy);
+    return success(res, result);
   } catch (err: any) {
     console.error('Error fetching reviews:', err);
     return error(res, 'Failed to fetch reviews', 'INTERNAL_SERVER_ERROR', 500);

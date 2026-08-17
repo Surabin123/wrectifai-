@@ -286,8 +286,8 @@ export function GarageDetailPage({
       // Optimistic Update
       setReviews(prev => prev.map(r => {
         if (r.id !== reviewId) return r;
-        let newLikes = r.likes;
-        let newUnlikes = r.unlikes;
+        let newLikes = r.likes !== undefined ? r.likes : (r.likesCount || 0);
+        let newUnlikes = r.unlikes !== undefined ? r.unlikes : (r.unlikesCount || 0);
         
         if (r.isLikedByUser) newLikes = Math.max(0, newLikes - 1);
         if (r.isUnlikedByUser) newUnlikes = Math.max(0, newUnlikes - 1);
@@ -297,7 +297,9 @@ export function GarageDetailPage({
         
         return {
           ...r,
+          likesCount: newLikes,
           likes: newLikes,
+          unlikesCount: newUnlikes,
           unlikes: newUnlikes,
           isLikedByUser: currentVote === 'like',
           isUnlikedByUser: currentVote === 'unlike'
@@ -747,7 +749,7 @@ export function GarageDetailPage({
                             <h4 className="text-[11px] font-bold text-[#17307a] whitespace-nowrap">
                               {item.title}
                             </h4>
-                            <p className="mt-0.5 text-[9.5px] font-normal text-[#17307a] whitespace-nowrap">
+                            <p className="mt-0.5 text-[9.5px] font-normal text-[#17307a]">
                               {item.desc}
                             </p>
                           </div>
@@ -829,44 +831,60 @@ export function GarageDetailPage({
 
                     {/* Write Review Section (Moved to 3rd column) */}
                     <div className="flex flex-col justify-between rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)]">
-                      <h4 className="text-[13px] font-bold text-[#17307a] mb-3">Write a comment</h4>
-                      <textarea
-                        className="w-full rounded-xl border border-[#e2eefc] p-3 text-[12px] outline-none focus:border-[#1a56db] mb-3 flex-1 resize-none"
-                        placeholder="Share your experience..."
-                        value={newReviewText}
-                        onChange={(e) => setNewReviewText(e.target.value)}
-                      />
-                      <Button 
-                        className="w-full"
-                        onClick={handleSubmitReview}
-                        disabled={!newReviewText.trim() || isSubmittingReview || newReviewRating === 0}
-                      >
-                        Submit Review
-                      </Button>
+                      {user && reviews.some(r => r.customerId === user.id) ? (
+                        <div className="flex flex-col items-center justify-center h-full text-center space-y-3">
+                          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#eef4ff] text-[#1a56db]">
+                            <CheckCircle2 className="h-6 w-6" />
+                          </div>
+                          <h4 className="text-[13px] font-bold text-[#17307a]">Review Submitted</h4>
+                          <p className="text-[11px] text-[#536891]">
+                            You have already shared your experience for this garage. Thank you!
+                          </p>
+                        </div>
+                      ) : (
+                        <>
+                          <h4 className="text-[13px] font-bold text-[#17307a] mb-3">Write a comment</h4>
+                          <textarea
+                            className="w-full rounded-xl border border-[#e2eefc] p-3 text-[12px] outline-none focus:border-[#1a56db] mb-3 flex-1 resize-none"
+                            placeholder="Share your experience..."
+                            value={newReviewText}
+                            onChange={(e) => setNewReviewText(e.target.value)}
+                          />
+                          <Button 
+                            className="w-full"
+                            onClick={handleSubmitReview}
+                            disabled={!newReviewText.trim() || isSubmittingReview || newReviewRating === 0}
+                          >
+                            Submit Review
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </div>
 
                   {/* Reviews List */}
                   {reviews.length > 0 && (
-                    <div className="relative flex flex-col justify-between rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)] mt-6">
+                    <div className="mt-6 flex flex-col gap-4 max-h-[500px] overflow-y-auto pr-2">
+                      {reviews.map((review) => (
+                        <div key={review.id} className="relative flex flex-col justify-between rounded-[20px] border border-[#e2eefc] bg-white p-5 shadow-[0_4px_16px_rgba(22,48,112,0.02)] shrink-0">
                       <div>
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-3">
                             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[#eef4ff] text-[11px] font-bold text-[#1a56db]">
-                              {reviews[reviewPage]?.avatar}
+                              {(review.name || review.customerName || 'U').charAt(0).toUpperCase()}
                             </div>
                             <div>
                               <div className="text-[11px] font-bold text-[#17307a]">
-                                {reviews[reviewPage]?.name}
+                                {review.name || review.customerName || 'Anonymous'}
                               </div>
                               <div className="flex items-center gap-1 text-[9.5px] font-medium text-[#228453]">
                                 <CheckCircle2 className="h-3 w-3 fill-[#228453] text-white" />
-                                <span>{reviews[reviewPage]?.status}</span>
+                                <span>Verified Customer</span>
                               </div>
                             </div>
                           </div>
                           <span className="text-[9.5px] font-bold text-[#8a99ad]">
-                            {reviews[reviewPage]?.date}
+                            {(review.date || review.createdAt) ? new Date(review.date || review.createdAt).toLocaleDateString() : ''}
                           </span>
                         </div>
 
@@ -876,7 +894,7 @@ export function GarageDetailPage({
                               key={i}
                               className={cn(
                                 'h-3.5 w-3.5',
-                                i < Math.floor(reviews[reviewPage]?.rating || 0)
+                                i < Math.floor(review.rating || 0)
                                   ? 'fill-[#ff9f1a] text-[#ff9f1a]'
                                   : 'text-[#cbd4e6]'
                               )}
@@ -885,14 +903,14 @@ export function GarageDetailPage({
                         </div>
 
                         <p className="mt-2.5 text-[11px] font-medium leading-[1.5] text-[#536891]">
-                          &quot;{reviews[reviewPage]?.text}&quot;
+                          &quot;{review.text || review.comment}&quot;
                         </p>
 
                         <div className="mt-3 flex flex-col gap-3">
                           {/* Replies */}
-                          {reviews[reviewPage]?.replies?.length > 0 && (
+                          {review.replies?.length > 0 && (
                             <div className="rounded-lg bg-[#f8fafc] p-3 border border-[#e2eefc]">
-                              {reviews[reviewPage].replies.map((reply: any) => (
+                              {review.replies.map((reply: any) => (
                                 <div key={reply.id} className="mb-2 last:mb-0">
                                   <div className="flex items-center gap-1.5 mb-1">
                                     <span className="text-[10px] font-bold text-[#17307a]">
@@ -913,36 +931,26 @@ export function GarageDetailPage({
                           {/* Interaction Buttons */}
                           <div className="flex items-center gap-4 text-[10px] font-semibold text-[#8a99ad]">
                             <button 
-                              onClick={() => handleVote(reviews[reviewPage].id, reviews[reviewPage].isLikedByUser ? 'none' : 'like')}
+                              onClick={() => handleVote(review.id, review.isLikedByUser ? 'none' : 'like')}
                               className={cn(
                                 "flex items-center gap-1 transition-colors",
-                                reviews[reviewPage]?.isLikedByUser ? "text-[#1a56db]" : "hover:text-[#1a56db]"
+                                review.isLikedByUser ? "text-[#1a56db]" : "hover:text-[#1a56db]"
                               )}
                             >
-                              <Heart className={cn("h-3.5 w-3.5", reviews[reviewPage]?.isLikedByUser && "fill-[#1a56db]")} />
-                              <span>{reviews[reviewPage]?.likes || 0}</span>
+                              <Heart className={cn("h-3.5 w-3.5", review.isLikedByUser && "fill-[#1a56db]")} />
+                              <span>{review.likes !== undefined ? review.likes : (review.likesCount || 0)}</span>
                             </button>
                             <button 
-                              onClick={() => handleVote(reviews[reviewPage].id, reviews[reviewPage].isUnlikedByUser ? 'none' : 'unlike')}
-                              className={cn(
-                                "flex items-center gap-1 transition-colors",
-                                reviews[reviewPage]?.isUnlikedByUser ? "text-[#e53e3e]" : "hover:text-[#e53e3e]"
-                              )}
-                            >
-                              <AlertCircle className="h-3.5 w-3.5" />
-                              <span>{reviews[reviewPage]?.unlikes || 0}</span>
-                            </button>
-                            <button 
-                              onClick={() => setReplyingToReviewId(replyingToReviewId === reviews[reviewPage].id ? null : reviews[reviewPage].id)}
+                              onClick={() => setReplyingToReviewId(replyingToReviewId === review.id ? null : review.id)}
                               className="flex items-center gap-1 hover:text-[#1a56db] transition-colors"
                             >
                               <MessageSquare className="h-3.5 w-3.5" />
-                              <span>Reply ({reviews[reviewPage]?.repliesCount || 0})</span>
+                              <span>Reply ({review.repliesCount || 0})</span>
                             </button>
                           </div>
                           
                           {/* Reply Input */}
-                          {replyingToReviewId === reviews[reviewPage].id && (
+                          {replyingToReviewId === review.id && (
                             <div className="mt-2 flex gap-2">
                               <input 
                                 type="text" 
@@ -951,28 +959,17 @@ export function GarageDetailPage({
                                 value={replyText}
                                 onChange={(e) => setReplyText(e.target.value)}
                               />
-                              <Button size="sm" onClick={() => handleSubmitReply(reviews[reviewPage].id)} disabled={isSubmittingReply}>
+                              <Button size="sm" onClick={() => handleSubmitReply(review.id)} disabled={isSubmittingReply}>
                                 Send
                               </Button>
                             </div>
                           )}
                         </div>
                       </div>
-
-                      <div className="flex justify-center gap-1.5 pt-3 mt-4 border-t border-[#e2eefc]">
-                        {reviews.map((_, i) => (
-                          <button
-                            key={i}
-                            onClick={() => setReviewPage(i)}
-                            className={cn(
-                              'h-2 w-2 rounded-full transition-colors',
-                              i === reviewPage ? 'bg-[#1a56db]' : 'bg-[#cbd4e6]'
-                            )}
-                          />
-                        ))}
-                      </div>
                     </div>
-                  )}
+                    ))}
+                  </div>
+                )}
                 </section>
                 </>
             )}

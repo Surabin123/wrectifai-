@@ -139,7 +139,7 @@ authRouter.post('/check-user', async (req, res, next) => {
   }
 
   try {
-    const existingUser = await query('SELECT id FROM users WHERE mobile_number = $1', [mobileNumber]);
+    const existingUser = await query("SELECT id FROM users WHERE mobile_number LIKE '%' || $1", [mobileNumber]);
     return success(res, { exists: existingUser.rows.length > 0 }, 200);
   } catch (err) {
     next(err);
@@ -189,7 +189,7 @@ authRouter.post('/register', async (req, res, next) => {
         return error(res, 'Invalid phone number or OTP', 'UNAUTHORIZED', 401);
       }
 
-      const existingUser = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
+      const existingUser = await query("SELECT * FROM users WHERE mobile_number LIKE '%' || $1", [mobileNumber]);
       if (existingUser.rows.length > 0) {
         return error(res, 'Account already exists with this phone number. Please sign in.', 'CONFLICT', 409);
       }
@@ -289,7 +289,7 @@ authRouter.post('/login', async (req, res, next) => {
       }
       
       if (otp === '1234' || otp === '123456') {
-        const existingUser = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
+        const existingUser = await query("SELECT * FROM users WHERE mobile_number LIKE '%' || $1", [mobileNumber]);
         
         if (existingUser.rows.length > 0) {
           user = existingUser.rows[0];
@@ -456,9 +456,11 @@ authRouter.get('/me', authenticate, async (req, res) => {
     const roles = rolesResult.rows.map((row) => row.code);
 
     let garageName = undefined;
+    let garageId = undefined;
     if (roles.includes('garage')) {
-      const garageResult = await query('SELECT name FROM garages WHERE owner_user_id = $1', [userId]);
+      const garageResult = await query('SELECT id, name FROM garages WHERE owner_user_id = $1', [userId]);
       if (garageResult.rows.length > 0) {
+        garageId = garageResult.rows[0].id;
         garageName = garageResult.rows[0].name;
       }
     }
@@ -468,6 +470,7 @@ authRouter.get('/me', authenticate, async (req, res) => {
         id: user.id,
         email: user.email,
         name: user.name,
+        garageId,
         garageName,
         mobileNumber: user.mobile_number,
         status: user.status,

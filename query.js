@@ -1,23 +1,3 @@
-const { Pool } = require('pg');
-
-const pool = new Pool({
-  user: 'postgres',
-  host: 'localhost',
-  database: 'wrectifai_new',
-  password: 'Smruti@22',
-  port: 5432,
-});
-
-async function run() {
-  try {
-    const userRes = await pool.query("SELECT * FROM users WHERE id = '0da3117a-2097-4358-83bf-d5bc65388171'");
-    console.log("Garage Owner User:", userRes.rows[0]);
-    
-  } catch (err) {
-    console.error(err);
-  } finally {
-    pool.end();
-  }
-}
-
-run();
+const { Client } = require('pg');
+const client = new Client({ connectionString: 'postgresql://postgres:Smruti@22@localhost:5432/wrectifai_new' });
+client.connect().then(() => client.query("SELECT id, customer_name, text FROM garage_reviews ORDER BY created_at DESC LIMIT 5")).then(res => { console.table(res.rows); client.end(); }).catch(console.error);
