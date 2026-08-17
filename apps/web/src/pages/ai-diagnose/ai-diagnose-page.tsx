@@ -3438,14 +3438,6 @@ export function AIDiagnosePage() {
                   </button>
                   <button
                     type="button"
-                    disabled={!selectedVehicleId}
-                    className="flex items-center gap-1.5 hover:text-[#1a56db] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <Video className="h-3.5 w-3.5 text-[#6a8cff]" />
-                    <span>Upload Video</span>
-                  </button>
-                  <button
-                    type="button"
                     disabled={!selectedVehicleId || isAnalyzingResults}
                     onClick={handleToggleRecording}
                     className={`flex items-center gap-1.5 transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${isRecording

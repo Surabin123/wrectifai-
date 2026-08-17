@@ -638,7 +638,7 @@ function GaragesContent() {
       if (filters.moreFilters === 'verified' && !garage.verified) {
         return false;
       }
-      if (filters.moreFilters === 'top-rated' && garage.badge !== 'Top Rated') {
+      if (filters.moreFilters === 'top-rated' && garage.rating < 4.8) {
         return false;
       }
       if (
@@ -772,8 +772,7 @@ function GaragesContent() {
         } else {
           const fallbackGarage: Garage = {
             id: quote.garageId || '',
-            badge: 'Top Rated',
-            badgeTone: 'bg-[#1a56db]',
+
             name: quote.garage,
             rating: Number(quote.rating) || 4.5,
             reviews: Number(quote.reviews) || 12,

@@ -9,7 +9,7 @@ import { apiClient } from '@/lib/api-client';
 export function ProfileContent() {
   const { user, token, login } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', mobileNumber: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', mobileNumber: '', image: '' });
   const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
 
   const showToast = (message: string, type: 'success'|'error') => {
@@ -21,7 +21,8 @@ export function ProfileContent() {
     setFormData({ 
       name: user?.name || '', 
       email: user?.email || '', 
-      mobileNumber: user?.mobileNumber || '' 
+      mobileNumber: user?.mobileNumber || '',
+      image: user?.image || ''
     });
     setIsEditing(true);
   };
@@ -68,13 +69,35 @@ export function ProfileContent() {
 
       <Card className="p-6 flex items-center gap-6 shadow-sm border-slate-100 rounded-[24px]">
         <div className="relative">
-          <div className="w-24 h-24 rounded-full bg-blue-600 text-white flex items-center justify-center text-3xl font-bold">
-            {initials}
+          <div className="w-24 h-24 rounded-full bg-blue-600 text-white flex items-center justify-center text-3xl font-bold overflow-hidden">
+            {formData.image || user.image ? (
+              <img src={formData.image || user.image} alt="Profile" className="w-full h-full object-cover" />
+            ) : (
+              initials
+            )}
           </div>
           {isEditing && (
-            <button className="absolute bottom-0 right-0 p-1.5 bg-white border rounded-full text-slate-600 hover:text-blue-600 shadow-sm">
-              <CameraIcon className="w-4 h-4" />
-            </button>
+            <>
+              <input 
+                type="file" 
+                id="profile-image-upload" 
+                className="hidden" 
+                accept="image/*"
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      setFormData({ ...formData, image: reader.result as string });
+                    };
+                    reader.readAsDataURL(file);
+                  }
+                }}
+              />
+              <label htmlFor="profile-image-upload" className="absolute bottom-0 right-0 p-1.5 bg-white border rounded-full text-slate-600 hover:text-blue-600 shadow-sm cursor-pointer">
+                <CameraIcon className="w-4 h-4" />
+              </label>
+            </>
           )}
         </div>
         <div>
@@ -86,7 +109,7 @@ export function ProfileContent() {
         </div>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         <Card className="p-6 shadow-sm border-slate-100 rounded-[24px]">
           <h3 className="text-lg font-bold text-slate-900 mb-6">Personal Information</h3>
           <div className="space-y-6">
@@ -113,16 +136,6 @@ export function ProfileContent() {
               ) : (
                 <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.mobileNumber ?? 'N/A'}</span>
               )}
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-6 shadow-sm border-slate-100 rounded-[24px]">
-          <h3 className="text-lg font-bold text-slate-900 mb-6">Account Information</h3>
-          <div className="space-y-6">
-            <div className="flex justify-between pb-2">
-              <span className="text-sm font-medium text-slate-500">User ID</span>
-              <span className="text-sm font-bold text-slate-900">{user.id ? user.id.substring(0,8).toUpperCase() : 'N/A'}</span>
             </div>
           </div>
         </Card>

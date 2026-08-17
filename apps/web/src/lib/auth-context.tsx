@@ -20,6 +20,7 @@ export interface User {
   mobileNumber?: string;
   status?: string;
   country?: string;
+  image?: string;
 }
 
 export interface AuthContextType {

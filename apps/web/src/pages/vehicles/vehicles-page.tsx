@@ -17,6 +17,7 @@ import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { Input } from '@/components/common/input';
 import { apiClient } from '@/lib/api-client';
+import { useAuth } from '@/lib/auth-context';
 
 interface Vehicle {
   id: string;
@@ -27,6 +28,8 @@ interface Vehicle {
   vin?: string;
   mileage?: number;
   warranty?: unknown;
+  plateNumber?: string;
+  image?: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -133,6 +136,8 @@ function FeatureAside() {
 }
 
 export function VehiclesPage() {
+  const { user } = useAuth();
+  const country = user?.country || 'India';
   const { vehicles, loading, errorText, fetchVehicles } = useVehicles();
 
   // Modal control states
@@ -147,6 +152,8 @@ export function VehiclesPage() {
   const [model, setModel] = useState('');
   const [year, setYear] = useState<number>(new Date().getFullYear());
   const [vin, setVin] = useState('');
+  const [plateNumber, setPlateNumber] = useState('');
+  const [image, setImage] = useState('');
   const [mileage, setMileage] = useState<number | ''>('');
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -156,6 +163,8 @@ export function VehiclesPage() {
     setModel('');
     setYear(new Date().getFullYear());
     setVin('');
+    setPlateNumber('');
+    setImage('');
     setMileage('');
     setFormError(null);
   };
@@ -164,28 +173,56 @@ export function VehiclesPage() {
     e.preventDefault();
     setFormError(null);
 
-    if (!make.trim() || !model.trim() || !year || mileage === '' || !vin.trim()) {
-      setFormError('Make, model, year, miles (mileage), and VIN number are all required.');
+    if (!make.trim() || !model.trim() || !year || mileage === '' || !vin.trim() || !plateNumber.trim() || !image) {
+      setFormError('Make, model, year, mileage, VIN, Plate Number, and Picture are all required.');
       return;
     }
 
+    const currentYear = new Date().getFullYear();
+    if (Number(year) > currentYear) {
+      setFormError(`Vehicle year cannot be in the future (max ${currentYear}).`);
+      return;
+    }
+
+    const isIndia = country === 'India';
+    const isUSA = country === 'USA';
+    const isUAE = country === 'UAE';
+    
     if (vin.trim().length !== 17) {
-      setFormError('VIN number must be exactly 17 characters.');
+      setFormError(`VIN number must be exactly 17 characters for ${country}.`);
+      return;
+    }
+
+    const pLen = plateNumber.trim().length;
+    if (isIndia && pLen !== 10) {
+      setFormError(`Plate number must be exactly 10 characters for India.`);
+      return;
+    } else if (isUSA && (pLen < 2 || pLen > 8)) {
+      setFormError(`Plate number must be between 2 and 8 characters for USA.`);
+      return;
+    } else if (isUAE && (pLen < 3 || pLen > 7)) {
+      setFormError(`Plate number must be between 3 and 7 characters for UAE.`);
       return;
     }
 
     setSubmitting(true);
     try {
-      await apiClient.post('/vehicles', {
+      const newVehicle = await apiClient.post('/vehicles', {
         make,
         model,
         year: Number(year),
         vin: vin.trim() || undefined,
+        plateNumber: plateNumber.trim() || undefined,
+        image: image || undefined,
         mileage: Number(mileage),
       });
       setIsAddOpen(false);
       resetForm();
       fetchVehicles();
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('wrectifai_selected_vehicle', JSON.stringify(newVehicle));
+        window.dispatchEvent(new Event('wrectifai-vehicle-changed'));
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to save vehicle';
       setFormError(message);
@@ -200,6 +237,8 @@ export function VehiclesPage() {
     setModel(vehicle.model);
     setYear(vehicle.year);
     setVin(vehicle.vin || '');
+    setPlateNumber(vehicle.plateNumber || '');
+    setImage(vehicle.image || '');
     setMileage(vehicle.mileage || '');
     setIsEditOpen(true);
   };
@@ -210,13 +249,35 @@ export function VehiclesPage() {
 
     if (!selectedVehicle) return;
 
-    if (!make.trim() || !model.trim() || !year || mileage === '' || !vin.trim()) {
-      setFormError('Make, model, year, miles (mileage), and VIN number are all required.');
+    if (!make.trim() || !model.trim() || !year || mileage === '' || !vin.trim() || !plateNumber.trim() || !image) {
+      setFormError('Make, model, year, mileage, VIN, Plate Number, and Picture are all required.');
       return;
     }
 
+    const currentYear = new Date().getFullYear();
+    if (Number(year) > currentYear) {
+      setFormError(`Vehicle year cannot be in the future (max ${currentYear}).`);
+      return;
+    }
+
+    const isIndia = country === 'India';
+    const isUSA = country === 'USA';
+    const isUAE = country === 'UAE';
+
     if (vin.trim().length !== 17) {
-      setFormError('VIN number must be exactly 17 characters.');
+      setFormError(`VIN number must be exactly 17 characters for ${country}.`);
+      return;
+    }
+
+    const pLen = plateNumber.trim().length;
+    if (isIndia && pLen !== 10) {
+      setFormError(`Plate number must be exactly 10 characters for India.`);
+      return;
+    } else if (isUSA && (pLen < 2 || pLen > 8)) {
+      setFormError(`Plate number must be between 2 and 8 characters for USA.`);
+      return;
+    } else if (isUAE && (pLen < 3 || pLen > 7)) {
+      setFormError(`Plate number must be between 3 and 7 characters for UAE.`);
       return;
     }
 
@@ -227,6 +288,8 @@ export function VehiclesPage() {
         model,
         year: Number(year),
         vin: vin.trim() || undefined,
+        plateNumber: plateNumber.trim() || undefined,
+        image: image || undefined,
         mileage: Number(mileage),
       });
       setIsEditOpen(false);
@@ -255,6 +318,7 @@ export function VehiclesPage() {
       setIsDeleteOpen(false);
       setSelectedVehicle(null);
       fetchVehicles();
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('wrectifai-vehicle-changed'));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to delete vehicle';
       setDeleteError(message);
@@ -425,9 +489,12 @@ export function VehiclesPage() {
                     <Input
                       type="number"
                       min={1900}
-                      max={new Date().getFullYear() + 1}
+                      max={new Date().getFullYear()}
                       value={year}
-                      onChange={(e) => setYear(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.length <= 4) setYear(Number(val));
+                      }}
                       required
                     />
                   </div>
@@ -456,6 +523,61 @@ export function VehiclesPage() {
                     maxLength={17}
                     required
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#5d6f9f] uppercase tracking-wider mb-1.5">
+                    Plate Number
+                  </label>
+                  <Input
+                    placeholder="e.g. ABC 1234"
+                    value={plateNumber}
+                    onChange={(e) => setPlateNumber(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#5d6f9f] uppercase tracking-wider mb-1.5">
+                    Vehicle Picture
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                    required
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const t = file.type.toLowerCase();
+                        const n = file.name.toLowerCase();
+                        const isValidFormat = t.includes('jpeg') || t.includes('jpg') || t.includes('png') || n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png');
+                        if (!isValidFormat) {
+                          setFormError('Only JPG or PNG format is accepted for vehicle picture.');
+                          e.target.value = '';
+                          return;
+                        }
+                        if (file.size > 5 * 1024 * 1024) {
+                          setFormError('Vehicle picture must be less than 5MB.');
+                          e.target.value = '';
+                          return;
+                        }
+                        setFormError(null);
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setImage(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="block w-full text-sm text-slate-500
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-full file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-blue-50 file:text-blue-700
+                      hover:file:bg-blue-100 cursor-pointer border rounded-lg p-1.5"
+                  />
+                  {image && (
+                    <img src={image} alt="Vehicle Preview" className="mt-2 h-24 object-cover rounded-lg border" />
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-2.5 pt-4">
@@ -523,9 +645,12 @@ export function VehiclesPage() {
                     <Input
                       type="number"
                       min={1900}
-                      max={new Date().getFullYear() + 1}
+                      max={new Date().getFullYear()}
                       value={year}
-                      onChange={(e) => setYear(Number(e.target.value))}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.length <= 4) setYear(Number(val));
+                      }}
                       required
                     />
                   </div>
@@ -554,6 +679,256 @@ export function VehiclesPage() {
                     maxLength={17}
                     required
                   />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#5d6f9f] uppercase tracking-wider mb-1.5">
+                    Plate Number
+                  </label>
+                  <Input
+                    placeholder="e.g. ABC 1234"
+                    value={plateNumber}
+                    onChange={(e) => setPlateNumber(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#5d6f9f] uppercase tracking-wider mb-1.5">
+                    Vehicle Picture
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                    required
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const t = file.type.toLowerCase();
+                        const n = file.name.toLowerCase();
+                        const isValidFormat = t.includes('jpeg') || t.includes('jpg') || t.includes('png') || n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png');
+                        if (!isValidFormat) {
+                          setFormError('Only JPG or PNG format is accepted for vehicle picture.');
+                          e.target.value = '';
+                          return;
+                        }
+                        if (file.size > 5 * 1024 * 1024) {
+                          setFormError('Vehicle picture must be less than 5MB.');
+                          e.target.value = '';
+                          return;
+                        }
+                        setFormError(null);
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setImage(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="block w-full text-sm text-slate-500
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-full file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-blue-50 file:text-blue-700
+                      hover:file:bg-blue-100 cursor-pointer border rounded-lg p-1.5"
+                  />
+                  {image && (
+                    <img src={image} alt="Vehicle Preview" className="mt-2 h-24 object-cover rounded-lg border" />
+                  )}
+                </div>
+
+                <div className="flex justify-end gap-2.5 pt-4">
+                  <Button type="button" variant="outline" onClick={() => setIsEditOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button type="submit" disabled={submitting}>
+                    {submitting ? 'Updating...' : 'Save Changes'}
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          </div>
+        )}
+
+        {/* Modal: Confirm Delete */}
+        {isDeleteOpen && selectedVehicle && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(10,18,45,0.4)] px-4 py-5 backdrop-blur-[2px]">
+            <Card className="w-full max-w-md rounded-[24px] border border-[#dbe6ff] bg-white p-6 text-center animate-in fade-in zoom-in-95 duration-200">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-500 mx-auto mb-4">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <h2 className="text-xl font-bold text-[#17307a]">Delete Vehicle?</h2>
+              
+              {deleteError ? (
+                <div className="mt-4 p-3 bg-red-50 text-red-600 text-sm rounded-lg border border-red-100">
+                  {deleteError}
+                </div>
+              ) : (
+                <p className="mt-2 text-[14px] leading-6 text-[#5d6f9f]">
+                  Are you sure you want to remove the <strong>{selectedVehicle.year} {selectedVehicle.make} {selectedVehicle.model}</strong>?
+                  This action is permanent and will hide it from your diagnostics and quotes request lists.
+                </p>
+              )}
+
+              <div className="mt-6 flex justify-center gap-3">
+                <Button variant="outline" onClick={() => setIsDeleteOpen(false)}>
+                  {deleteError ? 'Close' : 'Cancel'}
+                </Button>
+                {!deleteError && (
+                  <Button
+                    disabled={submitting}
+                    onClick={handleDeleteConfirm}
+                    className="bg-red-600 text-white shadow-[0_10px_20px_rgba(220,38,38,0.2)] hover:bg-red-700"
+                  >
+                    {submitting ? 'Deleting...' : 'Confirm Delete'}
+                  </Button>
+                )}
+              </div>
+            </Card>
+            </Card>
+          </div>
+        )}
+
+        {/* Modal: Edit Vehicle */}
+        {isEditOpen && selectedVehicle && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(10,18,45,0.4)] px-4 py-5 backdrop-blur-[2px]">
+            <Card className="w-full max-w-lg rounded-[24px] border border-[#dbe6ff] bg-white p-6 shadow-[0_20px_50px_rgba(10,18,45,0.15)] relative animate-in fade-in zoom-in-95 duration-200">
+              <button
+                onClick={() => setIsEditOpen(false)}
+                className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+              <h2 className="text-xl font-bold text-[#17307a] mb-5 flex items-center gap-2">
+                <Settings className="h-5 w-5 text-[#1a56db]" />
+                Edit Vehicle Details
+              </h2>
+
+              <form onSubmit={handleEditSubmit} className="space-y-4">
+                {formError && (
+                  <div className="p-3 bg-red-50 border border-red-100 text-red-700 text-sm rounded-[10px]">
+                    {formError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#5d6f9f] uppercase tracking-wider mb-1.5">
+                    Make *
+                  </label>
+                  <Input
+                    value={make}
+                    onChange={(e) => setMake(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#5d6f9f] uppercase tracking-wider mb-1.5">
+                    Model *
+                  </label>
+                  <Input
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                    required
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-[#5d6f9f] uppercase tracking-wider mb-1.5">
+                      Year *
+                    </label>
+                    <Input
+                      type="number"
+                      min={1900}
+                      max={new Date().getFullYear()}
+                      value={year}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        if (val.length <= 4) setYear(Number(val));
+                      }}
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-[#5d6f9f] uppercase tracking-wider mb-1.5">
+                      Mileage (miles)
+                    </label>
+                    <Input
+                      type="number"
+                      placeholder="e.g. 45000"
+                      value={mileage}
+                      onChange={(e) => setMileage(e.target.value !== '' ? Number(e.target.value) : '')}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#5d6f9f] uppercase tracking-wider mb-1.5">
+                    VIN (17 characters)
+                  </label>
+                  <Input
+                    placeholder="Enter 17-digit VIN"
+                    value={vin}
+                    onChange={(e) => setVin(e.target.value.toUpperCase())}
+                    maxLength={17}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#5d6f9f] uppercase tracking-wider mb-1.5">
+                    Plate Number
+                  </label>
+                  <Input
+                    placeholder="e.g. ABC 1234"
+                    value={plateNumber}
+                    onChange={(e) => setPlateNumber(e.target.value)}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#5d6f9f] uppercase tracking-wider mb-1.5">
+                    Vehicle Picture
+                  </label>
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                    required
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const t = file.type.toLowerCase();
+                        const n = file.name.toLowerCase();
+                        const isValidFormat = t.includes('jpeg') || t.includes('jpg') || t.includes('png') || n.endsWith('.jpg') || n.endsWith('.jpeg') || n.endsWith('.png');
+                        if (!isValidFormat) {
+                          setFormError('Only JPG or PNG format is accepted for vehicle picture.');
+                          e.target.value = '';
+                          return;
+                        }
+                        if (file.size > 5 * 1024 * 1024) {
+                          setFormError('Vehicle picture must be less than 5MB.');
+                          e.target.value = '';
+                          return;
+                        }
+                        setFormError(null);
+                        const reader = new FileReader();
+                        reader.onloadend = () => {
+                          setImage(reader.result as string);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    className="block w-full text-sm text-slate-500
+                      file:mr-4 file:py-2 file:px-4
+                      file:rounded-full file:border-0
+                      file:text-sm file:font-semibold
+                      file:bg-blue-50 file:text-blue-700
+                      hover:file:bg-blue-100 cursor-pointer border rounded-lg p-1.5"
+                  />
+                  {image && (
+                    <img src={image} alt="Vehicle Preview" className="mt-2 h-24 object-cover rounded-lg border" />
+                  )}
                 </div>
 
                 <div className="flex justify-end gap-2.5 pt-4">

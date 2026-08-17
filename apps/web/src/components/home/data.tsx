@@ -142,6 +142,7 @@ export const topNavIcons: IconLink[] = [
 ];
 
 export type Garage = {
+  id?: string;
   badge?: string;
   name: string;
   rating: number;

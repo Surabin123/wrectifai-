@@ -27,6 +27,7 @@ import {
 import { fetchGarages, fetchPromos } from '@/lib/garages-api';
 import { Promo } from '@/lib/garages-api';
 import { useFavorites } from '@/lib/favorites-context';
+import { apiClient } from '@/lib/api-client';
 import { Badge } from '@/components/common/badge';
 import { Button } from '@/components/common/button';
 import { Card } from '@/components/common/card';
@@ -246,33 +247,84 @@ function CategoriesModal({
 function HeroBanner() {
   const router = useRouter();
   const [query, setQuery] = useState('');
-  const [imageIndex, setImageIndex] = useState(0);
+  const [selectedVehicle, setSelectedVehicle] = useState<any>(null);
 
-  const bannerImages = [
-    {
-      src: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80',
-      name: 'Chevrolet Camaro',
-      model: '2SS Coupe',
-      year: '2024',
-    },
-    {
-      src: 'https://images.unsplash.com/photo-1494976388531-d1058494cdd8?auto=format&fit=crop&w=600&q=80',
-      name: 'Ford Mustang',
-      model: 'GT Fastback',
-      year: '2023',
-    },
-    {
-      src: 'https://images.unsplash.com/photo-1580273916550-e323be2ae537?auto=format&fit=crop&w=600&q=80',
-      name: 'BMW 3 Series',
-      model: '330i M Sport',
-      year: '2024',
-    },
-  ];
+  useEffect(() => {
+    let active = true;
+    const fetchAndSetVehicle = async () => {
+      // 1. Check local storage first for immediate display
+      const stored = localStorage.getItem('wrectifai_selected_vehicle');
+      if (stored) {
+        try {
+          setSelectedVehicle(JSON.parse(stored));
+        } catch (e) {}
+      }
 
-  const activeBanner = bannerImages[imageIndex] || bannerImages[0];
+      // 2. Fetch latest from API to ensure we have the most up-to-date details
+      try {
+        const data = await apiClient.get<any[]>('/vehicles');
+        if (!active) return;
+        
+        if (data && data.length > 0) {
+           if (stored) {
+             const parsed = JSON.parse(stored);
+             const updated = data.find(v => v.id === parsed.id);
+             if (updated) {
+               setSelectedVehicle(updated);
+               localStorage.setItem('wrectifai_selected_vehicle', JSON.stringify(updated));
+             } else {
+               setSelectedVehicle(data[0]);
+               localStorage.setItem('wrectifai_selected_vehicle', JSON.stringify(data[0]));
+             }
+           } else {
+             setSelectedVehicle(data[0]);
+             localStorage.setItem('wrectifai_selected_vehicle', JSON.stringify(data[0]));
+           }
+        } else {
+           setSelectedVehicle(null);
+           localStorage.removeItem('wrectifai_selected_vehicle');
+        }
+      } catch (err) {
+        console.error('Failed to fetch latest vehicles for dashboard', err);
+      }
+    };
 
-  const nextImage = () => setImageIndex((i) => Math.min(i + 1, bannerImages.length - 1));
-  const prevImage = () => setImageIndex((i) => Math.max(i - 1, 0));
+    fetchAndSetVehicle();
+    
+    const handleStorage = () => {
+      const stored = localStorage.getItem('wrectifai_selected_vehicle');
+      if (stored) {
+        try { setSelectedVehicle(JSON.parse(stored)); } catch (e) {}
+      } else {
+        setSelectedVehicle(null);
+      }
+    };
+    
+    window.addEventListener('storage', handleStorage);
+    window.addEventListener('wrectifai-vehicle-changed', handleStorage);
+    return () => {
+      active = false;
+      window.removeEventListener('storage', handleStorage);
+      window.removeEventListener('wrectifai-vehicle-changed', handleStorage);
+    };
+  }, []);
+
+  const activeBanner = selectedVehicle ? {
+    src: selectedVehicle.image || 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80',
+    name: selectedVehicle.make || 'Unknown',
+    model: selectedVehicle.model || 'Unknown',
+    year: selectedVehicle.year || 'Unknown',
+    vin: selectedVehicle.vin || 'N/A',
+    plateNumber: selectedVehicle.plateNumber || 'N/A'
+  } : {
+    src: 'https://images.unsplash.com/photo-1552519507-da3b142c6e3d?auto=format&fit=crop&w=600&q=80',
+    name: 'Chevrolet Camaro',
+    model: '2SS Coupe',
+    year: '2024',
+    vin: 'N/A',
+    plateNumber: 'N/A'
+  };
+
   const examples = [
     { label: 'Engine noise', value: 'Engine noise' },
     { label: 'AC cooling', value: 'AC not cooling' },
@@ -309,30 +361,8 @@ function HeroBanner() {
             className="object-cover"
           />
 
-          {imageIndex > 0 && (
-            <button
-              type="button"
-              onClick={prevImage}
-              aria-label="Previous image"
-              className="absolute left-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/38 text-white/85 backdrop-blur-md transition-colors hover:bg-black/52 hover:text-white"
-            >
-              <ChevronLeft className="h-4.5 w-4.5" />
-            </button>
-          )}
-
-          {imageIndex < bannerImages.length - 1 && (
-            <button
-              type="button"
-              onClick={nextImage}
-              aria-label="Next image"
-              className="absolute right-3 top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-black/38 text-white/85 backdrop-blur-md transition-colors hover:bg-black/52 hover:text-white"
-            >
-              <ChevronRight className="h-4.5 w-4.5" />
-            </button>
-          )}
-
           <div className="absolute bottom-0 left-0 right-0 border-t border-white/12 bg-[linear-gradient(180deg,rgba(9,16,38,0.08),rgba(9,16,38,0.46))] px-4 py-3 backdrop-blur-md">
-            <div className="grid grid-cols-3 gap-3 text-white">
+            <div className="grid grid-cols-5 gap-2 text-white">
               <div className="min-w-0">
                 <div className="text-[9px] font-medium uppercase tracking-[0.08em] text-white/62">Name</div>
                 <div className="mt-0.5 truncate text-[11px] font-semibold text-white">{activeBanner.name}</div>
@@ -344,6 +374,14 @@ function HeroBanner() {
               <div className="min-w-0">
                 <div className="text-[9px] font-medium uppercase tracking-[0.08em] text-white/62">Year</div>
                 <div className="mt-0.5 truncate text-[11px] font-semibold text-white">{activeBanner.year}</div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[9px] font-medium uppercase tracking-[0.08em] text-white/62">VIN</div>
+                <div className="mt-0.5 truncate text-[11px] font-semibold text-white">{activeBanner.vin !== 'N/A' ? activeBanner.vin.substring(0,6) + '...' : 'N/A'}</div>
+              </div>
+              <div className="min-w-0">
+                <div className="text-[9px] font-medium uppercase tracking-[0.08em] text-white/62">Plate</div>
+                <div className="mt-0.5 truncate text-[11px] font-semibold text-white">{activeBanner.plateNumber}</div>
               </div>
             </div>
           </div>

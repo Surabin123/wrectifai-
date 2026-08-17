@@ -418,12 +418,7 @@ export function GarageDetailPage({
                 </span>
               </div>
 
-              {/* Badge & Favorite Button */}
-              {garage.badge && (
-                <span className="absolute left-4 top-4 rounded-[10px] bg-[#1aa14a] px-3.5 py-1.5 text-[11px] font-bold text-white shadow-lg">
-                  {garage.badge}
-                </span>
-              )}
+              {/* Favorite Button */}
               <button
                 onClick={toggleFavorite}
                 className="absolute right-4 top-4 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#1a56db] shadow-[0_8px_20px_rgba(30,58,138,0.15)] transition-transform hover:scale-105 active:scale-95"

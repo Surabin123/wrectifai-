@@ -41,7 +41,7 @@ vehiclesRouter.get('/', authenticate, async (req, res) => {
     }
 
     const result = await query(
-      `SELECT id, customer_id as "customerId", make, model, year, vin, mileage, warranty, created_at as "createdAt", updated_at as "updatedAt"
+      `SELECT id, customer_id as "customerId", make, model, year, vin, mileage, warranty, image, plate_number as "plateNumber", created_at as "createdAt", updated_at as "updatedAt"
        FROM vehicles
        WHERE ${filterCondition}
        ORDER BY created_at DESC`,
@@ -67,16 +67,16 @@ vehiclesRouter.post('/', authenticate, async (req, res) => {
       return error(res, 'User ID missing from authentication token', 'UNAUTHORIZED', 401);
     }
 
-    const { make, model, year, vin, mileage, warranty } = req.body;
+    const { make, model, year, vin, mileage, warranty, image, plateNumber } = req.body;
     if (!make || !model || !year) {
       return error(res, 'Make, model, and year are required fields', 'BAD_REQUEST', 400);
     }
 
     const result = await query(
-      `INSERT INTO vehicles (customer_id, make, model, year, vin, mileage, warranty, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
-       RETURNING id, customer_id as "customerId", make, model, year, vin, mileage, warranty, created_at as "createdAt", updated_at as "updatedAt"`,
-      [userId, make, model, year, vin || null, mileage || null, warranty ? JSON.stringify(warranty) : null]
+      `INSERT INTO vehicles (customer_id, make, model, year, vin, mileage, warranty, image, plate_number, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
+       RETURNING id, customer_id as "customerId", make, model, year, vin, mileage, warranty, image, plate_number as "plateNumber", created_at as "createdAt", updated_at as "updatedAt"`,
+      [userId, make, model, year, vin || null, mileage || null, warranty ? JSON.stringify(warranty) : null, image || null, plateNumber || null]
     );
 
     return success(res, result.rows[0], 201);
@@ -101,7 +101,7 @@ vehiclesRouter.get('/:vehicleId', authenticate, async (req, res) => {
     }
 
     const result = await query(
-      `SELECT id, customer_id as "customerId", make, model, year, vin, mileage, warranty, created_at as "createdAt", updated_at as "updatedAt", is_active
+      `SELECT id, customer_id as "customerId", make, model, year, vin, mileage, warranty, image, plate_number as "plateNumber", created_at as "createdAt", updated_at as "updatedAt", is_active
        FROM vehicles
        WHERE id = $1`,
       [vehicleId]
@@ -159,7 +159,7 @@ vehiclesRouter.patch('/:vehicleId', authenticate, async (req, res) => {
 
 
     // 2. Perform partial update
-    const { make, model, year, vin, mileage, warranty } = req.body;
+    const { make, model, year, vin, mileage, warranty, image, plateNumber } = req.body;
 
     const result = await query(
       `UPDATE vehicles
@@ -169,9 +169,11 @@ vehiclesRouter.patch('/:vehicleId', authenticate, async (req, res) => {
            vin = COALESCE($4, vin),
            mileage = COALESCE($5, mileage),
            warranty = COALESCE($6, warranty),
+           image = COALESCE($7, image),
+           plate_number = COALESCE($8, plate_number),
            updated_at = NOW()
-       WHERE id = $7
-       RETURNING id, customer_id as "customerId", make, model, year, vin, mileage, warranty, created_at as "createdAt", updated_at as "updatedAt"`,
+       WHERE id = $9
+       RETURNING id, customer_id as "customerId", make, model, year, vin, mileage, warranty, image, plate_number as "plateNumber", created_at as "createdAt", updated_at as "updatedAt"`,
       [
         make !== undefined ? make : null,
         model !== undefined ? model : null,
@@ -179,6 +181,8 @@ vehiclesRouter.patch('/:vehicleId', authenticate, async (req, res) => {
         vin !== undefined ? vin : null,
         mileage !== undefined ? mileage : null,
         warranty !== undefined ? (warranty ? JSON.stringify(warranty) : null) : null,
+        image !== undefined ? image : null,
+        plateNumber !== undefined ? plateNumber : null,
         vehicleId,
       ]
     );

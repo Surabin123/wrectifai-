@@ -14,7 +14,7 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
     const userId = req.user?.userId;
     if (!userId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
 
-    const { name, email, mobileNumber } = req.body;
+    const { name, email, mobileNumber, image } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return error(res, 'Name is required', 'VALIDATION_ERROR', 400);
@@ -26,10 +26,11 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
     }
 
     const phoneToSave = mobileNumber && mobileNumber.trim() !== '' ? mobileNumber.trim() : null;
+    const imageToSave = image && typeof image === 'string' && image.trim() !== '' ? image.trim() : null;
     
     const result = await query(
-      'UPDATE users SET name = $1, email = $2, mobile_number = $3 WHERE id = $4 RETURNING id, email, name, mobile_number as "mobileNumber", status',
-      [name.trim(), emailToSave, phoneToSave, userId]
+      'UPDATE users SET name = $1, email = $2, mobile_number = $3, image = $4 WHERE id = $5 RETURNING id, email, name, mobile_number as "mobileNumber", image, status',
+      [name.trim(), emailToSave, phoneToSave, imageToSave, userId]
     );
 
     if (result.rowCount === 0) {
