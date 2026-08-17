@@ -32,6 +32,10 @@ export interface PaginatedReviews {
   page: number;
   limit: number;
   totalPages: number;
+  stats?: {
+    averageRating: number;
+    distribution?: Record<string, { count: number }>;
+  };
 }
 
 export async function getGarageReviews(garageId: string, userId?: string, page = 1, limit = 10, sortBy = 'newest'): Promise<PaginatedReviews> {

@@ -27,7 +27,6 @@ adminRouter.get('/stats', async (req, res) => {
       LEFT JOIN users u ON g.owner_user_id = u.id
       WHERE g.approval_status = 'active'
       ORDER BY g.created_at DESC
-      LIMIT 12
     `);
 
     const pendingGarageList = await query(`

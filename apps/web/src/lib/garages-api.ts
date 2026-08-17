@@ -9,6 +9,7 @@ export interface Garage {
   reviews: number;
   location: string;
   distance?: string;
+  distanceKm?: number;
   price?: string;
   responseMins: number;
   chips: string[];
@@ -17,6 +18,8 @@ export interface Garage {
   artwork?: string;
   verified: boolean;
   image?: string;
+  coordinates?: [number, number];
+  city?: string;
 }
 
 export interface Promo {
@@ -37,18 +40,18 @@ export interface Promo {
   themePreset: string;
 }
 
-export async function fetchGarages(city?: string): Promise<Garage[]> {
-  const url = '/garages';
-  const garages: Garage[] = await apiClient.get(url);
+export async function fetchGarages(city?: string, lat?: number, lng?: number): Promise<Garage[]> {
+  let url = '/garages';
+  const params = new URLSearchParams();
+  if (city) params.append('city', city);
+  if (lat !== undefined) params.append('lat', lat.toString());
+  if (lng !== undefined) params.append('lng', lng.toString());
   
-  if (city && garages.length > 0) {
-    // If the user is filtering by a specific city in the UI (e.g. from cookies)
-    // we can filter the garages, or rely on the backend.
-    // For now, if the backend returns all, we let it be or filter on frontend
-    // Assuming backend filters if we pass a query param in the future,
-    // but for now, we just return the garages.
+  if (params.toString()) {
+    url += '?' + params.toString();
   }
   
+  const garages: Garage[] = await apiClient.get(url);
   return garages;
 }
 

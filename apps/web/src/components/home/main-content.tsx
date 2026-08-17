@@ -688,7 +688,7 @@ function FeaturedGarages({
           className="flex gap-4 overflow-x-auto pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         >
           {garagesList.map(({ href: _href, ...garage }) => (
-            <Link key={garage.name} href={`/garages?garage=${encodeURIComponent(garage.name)}`} className="w-[270px] shrink-0 block hover:opacity-95 transition-opacity">
+            <Link key={garage.id || garage.name} href={`/garages?garage=${encodeURIComponent(garage.name)}`} className="w-[270px] shrink-0 block hover:opacity-95 transition-opacity">
               <GarageCard {...garage} />
             </Link>
           ))}
@@ -1026,19 +1026,28 @@ export function MainContent() {
 
   useEffect(() => {
     let active = true;
-    // Fetch ALL approved garages — city is display context only, not a DB filter.
-    fetchGarages()
+    // City-filtered: only fetch garages for the selected city
+    fetchGarages(userCity)
       .then((data) => {
         if (active && data && data.length > 0) {
-          // Inject the selected city as the display location on every garage card.
-          const mapped = data.map((g: any) => ({
-            ...g,
-            rating: g.rating_avg ? Number(g.rating_avg) : (g.rating ? Number(g.rating) : 0),
-            reviews: g.rating_count ? Number(g.rating_count) : (g.reviews ? Number(g.reviews) : 0),
-            distance: typeof g.distance_km !== 'undefined' ? `${g.distance_km} km` : g.distance,
-            responseMins: typeof g.response_mins !== 'undefined' ? Number(g.response_mins) : g.responseMins,
-            location: (userCity && userCity !== 'Location') ? userCity : (g.location || g.city || 'Not Specified'),
-          }));
+          const mapped = data.map((g: any) => {
+            // Use locationData from new API response shape
+            const ld = g.locationData || {};
+            const locality = ld.locality || null;
+            const city = ld.city || g.city || null;
+            const location = locality && city
+              ? `${locality} \u2022 ${city}`
+              : (city || locality || 'Location not set');
+            return {
+              ...g,
+              rating: g.rating ?? 0,
+              reviews: g.reviews ?? 0,
+              // distanceKm only present when GPS-calculated, never fake
+              distanceKm: (g.distanceKm !== null && g.distanceKm !== undefined) ? Number(g.distanceKm) : undefined,
+              responseMins: (g.responseMins !== null && g.responseMins !== undefined) ? Number(g.responseMins) : undefined,
+              location,
+            };
+          });
           setGaragesList(mapped as unknown as Garage[]);
         }
       })

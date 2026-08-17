@@ -26,6 +26,8 @@ import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { cn } from '@/utils/cn';
 import Image from 'next/image';
+import MapboxMap, { Marker } from 'react-map-gl/mapbox';
+import 'mapbox-gl/dist/mapbox-gl.css';
 import { PageLoader } from '@/components/common/page-loader';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
@@ -50,14 +52,17 @@ type SortOption = 'best' | 'rating' | 'distance' | 'response';
 
 export type Garage = {
   id?: string;
-  badge: string;
-  badgeTone: string;
+  // badge and badgeTone removed — no promotional badges
   name: string;
   rating: number;
   reviews: number;
+  // "Locality \u2022 City" or just "City" — always from DB, never hardcoded
   location: string;
-  distanceKm?: number;
-  responseMins?: number;
+  coordinates?: [number, number];
+  city?: string;
+  locality?: string;
+  distanceKm?: number; // undefined = GPS unavailable, never show a fake value
+  responseMins?: number; // undefined = not specified
   chips: string[];
   facade: string;
   tone: string;
@@ -215,8 +220,6 @@ function FilterMenu({
 }
 
 function GarageCard({
-  badge,
-  badgeTone,
   name,
   rating,
   reviews,
@@ -231,7 +234,7 @@ function GarageCard({
   compact = false,
   isWishlisted,
   onClick,
-}: Garage & { compact?: boolean; isWishlisted?: boolean; onClick?: (e: React.MouseEvent) => void }) {
+}: Omit<Garage, 'badge' | 'badgeTone'> & { badge?: string; badgeTone?: string; compact?: boolean; isWishlisted?: boolean; onClick?: (e: React.MouseEvent) => void }) {
   return (
     <Card
       className="overflow-hidden rounded-[18px] border-[#e7eefc] shadow-[0_14px_34px_rgba(21,48,122,0.08)] cursor-pointer hover:border-[#1a56db]/20 transition-all duration-300 hover:scale-[1.01]"
@@ -253,16 +256,7 @@ function GarageCard({
           />
         )}
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(5,8,17,0.4))]" />
-        {badge ? (
-          <div
-            className={cn(
-              'absolute left-4 top-3 rounded-[10px] px-3 py-1 text-[11px] font-bold text-white',
-              badgeTone
-            )}
-          >
-            {badge}
-          </div>
-        ) : null}
+        {/* Badge intentionally removed — no promotional Top Rated / Most Trusted / Best Value badges */}
         <div 
           onClick={onClick}
           className="absolute right-4 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md hover:scale-110 transition-transform cursor-pointer z-10">
@@ -308,10 +302,12 @@ function GarageCard({
             )}
           </div>
           <span className="shrink-0 text-[#9aa8c6]">•</span>
+          {/* location = "Locality • City" from DB, never hardcoded */}
           <span className="min-w-0 truncate">{location}</span>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-5 text-[11.5px] font-semibold text-[#17307a]">
+          {/* Only show distance when GPS-calculated — undefined means GPS unavailable */}
           {distanceKm != null && (
             <div className="flex items-center gap-2">
               <MapPin className="h-4 w-4 text-[#1a56db]" />
@@ -388,40 +384,56 @@ function getGarageBadgeTone(badge: string) {
   return '';
 }
 
-function parseDistanceKm(distance: any): number {
+function parseDistanceKm(distance: any): number | undefined {
   if (typeof distance === 'number') return distance;
-  if (!distance) return 3.0;
+  if (distance === null || distance === undefined) return undefined;
   const num = parseFloat(String(distance).replace(/[^\d.]/g, ''));
-  return isNaN(num) ? 3.0 : num;
+  return isNaN(num) ? undefined : num;
 }
 
-function mapBackendGarageToFrontend(g: any, displayCity: string): Garage {
+function mapBackendGarageToFrontend(g: any): Garage {
   const name = g.name;
-  const badge = g.badge || '';
+  // No badge — removed per requirement
   const chips = g.chips && g.chips.length > 0 ? g.chips : ['General Service'];
   const image = g.image || '/assets/garage_1_1778071156220.png';
   
-  // Use actual values from the database, do not hardcode 3.0 or 30.
-  // The database provides distance_km and response_mins.
-  const distanceKm = typeof g.distance_km !== 'undefined' ? Number(g.distance_km) : (parseDistanceKm(g.distance) || undefined);
-  const responseMins = typeof g.response_mins !== 'undefined' ? Number(g.response_mins) : (g.responseMins ? Number(g.responseMins) : undefined);
+  // locationData is the structured location object from the API
+  const ld = g.locationData || {};
+  const locality = ld.locality || null;
+  const city = ld.city || g.city || null;
+  
+  // Format: "Locality \u2022 City" or just "City" — NEVER hardcoded
+  const location = locality && city
+    ? `${locality} \u2022 ${city}`
+    : (city || locality || 'Location not set');
+
+  // distanceKm: only use when GPS-calculated from API (null = GPS unavailable)
+  // Do NOT fall back to seeded/hardcoded distance values
+  const distanceKm = (g.distanceKm !== null && g.distanceKm !== undefined)
+    ? Number(g.distanceKm)
+    : undefined;
+
+  // responseMins: null from API means not specified — do NOT default to 30
+  const responseMins = (g.responseMins !== null && g.responseMins !== undefined)
+    ? Number(g.responseMins)
+    : undefined;
 
   return {
     id: g.id,
-    badge,
-    badgeTone: getGarageBadgeTone(badge),
     name,
-    rating: g.rating_avg ? Number(g.rating_avg) : (g.rating ? Number(g.rating) : 0),
-    reviews: g.rating_count ? Number(g.rating_count) : (g.reviews ? Number(g.reviews) : 0),
-    // Display the user's selected city as the location context, per requirements.
-    location: displayCity && displayCity !== 'Location' ? displayCity : (g.location || g.city || 'Not Specified'),
+    rating: g.rating ?? g.rating_avg ?? 0,
+    reviews: g.reviews ?? g.rating_count ?? 0,
+    location,
+    locality: locality || undefined,
+    city: city || undefined,
     distanceKm,
     responseMins,
     chips,
     facade: name.split(' ').slice(0, 2).join(' '),
     tone: getGarageTone(name),
-    verified: g.verified !== undefined ? g.verified : false,
+    verified: g.verified ?? false,
     image,
+    coordinates: g.coordinates,
   };
 }
 
@@ -430,7 +442,7 @@ function GaragesContent() {
   const searchParams = useSearchParams();
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [sortBy, setSortBy] = useState<SortOption>('best');
+  const [sortBy, setSortBy] = useState<SortOption>('distance');
   const [page, setPage] = useState(1);
   const [openFilter, setOpenFilter] = useState<FilterKey | null>(null);
   const [sortOpen, setSortOpen] = useState(false);
@@ -444,6 +456,27 @@ function GaragesContent() {
   });
 
   const [userCity, setUserCity] = useState('');
+
+  const [userLocation, setUserLocation] = useState<{lat: number, lng: number} | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if ('geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setUserLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        (error) => {
+          console.warn('Geolocation denied or unavailable:', error.message);
+          setLocationError('GPS unavailable. Distances hidden.');
+          // Just leave userLocation as null
+        }
+      );
+    }
+  }, []);
 
   useEffect(() => {
     const handleCityChange = () => {
@@ -460,13 +493,12 @@ function GaragesContent() {
 
   useEffect(() => {
     let active = true;
-    // Fetch ALL approved garages — no city filter.
-    // The selected city acts as display context only; it does not filter DB rows.
-    // When real per-city garage registration is implemented, this can be changed.
-    fetchGarages()
+    // Pass city to backend for strict location-based filtering.
+    // Pass GPS coords so backend calculates real distance via Haversine.
+    fetchGarages(userCity, userLocation?.lat, userLocation?.lng)
       .then((data) => {
         if (active && data) {
-          const merged = data.map(g => mapBackendGarageToFrontend(g, userCity));
+          const merged = data.map(g => mapBackendGarageToFrontend(g));
           setGaragesList(merged);
         }
       })
@@ -485,7 +517,8 @@ function GaragesContent() {
     return () => {
       active = false;
     };
-  }, [userCity]);
+  // Re-fetch when city changes OR when GPS coords become available
+  }, [userCity, userLocation]);
 
   useEffect(() => {
     const handleSearch = (event: Event) => {
@@ -850,7 +883,7 @@ function GaragesContent() {
                 setPage(1);
               }}
               className={cn(
-                'flex h-[30px] items-center gap-1.5 rounded-[8px] px-3 text-[11px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50',
+                'flex h-[30px] items-center gap-1.5 rounded-[8px] px-3 text-[11px] font-semibold transition-colors',
                 viewMode === 'map'
                   ? 'bg-[#1a56db] text-white'
                   : 'text-[#17307a]'
@@ -964,23 +997,36 @@ function GaragesContent() {
                 Garage markers update from current filters.
               </p>
             </div>
-            <div className="relative flex-1 overflow-hidden bg-[radial-gradient(circle_at_20%_25%,rgba(83,143,255,0.22),transparent_18%),radial-gradient(circle_at_72%_38%,rgba(26,86,219,0.18),transparent_20%),linear-gradient(180deg,#f4f8ff_0%,#e4efff_100%)]">
-              <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(145,170,221,0.18)_1px,transparent_1px),linear-gradient(rgba(145,170,221,0.18)_1px,transparent_1px)] bg-[size:42px_42px]" />
-              {paginatedGarages.map((garage, index) => (
-                <div
-                  key={garage.name}
-                  className="absolute flex h-10 w-10 items-center justify-center rounded-full bg-[#1a56db] text-white shadow-[0_10px_20px_rgba(26,86,219,0.24)] cursor-pointer transition-transform hover:scale-105"
-                  style={{
-                    left: `${
-                      18 + (index % 2) * 38 + Math.floor(index / 2) * 6
-                    }%`,
-                    top: `${14 + (index % 3) * 22}%`,
-                  }}
-                  onClick={() => router.push(`/garages?garage=${encodeURIComponent(garage.name)}`)}
-                >
-                  <MapPin className="h-5 w-5 fill-white" />
-                </div>
-              ))}
+            <div className="relative flex-1 overflow-hidden">
+              <MapboxMap
+                mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN || ''}
+                initialViewState={{
+                  longitude: userLocation?.lng || 78.38,
+                  latitude: userLocation?.lat || 17.44,
+                  zoom: 11,
+                }}
+                mapStyle="mapbox://styles/mapbox/light-v11"
+              >
+                {paginatedGarages.map((garage) => {
+                  if (!garage.coordinates) return null;
+                  return (
+                    <Marker
+                      key={garage.name}
+                      longitude={garage.coordinates[0]}
+                      latitude={garage.coordinates[1]}
+                      anchor="bottom"
+                      onClick={(e) => {
+                        e.originalEvent.stopPropagation();
+                        router.push(`/garages?garage=${encodeURIComponent(garage.name)}`);
+                      }}
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#1a56db] text-white shadow-[0_10px_20px_rgba(26,86,219,0.24)] cursor-pointer transition-transform hover:scale-110">
+                        <MapPin className="h-5 w-5 fill-white" />
+                      </div>
+                    </Marker>
+                  );
+                })}
+              </MapboxMap>
             </div>
           </Card>
         </div>
@@ -995,7 +1041,7 @@ function GaragesContent() {
       ) : (
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
           {paginatedGarages.map((garage) => (
-            <div key={garage.name} className="relative group cursor-pointer" onClick={() => router.push(`/garages?garage=${encodeURIComponent(garage.name)}`)}>
+            <div key={garage.id || garage.name} className="relative group cursor-pointer" onClick={() => router.push(`/garages?garage=${encodeURIComponent(garage.name)}`)}>
               <GarageCard
                 {...garage}
                 isWishlisted={wishlistItems.some((i: any) => i.id === garage.id || i.id === garage.name || i.name === garage.name)}

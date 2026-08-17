@@ -57,11 +57,11 @@ export function GarageReviewsPage() {
       setTotalReviewsCount(res.total || 0);
       
       if (res.stats) {
-        setAverageRating(res.stats.averageRating);
+        setAverageRating(res.stats.averageRating.toFixed(1));
         const dist = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
         if (res.stats.distribution) {
           Object.keys(res.stats.distribution).forEach(key => {
-            dist[Number(key) as keyof typeof dist] = res.stats.distribution[key].count;
+            dist[Number(key) as keyof typeof dist] = res.stats!.distribution![key].count;
           });
         }
         setRatingDistribution(dist);
@@ -105,7 +105,7 @@ export function GarageReviewsPage() {
   if (isAuthLoading || (garageId && loading)) {
     return (
       <RoleGuard allowedRoles={['garage']}>
-        <DashboardShell navigation={garageNavItems} header={<DashboardHeader title="Reviews" />}>
+        <DashboardShell customNavItems={garageNavItems} header={<DashboardHeader title="Reviews" />}>
           <div className="flex h-[400px] w-full items-center justify-center">
             <div className="flex flex-col items-center gap-4">
               <div className="h-10 w-10 animate-spin rounded-full border-4 border-[#e2eefc] border-t-[#1a56db]"></div>
@@ -120,7 +120,7 @@ export function GarageReviewsPage() {
   if (!garageId) {
     return (
       <RoleGuard allowedRoles={['garage']}>
-        <DashboardShell navigation={garageNavItems} header={<DashboardHeader title="Reviews" />}>
+        <DashboardShell customNavItems={garageNavItems} header={<DashboardHeader title="Reviews" />}>
           <div className="flex h-[400px] w-full items-center justify-center">
             <div className="text-center">
               <h2 className="text-xl font-bold text-slate-800">Garage Profile Not Found</h2>
@@ -135,7 +135,7 @@ export function GarageReviewsPage() {
   if (error) {
     return (
       <RoleGuard allowedRoles={['garage']}>
-        <DashboardShell navigation={garageNavItems} header={<DashboardHeader title="Reviews" />}>
+        <DashboardShell customNavItems={garageNavItems} header={<DashboardHeader title="Reviews" />}>
           <div className="p-8 text-center text-red-500 font-semibold">{error}</div>
         </DashboardShell>
       </RoleGuard>
@@ -144,7 +144,7 @@ export function GarageReviewsPage() {
 
   return (
     <RoleGuard allowedRoles={['garage']}>
-      <DashboardShell navigation={garageNavItems} header={<DashboardHeader title="Reviews" />}>
+      <DashboardShell customNavItems={garageNavItems} header={<DashboardHeader title="Reviews" />}>
         <div className="mx-auto max-w-5xl space-y-8 pb-12">
           {/* Header & Metrics Dashboard */}
           <div className="overflow-hidden rounded-[24px] border border-[#e2eefc] bg-white shadow-[0_4px_24px_rgba(22,48,112,0.03)]">

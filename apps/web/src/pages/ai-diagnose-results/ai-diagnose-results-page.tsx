@@ -284,7 +284,7 @@ export function AIDiagnoseResultsPage() {
                         <p className="mt-1.5 text-[13px] leading-relaxed text-[#5f7099]">{issue.description}</p>
                         <div className="mt-2.5 text-[12px] font-bold text-[#3d568f]">Risk if ignored:</div>
                         <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-[#5f7099]">
-                          {issue.risks.map((risk) => (
+                          {issue.risks.map((risk: string) => (
                             <span key={risk} className="flex items-center gap-1">
                               <span className="text-[#8ea0c7]">•</span>
                               <span>{risk}</span>

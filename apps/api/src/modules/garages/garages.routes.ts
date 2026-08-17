@@ -5,44 +5,97 @@ import { query } from '../../config/database';
 
 export const garagesRouter = Router();
 
-const badgeMap: Record<string, string> = {
-  topRated: 'Top Rated',
-  budgetFriendly: 'Best Value',
-  mostTrusted: 'Most Trusted',
-  evSpecialist: 'EV Specialist'
-};
-
+// Badges removed per product requirement — no promotional badge fields returned
 function mapGarageDbRow(g: any) {
+  // Extract coordinates from JSONB location column
+  let coordinates: [number, number] | null = null;
+  const loc = g.location || {};
+  if (loc.lat && loc.lng) {
+    coordinates = [Number(loc.lng), Number(loc.lat)];
+  }
+
+  // Use GPS-calculated distanceKm when available; never fall back to static seeded value
+  const distanceKm = (g.distanceKm !== null && g.distanceKm !== undefined && g.distanceKm !== '')
+    ? Number(g.distanceKm)
+    : null;
+
   return {
     id: g.id,
     name: g.name,
-    location: g.address || '',
+    // Full address string for detail views
+    address: g.address || '',
+    // Structured location from JSONB — all fields from DB, never hardcoded
+    locationData: {
+      locality: loc.locality || null,
+      city: loc.city || g.city || null,
+      state: loc.state || null,
+      country: loc.country || null,
+      lat: loc.lat ? Number(loc.lat) : null,
+      lng: loc.lng ? Number(loc.lng) : null,
+    },
     rating: g.ratingAvg !== null && g.ratingAvg !== undefined ? Number(g.ratingAvg) : 0,
     reviews: Number(g.ratingCount || 0),
-    distance: g.distanceKm || null,
+    // distanceKm: only present when calculated from real GPS coords, null otherwise
+    distanceKm,
     price: g.startingPrice || null,
-    badge: g.badge ? (badgeMap[g.badge] || g.badge) : null,
+    // badge intentionally omitted — no promotional badges
     image: g.image || null,
     chips: g.specializations || [],
     verified: g.approval_status === 'active',
-    responseMins: g.responseMins !== null && g.responseMins !== undefined ? Number(g.responseMins) : 30,
+    // responseMins: null means not specified — frontend must NOT default to 30
+    responseMins: (g.responseMins !== null && g.responseMins !== undefined) ? Number(g.responseMins) : null,
+    coordinates,
   };
 }
 
 garagesRouter.get('/', async (req, res) => {
   try {
-    const result = await query(
-      `SELECT g.id, g.name, g.address, g.specializations, g.approval_status, 
-              g.rating_avg as "ratingAvg", g.rating_count as "ratingCount",
-              g.starting_price as "startingPrice", g.distance_km as "distanceKm",
-              g.image, g.response_mins as "responseMins",
-              (SELECT badge_key FROM garage_badges gb WHERE gb.garage_id = g.id AND gb.active = true LIMIT 1) as badge
-       FROM garages g
-       WHERE g.approval_status = 'active'`
-    );
+    const lat = req.query.lat ? parseFloat(req.query.lat as string) : null;
+    const lng = req.query.lng ? parseFloat(req.query.lng as string) : null;
+    const city = req.query.city ? (req.query.city as string).toLowerCase() : null;
+
+    // No GPS coords provided: return NULL — never show seeded/fake distance values
+    let distanceSql = 'NULL::NUMERIC as "distanceKm"';
+    const params: any[] = [];
+    let condition = "g.approval_status = 'active'";
+
+    if (lat !== null && !isNaN(lat) && lng !== null && !isNaN(lng)) {
+      // Haversine formula in Postgres to calculate distance in km using JSONB coordinates
+      distanceSql = `
+        CASE 
+          WHEN g.location->>'lat' IS NOT NULL AND g.location->>'lng' IS NOT NULL THEN
+            (6371 * acos(
+              cos(radians($1)) * cos(radians(CAST(g.location->>'lat' AS NUMERIC))) * 
+              cos(radians(CAST(g.location->>'lng' AS NUMERIC)) - radians($2)) + 
+              sin(radians($1)) * sin(radians(CAST(g.location->>'lat' AS NUMERIC)))
+            ))
+          ELSE CAST(g.distance_km AS NUMERIC)
+        END as "distanceKm"
+      `;
+      params.push(lat, lng);
+    }
+
+    // Strict city filtering restored per user request
+    if (city && city !== 'location') {
+      condition += ` AND (LOWER(g.city) = $${params.length + 1} OR LOWER(g.location->>'city') = $${params.length + 1})`;
+      params.push(city);
+    }
+
+    const result = await query(`
+      SELECT g.id, g.name, g.address, g.specializations, g.approval_status, 
+             g.rating_avg as "ratingAvg", g.rating_count as "ratingCount",
+             g.starting_price as "startingPrice", ${distanceSql},
+             g.image, g.response_mins as "responseMins",
+             g.location, g.city
+      FROM garages g
+      WHERE ${condition}
+      ORDER BY g.created_at ASC
+    `, params);
+
     const mapped = result.rows.map(mapGarageDbRow);
     return success(res, mapped);
   } catch (err) {
+    console.error('Error fetching garages:', err);
     return error(res, 'Failed to fetch garages', 'DATABASE_ERROR', 500);
   }
 });
@@ -159,7 +212,7 @@ garagesRouter.get('/:id', async (req, res) => {
                 g.rating_avg as "ratingAvg", g.rating_count as "ratingCount",
                 g.starting_price as "startingPrice", g.distance_km as "distanceKm",
                 g.image, g.response_mins as "responseMins",
-                (SELECT badge_key FROM garage_badges gb WHERE gb.garage_id = g.id AND gb.active = true LIMIT 1) as badge
+                g.location, g.city
          FROM garages g
          WHERE g.id = $1`,
         [req.params.id]

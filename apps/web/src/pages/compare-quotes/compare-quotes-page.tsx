@@ -172,12 +172,13 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     const quoteValuesSavings: Record<string, string> = {};
 
     quotes.forEach((q) => {
-      const parts = q.details?.parts ?? 0;
-      const labour = q.details?.labour ?? 0;
-      const consumables = q.details?.consumables ?? 0;
-      const gst = q.details?.gst ?? 0;
+      const details = q.details as any;
+      const parts = details?.parts ?? 0;
+      const labour = details?.labour ?? 0;
+      const consumables = details?.consumables ?? 0;
+      const gst = details?.gst ?? 0;
       const total = parts + labour + consumables + gst;
-      const savings = q.details?.savings ?? 0;
+      const savings = details?.savings ?? 0;
       const savingsPercent = total > 0 ? Math.round((savings / 3600) * 100) : 0;
 
       quoteValuesParts[q.id] = `${DOLLAR}${parts.toLocaleString('en-US')}`;
@@ -232,19 +233,20 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     const experienceMap: Record<string, { value: string; state: DetailCellState }> = {};
 
     quotes.forEach((q) => {
+      const details = q.details as any;
       availabilityMap[q.id] = { 
-        value: q.details?.availability || 'Today, 6:00 PM', 
+        value: details?.availability || 'Today, 6:00 PM', 
         state: 'positive' as const 
       };
       
-      const hasPickup = q.details?.pickupDrop === 'Available' || q.details?.pickupDrop === true;
+      const hasPickup = details?.pickupDrop === 'Available' || details?.pickupDrop === true;
       pickupDropMap[q.id] = { 
         value: hasPickup ? 'Available' : 'Not Available', 
         state: hasPickup ? 'positive' : 'negative' as const 
       };
       
       warrantyMap[q.id] = { 
-        value: q.details?.warranty || '6 Months warranty', 
+        value: details?.warranty || '6 Months warranty', 
         state: 'neutral' as const 
       };
       
@@ -254,7 +256,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       };
       
       experienceMap[q.id] = { 
-        value: q.details?.experience || '8+ Years', 
+        value: details?.experience || '8+ Years', 
         state: 'neutral' as const 
       };
     });
