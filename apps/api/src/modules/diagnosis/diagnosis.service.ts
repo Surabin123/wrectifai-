@@ -804,7 +804,7 @@ The required JSON schema is:
       await client.query(
         `INSERT INTO vehicle_service_history (vehicle_id, service_date, description, cost, diagnosis_request_id)
          VALUES ($1, NOW(), $2, 0, $3)
-         ON CONFLICT (diagnosis_request_id) DO NOTHING`,
+         ON CONFLICT (diagnosis_request_id) WHERE diagnosis_request_id IS NOT NULL DO NOTHING`,
         [dbRequest.vehicle_id, `AI Diagnosis: ${mainIssueTitle}`, dbRequest.id]
       );
 

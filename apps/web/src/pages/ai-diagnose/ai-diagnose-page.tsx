@@ -2355,19 +2355,9 @@ export function AIDiagnosePage() {
 
         setPreviousHistory(savedHistory);
 
-        // 3. Restore sessionMediaRef
-        const restoredMedia: { mediaType: 'image' | 'video' | 'audio', url: string, name: string }[] = [];
-        savedHistory.forEach(entry => {
-          if ('mediaUrls' in entry && entry.mediaUrls && entry.mediaUrls.length > 0) {
-            entry.mediaUrls.forEach((url: string) => {
-              if (!restoredMedia.some(m => m.url === url)) {
-                // We default to 'image' for chat history media since that's what we currently render
-                restoredMedia.push({ mediaType: 'image', url, name: 'history_media' });
-              }
-            });
-          }
-        });
-        sessionMediaRef.current = restoredMedia;
+        // We intentionally do NOT restore sessionMediaRef from savedHistory.
+        // The chat UI starts a fresh session, so we should not silently attach past images to new symptoms.
+        sessionMediaRef.current = [];
       };
 
       loadHistory();

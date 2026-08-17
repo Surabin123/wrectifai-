@@ -1,23 +1,23 @@
+import 'dotenv/config';
 import { DiagnosisService } from './apps/api/src/modules/diagnosis/diagnosis.service';
 import { getDbPool } from './apps/api/src/config/database';
 
 async function test() {
   try {
-    const customerId = '00000000-0000-0000-0000-000000000001';
-    const vehicleId = '00000000-0000-0000-0000-000000000002';
-    console.log('Testing generateQuestions...');
-    const qData = await DiagnosisService.generateQuestions(customerId, vehicleId, 'bumper has a scratch');
-    console.log('generateQuestions Result:', JSON.stringify(qData, null, 2));
-
-    console.log('Testing runDiagnosis...');
-    const dData = await DiagnosisService.runDiagnosis(customerId, vehicleId, 'bumper has a scratch', []);
-    console.log('runDiagnosis Result:', JSON.stringify(dData, null, 2));
-
+    console.log('Starting diagnosis test...');
+    const result = await DiagnosisService.runDiagnosis(
+      '887ae938-b723-4f0f-ab8c-b19169e4dc20',
+      'c105d3cf-01f4-44f6-8fe5-7cc69299de50',
+      'The car makes a grinding noise when I brake.',
+      [],
+      {}
+    );
+    console.log('Diagnosis succeeded:', JSON.stringify(result, null, 2));
   } catch (err) {
-    console.error('Test script caught error:', err);
+    console.error('Diagnosis failed:', err);
   } finally {
-    const pool = getDbPool();
-    await pool.end();
+    getDbPool().end();
   }
 }
+
 test();
