@@ -37,7 +37,7 @@ import { resultIssues } from '@/components/ai-diagnose/diagnose-flow-shared';
 
 import { GarageDetailPage } from '@/components/garages/garage-detail-page';
 import { fetchGarages, type Garage as ApiGarage } from '@/lib/garages-api';
-import { getLocationCookie } from '@/utils/location';
+import { getLocationCookie, getCountryForCity } from '@/utils/location';
 import { formatCurrency } from '@/lib/currency';
 
 type FilterKey =
@@ -464,16 +464,18 @@ function GaragesContent() {
     if ('geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
-          setUserLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
+          const lat = position.coords.latitude;
+          const lng = position.coords.longitude;
+          // Log actual GPS coords so they can be verified in browser console
+          console.log('[WrectifAI GPS] User location obtained:', { lat, lng, accuracy: position.coords.accuracy + 'm' });
+          setUserLocation({ lat, lng });
         },
-        (error) => {
-          console.warn('Geolocation denied or unavailable:', error.message);
+        (err) => {
+          console.warn('[WrectifAI GPS] Denied or unavailable:', err.message);
           setLocationError('GPS unavailable. Distances hidden.');
-          // Just leave userLocation as null
-        }
+          // userLocation stays null — no city-center fallback
+        },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
       );
     }
   }, []);
@@ -493,9 +495,11 @@ function GaragesContent() {
 
   useEffect(() => {
     let active = true;
-    // Pass city to backend for strict location-based filtering.
-    // Pass GPS coords so backend calculates real distance via Haversine.
-    fetchGarages(userCity, userLocation?.lat, userLocation?.lng)
+    // Derive country from the selected city — enforces region isolation at API level
+    const country = userCity ? getCountryForCity(userCity).name : undefined;
+    // Log what is being sent so GPS/country flow can be verified
+    console.log('[WrectifAI Garages] Fetching:', { city: userCity, country, lat: userLocation?.lat, lng: userLocation?.lng });
+    fetchGarages(userCity, userLocation?.lat, userLocation?.lng, country)
       .then((data) => {
         if (active && data) {
           const merged = data.map(g => mapBackendGarageToFrontend(g));
@@ -517,8 +521,8 @@ function GaragesContent() {
     return () => {
       active = false;
     };
-  // Re-fetch when city changes OR when GPS coords become available
-  }, [userCity, userLocation]);
+  // Use primitive lat/lng values to avoid object reference re-render loops
+  }, [userCity, userLocation?.lat, userLocation?.lng]);
 
   useEffect(() => {
     const handleSearch = (event: Event) => {

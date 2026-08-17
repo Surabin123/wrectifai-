@@ -40,10 +40,12 @@ export interface Promo {
   themePreset: string;
 }
 
-export async function fetchGarages(city?: string, lat?: number, lng?: number): Promise<Garage[]> {
+export async function fetchGarages(city?: string, lat?: number, lng?: number, country?: string): Promise<Garage[]> {
   let url = '/garages';
   const params = new URLSearchParams();
   if (city) params.append('city', city);
+  // country enforces region-scoped filtering in the backend (India vs USA vs UAE)
+  if (country) params.append('country', country);
   if (lat !== undefined) params.append('lat', lat.toString());
   if (lng !== undefined) params.append('lng', lng.toString());
   

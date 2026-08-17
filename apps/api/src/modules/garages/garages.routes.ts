@@ -53,6 +53,8 @@ garagesRouter.get('/', async (req, res) => {
     const lat = req.query.lat ? parseFloat(req.query.lat as string) : null;
     const lng = req.query.lng ? parseFloat(req.query.lng as string) : null;
     const city = req.query.city ? (req.query.city as string).toLowerCase() : null;
+    // country enforces region isolation: India users see only India garages, US only US, etc.
+    const country = req.query.country ? (req.query.country as string) : null;
 
     // No GPS coords provided: return NULL — never show seeded/fake distance values
     let distanceSql = 'NULL::NUMERIC as "distanceKm"';
@@ -65,20 +67,43 @@ garagesRouter.get('/', async (req, res) => {
         CASE 
           WHEN g.location->>'lat' IS NOT NULL AND g.location->>'lng' IS NOT NULL THEN
             (6371 * acos(
-              cos(radians($1)) * cos(radians(CAST(g.location->>'lat' AS NUMERIC))) * 
-              cos(radians(CAST(g.location->>'lng' AS NUMERIC)) - radians($2)) + 
-              sin(radians($1)) * sin(radians(CAST(g.location->>'lat' AS NUMERIC)))
+              LEAST(1.0, GREATEST(-1.0,
+                cos(radians($1)) * cos(radians(CAST(g.location->>'lat' AS NUMERIC))) * 
+                cos(radians(CAST(g.location->>'lng' AS NUMERIC)) - radians($2)) + 
+                sin(radians($1)) * sin(radians(CAST(g.location->>'lat' AS NUMERIC)))
+              ))
             ))
-          ELSE CAST(g.distance_km AS NUMERIC)
+          ELSE NULL
         END as "distanceKm"
       `;
       params.push(lat, lng);
     }
 
-    // Strict city filtering restored per user request
+    // Strict city filter — backend enforced, not frontend hidden
     if (city && city !== 'location') {
       condition += ` AND (LOWER(g.city) = $${params.length + 1} OR LOWER(g.location->>'city') = $${params.length + 1})`;
       params.push(city);
+    }
+
+    // Country filter — region-scopes the query so India/USA/UAE garages never mix.
+    // g.country column stores ISO-2 code (IN/US/AE); location->>'country' stores full name.
+    // Frontend sends full country name (e.g. "India", "United States", "United Arab Emirates").
+    if (country) {
+      // Map full country name → ISO code for the g.country column check
+      const countryIsoMap: Record<string, string> = {
+        'india': 'in',
+        'united states': 'us',
+        'usa': 'us',
+        'united arab emirates': 'ae',
+        'uae': 'ae',
+      };
+      const isoCode = countryIsoMap[country.toLowerCase()] || country.toLowerCase();
+      condition += ` AND (
+        LOWER(g.country) = $${params.length + 1}
+        OR LOWER(g.location->>'country') = $${params.length + 2}
+        OR LOWER(g.location->>'country') = $${params.length + 3}
+      )`;
+      params.push(isoCode, country.toLowerCase(), isoCode);
     }
 
     const result = await query(`

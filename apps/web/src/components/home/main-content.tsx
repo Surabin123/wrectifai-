@@ -42,6 +42,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/utils/cn';
 import { formatCurrency } from '@/lib/currency';
+import { getCountryForCity } from '@/utils/location';
 
 function SectionHeader({
   title,
@@ -1026,8 +1027,10 @@ export function MainContent() {
 
   useEffect(() => {
     let active = true;
-    // City-filtered: only fetch garages for the selected city
-    fetchGarages(userCity)
+    // Derive country from city — enforces India/USA/UAE region isolation
+    const country = userCity && userCity !== 'Location' ? getCountryForCity(userCity).name : undefined;
+    // City-filtered + country-filtered: only fetch garages for the selected region
+    fetchGarages(userCity, undefined, undefined, country)
       .then((data) => {
         if (active && data && data.length > 0) {
           const mapped = data.map((g: any) => {
