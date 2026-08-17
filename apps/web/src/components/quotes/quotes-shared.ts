@@ -3,8 +3,11 @@ export type QuoteStatus = 'new' | 'viewed' | 'expired' | 'open' | 'active' | 'se
 export type QuoteItem = {
   id: string;
   quoteRequestId?: string;
+  garageId?: string;
   status: QuoteStatus;
   garage: string;
+  garageAddress?: string | null;
+  garageImage?: string | null;
   image: string;
   rating: string;
   reviews: number;
@@ -15,7 +18,14 @@ export type QuoteItem = {
   savings: string;
   time: string;
   tag?: string;
-  details?: any;
+  details?: {
+    parts?: number;
+    labour?: number;
+    other?: number;
+    total?: number;
+    remarks?: string;
+    pickupDrop?: string;
+  };
   requestCreatedAt?: string;
   requestIssueSummary?: string;
   preferredDate?: string;
@@ -26,6 +36,7 @@ export type QuoteItem = {
     year: number;
     vin?: string;
     mileage?: number;
+    fuelType?: string;
   } | null;
   isBooked?: boolean;
   bookingDetails?: {
@@ -37,9 +48,7 @@ export type QuoteItem = {
   customerName?: string;
 };
 
-const DOLLAR = '$';
-
 export const quoteContextDefaultIssueIds = ['wheel-balance', 'wheel-alignment'];
-export const aiEstimatedQuoteRange = `${DOLLAR}2,800 - ${DOLLAR}3,600`;
+export const aiEstimatedQuoteRange = `₹2,800 - ₹3,600`;
 
 export const quotesList: QuoteItem[] = [];

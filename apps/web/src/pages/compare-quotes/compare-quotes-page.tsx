@@ -578,7 +578,6 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
                             }}
                             onSaveGarage={() => {}}
                             onShareGarage={() => handleShareGarage(quote)}
-                            onRemove={() => toggleQuote(quote.id)}
                           />
                         );
                       }

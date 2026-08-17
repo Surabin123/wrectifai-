@@ -16,9 +16,10 @@ quotesRouter.get('/', authenticate, async (req, res) => {
     const result = await query(
       `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details,
               q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
-              g.name as "garageName", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported",
+              g.id as "garageId", g.name as "garageName", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported",
+              g.address as "garageAddress", g.image as "garageImage",
               qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary", qr.preferred_date as "preferredDate",
-              v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage",
+              v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage", v.fuel_type as "vehicleFuelType",
               b.id as "bookingId", b.status as "bookingStatus", b.created_at as "bookingCreatedAt", b.scheduled_at as "bookingScheduledAt",
               u.name as "customerName"
        FROM quotes q
@@ -39,13 +40,19 @@ quotesRouter.get('/', authenticate, async (req, res) => {
       const partsCostNum = Number(row.partsCost || 0);
 
       let timeStr = row.etaNote || (row.etaDays ? `${row.etaDays} days` : 'TBD');
-      if (timeStr && /^\\d+$/.test(timeStr.trim())) {
+      if (timeStr && /^\d+$/.test(timeStr.trim())) {
         timeStr = `${timeStr.trim()} Days`;
       }
+
+      // Determine currency safely — never use user phone/ID as currency
+      const rawCurrency = row.currency;
+      const validCurrencies = ['INR', 'USD', 'AED', 'GBP', 'EUR', 'SGD', 'AUD', 'CAD'];
+      const safeCurrency = (rawCurrency && validCurrencies.includes(rawCurrency)) ? rawCurrency : 'INR';
 
       return {
         id: row.id,
         quoteRequestId: row.quoteRequestId,
+        garageId: row.garageId,
         status: row.status || 'open',
         isBooked: !!row.bookingId,
         bookingDetails: row.bookingId ? {
@@ -55,14 +62,17 @@ quotesRouter.get('/', authenticate, async (req, res) => {
           scheduledAt: row.bookingScheduledAt,
         } : null,
         garage: row.garageName,
+        garageAddress: row.garageAddress || null,
+        garageImage: row.garageImage || null,
         customerName: row.customerName,
-        image: '/assets/garage_1_1778071156220.png',
-        rating: String(row.ratingAvg || '4.5'),
+        image: row.garageImage || '/assets/garage_1_1778071156220.png',
+        rating: String(Number(row.ratingAvg || 0).toFixed(1)),
         reviews: Number(row.ratingCount || 0),
         distance: '3.0 km away',
-        meta: 'Certified technicians',
-        metaSecondary: '6 Months warranty',
-        price: `$${amountNum.toLocaleString('en-US')}`,
+        meta: row.pickupDropSupported ? 'Pickup & drop • Certified technicians' : 'Certified technicians',
+        metaSecondary: details.warranty || '6 Months warranty',
+        price: `${amountNum}`,
+        currency: safeCurrency,
         savings: undefined,
         time: timeStr,
         tag: undefined,
@@ -74,11 +84,14 @@ quotesRouter.get('/', authenticate, async (req, res) => {
           model: row.vehicleModel,
           year: row.vehicleYear,
           vin: row.vehicleVin,
-          mileage: row.vehicleMileage
+          mileage: row.vehicleMileage,
+          fuelType: row.vehicleFuelType,
         } : null,
         details: {
           parts: partsCostNum,
           labour: laborCostNum,
+          other: Number(details.otherCharges || 0),
+          total: amountNum,
           remarks: details.remarks,
           pickupDrop: row.pickupDropSupported ? 'Available' : 'Not Available',
         }
@@ -95,6 +108,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
     );
   }
 });
+
 
 quotesRouter.get('/garage-requests', authenticate, async (req, res) => {
   try {

@@ -4,7 +4,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ChevronLeft, Headset, Info, PenLine, FileText, ThumbsUp, Zap, Check, ImageIcon, Video, Mic, Trash2 } from 'lucide-react';
+import { ChevronLeft, Headset, Info, PenLine, FileText, ThumbsUp, Zap, Check, ImageIcon, Video, Mic, Trash2, Droplet, ShieldAlert, CircleDashed, Settings, Wrench } from 'lucide-react';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { Card } from '@/components/common/card';
@@ -47,6 +47,25 @@ export function AIDiagnoseResultsPage() {
     return null;
   });
   const [selectedIssues, setSelectedIssues] = useState<string[]>(['wheel-balance', 'wheel-alignment']);
+  const [customResultIssues, setCustomResultIssues] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = localStorage.getItem('wrectifai_custom_issues');
+      if (stored) {
+        try {
+          const parsed = JSON.parse(stored);
+          setCustomResultIssues(parsed);
+          setSelectedIssues(parsed.map((p: any) => p.id));
+        } catch(e) {
+          console.error(e);
+        }
+      }
+    }
+  }, []);
+
+  const displayIssues = customResultIssues.length > 0 ? customResultIssues : resultIssues;
+
   const [detailsText, setDetailsText] = useState('');
   const [activeTab, setActiveTab] = useState('Text Details');
   const [uploadedPhotos, setUploadedPhotos] = useState<{ id: string; url: string; name: string }[]>([]);
@@ -215,9 +234,18 @@ export function AIDiagnoseResultsPage() {
               </div>
 
               <div className="mt-4 divide-y divide-[#edf1fb]">
-                {resultIssues.map((issue, index) => {
+                {displayIssues.map((issue, index) => {
                   const checked = selectedIssues.includes(issue.id);
-                  const finalImageSrc = issue.imageSrc || '/assets/Engine_oil.png';
+                  
+                  let IssueIcon = Wrench;
+                  let iconBg = 'bg-[#f4f7ff] text-[#2451f6]';
+                  const titleLower = issue.title.toLowerCase();
+                  if (titleLower.includes('battery') || titleLower.includes('electrical')) { IssueIcon = Zap; iconBg = 'bg-[#fff5e8] text-[#f39b20]'; }
+                  else if (titleLower.includes('oil') || titleLower.includes('fluid') || titleLower.includes('leak')) { IssueIcon = Droplet; iconBg = 'bg-[#e8f8eb] text-[#25a24a]'; }
+                  else if (titleLower.includes('brake') || titleLower.includes('pad')) { IssueIcon = ShieldAlert; iconBg = 'bg-[#ffe8ea] text-[#ff4f68]'; }
+                  else if (titleLower.includes('tire') || titleLower.includes('wheel') || titleLower.includes('align')) { IssueIcon = CircleDashed; iconBg = 'bg-[#f4f7ff] text-[#2451f6]'; }
+                  else if (titleLower.includes('engine') || titleLower.includes('transmission')) { IssueIcon = Settings; iconBg = 'bg-[#f4efff] text-[#8e44ad]'; }
+
                   return (
                     <div key={issue.id} className="grid gap-4 py-5 md:grid-cols-[30px_70px_minmax(0,1fr)_90px_105px] md:items-center">
                       <div className="flex items-start justify-center pt-1">
@@ -240,14 +268,9 @@ export function AIDiagnoseResultsPage() {
                         </div>
                       </div>
                       <div className="flex justify-center md:justify-start">
-                        <Image
-                          src={finalImageSrc}
-                          alt={issue.title}
-                          width={72}
-                          height={72}
-                          className="h-[64px] w-[64px] object-contain"
-                          unoptimized={true}
-                        />
+                        <div className={cn("flex h-[56px] w-[56px] items-center justify-center rounded-[16px]", iconBg)}>
+                          <IssueIcon className="h-7 w-7" />
+                        </div>
                       </div>
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2.5">
