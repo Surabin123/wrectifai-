@@ -125,14 +125,13 @@ export default function AdminDashboardPage() {
                 <th className="p-4 text-[11px] font-bold text-slate-500">Owner</th>
                 <th className="p-4 text-[11px] font-bold text-slate-500">City</th>
                 <th className="p-4 text-[11px] font-bold text-slate-500">Registration Date</th>
-                <th className="p-4 text-[11px] font-bold text-slate-500">Status</th>
                 <th className="p-4 text-[11px] font-bold text-slate-500">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {recentGarages.length === 0 ? (
                  <tr>
-                   <td colSpan={6} className="p-8 text-center text-slate-500 text-sm">No garages registered yet.</td>
+                   <td colSpan={5} className="p-8 text-center text-slate-500 text-sm">No garages registered yet.</td>
                  </tr>
               ) : (
                  recentGarages.map((g: any) => (
@@ -146,14 +145,6 @@ export default function AdminDashboardPage() {
                      <td className="p-4 text-sm text-slate-600">{g.ownerName || 'N/A'}</td>
                      <td className="p-4 text-sm text-slate-600">{g.city || 'N/A'}</td>
                      <td className="p-4 text-sm text-slate-500">{formatTime(g.createdAt)}</td>
-                     <td className="p-4">
-                       <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase ${
-                         g.approvalStatus === 'active' ? 'bg-green-100 text-green-700' :
-                         'bg-red-100 text-red-700'
-                       }`}>
-                         {g.approvalStatus}
-                       </span>
-                     </td>
                      <td className="p-4">
                        <div className="flex gap-2">
                          {(g.approvalStatus === 'active' || g.approvalStatus === 'approved') && (
