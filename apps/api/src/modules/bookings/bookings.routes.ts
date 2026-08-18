@@ -208,6 +208,26 @@ async function createBookingInternal(req: any, res: any, data: {
       );
     }
 
+    // Fetch customer name and garage name for notification
+    const customerRes = await query('SELECT name FROM users WHERE id = $1', [customerId]);
+    const garageRes = await query('SELECT name FROM garages WHERE id = $1', [garageId]);
+    const customerName = customerRes.rows[0]?.name || 'A customer';
+    const garageName = garageRes.rows[0]?.name || 'a garage';
+
+    await NotificationsService.createNotification({
+      garageId: garageId,
+      type: 'Booking',
+      title: 'New Booking Received',
+      description: `${customerName} has booked a service.`
+    }).catch(err => console.error('Failed to create notification', err));
+
+    await NotificationsService.createNotification({
+      isAdmin: true,
+      type: 'Booking',
+      title: 'New Booking',
+      description: `${customerName} has booked a service at ${garageName}.`
+    }).catch(err => console.error('Failed to create notification', err));
+
     return success(
       res,
       {
@@ -468,11 +488,25 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
     }
 
     if (dbStatus === 'completed') {
+      // Fetch details for comprehensive notification
+      const bookingRes = await query(
+        `SELECT b.customer_note as service_type, u.name as customer_name, g.name as garage_name
+         FROM bookings b
+         JOIN users u ON b.customer_id = u.id
+         JOIN garages g ON b.garage_id = g.id
+         WHERE b.id = $1`,
+         [bookingId]
+      );
+      const bData = bookingRes.rows[0];
+      const serviceStr = bData?.service_type || 'A service';
+      const customerStr = bData?.customer_name || 'a customer';
+      const garageStr = bData?.garage_name || 'a garage';
+
       await NotificationsService.createNotification({
         isAdmin: true,
         type: 'Booking',
         title: 'Service Completed',
-        description: `Booking ${bookingId} has been marked as completed.`
+        description: `${serviceStr} has been completed by ${garageStr} for ${customerStr}.`
       }).catch(err => console.error('Failed to create notification', err));
     }
 

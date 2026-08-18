@@ -13,30 +13,41 @@ adminRouter.use(requireRole(['admin']));
 
 adminRouter.get('/stats', async (req, res) => {
   try {
-    const customersCount = await query(`SELECT COUNT(*) FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id WHERE r.code = 'customer'`);
-    const garagesCount = await query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'active'`);
-    const pendingCount = await query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'pending'`);
-    const bookingsCount = await query(`SELECT COUNT(*) FROM bookings WHERE status IN ('confirmed', 'inService')`);
-    const quotesCount = await query(`SELECT COUNT(*) FROM quotes`);
-    const serviceRequestsCount = await query(`SELECT COUNT(*) FROM quote_requests`);
-    const completedJobsCount = await query(`SELECT COUNT(*) FROM bookings WHERE status = 'completed'`);
+    const [
+      customersCount,
+      garagesCount,
+      pendingCount,
+      bookingsCount,
+      quotesCount,
+      serviceRequestsCount,
+      completedJobsCount
+    ] = await Promise.all([
+      query(`SELECT COUNT(*) FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id WHERE r.code = 'customer'`),
+      query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'active'`),
+      query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'pending'`),
+      query(`SELECT COUNT(*) FROM bookings WHERE status IN ('confirmed', 'inService')`),
+      query(`SELECT COUNT(*) FROM quotes`),
+      query(`SELECT COUNT(*) FROM quote_requests`),
+      query(`SELECT COUNT(*) FROM bookings WHERE status = 'completed'`)
+    ]);
 
-    const recentGarages = await query(`
-      SELECT g.id, g.name, u.name as "ownerName", u.mobile_number as phone, g.city, g.created_at as "createdAt", g.approval_status as "approvalStatus"
-      FROM garages g
-      LEFT JOIN users u ON g.owner_user_id = u.id
-      WHERE g.approval_status = 'active'
-      ORDER BY g.created_at DESC
-    `);
-
-    const pendingGarageList = await query(`
-      SELECT g.id, g.name, u.name as "ownerName", u.mobile_number as phone, g.city, g.created_at as "createdAt", g.approval_status as "approvalStatus"
-      FROM garages g
-      LEFT JOIN users u ON g.owner_user_id = u.id
-      WHERE g.approval_status = 'pending'
-      ORDER BY g.created_at DESC
-      LIMIT 10
-    `);
+    const [recentGarages, pendingGarageList] = await Promise.all([
+      query(`
+        SELECT g.id, g.name, u.name as "ownerName", u.mobile_number as phone, g.city, g.created_at as "createdAt", g.approval_status as "approvalStatus"
+        FROM garages g
+        LEFT JOIN users u ON g.owner_user_id = u.id
+        WHERE g.approval_status = 'active'
+        ORDER BY g.created_at DESC
+      `),
+      query(`
+        SELECT g.id, g.name, u.name as "ownerName", u.mobile_number as phone, g.city, g.created_at as "createdAt", g.approval_status as "approvalStatus"
+        FROM garages g
+        LEFT JOIN users u ON g.owner_user_id = u.id
+        WHERE g.approval_status = 'pending'
+        ORDER BY g.created_at DESC
+        LIMIT 10
+      `)
+    ]);
 
     return success(res, {
       totalCustomers: parseInt(customersCount.rows[0].count),

@@ -10,6 +10,7 @@ import { useAuth } from '@/lib/auth-context';
 import Link from 'next/link';
 import { useState, useEffect } from 'react';
 import { fetchGarageStats, fetchGarageActiveJobs, fetchGarageQuotes, getGarageIncomingBookings } from '@/lib/quotes-api';
+import { getGarageReviews } from '@/lib/reviews-api';
 import { useRouter } from 'next/navigation';
 
 export default function GarageDashboard() {
@@ -19,26 +20,37 @@ export default function GarageDashboard() {
   const [activeJobs, setActiveJobs] = useState<any[]>([]);
   const [recentRequests, setRecentRequests] = useState<any[]>([]);
   const [recentQuotes, setRecentQuotes] = useState<any[]>([]);
+  const [ratingStats, setRatingStats] = useState({ averageRating: '0.0', satisfactionRate: '0%' });
 
   useEffect(() => {
     async function loadData() {
+      if (!user?.garageId) return;
       try {
-        const [statsData, jobsData, requestsData, quotesData] = await Promise.all([
+        const [statsData, jobsData, requestsData, quotesData, reviewsData] = await Promise.all([
           fetchGarageStats().catch(() => ({ incoming: 0, todaysBookings: 0, activeJobs: 0, generatedQuotes: 0, completed: 0 })),
           fetchGarageActiveJobs().catch(() => []),
           getGarageIncomingBookings().catch(() => []),
           fetchGarageQuotes().catch(() => []),
+          getGarageReviews(user.garageId, user.id, 1, 1, 'recent').catch(() => ({ stats: { averageRating: 0 } }))
         ]);
         setStats(statsData as any);
         setActiveJobs(jobsData.slice(0, 4)); // Get up to 4 for the floor
         setRecentRequests(requestsData.slice(0, 3));
         setRecentQuotes(quotesData.slice(0, 5));
+        
+        if (reviewsData?.stats) {
+          const avg = Number(reviewsData.stats.averageRating || 0);
+          setRatingStats({
+            averageRating: avg.toFixed(1),
+            satisfactionRate: avg > 0 ? `${Math.round((avg / 5) * 100)}%` : '0%'
+          });
+        }
       } catch (err) {
         console.error('Failed to load dashboard data', err);
       }
     }
     loadData();
-  }, []);
+  }, [user]);
 
   const formatTime = (isoString: string) => {
     if (!isoString) return '';
@@ -90,18 +102,7 @@ export default function GarageDashboard() {
           <div className="grid grid-cols-12 gap-6">
             <div className="col-span-9 space-y-6">
               
-              <Card className="p-5">
-                <div className="flex justify-between items-center mb-4">
-                  <h2 className="text-lg font-bold text-[#17307a]">Active Workshop Floor</h2>
-                  <Link href="/garage/bookings" className="text-sm text-blue-600 hover:underline">View All Jobs</Link>
-                </div>
-                <div className="grid grid-cols-4 gap-4">
-                  <WorkshopCard title={`ACCEPTED (${getActiveJobsForStatus('accepted').length})`} status="accepted" items={getActiveJobsForStatus('accepted')} />
-                  <WorkshopCard title="INSPECTION (0)" status="inspection" items={[]} />
-                  <WorkshopCard title="REPAIR (0)" status="repair" items={[]} />
-                  <WorkshopCard title="READY (0)" status="ready" items={[]} />
-                </div>
-              </Card>
+
 
               <div className="grid grid-cols-2 gap-6">
                  <Card className="p-4">
@@ -153,15 +154,8 @@ export default function GarageDashboard() {
             <div className="col-span-3 space-y-6">
               <GarageSummaryCard title="Today's Summary" isLive>
                  <div className="space-y-3">
-                   <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg"><div className="flex items-center gap-2"><Star className="w-4 h-4 text-blue-500"/> <span className="text-sm font-medium">Average Rating</span></div> <span className="font-bold">0.0 / 5.0</span></div>
-                   <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg"><div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-blue-500"/> <span className="text-sm font-medium">Satisfaction Rate</span></div> <span className="font-bold">0%</span></div>
-                   <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg"><div className="flex items-center gap-2"><Calendar className="w-4 h-4 text-blue-500"/> <span className="text-sm font-medium">Total Orders</span></div> <span className="font-bold">{stats.activeJobs} Active</span></div>
-                 </div>
-              </GarageSummaryCard>
-              
-              <GarageSummaryCard title="Today's Schedule" actionText="View Calendar">
-                 <div className="space-y-3 relative before:absolute before:inset-0 before:ml-1 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-slate-200 before:to-transparent pl-4">
-                   <p className="text-xs text-slate-500 text-center py-4">No schedule for today</p>
+                   <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg"><div className="flex items-center gap-2"><Star className="w-4 h-4 text-blue-500"/> <span className="text-sm font-medium">Average Rating</span></div> <span className="font-bold">{ratingStats.averageRating} / 5.0</span></div>
+                   <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg"><div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-blue-500"/> <span className="text-sm font-medium">Satisfaction Rate</span></div> <span className="font-bold">{ratingStats.satisfactionRate}</span></div>
                  </div>
               </GarageSummaryCard>
               

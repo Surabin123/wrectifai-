@@ -98,6 +98,15 @@ export async function handleUserLoginOrRegister(email: string, name: string) {
 
   await storeRefreshToken(user.id, refreshToken);
 
+  if (isNew && roles.includes('customer')) {
+    await NotificationsService.createNotification({
+      isAdmin: true,
+      type: 'System',
+      title: 'New Customer Registered',
+      description: `Customer ${user.name} has registered successfully via OAuth.`
+    }).catch(err => console.error('Failed to create notification', err));
+  }
+
   return {
     user: {
       id: user.id,
@@ -305,6 +314,7 @@ authRouter.post('/login', async (req, res, next) => {
           }
         } else {
           // If user doesn't exist, auto-register them
+          isNew = true;
           const userResult = await query(
             "INSERT INTO users (mobile_number, name, status, country) VALUES ($1, $2, 'active', $3) RETURNING id, mobile_number, name, status, country",
             [mobileNumber, mobileNumber === '9876543210' ? 'User' : 'Customer', req.body.country || 'IN']
@@ -353,6 +363,15 @@ authRouter.post('/login', async (req, res, next) => {
     await storeRefreshToken(user.id, refreshToken);
 
     setTokensInCookies(res, accessToken, refreshToken);
+
+    if (isNew && roles.includes('customer')) {
+      await NotificationsService.createNotification({
+        isAdmin: true,
+        type: 'System',
+        title: 'New Customer Registered',
+        description: `Customer ${user.name} has registered successfully.`
+      }).catch(err => console.error('Failed to create notification', err));
+    }
 
     return success(res, {
       user: {

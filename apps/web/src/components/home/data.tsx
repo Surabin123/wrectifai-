@@ -136,9 +136,9 @@ export const emergencyItems = [
 
 
 export const topNavIcons: IconLink[] = [
-  { icon: Bell, badge: '3', href: '/notifications', label: 'Notifications' },
-  { icon: ShoppingBag, badge: '0', href: '/cart', label: 'Cart' },
-  { icon: Heart, badge: '0', href: '/wishlist', label: 'Wishlist' },
+  { icon: Bell, href: '/notifications', label: 'Notifications' },
+  { icon: ShoppingBag, href: '/cart', label: 'Cart' },
+  { icon: Heart, href: '/wishlist', label: 'Wishlist' },
 ];
 
 export type Garage = {

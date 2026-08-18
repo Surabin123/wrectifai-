@@ -386,9 +386,6 @@ export function VehiclesPage() {
                     <h3 className="text-lg font-bold text-[#17307a] leading-tight">
                       {vehicle.year} {vehicle.make} {vehicle.model}
                     </h3>
-                    <p className="mt-1 text-[13px] font-medium text-[#7a8ab4] uppercase tracking-wider">
-                      ID: {vehicle.id.slice(0, 8)}
-                    </p>
                   </div>
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#eef4ff] text-[#1a56db]">
                     <Car className="h-5 w-5" />

@@ -269,15 +269,18 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
 
     await query(`UPDATE quote_requests SET status = 'quoted' WHERE id = $1`, [req.params.quoteRequestId]);
 
-    // Fetch customerId for notification
+    // Fetch customerId and garageName for notification
     const requestRes = await query('SELECT customer_id FROM quote_requests WHERE id = $1', [req.params.quoteRequestId]);
+    const garageRes = await query('SELECT name FROM garages WHERE id = $1', [garageId]);
     const customerId = requestRes.rows[0]?.customer_id;
+    const garageName = garageRes.rows[0]?.name || 'A garage';
+
     if (customerId) {
       await NotificationsService.createNotification({
         userId: customerId,
         type: 'Quote',
         title: 'New Quote Received',
-        description: `A garage has sent a quote of $${amount} for your request.`
+        description: `${garageName} has sent you a quote of $${amount} for your request.`
       }).catch(err => console.error('Failed to create notification', err));
     }
 

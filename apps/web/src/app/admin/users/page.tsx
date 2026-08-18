@@ -93,7 +93,6 @@ export default function CustomersPage() {
                 <th className="p-4 font-semibold w-[20%]">Email</th>
                 <th className="p-4 font-semibold w-[15%]">Phone</th>
                 <th className="p-4 font-semibold w-[12%]">Vehicle</th>
-                <th className="p-4 font-semibold w-[10%]">Status</th>
                 <th className="p-4 font-semibold w-[12%]">Created Date</th>
                 <th className="p-4 font-semibold w-[16%] text-right">Actions</th>
               </tr>
@@ -106,27 +105,13 @@ export default function CustomersPage() {
               ) : (
                 filtered.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-4 text-sm font-semibold text-slate-900 truncate"><button onClick={() => handleViewDetails(c.id)} className="text-blue-600 hover:underline">{c.name}</button></td>
+                    <td className="p-4 text-sm font-semibold text-slate-900 truncate">{c.name}</td>
                     <td className="p-4 text-sm text-slate-700 truncate" title={c.email}>{c.email}</td>
                     <td className="p-4 text-sm text-slate-700 truncate">{c.phone || 'N/A'}</td>
                     <td className="p-4 text-sm text-slate-700">{c.vehicles > 0 ? `${c.vehicles} Vehicle(s)` : 'None'}</td>
-                    <td className="p-4 text-sm text-slate-700">
-                       <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase border ${
-                         c.status === 'active' ? 'bg-green-50 text-green-700 border-green-100' : 
-                         (c.status === 'inactive' || c.status === 'suspended') ? 'bg-orange-50 text-orange-700 border-orange-100' :
-                         'bg-slate-50 text-slate-700 border-slate-200'
-                       }`}>
-                         {c.status}
-                       </span>
-                    </td>
-                    <td className="p-4 text-sm text-slate-700">{new Date(c.joined).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })}</td>
+                    <td className="p-4 text-sm text-slate-700">{new Date(c.joined || c.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                     <td className="p-4 text-right flex gap-2 justify-end">
-                       {(c.status === 'inactive' || c.status === 'suspended') && (
-                         <button onClick={() => setActionModal({isOpen: true, id: c.id, action: 'activate', type: 'confirm', message: 'Are you sure you want to activate this customer?'})} className="text-xs font-bold text-green-600 bg-green-50 px-2 py-1 rounded-lg hover:bg-green-100 transition-colors">Activate</button>
-                       )}
-                       {c.status === 'active' && (
-                         <button onClick={() => setActionModal({isOpen: true, id: c.id, action: 'suspend', type: 'confirm', message: 'Are you sure you want to suspend this customer?'})} className="text-xs font-bold text-red-600 bg-red-50 px-2 py-1 rounded-lg hover:bg-red-100 transition-colors">Suspend</button>
-                       )}
+                       <button onClick={() => handleViewDetails(c.id)} className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">View Details</button>
                     </td>
                   </tr>
                 ))

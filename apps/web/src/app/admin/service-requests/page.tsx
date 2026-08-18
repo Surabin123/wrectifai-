@@ -107,6 +107,7 @@ function AdminServiceRequestsContent() {
                       </span>
                     </td>
                     <td className="p-4 text-right">
+                       <button onClick={(e) => { e.stopPropagation(); setSelectedRequest(r); setIsModalOpen(true); }} className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">View Details</button>
                     </td>
                   </tr>
                 ))
