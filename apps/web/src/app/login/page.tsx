@@ -164,6 +164,9 @@ export default function LoginPage() {
       if (window.recaptchaVerifier) {
         try {
           window.recaptchaVerifier.clear();
+          window.recaptchaVerifier = undefined;
+          const container = document.getElementById('recaptcha-container');
+          if (container) container.innerHTML = '';
         } catch (e) {}
       }
       
