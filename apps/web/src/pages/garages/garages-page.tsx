@@ -69,6 +69,9 @@ export type Garage = {
   tone: string;
   verified: boolean;
   image?: string;
+  approvalStatus?: string;
+  description?: string;
+  businessHours?: any;
   services?: Array<{
     id: string;
     name: string;
