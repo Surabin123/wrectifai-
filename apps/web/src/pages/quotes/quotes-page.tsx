@@ -270,6 +270,9 @@ function GarageQuoteCard({
   onViewServices,
   onPriceBreakup,
   onShareGarage,
+  isComparing,
+  isSelected,
+  onToggleCompare,
 }: {
   quote: QuoteItem;
   savedGarages: string[];
@@ -281,6 +284,9 @@ function GarageQuoteCard({
   onViewServices: () => void;
   onPriceBreakup: () => void;
   onShareGarage: () => void;
+  isComparing?: boolean;
+  isSelected?: boolean;
+  onToggleCompare?: () => void;
 }) {
   const tag = tagColor(quote.status);
   const isSaved = savedGarages.includes(quote.garageId || quote.id);
@@ -302,8 +308,18 @@ function GarageQuoteCard({
       {/* ── Row 2: Main card body ── */}
       <div className="flex items-stretch gap-0 px-4 pb-4 pt-2">
 
-        {/* LEFT — Garage image */}
+        {/* LEFT — Garage image & Compare Checkbox */}
         <div className="relative h-[82px] w-[106px] shrink-0 self-start overflow-hidden rounded-[12px] bg-slate-100 mr-4">
+          {isComparing && (
+            <div className="absolute top-1 left-1 z-10 bg-white/80 rounded-sm p-0.5">
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={onToggleCompare}
+                className="w-4 h-4 cursor-pointer"
+              />
+            </div>
+          )}
           <Image
             src={imgSrc}
             alt={quote.garage}
@@ -504,6 +520,10 @@ export function QuotesPage() {
   const [sortOpen, setSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
 
+  // Compare quotes states
+  const [isComparing, setIsComparing] = useState(false);
+  const [selectedQuotes, setSelectedQuotes] = useState<string[]>([]);
+
   // Modal states
   const [bookingQuote, setBookingQuote] = useState<QuoteItem | null>(null);
   const [viewQuote, setViewQuote] = useState<QuoteItem | null>(null);
@@ -599,6 +619,25 @@ export function QuotesPage() {
     'Expired': quotes.filter(q => quoteTabStatus(q, 'Expired')).length,
   };
 
+  const handleToggleCompare = (quoteId: string) => {
+    setSelectedQuotes(prev => {
+      if (prev.includes(quoteId)) return prev.filter(id => id !== quoteId);
+      if (prev.length >= 3) {
+        alert('You can only compare up to 3 quotes at a time.');
+        return prev;
+      }
+      return [...prev, quoteId];
+    });
+  };
+
+  const handleCompareNow = () => {
+    if (selectedQuotes.length < 2) {
+      alert('Please select at least 2 quotes to compare.');
+      return;
+    }
+    router.push(`/compare-quotes?ids=${selectedQuotes.join(',')}`);
+  };
+
   return (
     <DashboardShell header={<TopNavbar />}>
       <div className="space-y-5 pb-6 px-4 pt-2">
@@ -654,6 +693,21 @@ export function QuotesPage() {
                 ))}
               </div>
             )}
+          </div>
+          
+          <div className="ml-auto flex items-center gap-2">
+            <button
+              onClick={() => {
+                setIsComparing(!isComparing);
+                if (isComparing) setSelectedQuotes([]);
+              }}
+              className={cn(
+                "inline-flex items-center gap-1.5 rounded-[10px] px-4 py-1.5 text-[12.5px] font-bold transition-colors",
+                isComparing ? "bg-red-50 text-red-600 hover:bg-red-100" : "bg-[#f5f8ff] text-[#2451f6] hover:bg-[#e6ebfa]"
+              )}
+            >
+              {isComparing ? 'Cancel Compare' : 'Compare Quotes'}
+            </button>
           </div>
         </div>
 
@@ -717,6 +771,9 @@ export function QuotesPage() {
                       navigator.clipboard.writeText(url).then(() => alert('Garage link copied to clipboard!'));
                     }
                   }}
+                  isComparing={isComparing}
+                  isSelected={selectedQuotes.includes(quote.id)}
+                  onToggleCompare={() => handleToggleCompare(quote.id)}
                 />
               ))
             )}
@@ -728,6 +785,20 @@ export function QuotesPage() {
           </div>
         </div>
       </div>
+
+      {isComparing && selectedQuotes.length > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 animate-in slide-in-from-bottom-5">
+          <button
+            onClick={handleCompareNow}
+            className="flex items-center gap-2 bg-[#2451f6] hover:bg-[#1a3ecc] text-white px-6 py-3 rounded-full shadow-lg font-bold transition-transform hover:scale-105"
+          >
+            <span>Compare Now</span>
+            <span className="flex items-center justify-center bg-white/20 rounded-full w-6 h-6 text-sm">
+              {selectedQuotes.length}
+            </span>
+          </button>
+        </div>
+      )}
 
       {/* ── Modals ── */}
       {bookingQuote && (

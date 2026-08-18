@@ -8,6 +8,7 @@ export type QuoteItem = {
   garage: string;
   garageAddress?: string | null;
   garageImage?: string | null;
+  garageCreatedAt?: string;
   image: string;
   rating: string;
   reviews: number;
@@ -21,10 +22,14 @@ export type QuoteItem = {
   details?: {
     parts?: number;
     labour?: number;
+    consumables?: number;
+    gst?: number;
     other?: number;
     total?: number;
     remarks?: string;
     pickupDrop?: string;
+    availability?: string;
+    warranty?: string;
   };
   requestCreatedAt?: string;
   requestIssueSummary?: string;

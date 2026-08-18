@@ -17,7 +17,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
       `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details,
               q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
               g.id as "garageId", g.name as "garageName", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported",
-              g.address as "garageAddress", g.image as "garageImage",
+              g.address as "garageAddress", g.image as "garageImage", g.created_at as "garageCreatedAt",
               qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary", qr.preferred_date as "preferredDate",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage", v.fuel_type as "vehicleFuelType",
               b.id as "bookingId", b.status as "bookingStatus", b.created_at as "bookingCreatedAt", b.scheduled_at as "bookingScheduledAt",
@@ -64,6 +64,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
         garage: row.garageName,
         garageAddress: row.garageAddress || null,
         garageImage: row.garageImage || null,
+        garageCreatedAt: row.garageCreatedAt,
         customerName: row.customerName,
         image: row.garageImage || '/assets/garage_1_1778071156220.png',
         rating: String(Number(row.ratingAvg || 0).toFixed(1)),
@@ -90,10 +91,14 @@ quotesRouter.get('/', authenticate, async (req, res) => {
         details: {
           parts: partsCostNum,
           labour: laborCostNum,
-          other: Number(details.otherCharges || 0),
+          consumables: Number(details.consumablesCost || 0),
+          gst: Number(details.gstCost || 0),
+          other: Number(details.otherCost || details.otherCharges || 0),
           total: amountNum,
           remarks: details.remarks,
-          pickupDrop: row.pickupDropSupported ? 'Available' : 'Not Available',
+          pickupDrop: details.pickupDrop || (row.pickupDropSupported ? 'Available' : 'Not Available'),
+          availability: details.availability,
+          warranty: details.warranty,
         }
       };
     });
@@ -237,7 +242,10 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
       return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     }
 
-    const { labourCost, partsCost, estimatedTime, remarks } = req.body;
+    const { 
+      labourCost, partsCost, consumablesCost, gstCost, otherCost, 
+      estimatedTime, remarks, availability, pickupDrop, warranty 
+    } = req.body;
     
     const garageId = req.user?.garageId;
     if (!garageId) {
@@ -259,7 +267,7 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
       return error(res, 'Quote already submitted for this request', 'BAD_REQUEST', 400);
     }
 
-    const amount = Number(labourCost || 0) + Number(partsCost || 0);
+    const amount = Number(labourCost || 0) + Number(partsCost || 0) + Number(consumablesCost || 0) + Number(gstCost || 0) + Number(otherCost || 0);
 
     const result = await query(
       `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details)
@@ -273,8 +281,14 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
           remarks,
           laborCost: labourCost,
           partsCost: partsCost,
+          consumablesCost: consumablesCost,
+          gstCost: gstCost,
+          otherCost: otherCost,
           totalCost: amount,
-          etaNote: estimatedTime
+          etaNote: estimatedTime,
+          availability: availability,
+          pickupDrop: pickupDrop,
+          warranty: warranty
         })
       ]
     );
@@ -486,7 +500,7 @@ quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
     const result = await query(
       `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details, q.garage_id as "quoteGarageId",
               q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
-              g.name as "garageName", g.owner_user_id as "garageOwnerId", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported",
+              g.name as "garageName", g.owner_user_id as "garageOwnerId", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported", g.created_at as "garageCreatedAt",
               qr.customer_id as "requestCustomerId", qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage"
        FROM quotes q
@@ -520,13 +534,15 @@ quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
       quoteRequestId: row.quoteRequestId,
       status: row.status || 'open',
       garage: row.garageName,
+      garageCreatedAt: row.garageCreatedAt,
       image: '/assets/garage_1_1778071156220.png',
-      rating: String(row.ratingAvg || '4.5'),
+      rating: String(Number(row.ratingAvg || 0).toFixed(1)),
       reviews: Number(row.ratingCount || 0),
       distance: '3.0 km away',
-      meta: 'Certified technicians',
-      metaSecondary: '6 Months warranty',
-      price: `$${amountNum.toLocaleString('en-US')}`,
+      meta: row.pickupDropSupported ? 'Pickup & drop • Certified technicians' : 'Certified technicians',
+      metaSecondary: details.warranty || '6 Months warranty',
+      price: `${amountNum}`,
+      currency: row.currency || 'INR',
       savings: undefined,
       time: row.etaNote || (row.etaDays ? `${row.etaDays} days` : 'TBD'),
       tag: undefined,
@@ -542,8 +558,14 @@ quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
       details: {
         parts: partsCostNum,
         labour: laborCostNum,
+        consumables: Number(details.consumablesCost || 0),
+        gst: Number(details.gstCost || 0),
+        other: Number(details.otherCost || details.otherCharges || 0),
+        total: amountNum,
         remarks: details.remarks,
-        pickupDrop: row.pickupDropSupported ? 'Available' : 'Not Available',
+        pickupDrop: details.pickupDrop || (row.pickupDropSupported ? 'Available' : 'Not Available'),
+        availability: details.availability,
+        warranty: details.warranty,
       }
     };
 

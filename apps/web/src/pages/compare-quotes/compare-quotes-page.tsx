@@ -255,8 +255,13 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
         state: 'rating' as const 
       };
       
+      let expYears = 8;
+      if (q.garageCreatedAt) {
+         expYears = new Date().getFullYear() - new Date(q.garageCreatedAt).getFullYear();
+      }
+      
       experienceMap[q.id] = { 
-        value: details?.experience || '8+ Years', 
+        value: `${expYears > 0 ? expYears : 1}+ Years`, 
         state: 'neutral' as const 
       };
     });

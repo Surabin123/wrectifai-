@@ -15,8 +15,18 @@ export default function ActiveJobsPage() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null);
-  const [quoteForm, setQuoteForm] = useState({ labourCost: '', partsCost: '', estimatedTime: '', remarks: '' });
+  const [quoteForm, setQuoteForm] = useState({ 
+    labourCost: '', partsCost: '', consumablesCost: '', gstCost: '', otherCost: '',
+    estimatedTime: '', remarks: '', availability: '', pickupDrop: 'Available', warranty: '' 
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [minDate, setMinDate] = useState('');
+
+  useEffect(() => {
+    const now = new Date();
+    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+    setMinDate(now.toISOString().slice(0, 16));
+  }, []);
 
   useEffect(() => {
     fetchGarageActiveJobs()
@@ -37,13 +47,22 @@ export default function ActiveJobsPage() {
       await submitGarageQuote(selectedJobId, {
         labourCost: Number(quoteForm.labourCost),
         partsCost: Number(quoteForm.partsCost),
+        consumablesCost: Number(quoteForm.consumablesCost),
+        gstCost: Number(quoteForm.gstCost),
+        otherCost: Number(quoteForm.otherCost),
         estimatedTime: quoteForm.estimatedTime,
-        remarks: quoteForm.remarks
+        remarks: quoteForm.remarks,
+        availability: quoteForm.availability,
+        pickupDrop: quoteForm.pickupDrop,
+        warranty: quoteForm.warranty
       });
       // Remove from draft state or re-fetch
       setJobs(prev => prev.filter(job => job.id !== selectedJobId));
       setSelectedJobId(null);
-      setQuoteForm({ labourCost: '', partsCost: '', estimatedTime: '', remarks: '' });
+      setQuoteForm({ 
+        labourCost: '', partsCost: '', consumablesCost: '', gstCost: '', otherCost: '', 
+        estimatedTime: '', remarks: '', availability: '', pickupDrop: 'Available', warranty: '' 
+      });
     } catch (err) {
       console.error('Failed to submit quote:', err);
     } finally {
@@ -100,37 +119,105 @@ export default function ActiveJobsPage() {
           onClose={() => !isSubmitting && setSelectedJobId(null)}
           title="Create Quote"
         >
-          <div className="p-4 space-y-4">
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Labor Cost</label>
-              <input 
-                type="number" 
-                className="w-full border rounded-lg p-2 text-sm"
-                value={quoteForm.labourCost}
-                onChange={e => setQuoteForm({...quoteForm, labourCost: e.target.value})}
-                placeholder="e.g. 150"
-              />
+          <div className="p-4 space-y-4 max-h-[70vh] overflow-y-auto">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Labor Cost (₹)</label>
+                <input 
+                  type="number" min="0"
+                  className="w-full border rounded-lg p-2 text-sm"
+                  value={quoteForm.labourCost}
+                  onChange={e => setQuoteForm({...quoteForm, labourCost: e.target.value})}
+                  placeholder="e.g. 1500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Parts Cost (₹)</label>
+                <input 
+                  type="number" min="0"
+                  className="w-full border rounded-lg p-2 text-sm"
+                  value={quoteForm.partsCost}
+                  onChange={e => setQuoteForm({...quoteForm, partsCost: e.target.value})}
+                  placeholder="e.g. 2500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Consumables (₹)</label>
+                <input 
+                  type="number" min="0"
+                  className="w-full border rounded-lg p-2 text-sm"
+                  value={quoteForm.consumablesCost}
+                  onChange={e => setQuoteForm({...quoteForm, consumablesCost: e.target.value})}
+                  placeholder="e.g. 200"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">GST (₹)</label>
+                <input 
+                  type="number" min="0"
+                  className="w-full border rounded-lg p-2 text-sm"
+                  value={quoteForm.gstCost}
+                  onChange={e => setQuoteForm({...quoteForm, gstCost: e.target.value})}
+                  placeholder="e.g. 150"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Other Charges (₹)</label>
+                <input 
+                  type="number" min="0"
+                  className="w-full border rounded-lg p-2 text-sm"
+                  value={quoteForm.otherCost}
+                  onChange={e => setQuoteForm({...quoteForm, otherCost: e.target.value})}
+                  placeholder="e.g. 100"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Estimated Time</label>
+                <input 
+                  type="text" 
+                  className="w-full border rounded-lg p-2 text-sm"
+                  value={quoteForm.estimatedTime}
+                  onChange={e => setQuoteForm({...quoteForm, estimatedTime: e.target.value})}
+                  placeholder="e.g. 2 days"
+                />
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Parts Cost</label>
-              <input 
-                type="number" 
-                className="w-full border rounded-lg p-2 text-sm"
-                value={quoteForm.partsCost}
-                onChange={e => setQuoteForm({...quoteForm, partsCost: e.target.value})}
-                placeholder="e.g. 250"
-              />
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Availability</label>
+                <input 
+                  type="datetime-local" 
+                  min={minDate}
+                  className="w-full border rounded-lg p-2 text-sm"
+                  value={quoteForm.availability}
+                  onChange={e => setQuoteForm({...quoteForm, availability: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-bold text-slate-700 mb-1">Pickup & Drop</label>
+                <select 
+                  className="w-full border rounded-lg p-2 text-sm bg-white"
+                  value={quoteForm.pickupDrop}
+                  onChange={e => setQuoteForm({...quoteForm, pickupDrop: e.target.value})}
+                >
+                  <option value="Available">Available</option>
+                  <option value="Not Available">Not Available</option>
+                </select>
+              </div>
             </div>
+
             <div>
-              <label className="block text-sm font-bold text-slate-700 mb-1">Estimated Time</label>
+              <label className="block text-sm font-bold text-slate-700 mb-1">Warranty Details</label>
               <input 
                 type="text" 
                 className="w-full border rounded-lg p-2 text-sm"
-                value={quoteForm.estimatedTime}
-                onChange={e => setQuoteForm({...quoteForm, estimatedTime: e.target.value})}
-                placeholder="e.g. 2 days"
+                value={quoteForm.warranty}
+                onChange={e => setQuoteForm({...quoteForm, warranty: e.target.value})}
+                placeholder="e.g. 6 Months / 10,000 km"
               />
             </div>
+
             <div>
               <label className="block text-sm font-bold text-slate-700 mb-1">Remarks</label>
               <textarea 
