@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
-import { query } from '../../config/database';
+import { query, getDbPool } from '../../config/database';
 import fs from 'fs';
 import path from 'path';
 
@@ -108,34 +108,16 @@ adminRouter.get('/onboarding/garages/:id', async (req, res) => {
 });
 
 adminRouter.post('/onboarding/garages', async (req, res) => {
+  const client = await getDbPool().connect();
   try {
     const { 
-      name, type, registrationNumber, phone, email, city, address, 
+      name, phone, email, city, address, 
       ownerName, ownerPhone, password, 
-      services, workingHours,
-      country, locale, businessCurrency,
+      services,
       chips, image
     } = req.body;
-    
-    // Hash password
-    const bcrypt = require('bcryptjs');
-    const salt = await bcrypt.genSalt(10);
-    const passwordHash = await bcrypt.hash(password, salt);
-    
-    // Create Owner User
-    const newUser = await query(
-      `INSERT INTO users (name, mobile_number, email, password_hash, status, country, locale) VALUES ($1, $2, $3, $4, 'active', $5, $6) RETURNING id`,
-      [ownerName, ownerPhone || phone, email, passwordHash, country || null, locale || null]
-    );
-    const ownerId = newUser.rows[0].id;
-    
-    // Assign Garage Role
-    const roleResult = await query("SELECT id FROM roles WHERE code = 'garage'");
-    if (roleResult.rows.length > 0) {
-      await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [ownerId, roleResult.rows[0].id]);
-    }
 
-    // Backend validation for documents
+    // Backend validation for documents (before DB work)
     if (image) {
       if (image.type !== 'image/png') return error(res, 'Profile Image must be a PNG file.', 'VALIDATION_ERROR', 400);
       if (image.size && image.size > 2 * 1024 * 1024) return error(res, 'Profile Image must be less than 2MB.', 'VALIDATION_ERROR', 400);
@@ -170,15 +152,44 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       return `/uploads/${folder}/${filename}`;
     };
 
+    await client.query('BEGIN');
+
+    // Hash password
+    const bcrypt = require('bcryptjs');
+    const salt = await bcrypt.genSalt(10);
+    const passwordHash = await bcrypt.hash(password, salt);
+
+    // Check if user already exists
+    let ownerId;
+    const existingUser = await client.query('SELECT id FROM users WHERE email = $1 OR mobile_number = $2', [email, ownerPhone || phone]);
+    
+    if (existingUser.rows.length > 0) {
+      ownerId = existingUser.rows[0].id;
+      // Optionally update password hash
+      await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, ownerId]);
+    } else {
+      // Create Owner User
+      const newUser = await client.query(
+        `INSERT INTO users (name, mobile_number, email, password_hash, status) VALUES ($1, $2, $3, $4, 'active') RETURNING id`,
+        [ownerName, ownerPhone || phone, email, passwordHash]
+      );
+      ownerId = newUser.rows[0].id;
+    }
+
+    // Assign Garage Role
+    const roleResult = await client.query("SELECT id FROM roles WHERE code = 'garage'");
+    if (roleResult.rows.length > 0) {
+      await client.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [ownerId, roleResult.rows[0].id]);
+    }
+
     const imagePath = saveBase64File(image, 'garages');
 
-    // Insert Garage using the actual DB schema columns
-    const newGarage = await query(
+    // Insert Garage — only columns that exist in the live garages table
+    const newGarage = await client.query(
       `INSERT INTO garages (
         name, address, city, owner_user_id, approval_status, is_approved,
-        specializations, image, country, locale, business_currency,
-        description, working_hours, location
-      ) VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+        specializations, image, location
+      ) VALUES ($1, $2, $3, $4, 'approved', true, $5, $6, $7) RETURNING id`,
       [
         name,
         address,
@@ -186,12 +197,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         ownerId,
         chips || [],
         imagePath || null,
-        country || null,
-        locale || null,
-        businessCurrency || 'USD',
-        req.body.description || null,
-        workingHours ? JSON.stringify(workingHours) : null,
-        JSON.stringify({ city, country: country || null, lat: null, lng: null, locality: city || null })
+        JSON.stringify({ city, lat: null, lng: null, locality: city || null })
       ]
     );
     const garageId = newGarage.rows[0].id;
@@ -201,7 +207,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       if (doc.obj) {
         const docPath = saveBase64File(doc.obj, 'garages/documents');
         if (docPath) {
-          await query(
+          await client.query(
             `INSERT INTO garage_documents (garage_id, doc_type, file_url, verification_status) VALUES ($1, $2, $3, 'approved')`,
             [garageId, doc.type, docPath]
           );
@@ -212,20 +218,22 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     // Insert Services
     if (services && Array.isArray(services)) {
       for (const serviceName of services) {
-        await query(
+        await client.query(
           `INSERT INTO services (garage_id, name, description, price, duration_mins) VALUES ($1, $2, $3, $4, $5)`,
           [garageId, serviceName, 'General service', 0, 60]
         );
       }
     }
 
-    // Note: workingHours can be stored in respective tables if schema allows.
-    // For now we persist what the database schema supports natively.
+    await client.query('COMMIT');
 
     return success(res, { id: garageId, message: 'Garage registered successfully' }, 201);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Garage registration error:', err);
-    return error(res, 'Failed to register garage', 'DATABASE_ERROR', 500);
+    return error(res, err instanceof Error ? err.message : (typeof err === 'string' ? err : 'Failed to register garage'), 'DATABASE_ERROR', 500);
+  } finally {
+    client.release();
   }
 });
 

@@ -347,9 +347,11 @@ authRouter.post('/login', async (req, res, next) => {
 
     let garageName = undefined;
     let garageId = undefined;
+    let garages: any[] = [];
     if (roles.includes('garage')) {
-      const garageResult = await query('SELECT id, name FROM garages WHERE owner_user_id = $1', [user.id]);
+      const garageResult = await query('SELECT id, name FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC', [user.id]);
       if (garageResult.rows.length > 0) {
+        garages = garageResult.rows.map(g => ({ id: g.id, name: g.name }));
         garageId = garageResult.rows[0].id;
         garageName = garageResult.rows[0].name;
       }
@@ -378,7 +380,9 @@ authRouter.post('/login', async (req, res, next) => {
         id: user.id,
         email: user.email,
         name: user.name,
+        garageId,
         garageName,
+        garages,
         mobileNumber: user.mobile_number,
         status: user.status,
         roles,
@@ -476,9 +480,11 @@ authRouter.get('/me', authenticate, async (req, res) => {
 
     let garageName = undefined;
     let garageId = undefined;
+    let garages: any[] = [];
     if (roles.includes('garage')) {
-      const garageResult = await query('SELECT id, name FROM garages WHERE owner_user_id = $1', [userId]);
+      const garageResult = await query('SELECT id, name FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC', [userId]);
       if (garageResult.rows.length > 0) {
+        garages = garageResult.rows.map(g => ({ id: g.id, name: g.name }));
         garageId = garageResult.rows[0].id;
         garageName = garageResult.rows[0].name;
       }
@@ -491,6 +497,7 @@ authRouter.get('/me', authenticate, async (req, res) => {
         name: user.name,
         garageId,
         garageName,
+        garages,
         mobileNumber: user.mobile_number,
         status: user.status,
         roles,

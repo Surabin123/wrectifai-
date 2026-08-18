@@ -6,10 +6,23 @@ interface RateLimitInfo {
   resetTime: number;
 }
 
-const ipLimits = new Map<string, RateLimitInfo>();
+export function rateLimiter(options: {
+  windowMs: number;
+  max: number;
+  message: string;
+  /** Paths that should be excluded from this limiter (e.g. /me, /refresh) */
+  skipPaths?: string[];
+}) {
+  // Each rateLimiter() call gets its own isolated Map — critical so that
+  // the global limiter and auth limiter don't share counters.
+  const ipLimits = new Map<string, RateLimitInfo>();
 
-export function rateLimiter(options: { windowMs: number; max: number; message: string }) {
   return (req: Request, res: Response, next: NextFunction) => {
+    // Skip paths that shouldn't be rate-limited by this instance (e.g. /auth/me, /auth/refresh)
+    if (options.skipPaths && options.skipPaths.some(p => req.path === p || req.path.startsWith(p))) {
+      return next();
+    }
+
     // Determine client IP. Prioritize X-Forwarded-For to get the original client IP behind edge proxies (like Cloudflare/Render LB)
     const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.ip || req.socket.remoteAddress || 'unknown';
     const now = Date.now();

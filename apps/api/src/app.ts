@@ -53,10 +53,12 @@ export function createApp() {
   );
 
   // Authentication rate limiter: 100 requests per 1 minute
+  // Excludes /me and /refresh — these are session-restore calls, not brute-force targets.
   const authRateLimiter = rateLimiter({
     windowMs: 60 * 1000,
     max: 100,
     message: 'Too many authentication attempts. Please try again after 1 minute.',
+    skipPaths: ['/me', '/refresh'],
   });
   app.use('/api/v1/auth', authRateLimiter);
   app.use('/api/auth', authRateLimiter);

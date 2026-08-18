@@ -388,7 +388,11 @@ export function VehiclesPage() {
                     </h3>
                   </div>
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#eef4ff] text-[#1a56db]">
-                    <Car className="h-5 w-5" />
+                    {vehicle.image ? (
+                      <img src={vehicle.image} alt={`${vehicle.make} ${vehicle.model}`} className="h-full w-full object-cover rounded-[12px]" />
+                    ) : (
+                      <Car className="h-5 w-5" />
+                    )}
                   </div>
                 </div>
 
