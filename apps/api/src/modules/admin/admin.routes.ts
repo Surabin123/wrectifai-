@@ -151,7 +151,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       }
     }
 
-    // Helper to save base64 files
+    // Helper to save base64 files locally (fallback for dev)
     const saveBase64File = (fileObj: any, folder: string) => {
       if (!fileObj || !fileObj.data) return null;
       const match = fileObj.data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
@@ -162,6 +162,48 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
       fs.writeFileSync(path.join(fullPath, filename), Buffer.from(match[2], 'base64') as any);
       return `/uploads/${folder}/${filename}`;
+    };
+
+    // Helper to upload base64 files to Cloudinary for production
+    const uploadBase64File = async (fileObj: any, folder: string) => {
+      if (!fileObj || !fileObj.data) return null;
+      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+        try {
+          const { v2 as cloudinary } = require('cloudinary');
+          const result = await cloudinary.uploader.upload(fileObj.data, {
+            folder: `wrectifai/${folder}`
+          });
+          return result.secure_url;
+        } catch (err) {
+          console.error('Cloudinary Upload Error:', err);
+          if (process.env.RENDER === 'true') {
+            throw new Error('Cloudinary upload failed. Production cannot fallback to local storage.');
+          }
+        }
+      }
+      return saveBase64File(fileObj, folder);
+    };
+
+    // Helper to geocode address
+    const geocodeAddress = async (address: string, city: string, country: string) => {
+      try {
+        const queryParts = [address, city, country].filter(Boolean);
+        const query = encodeURIComponent(queryParts.join(', '));
+        if (!query) return { lat: null, lng: null };
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
+          headers: { 'User-Agent': 'WrectifAI-App/1.0 (admin@wrectifai.com)' },
+          signal: AbortSignal.timeout(5000)
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.length > 0) {
+            return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+          }
+        }
+      } catch (err) {
+        console.error('Geocoding error:', err);
+      }
+      return { lat: null, lng: null };
     };
 
     await client.query('BEGIN');
@@ -194,7 +236,8 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       await client.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [ownerId, roleResult.rows[0].id]);
     }
 
-    const imagePath = saveBase64File(image, 'garages');
+    const imagePath = await uploadBase64File(image, 'garages');
+    const coords = await geocodeAddress(address, city, country || 'IN');
 
     // Insert Garage — only columns that exist in the live garages table
     const newGarage = await client.query(
@@ -209,7 +252,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         ownerId,
         chips || [],
         imagePath || null,
-        JSON.stringify({ city, lat: null, lng: null, locality: city || null, country: country || 'IN' }),
+        JSON.stringify({ city, lat: coords.lat, lng: coords.lng, locality: city || null, country: country || 'IN' }),
         responseMins || null
       ]
     );
@@ -218,7 +261,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     // Insert Documents
     for (const doc of docs) {
       if (doc.obj) {
-        const docPath = saveBase64File(doc.obj, 'garages/documents');
+        const docPath = await uploadBase64File(doc.obj, 'garages/documents');
         if (docPath) {
           await client.query(
             `INSERT INTO garage_documents (garage_id, doc_type, file_url, verification_status) VALUES ($1, $2, $3, 'approved')`,

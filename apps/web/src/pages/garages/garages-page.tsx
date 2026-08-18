@@ -236,29 +236,31 @@ function GarageCard({
   isWishlisted,
   onClick,
 }: Omit<Garage, 'badge' | 'badgeTone'> & { badge?: string; badgeTone?: string; compact?: boolean; isWishlisted?: boolean; onClick?: (e: React.MouseEvent) => void }) {
+  const [imgError, setImgError] = useState(false);
+  const fallbackImage = '/assets/garage_1_1778071156220.png';
+  const displayImage = imgError ? fallbackImage : (image ? resolveImageUrl(image) : fallbackImage);
+
   return (
     <Card
-      className="overflow-hidden rounded-[18px] border-[#e7eefc] shadow-[0_14px_34px_rgba(21,48,122,0.08)] cursor-pointer hover:border-[#1a56db]/20 transition-all duration-300 hover:scale-[1.01]"
+      className="overflow-hidden rounded-[18px] flex flex-col h-full border-[#e7eefc] shadow-[0_14px_34px_rgba(21,48,122,0.08)] cursor-pointer hover:border-[#1a56db]/20 transition-all duration-300 hover:scale-[1.01]"
     >
       <div
         className={cn(
-          'relative bg-gradient-to-r',
-          tone,
-          compact ? 'h-[110px]' : 'h-[128px]'
+          'relative bg-gradient-to-r w-full aspect-[16/9] overflow-hidden shrink-0',
+          tone
         )}
       >
-        {image && (
-          <Image
-            src={resolveImageUrl(image)}
-            alt={name}
-            fill
-            sizes="(max-width: 768px) 100vw, 33vw"
-            className="object-cover"
-            unoptimized
-          />
-        )}
+        <Image
+          src={displayImage}
+          alt={name}
+          fill
+          sizes="(max-width: 768px) 100vw, 33vw"
+          className="object-cover"
+          unoptimized
+          onError={() => setImgError(true)}
+        />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(5,8,17,0.4))]" />
-        {/* Badge intentionally removed — no promotional Top Rated / Most Trusted / Best Value badges */}
+        
         <div 
           onClick={onClick}
           className="absolute right-4 top-3 flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-md hover:scale-110 transition-transform cursor-pointer z-10">
@@ -267,25 +269,15 @@ function GarageCard({
             fill={isWishlisted ? "currentColor" : "none"} 
           />
         </div>
-        <div className="absolute inset-x-4 bottom-4 flex items-end justify-between">
-          <div className="text-[11.5px] font-bold tracking-[0.01em] text-white/92">
-            {facade}
-          </div>
-          <div className="flex gap-2 opacity-85">
-            <div className="h-8 w-10 rounded bg-white/10" />
-            <div className="h-8 w-12 rounded bg-white/10" />
-            <div className="h-8 w-8 rounded bg-white/10" />
-          </div>
-        </div>
       </div>
 
-      <div className="p-4">
+      <div className="p-4 flex flex-col grow">
         <div className="flex items-center gap-2">
-          <h3 className="text-[14.5px] font-bold tracking-[-0.03em] text-[#17307a]">
+          <h3 className="text-[14.5px] font-bold tracking-[-0.03em] text-[#17307a] line-clamp-1 flex-1">
             {name}
           </h3>
           {verified ? (
-            <BadgeCheck className="h-4 w-4 fill-[#1a56db] text-white" />
+            <BadgeCheck className="h-4 w-4 shrink-0 fill-[#1a56db] text-white" />
           ) : null}
         </div>
 
@@ -300,56 +292,56 @@ function GarageCard({
                 <span>({reviews})</span>
               </>
             ) : (
-              <span className="font-semibold text-[#9aa8c6]">No reviews yet</span>
+              <span className="font-semibold text-[#9aa8c6]">No reviews</span>
             )}
           </div>
           <span className="shrink-0 text-[#9aa8c6]">•</span>
-          {/* location = "Locality • City" from DB, never hardcoded */}
           <span className="min-w-0 truncate">{location}</span>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-5 text-[11.5px] font-semibold text-[#17307a]">
-          {/* Only show distance when GPS-calculated — undefined means GPS unavailable */}
           {distanceKm != null && (
             <div className="flex items-center gap-2">
-              <MapPin className="h-4 w-4 text-[#1a56db]" />
-              {formatDistance(distanceKm)}
+              <MapPin className="h-4 w-4 shrink-0 text-[#1a56db]" />
+              <span className="truncate">{formatDistance(distanceKm)}</span>
             </div>
           )}
           {responseMins != null && (
             <div className="flex items-center gap-2">
-              <Clock3 className="h-4 w-4 text-[#1a56db]" />
-              {formatResponse(responseMins)}
+              <Clock3 className="h-4 w-4 shrink-0 text-[#1a56db]" />
+              <span className="truncate">{formatResponse(responseMins)}</span>
             </div>
           )}
         </div>
 
-        <div className="mt-2.5 flex flex-wrap gap-2">
+        <div className="mt-2.5 flex flex-wrap gap-2 h-[28px] overflow-hidden">
           {chips.map((chip) => (
             <span
               key={chip}
-              className="rounded-full bg-[#e9f8ef] px-3 py-1.5 text-[10px] font-semibold text-[#238453]"
+              className="rounded-full bg-[#e9f8ef] px-3 py-1.5 text-[10px] font-semibold text-[#238453] truncate max-w-full"
             >
               {chip}
             </span>
           ))}
         </div>
 
-        <div className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1.5 border-t border-[#eef3ff] pt-2">
-          <div className="flex min-w-0 items-start gap-1 font-normal text-[#17307a]">
-            <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#1a56db]" />
-            <div className="min-w-0 text-[8.5px] tracking-tight font-normal leading-[1.25]">
-              <div>No upfront payment &#8226;</div>
-              <div>Final quote after inspection</div>
+        <div className="mt-auto pt-4">
+          <div className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-1.5 border-t border-[#eef3ff] pt-2">
+            <div className="flex min-w-0 items-start gap-1 font-normal text-[#17307a]">
+              <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-[#1a56db]" />
+              <div className="min-w-0 text-[8.5px] tracking-tight font-normal leading-[1.25]">
+                <div>No upfront payment &#8226;</div>
+                <div>Final quote after inspection</div>
+              </div>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="h-8 shrink-0 rounded-[9px] px-2 text-[10.5px] font-semibold"
+            >
+              Book Appointment
+            </Button>
           </div>
-          <Button
-            type="button"
-            variant="outline"
-            className="h-8 shrink-0 rounded-[9px] px-2 text-[10.5px] font-semibold"
-          >
-            Book Appointment
-          </Button>
         </div>
       </div>
     </Card>
