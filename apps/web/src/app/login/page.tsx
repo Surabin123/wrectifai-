@@ -140,9 +140,12 @@ export default function LoginPage() {
     }
 
     try {
-      // Temporarily removed the strict 'exists' check from frontend 
-      // because Firebase might send the OTP regardless, and our backend auto-registers 
-      // users if they don't exist. This prevents the "Account not found" blocker.
+      const checkRes = await apiClient.post<{ exists: boolean }>('/auth/check-user', { mobileNumber: sanitizedPhone });
+      if (!checkRes.exists) {
+        setErrorMsg('Account not found. Please sign up first.');
+        setIsSubmitting(false);
+        return;
+      }
     } catch (err) {
       console.error('Error checking user existence:', err);
       setErrorMsg('Failed to verify user. Please try again.');
