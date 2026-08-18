@@ -123,7 +123,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
   const client = await getDbPool().connect();
   try {
     const { 
-      name, phone, email, city, address, 
+      name, phone, email, city, address, area,
       ownerName, ownerPhone, password, 
       services,
       chips, image, country, responseMins
@@ -183,9 +183,9 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     };
 
     // Helper to geocode address
-    const geocodeAddress = async (address: string, city: string, country: string) => {
+    const geocodeAddress = async (address: string, area: string, city: string, country: string) => {
       try {
-        const queryParts = [address, city, country].filter(Boolean);
+        const queryParts = [address, area, city, country].filter(Boolean);
         const query = encodeURIComponent(queryParts.join(', '));
         if (!query) return { lat: null, lng: null };
         const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=1`, {
@@ -235,7 +235,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     }
 
     const imagePath = await uploadBase64File(image, 'garages');
-    const coords = await geocodeAddress(address, city, country || 'IN');
+    const coords = await geocodeAddress(address, area, city, country || 'IN');
 
     // Insert Garage — only columns that exist in the live garages table
     const newGarage = await client.query(
@@ -250,7 +250,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         ownerId,
         chips || [],
         imagePath || null,
-        JSON.stringify({ city, lat: coords.lat, lng: coords.lng, locality: city || null, country: country || 'IN' }),
+        JSON.stringify({ city, lat: coords.lat, lng: coords.lng, locality: area || null, country: country || 'IN' }),
         responseMins || null
       ]
     );
