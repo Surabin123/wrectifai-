@@ -591,7 +591,7 @@ function GarageCard({
   return (
     <Card className="overflow-hidden rounded-[16px] shadow-[0_12px_26px_rgba(20,44,112,0.08)]">
       <div className={cn('relative h-[86px] bg-gradient-to-r', artwork)}>
-        <Image src={resolveImageUrl(image) || '/assets/garage_1_1778071156220.png'} alt={name} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
+        <Image src={resolveImageUrl(image) || '/assets/garage_1_1778071156220.png'} alt={name} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" unoptimized />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(5,8,17,0.3))]" />
         <div className="absolute inset-x-3 top-3 flex items-start justify-between">
           {badge ? <Badge tone={tone}>{badge}</Badge> : <div />}
@@ -1067,36 +1067,59 @@ export function MainContent() {
 
   useEffect(() => {
     let active = true;
-    // Derive country from city — enforces India/USA/UAE region isolation
-    const country = userCity && userCity !== 'Location' ? getCountryForCity(userCity).name : undefined;
-    // City-filtered + country-filtered: only fetch garages for the selected region
-    fetchGarages(userCity, undefined, undefined, country)
-      .then((data) => {
-        if (active && data && data.length > 0) {
-          const mapped = data.map((g: any) => {
-            // Use locationData from new API response shape
-            const ld = g.locationData || {};
-            const locality = ld.locality || null;
-            const city = ld.city || g.city || null;
-            const location = locality && city
-              ? `${locality} \u2022 ${city}`
-              : (city || locality || 'Location not set');
-            return {
-              ...g,
-              rating: g.rating ?? 0,
-              reviews: g.reviews ?? 0,
-              // distanceKm only present when GPS-calculated, never fake
-              distanceKm: (g.distanceKm !== null && g.distanceKm !== undefined) ? Number(g.distanceKm) : undefined,
-              responseMins: (g.responseMins !== null && g.responseMins !== undefined) ? Number(g.responseMins) : undefined,
-              location,
-            };
-          });
-          setGaragesList(mapped as unknown as Garage[]);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to fetch garages:', err);
-      });
+
+    const fetchWithLocation = (lat?: number, lng?: number) => {
+      // Derive country from city — enforces India/USA/UAE region isolation
+      const country = userCity && userCity !== 'Location' ? getCountryForCity(userCity).name : undefined;
+      // City-filtered + country-filtered: only fetch garages for the selected region
+      fetchGarages(userCity, lat, lng, country)
+        .then((data) => {
+          if (active && data && data.length > 0) {
+            const mapped = data.map((g: any) => {
+              // Use locationData from new API response shape
+              const ld = g.locationData || {};
+              const locality = ld.locality || null;
+              const city = ld.city || g.city || null;
+              let location = city || locality || 'Location not set';
+              if (locality && city && locality.toLowerCase() !== city.toLowerCase()) {
+                location = `${locality} \u2022 ${city}`;
+              }
+              
+              const distanceKm = (g.distanceKm !== null && g.distanceKm !== undefined) ? Number(g.distanceKm) : undefined;
+              return {
+                ...g,
+                rating: g.rating ?? 0,
+                reviews: g.reviews ?? 0,
+                // distanceKm only present when GPS-calculated, never fake
+                distanceKm,
+                distance: distanceKm ? `${distanceKm.toFixed(1)} km` : undefined,
+                responseMins: (g.responseMins !== null && g.responseMins !== undefined) ? Number(g.responseMins) : undefined,
+                location,
+              };
+            });
+            setGaragesList(mapped as unknown as Garage[]);
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to fetch garages:', err);
+        });
+    };
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          fetchWithLocation(position.coords.latitude, position.coords.longitude);
+        },
+        (error) => {
+          console.warn('Geolocation error:', error.message);
+          fetchWithLocation(); // Fallback without GPS
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+      );
+    } else {
+      fetchWithLocation();
+    }
+
     return () => {
       active = false;
     };
