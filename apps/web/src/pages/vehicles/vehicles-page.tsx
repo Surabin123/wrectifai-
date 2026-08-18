@@ -784,7 +784,6 @@ export function VehiclesPage() {
                 )}
               </div>
             </Card>
-            </Card>
           </div>
         )}
 

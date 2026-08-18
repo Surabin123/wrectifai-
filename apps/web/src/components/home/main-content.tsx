@@ -359,6 +359,7 @@ function HeroBanner() {
             fill
             sizes="(max-width: 1024px) 100vw, 42vw"
             className="object-cover"
+            unoptimized={activeBanner.src.startsWith('data:')}
           />
 
           <div className="absolute bottom-0 left-0 right-0 border-t border-white/12 bg-[linear-gradient(180deg,rgba(9,16,38,0.08),rgba(9,16,38,0.46))] px-4 py-3 backdrop-blur-md">
