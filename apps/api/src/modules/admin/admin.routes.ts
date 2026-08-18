@@ -172,11 +172,20 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
 
     const imagePath = saveBase64File(image, 'garages');
 
+    const locationJson = { 
+      city, 
+      country: country || null, 
+      locale: locale || null, 
+      business_currency: businessCurrency || 'USD', 
+      description: req.body.description || null, 
+      working_hours: workingHours || null 
+    };
+
     // Insert Garage
     const newGarage = await query(
-      `INSERT INTO garages (name, address, city, owner_user_id, approval_status, is_approved, country, locale, business_currency, specializations, image, description, working_hours)
-       VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-      [name, address, city, ownerId, country || null, locale || null, businessCurrency || 'USD', chips || [], imagePath || null, req.body.description || null, workingHours || null]
+      `INSERT INTO garages (name, address, owner_user_id, approval_status, specializations, image, location)
+       VALUES ($1, $2, $3, 'approved', $4, $5, $6) RETURNING id`,
+      [name, address, ownerId, chips || [], imagePath || null, JSON.stringify(locationJson)]
     );
     const garageId = newGarage.rows[0].id;
 
