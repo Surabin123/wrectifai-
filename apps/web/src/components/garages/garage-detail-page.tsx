@@ -44,6 +44,7 @@ import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
 import { formatCurrency } from '@/lib/currency';
 import { useAuth } from '@/lib/auth-context';
+import { resolveImageUrl } from '@/lib/utils';
 
 interface GarageDetailPageProps {
   garage: Garage;
@@ -225,9 +226,7 @@ export function GarageDetailPage({
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [moreServicesModalOpen, setMoreServicesModalOpen] = useState(false);
 
-  const processedImage = garage.image?.startsWith('/uploads') 
-    ? `${(process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1').replace(/\/api\/v1\/?$/, '')}${garage.image}`
-    : garage.image;
+  const processedImage = resolveImageUrl(garage.image) || '';
 
   const detailImageSources = [processedImage].filter((src): src is string =>
     Boolean(src)
@@ -404,9 +403,9 @@ export function GarageDetailPage({
           <div className="space-y-6">
             {/* Banner Container */}
             <div className="relative h-[240px] w-full overflow-hidden rounded-[16px] border border-white/60 bg-gradient-to-r from-slate-900 to-slate-800 shadow-[0_16px_40px_rgba(22,48,112,0.08)] sm:h-[300px]">
-              {garage.image && (
+              {processedImage && (
                 <Image
-                  src={garage.image}
+                  src={processedImage}
                   alt={garage.name}
                   fill
                   sizes="(max-width: 1024px) 100vw, 70vw"

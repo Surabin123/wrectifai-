@@ -20,6 +20,8 @@ import {
 import Link from 'next/link';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
+import { Badge } from '@/components/common/badge';
+import { resolveImageUrl } from '@/lib/utils';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { cn } from '@/utils/cn';
@@ -489,7 +491,7 @@ export function BookingConfirmed({
             <div className="flex gap-3 items-center">
               {garage.image && (
                 <Image
-                  src={garage.image}
+                  src={resolveImageUrl(garage.image) || '/assets/garage_1_1778071156220.png'}
                   alt={garage.name}
                   width={80}
                   height={56}

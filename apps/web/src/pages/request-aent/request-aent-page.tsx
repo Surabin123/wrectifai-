@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Check, Star, CarFront } from 'lucide-react';
+import { resolveImageUrl } from '@/lib/utils';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { Card } from '@/components/common/card';
@@ -410,7 +411,7 @@ export function RequestAentPage({ issues, requestId }: { issues?: string; reques
                 >
                   <div className="flex items-center justify-center md:justify-start">
                     <Image
-                      src={garage.image}
+                      src={resolveImageUrl(garage.image) || '/assets/garage_1_1778071156220.png'}
                       alt={garage.name}
                       width={96}
                       height={56}
