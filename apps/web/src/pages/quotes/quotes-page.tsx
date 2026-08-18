@@ -24,7 +24,7 @@ import { TopNavbar } from '@/components/home/top-navbar';
 import { Modal } from '@/components/common/modal';
 import { BookingDialog } from '@/components/customer/booking-dialog';
 import { GarageMoreMenu } from '@/components/quotes/garage-more-menu';
-import { fetchQuotes } from '@/lib/quotes-api';
+import { fetchQuotes, acceptQuoteRequest, fetchQuoteRequests } from '@/lib/quotes-api';
 import type { QuoteItem } from '@/components/quotes/quotes-shared';
 import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/utils/cn';
@@ -429,8 +429,9 @@ function RequestSummaryPanel({ quotes, requests }: { quotes: QuoteItem[], reques
   const first = quotes[0] || requests?.[0];
   if (!first) return null;
   const v = first.vehicle;
-  const issues = (first.requestIssueSummary || first.issueSummary) ? (first.requestIssueSummary || first.issueSummary).split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean) : [];
-  const requestDate = (first.requestCreatedAt || first.createdAt) ? new Date(first.requestCreatedAt || first.createdAt) : null;
+  const anyFirst = first as any;
+  const issues = (anyFirst.requestIssueSummary || anyFirst.issueSummary) ? (anyFirst.requestIssueSummary || anyFirst.issueSummary).split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean) : [];
+  const requestDate = (anyFirst.requestCreatedAt || anyFirst.createdAt) ? new Date(anyFirst.requestCreatedAt || anyFirst.createdAt) : null;
 
   return (
     <div className="space-y-4">
@@ -454,7 +455,7 @@ function RequestSummaryPanel({ quotes, requests }: { quotes: QuoteItem[], reques
           <div className="mt-3">
             <div className="text-[11px] font-semibold uppercase tracking-wide text-[#8ea0c7] mb-1">Issues Requested ({issues.length})</div>
             <ul className="space-y-0.5">
-              {issues.map((iss, i) => (
+              {issues.map((iss: string, i: number) => (
                 <li key={i} className="flex items-start gap-1.5 text-[12.5px] text-[#17307a]">
                   <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[#2451f6]" />
                   {iss}

@@ -149,7 +149,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     }
     const dbSummary = quotes[0]?.requestIssueSummary || requests[0]?.issueSummary;
     if (dbSummary) {
-      return dbSummary.split(',').map((name, index) => {
+      return dbSummary.split(',').map((name: string, index: number) => {
         const found = resultIssues.find((r) => r.title.toLowerCase() === name.trim().toLowerCase());
         if (found) return found;
         return {
@@ -891,7 +891,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
                 <div>
                   <div className={homeBodyClass}>Issues Requested ({requestedIssues.length})</div>
                   <div className="mt-3 space-y-2.5 text-[12px] text-[#17307a]">
-                    {requestedIssues.map((issue) => (
+                    {requestedIssues.map((issue: any) => (
                       <div key={issue.id}>
                         {BULLET} &nbsp;{issue.title}
                       </div>
