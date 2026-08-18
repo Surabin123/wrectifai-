@@ -81,15 +81,12 @@ garagesRouter.get('/', async (req, res) => {
 
     // Strict city filter — backend enforced, not frontend hidden
     if (city && city !== 'location') {
-      condition += ` AND (LOWER(g.city) = $${params.length + 1} OR LOWER(g.location->>'city') = $${params.length + 1})`;
+      condition += ` AND (LOWER(g.location->>'city') = $${params.length + 1})`;
       params.push(city);
     }
 
     // Country filter — region-scopes the query so India/USA/UAE garages never mix.
-    // g.country column stores ISO-2 code (IN/US/AE); location->>'country' stores full name.
-    // Frontend sends full country name (e.g. "India", "United States", "United Arab Emirates").
     if (country) {
-      // Map full country name → ISO code for the g.country column check
       const countryIsoMap: Record<string, string> = {
         'india': 'in',
         'united states': 'us',
@@ -99,11 +96,10 @@ garagesRouter.get('/', async (req, res) => {
       };
       const isoCode = countryIsoMap[country.toLowerCase()] || country.toLowerCase();
       condition += ` AND (
-        LOWER(g.country) = $${params.length + 1}
+        LOWER(g.location->>'country') = $${params.length + 1}
         OR LOWER(g.location->>'country') = $${params.length + 2}
-        OR LOWER(g.location->>'country') = $${params.length + 3}
       )`;
-      params.push(isoCode, country.toLowerCase(), isoCode);
+      params.push(isoCode, country.toLowerCase());
     }
 
     const result = await query(`
@@ -111,7 +107,7 @@ garagesRouter.get('/', async (req, res) => {
              g.rating_avg as "ratingAvg", g.rating_count as "ratingCount",
              g.starting_price as "startingPrice", ${distanceSql},
              g.image, g.response_mins as "responseMins",
-             g.location, g.city
+             g.location
       FROM garages g
       WHERE ${condition}
       ORDER BY g.created_at ASC
@@ -201,7 +197,7 @@ garagesRouter.get('/search', async (req, res) => {
 
     if (city) {
       params.push(city);
-      conditions.push(`g.city = $${params.length}`);
+      conditions.push(`LOWER(g.location->>'city') = $${params.length}`);
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
@@ -209,7 +205,7 @@ garagesRouter.get('/search', async (req, res) => {
     const result = await query(
       `SELECT g.id, g.name, g.address, g.specializations, g.approval_status, 
               g.rating_avg as "ratingAvg", g.rating_count as "ratingCount",
-              g.starting_price as "startingPrice", g.distance_km as "distanceKm",
+              g.starting_price as "startingPrice", NULL::NUMERIC as "distanceKm",
               g.image, g.response_mins as "responseMins",
               (SELECT badge_key FROM garage_badges gb WHERE gb.garage_id = g.id AND gb.active = true LIMIT 1) as badge
        FROM garages g
@@ -235,9 +231,9 @@ garagesRouter.get('/:id', async (req, res) => {
       query(
         `SELECT g.id, g.name, g.address, g.specializations, g.approval_status, 
                 g.rating_avg as "ratingAvg", g.rating_count as "ratingCount",
-                g.starting_price as "startingPrice", g.distance_km as "distanceKm",
+                g.starting_price as "startingPrice", NULL::NUMERIC as "distanceKm",
                 g.image, g.response_mins as "responseMins",
-                g.location, g.city
+                g.location
          FROM garages g
          WHERE g.id = $1`,
         [req.params.id]
