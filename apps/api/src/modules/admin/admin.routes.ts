@@ -114,7 +114,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       name, phone, email, city, address, 
       ownerName, ownerPhone, password, 
       services,
-      chips, image
+      chips, image, country
     } = req.body;
 
     // Backend validation for documents (before DB work)
@@ -197,7 +197,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         ownerId,
         chips || [],
         imagePath || null,
-        JSON.stringify({ city, lat: null, lng: null, locality: city || null })
+        JSON.stringify({ city, lat: null, lng: null, locality: city || null, country: country || 'IN' })
       ]
     );
     const garageId = newGarage.rows[0].id;
