@@ -689,16 +689,16 @@ export default function RegisterGaragePage() {
                        <h3 className="font-bold text-sm text-[#17307a]">Garage Details</h3>
                        <button onClick={() => setStep(1)} className="text-blue-600 text-xs font-bold hover:underline">Edit</button>
                      </div>
-                     <div className="p-5 grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-sm">
-                       <div><p className="text-slate-500 text-xs mb-1">Garage Name</p><p className="font-bold">{formData.name}</p></div>
-                       <div><p className="text-slate-500 text-xs mb-1">Garage Type</p><p className="font-bold">{formData.type}</p></div>
-                       <div><p className="text-slate-500 text-xs mb-1">Established Year</p><p className="font-bold">{formData.year}</p></div>
-                       <div><p className="text-slate-500 text-xs mb-1">Phone</p><p className="font-bold">{formData.countryCode} {formData.phone}</p></div>
-                       <div><p className="text-slate-500 text-xs mb-1">Email</p><p className="font-bold">{formData.email}</p></div>
-                       <div><p className="text-slate-500 text-xs mb-1">Location</p><p className="font-bold">{formData.city}, {formData.area}</p></div>
-                       <div className="col-span-2"><p className="text-slate-500 text-xs mb-1">Address</p><p className="font-bold truncate">{formData.address}</p></div>
-                       <div className="col-span-2"><p className="text-slate-500 text-xs mb-1">Highlights</p><p className="font-bold truncate">{formData.chips.length > 0 ? formData.chips.join(', ') : 'None'}</p></div>
-                       <div className="col-span-2"><p className="text-slate-500 text-xs mb-1">Garage Image</p><p className="font-bold text-green-600">{formData.image ? 'Uploaded' : 'Missing'}</p></div>
+                     <div className="p-5 grid grid-cols-2 gap-y-5 gap-x-8 text-sm">
+                       <div className="min-w-0"><p className="text-slate-500 text-xs mb-1">Garage Name</p><p className="font-bold break-words">{formData.name}</p></div>
+                       <div className="min-w-0"><p className="text-slate-500 text-xs mb-1">Garage Type</p><p className="font-bold break-words">{formData.type}</p></div>
+                       <div className="min-w-0"><p className="text-slate-500 text-xs mb-1">Established Year</p><p className="font-bold">{formData.year}</p></div>
+                       <div className="min-w-0"><p className="text-slate-500 text-xs mb-1">Phone</p><p className="font-bold">{formData.countryCode} {formData.phone}</p></div>
+                       <div className="min-w-0"><p className="text-slate-500 text-xs mb-1">Email</p><p className="font-bold break-all">{formData.email}</p></div>
+                       <div className="min-w-0"><p className="text-slate-500 text-xs mb-1">Location</p><p className="font-bold break-words">{formData.city}, {formData.area}</p></div>
+                       <div className="col-span-2 min-w-0"><p className="text-slate-500 text-xs mb-1">Address</p><p className="font-bold break-words">{formData.address}</p></div>
+                       <div className="min-w-0"><p className="text-slate-500 text-xs mb-1">Highlights</p><p className="font-bold break-words">{formData.chips.length > 0 ? formData.chips.join(', ') : 'None'}</p></div>
+                       <div className="min-w-0"><p className="text-slate-500 text-xs mb-1">Garage Image</p><p className="font-bold text-green-600">{formData.image ? 'Uploaded' : 'Missing'}</p></div>
                      </div>
                    </div>
 
@@ -708,17 +708,17 @@ export default function RegisterGaragePage() {
                        <h3 className="font-bold text-sm text-[#17307a]">Owner Details</h3>
                        <button onClick={() => setStep(2)} className="text-blue-600 text-xs font-bold hover:underline">Edit</button>
                      </div>
-                     <div className="p-5 grid grid-cols-2 md:grid-cols-4 gap-y-4 gap-x-6 text-sm">
-                       <div><p className="text-slate-500 text-xs mb-1">Owner Name</p><p className="font-bold">{formData.ownerName}</p></div>
-                       <div>
+                     <div className="p-5 grid grid-cols-2 gap-y-5 gap-x-8 text-sm">
+                       <div className="min-w-0"><p className="text-slate-500 text-xs mb-1">Owner Name</p><p className="font-bold break-words">{formData.ownerName}</p></div>
+                       <div className="min-w-0">
                          <p className="text-slate-500 text-xs mb-1">Owner Phone</p>
                          <p className="font-bold flex items-center gap-2">
                            {formData.sameAsGaragePhone ? `${formData.countryCode} ${formData.phone}` : `${formData.ownerCountryCode} ${formData.ownerPhone}`}
-                           {formData.isPhoneVerified && <Check className="w-4 h-4 text-green-500" />}
+                           {formData.isPhoneVerified && <Check className="w-4 h-4 text-green-500 flex-shrink-0" />}
                          </p>
                        </div>
-                       <div><p className="text-slate-500 text-xs mb-1">Login Email</p><p className="font-bold">{formData.email}</p></div>
-                       <div><p className="text-slate-500 text-xs mb-1">Password</p><p className="font-bold">••••••••</p></div>
+                       <div className="min-w-0"><p className="text-slate-500 text-xs mb-1">Login Email</p><p className="font-bold break-all">{formData.email}</p></div>
+                       <div className="min-w-0"><p className="text-slate-500 text-xs mb-1">Password</p><p className="font-bold">••••••••</p></div>
                      </div>
                    </div>
 

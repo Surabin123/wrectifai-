@@ -172,20 +172,27 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
 
     const imagePath = saveBase64File(image, 'garages');
 
-    const locationJson = { 
-      city, 
-      country: country || null, 
-      locale: locale || null, 
-      business_currency: businessCurrency || 'USD', 
-      description: req.body.description || null, 
-      working_hours: workingHours || null 
-    };
-
-    // Insert Garage
+    // Insert Garage using the actual DB schema columns
     const newGarage = await query(
-      `INSERT INTO garages (name, address, owner_user_id, approval_status, specializations, image, location)
-       VALUES ($1, $2, $3, 'approved', $4, $5, $6) RETURNING id`,
-      [name, address, ownerId, chips || [], imagePath || null, JSON.stringify(locationJson)]
+      `INSERT INTO garages (
+        name, address, city, owner_user_id, approval_status, is_approved,
+        specializations, image, country, locale, business_currency,
+        description, working_hours, location
+      ) VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING id`,
+      [
+        name,
+        address,
+        city || null,
+        ownerId,
+        chips || [],
+        imagePath || null,
+        country || null,
+        locale || null,
+        businessCurrency || 'USD',
+        req.body.description || null,
+        workingHours ? JSON.stringify(workingHours) : null,
+        JSON.stringify({ city, country: country || null, lat: null, lng: null, locality: city || null })
+      ]
     );
     const garageId = newGarage.rows[0].id;
 
