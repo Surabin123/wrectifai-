@@ -39,7 +39,7 @@ export function TopNavbar() {
 
   const [cartCount, setCartCount] = useState(0);
   const [wishlistCount, setWishlistCount] = useState(0);
-  const [notificationCount, setNotificationCount] = useState(3);
+  const [notificationCount, setNotificationCount] = useState(0);
   const [isWishlistOpen, setIsWishlistOpen] = useState(false);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
@@ -81,6 +81,8 @@ export function TopNavbar() {
           n.audience === 'All' || n.audience === audienceRole
         );
         setNotificationCount(relevantNotifs.filter((n: any) => !n.read).length);
+      } else {
+        setNotificationCount(0);
       }
     };
 

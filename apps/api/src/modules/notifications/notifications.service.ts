@@ -17,8 +17,8 @@ export class NotificationsService {
     description: string;
   }) {
     const res = await query(
-      `INSERT INTO notifications (user_id, garage_id, is_admin, type, title, description)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO notifications (user_id, garage_id, is_admin, type, title, description, channel, template_key, status)
+       VALUES ($1, $2, $3, $4, $5, $6, 'inApp', 'system_alert', 'sent')
        RETURNING *`,
       [userId || null, garageId || null, isAdmin, type, title, description]
     );
