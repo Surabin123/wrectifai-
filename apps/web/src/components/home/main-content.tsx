@@ -591,7 +591,7 @@ function GarageCard({
   return (
     <Card className="overflow-hidden rounded-[16px] shadow-[0_12px_26px_rgba(20,44,112,0.08)]">
       <div className={cn('relative h-[86px] bg-gradient-to-r', artwork)}>
-        <Image src={resolveImageUrl(image) || '/assets/garage_1_1778071156220.png'} alt={name} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" unoptimized />
+        <Image src={resolveImageUrl(image) || 'https://placehold.co/400x300/e2e8f0/64748b?text=No+Image'} alt={name} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" unoptimized />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(5,8,17,0.3))]" />
         <div className="absolute inset-x-3 top-3 flex items-start justify-between">
           {badge ? <Badge tone={tone}>{badge}</Badge> : <div />}

@@ -440,7 +440,13 @@ export function GarageDetailPage({
             </div>
 
             <div className="flex gap-3">
-              <button onClick={handleRequestQuote} className="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold text-sm shadow-sm hover:bg-purple-700">Request Quote</button>
+              {garage.approvalStatus === 'suspended' ? (
+                <div className="w-full bg-red-500 text-white p-3 rounded-lg text-center font-bold text-sm shadow-md">
+                  Temporarily unavailable: This garage is temporarily not providing services. Please choose another garage.
+                </div>
+              ) : (
+                <button onClick={handleRequestQuote} className="px-4 py-2 bg-purple-600 text-white rounded-lg font-bold text-sm shadow-sm hover:bg-purple-700">Request Quote</button>
+              )}
             </div>
             
             {/* Garage Details Header Row */}
@@ -476,32 +482,42 @@ export function GarageDetailPage({
                   <div className="flex flex-wrap gap-2.5 pt-1.5">
                     <div className="flex items-center gap-2 rounded-full bg-[#eefbf3] px-3.5 py-1.5 text-[10px] font-bold text-[#228453]">
                       <Clock className="h-4 w-4" />
-                      <span>{new Date().getDay() === 0 ? 'Closed today' : new Date().getDay() === 6 ? 'Open until 5:00 PM' : 'Open until 7:00 PM'}</span>
+                      <span>
+                        {(() => {
+                          if (!garage.businessHours) return 'Schedule not provided';
+                          const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                          const today = days[new Date().getDay()];
+                          const todaySchedule = garage.businessHours[today];
+                          if (!todaySchedule || !todaySchedule.open) return 'Closed today';
+                          return `Open today: ${todaySchedule.start} - ${todaySchedule.end}`;
+                        })()}
+                      </span>
                     </div>
                   </div>
 
                   {/* Adaptive Description */}
                   <div className="space-y-2 pt-3">
                     <p className="text-[11.5px] font-medium leading-[1.6] text-[#42526e]">
-                      {garage.name} is a trusted car service and repair center
-                      in {garage.location}. We offer a wide range of services
-                      with certified mechanics, modern equipment and a
-                      customer-first approach.{' '}
-                      {isExpanded &&
-                        'Our facility handles everything from scheduled maintenance to complex diagnostics, ensuring absolute precision and absolute satisfaction.'}
+                      {garage.description ? (
+                        isExpanded ? garage.description : `${garage.description.slice(0, 150)}${garage.description.length > 150 ? '...' : ''}`
+                      ) : (
+                        'No description provided.'
+                      )}
                     </p>
-                    <button
-                      onClick={() => setIsExpanded(!isExpanded)}
-                      className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1a56db] hover:underline"
-                    >
-                      <span>{isExpanded ? 'Show Less' : 'Read More'}</span>
-                      <ChevronRight
-                        className={cn(
-                          'h-3.5 w-3.5 transition-transform',
-                          isExpanded && 'rotate-90'
-                        )}
-                      />
-                    </button>
+                    {garage.description && garage.description.length > 150 && (
+                      <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="inline-flex items-center gap-1 text-[11px] font-bold text-[#1a56db] hover:underline"
+                      >
+                        <span>{isExpanded ? 'Show Less' : 'Read More'}</span>
+                        <ChevronRight
+                          className={cn(
+                            'h-3.5 w-3.5 transition-transform',
+                            isExpanded && 'rotate-90'
+                          )}
+                        />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -977,8 +993,9 @@ export function GarageDetailPage({
           {/* Right Column (Widgets) */}
           <div className="space-y-6">
             {/* Appointment Booking Widget */}
-            <Card className="rounded-[24px] border-[#e7eefc] bg-white p-5 shadow-[0_16px_40px_rgba(21,48,122,0.06)] space-y-5">
-              <div>
+            {garage.approvalStatus !== 'suspended' && (
+              <Card className="rounded-[24px] border-[#e7eefc] bg-white p-5 shadow-[0_16px_40px_rgba(21,48,122,0.06)] space-y-5">
+                <div>
                 <h3 className="text-[14.5px] font-bold text-[#17307a]">
                   Book Appointment
                 </h3>
@@ -1070,6 +1087,7 @@ export function GarageDetailPage({
                 </div>
               </div>
             </Card>
+            )}
 
             {/* Trust & Safety */}
             <Card className="rounded-[24px] border-[#e7eefc] bg-white p-5 shadow-[0_16px_40px_rgba(21,48,122,0.06)] space-y-4">

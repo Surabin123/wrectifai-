@@ -491,7 +491,7 @@ export function BookingConfirmed({
             <div className="flex gap-3 items-center">
               {garage.image && (
                 <Image
-                  src={resolveImageUrl(garage.image) || '/assets/garage_1_1778071156220.png'}
+                  src={resolveImageUrl(garage.image) || 'https://placehold.co/400x300/e2e8f0/64748b?text=No+Image'}
                   alt={garage.name}
                   width={80}
                   height={56}

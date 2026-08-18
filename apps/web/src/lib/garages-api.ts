@@ -20,6 +20,9 @@ export interface Garage {
   image?: string;
   coordinates?: [number, number];
   city?: string;
+  description?: string;
+  businessHours?: any;
+  approvalStatus?: string;
 }
 
 export interface Promo {

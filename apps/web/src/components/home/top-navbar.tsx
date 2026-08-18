@@ -429,7 +429,7 @@ export function TopNavbar() {
                   {wishlistItems.filter((i) => i.type === 'garage').map((item) => (
                     <div key={item.id || item.name} className="flex gap-4 p-3 bg-white rounded-xl border border-slate-100 shadow-sm items-center">
                       <div className="w-16 h-16 bg-slate-50 rounded-lg flex items-center justify-center relative overflow-hidden shrink-0">
-                        {item.img && <Image src={resolveImageUrl(item.img) || '/assets/garage_1_1778071156220.png'} alt={item.name} fill className="object-cover" />}
+                        {item.img && <Image src={resolveImageUrl(item.img) || 'https://placehold.co/400x300/e2e8f0/64748b?text=No+Image'} alt={item.name} fill className="object-cover" />}
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-sm text-slate-900 truncate">{item.name}</h4>
@@ -465,7 +465,7 @@ export function TopNavbar() {
                   {wishlistItems.filter((i) => i.type !== 'garage').map((item) => (
                     <div key={item.id} className="flex gap-4 p-3 bg-white rounded-xl border border-slate-100 shadow-sm items-center">
                       <div className="w-16 h-16 bg-slate-50 rounded-lg flex items-center justify-center relative overflow-hidden shrink-0">
-                        <Image src={resolveImageUrl(item.img) || '/assets/garage_1_1778071156220.png'} alt={item.name} fill className="object-contain p-2" />
+                        <Image src={resolveImageUrl(item.img) || 'https://placehold.co/400x300/e2e8f0/64748b?text=No+Image'} alt={item.name} fill className="object-contain p-2" />
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-bold text-sm text-slate-900 truncate">{item.name}</h4>

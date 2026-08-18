@@ -232,6 +232,7 @@ function GarageCard({
   tone,
   verified,
   image,
+  approvalStatus,
   compact = false,
   isWishlisted,
   onClick,
@@ -244,6 +245,11 @@ function GarageCard({
     <Card
       className="overflow-hidden rounded-[18px] flex flex-col h-full border-[#e7eefc] shadow-[0_14px_34px_rgba(21,48,122,0.08)] cursor-pointer hover:border-[#1a56db]/20 transition-all duration-300 hover:scale-[1.01]"
     >
+      {approvalStatus === 'suspended' && (
+        <div className="bg-red-500 text-white text-center text-xs font-bold py-1">
+          Temporarily Suspended
+        </div>
+      )}
       <div
         className={cn(
           'relative bg-gradient-to-r w-full aspect-[16/9] overflow-hidden shrink-0',
@@ -255,7 +261,7 @@ function GarageCard({
           alt={name}
           fill
           sizes="(max-width: 768px) 100vw, 33vw"
-          className="object-cover"
+          className={cn("object-cover", approvalStatus === 'suspended' && "opacity-60 grayscale")}
           unoptimized
           onError={() => setImgError(true)}
         />
@@ -432,6 +438,7 @@ function mapBackendGarageToFrontend(g: any): Garage {
     verified: g.verified ?? false,
     image,
     coordinates: g.coordinates,
+    approvalStatus: g.approvalStatus,
   };
 }
 
@@ -775,7 +782,7 @@ function GaragesContent() {
             rating: Number(quote.rating) || 4.5,
             reviews: Number(quote.reviews) || 12,
             location: userCity,
-            distanceKm: parseFloat(quote.distance) || 3.0,
+            distanceKm: parseFloat(quote.distance) || undefined,
             responseMins: 30,
             chips: ['General Service'],
             facade: quote.garage.split(' ').slice(0, 2).join(' '),

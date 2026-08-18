@@ -1,0 +1,2 @@
+ALTER TABLE garages ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE garages ADD COLUMN IF NOT EXISTS business_hours JSONB;

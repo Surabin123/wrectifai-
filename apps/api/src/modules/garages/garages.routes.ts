@@ -45,6 +45,9 @@ function mapGarageDbRow(g: any) {
     // responseMins: null means not specified — frontend must NOT default to 30
     responseMins: (g.responseMins !== null && g.responseMins !== undefined) ? Number(g.responseMins) : null,
     coordinates,
+    description: g.description || null,
+    businessHours: g.business_hours || null,
+    approvalStatus: g.approval_status || null,
   };
 }
 
@@ -59,7 +62,7 @@ garagesRouter.get('/', async (req, res) => {
     // No GPS coords provided: return NULL — never show seeded/fake distance values
     let distanceSql = 'NULL::NUMERIC as "distanceKm"';
     const params: any[] = [];
-    let condition = "g.approval_status IN ('active', 'approved')";
+    let condition = "g.approval_status IN ('active', 'approved', 'suspended')";
 
     if (lat !== null && !isNaN(lat) && lng !== null && !isNaN(lng)) {
       // Haversine formula in Postgres to calculate distance in km using JSONB coordinates
@@ -111,7 +114,7 @@ garagesRouter.get('/', async (req, res) => {
              g.rating_avg as "ratingAvg", g.rating_count as "ratingCount",
              g.starting_price as "startingPrice", ${distanceSql},
              g.image, g.response_mins as "responseMins",
-             g.location
+             g.location, g.description, g.business_hours
       FROM garages g
       WHERE ${condition}
       ORDER BY g.created_at ASC
@@ -186,7 +189,7 @@ garagesRouter.get('/search', async (req, res) => {
   try {
     const { rating, specialization, price_range, lat, lng, distance, city } = req.query;
 
-    const conditions: string[] = ["g.approval_status IN ('active', 'approved')"];
+    const conditions: string[] = ["g.approval_status IN ('active', 'approved', 'suspended')"];
     const params: any[] = [];
 
     if (rating) {
@@ -215,7 +218,7 @@ garagesRouter.get('/search', async (req, res) => {
               g.rating_avg as "ratingAvg", g.rating_count as "ratingCount",
               g.starting_price as "startingPrice", NULL::NUMERIC as "distanceKm",
               g.image, g.response_mins as "responseMins",
-              (SELECT badge_key FROM garage_badges gb WHERE gb.garage_id = g.id AND gb.active = true LIMIT 1) as badge
+              g.location, g.description, g.business_hours
        FROM garages g
        ${whereClause}`,
       params
@@ -241,7 +244,7 @@ garagesRouter.get('/:id', async (req, res) => {
                 g.rating_avg as "ratingAvg", g.rating_count as "ratingCount",
                 g.starting_price as "startingPrice", NULL::NUMERIC as "distanceKm",
                 g.image, g.response_mins as "responseMins",
-                g.location
+                g.location, g.description, g.business_hours
          FROM garages g
          WHERE g.id = $1`,
         [req.params.id]

@@ -125,7 +125,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     const { 
       name, phone, email, city, address, area,
       ownerName, ownerPhone, password, 
-      services,
+      services, description, workingHours,
       chips, image, country, responseMins
     } = req.body;
 
@@ -170,13 +170,27 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
+          
+          const config = cloudinary.config();
+          const diagnostics = {
+             hasUrl: !!process.env.CLOUDINARY_URL,
+             hasCloudName: !!config.cloud_name,
+             hasApiKey: !!config.api_key,
+             hasApiSecret: !!config.api_secret
+          };
+          console.log('Cloudinary Env Check:', diagnostics);
+
           const result = await cloudinary.uploader.upload(fileObj.data, {
-            folder: `wrectifai/${folder}`
+            folder: `wrectifai/${folder}`,
+            public_id: `garage_${Date.now()}_${Math.random().toString(36).substring(7)}`
           });
           return result.secure_url;
-        } catch (err) {
+        } catch (err: any) {
           console.error('Cloudinary Upload Error:', err);
-          throw new Error('Cloudinary upload failed. Production cannot fallback to local storage.');
+          const { v2: cloudinary } = require('cloudinary');
+          const config = cloudinary.config();
+          const diagStr = `hasUrl=${!!process.env.CLOUDINARY_URL}, hasCloudName=${!!config.cloud_name}, hasApiKey=${!!config.api_key}, hasApiSecret=${!!config.api_secret}`;
+          throw new Error(`Cloudinary upload failed: ${err.message || 'Unknown error'}. Diagnostics: ${diagStr}`);
         }
       }
       return saveBase64File(fileObj, folder);
@@ -241,8 +255,8 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     const newGarage = await client.query(
       `INSERT INTO garages (
         name, address, city, owner_user_id, approval_status, is_approved,
-        specializations, image, location, response_mins
-      ) VALUES ($1, $2, $3, $4, 'approved', true, $5, $6, $7, $8) RETURNING id`,
+        specializations, image, location, response_mins, description, business_hours
+      ) VALUES ($1, $2, $3, $4, 'approved', true, $5, $6, $7, $8, $9, $10) RETURNING id`,
       [
         name,
         address,
@@ -251,7 +265,9 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         chips || [],
         imagePath || null,
         JSON.stringify({ city, lat: coords.lat, lng: coords.lng, locality: area || null, country: country || 'IN' }),
-        responseMins || null
+        responseMins || null,
+        description || null,
+        workingHours ? JSON.stringify(workingHours) : null
       ]
     );
     const garageId = newGarage.rows[0].id;
@@ -324,15 +340,29 @@ adminRouter.post('/onboarding/garages/:id/verify-status', async (req, res) => {
 adminRouter.put('/garages/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
-    const finalStatus = status === 'delete' ? 'deleted' : status;
-    if (!['active', 'inactive', 'suspended', 'rejected', 'deleted'].includes(finalStatus)) {
+    
+    if (status === 'delete') {
+      // Permanently delete garage and its dependencies
+      await query('DELETE FROM garage_documents WHERE garage_id = $1', [req.params.id]);
+      await query('DELETE FROM garage_badges WHERE garage_id = $1', [req.params.id]);
+      await query('DELETE FROM services WHERE garage_id = $1', [req.params.id]);
+      await query('DELETE FROM quotes WHERE garage_id = $1', [req.params.id]);
+      await query('DELETE FROM bookings WHERE garage_id = $1', [req.params.id]);
+      
+      const result = await query('DELETE FROM garages WHERE id = $1 RETURNING id', [req.params.id]);
+      if (result.rows.length === 0) return error(res, 'Garage not found', 'NOT_FOUND', 404);
+
+      return success(res, { success: true, message: 'Garage permanently deleted' });
+    }
+
+    if (!['active', 'inactive', 'suspended', 'rejected'].includes(status)) {
       return error(res, 'Invalid action', 'INVALID_ACTION', 400);
     }
-    const is_approved = (finalStatus === 'active');
+    const is_approved = (status === 'active');
     
     const result = await query(
       `UPDATE garages SET approval_status = $1, is_approved = $2 WHERE id = $3 RETURNING id`,
-      [finalStatus, is_approved, req.params.id]
+      [status, is_approved, req.params.id]
     );
     if (result.rows.length === 0) return error(res, 'Garage not found', 'NOT_FOUND', 404);
     
