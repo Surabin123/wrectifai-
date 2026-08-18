@@ -24,6 +24,7 @@ export default function RegisterGaragePage() {
     address: '',
     year: '',
     description: '',
+    responseMins: '30',
     ownerName: '',
     sameAsGaragePhone: true,
     ownerCountryCode: '+91',
@@ -163,6 +164,7 @@ export default function RegisterGaragePage() {
         chips: formData.chips,
         image: formData.image,
         description: formData.description,
+        responseMins: Number(formData.responseMins),
         businessRegDoc: formData.businessRegDoc,
         businessLicenseDoc: formData.businessLicenseDoc,
         ownerIdDoc: formData.ownerIdDoc,
@@ -371,10 +373,16 @@ export default function RegisterGaragePage() {
                    <div className="text-right text-[10px] text-slate-400 mt-1">{formData.address.length}/200</div>
                 </div>
                 
-                <div className="mb-8">
-                   <label className="block text-xs font-bold text-slate-700 mb-2">Garage Description <span className="text-slate-400 font-normal">(Optional)</span></label>
-                   <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} maxLength={200} placeholder="A multi-brand automotive service center providing vehicle maintenance..." className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none h-24 focus:border-blue-500"></textarea>
-                   <div className="text-right text-[10px] text-slate-400 mt-1">{formData.description.length}/200</div>
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                   <div>
+                     <label className="block text-xs font-bold text-slate-700 mb-2">Garage Description <span className="text-slate-400 font-normal">(Optional)</span></label>
+                     <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} maxLength={200} placeholder="A multi-brand automotive service center providing vehicle maintenance..." className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none h-24 focus:border-blue-500"></textarea>
+                     <div className="text-right text-[10px] text-slate-400 mt-1">{formData.description.length}/200</div>
+                   </div>
+                   <div>
+                     <label className="block text-xs font-bold text-slate-700 mb-2">Response Time (mins) <span className="text-red-500">*</span></label>
+                     <input type="number" min="1" max="1440" value={formData.responseMins} onChange={e => setFormData({...formData, responseMins: e.target.value})} placeholder="e.g. 30" className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none focus:border-blue-500" />
+                   </div>
                 </div>
 
                 <div className="mb-8">

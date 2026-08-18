@@ -395,7 +395,11 @@ function mapBackendGarageToFrontend(g: any): Garage {
   const name = g.name;
   // No badge — removed per requirement
   const chips = g.chips && g.chips.length > 0 ? g.chips : ['General Service'];
-  const image = g.image || '/assets/garage_1_1778071156220.png';
+  let image = g.image || '/assets/garage_1_1778071156220.png';
+  if (image.startsWith('/uploads')) {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+    image = `${apiUrl.replace(/\/api\/v1\/?$/, '')}${image}`;
+  }
   
   // locationData is the structured location object from the API
   const ld = g.locationData || {};
@@ -403,7 +407,7 @@ function mapBackendGarageToFrontend(g: any): Garage {
   const city = ld.city || g.city || null;
   
   // Format: "Locality \u2022 City" or just "City" — NEVER hardcoded
-  const location = locality && city
+  const location = locality && city && locality.toLowerCase() !== city.toLowerCase()
     ? `${locality} \u2022 ${city}`
     : (city || locality || 'Location not set');
 

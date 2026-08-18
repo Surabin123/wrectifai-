@@ -114,7 +114,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       name, phone, email, city, address, 
       ownerName, ownerPhone, password, 
       services,
-      chips, image, country
+      chips, image, country, responseMins
     } = req.body;
 
     // Backend validation for documents (before DB work)
@@ -188,8 +188,8 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     const newGarage = await client.query(
       `INSERT INTO garages (
         name, address, city, owner_user_id, approval_status, is_approved,
-        specializations, image, location
-      ) VALUES ($1, $2, $3, $4, 'approved', true, $5, $6, $7) RETURNING id`,
+        specializations, image, location, response_mins
+      ) VALUES ($1, $2, $3, $4, 'approved', true, $5, $6, $7, $8) RETURNING id`,
       [
         name,
         address,
@@ -197,7 +197,8 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         ownerId,
         chips || [],
         imagePath || null,
-        JSON.stringify({ city, lat: null, lng: null, locality: city || null, country: country || 'IN' })
+        JSON.stringify({ city, lat: null, lng: null, locality: city || null, country: country || 'IN' }),
+        responseMins || null
       ]
     );
     const garageId = newGarage.rows[0].id;
