@@ -29,7 +29,7 @@ import { GarageMoreMenu } from '@/components/quotes/garage-more-menu';
 import {
   quoteContextDefaultIssueIds,
 } from '@/components/quotes/quotes-shared';
-import { fetchQuotes } from '@/lib/quotes-api';
+import { fetchQuotes, fetchQuoteRequests } from '@/lib/quotes-api';
 import type { QuoteItem } from '@/components/quotes/quotes-shared';
 import { resultIssues } from '@/components/ai-diagnose/diagnose-flow-shared';
 import { cn } from '@/utils/cn';
@@ -99,14 +99,19 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
   const router = useRouter();
 
   const [quotes, setQuotes] = useState<QuoteItem[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
 
   useEffect(() => {
     async function loadQuotes() {
       try {
-        const data = await fetchQuotes();
+        const [data, reqs] = await Promise.all([
+          fetchQuotes(),
+          fetchQuoteRequests().catch(() => [])
+        ]);
         setQuotes(data);
+        setRequests(reqs || []);
         if (ids) {
           setSelectedQuoteIds(ids.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 3));
         } else if (data.length > 0) {
@@ -142,7 +147,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       const ids = issuesFromQuery.split(',').map((item) => item.trim()).filter(Boolean);
       return resultIssues.filter((issue) => ids.includes(issue.id));
     }
-    const dbSummary = quotes[0]?.requestIssueSummary;
+    const dbSummary = quotes[0]?.requestIssueSummary || requests[0]?.issueSummary;
     if (dbSummary) {
       return dbSummary.split(',').map((name, index) => {
         const found = resultIssues.find((r) => r.title.toLowerCase() === name.trim().toLowerCase());
@@ -161,7 +166,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     return resultIssues.filter((issue) => quoteContextDefaultIssueIds.includes(issue.id));
   }, [searchParams, quotes]);
 
-  const activeVehicle = selectedVehicle || quotes[0]?.vehicle;
+  const activeVehicle = selectedVehicle || quotes[0]?.vehicle || requests[0]?.vehicle;
 
   const priceRows = useMemo(() => {
     const quoteValuesParts: Record<string, string> = {};

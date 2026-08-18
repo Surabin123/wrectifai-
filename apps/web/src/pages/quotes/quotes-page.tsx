@@ -425,12 +425,12 @@ function GarageQuoteCard({
    Request Summary Panel
 ────────────────────────────────────── */
 
-function RequestSummaryPanel({ quotes }: { quotes: QuoteItem[] }) {
-  const first = quotes[0];
+function RequestSummaryPanel({ quotes, requests }: { quotes: QuoteItem[], requests?: any[] }) {
+  const first = quotes[0] || requests?.[0];
   if (!first) return null;
   const v = first.vehicle;
-  const issues = first.requestIssueSummary ? first.requestIssueSummary.split(/[,\n]/).map(s => s.trim()).filter(Boolean) : [];
-  const requestDate = first.requestCreatedAt ? new Date(first.requestCreatedAt) : null;
+  const issues = (first.requestIssueSummary || first.issueSummary) ? (first.requestIssueSummary || first.issueSummary).split(/[,\n]/).map((s: string) => s.trim()).filter(Boolean) : [];
+  const requestDate = (first.requestCreatedAt || first.createdAt) ? new Date(first.requestCreatedAt || first.createdAt) : null;
 
   return (
     <div className="space-y-4">
@@ -514,6 +514,7 @@ const TABS = ['All Quotes', 'New', 'Viewed', 'Expired'];
 export function QuotesPage() {
   const router = useRouter();
   const [quotes, setQuotes] = useState<QuoteItem[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('All Quotes');
   const [sortBy, setSortBy] = useState('Lowest Price');
@@ -574,8 +575,12 @@ export function QuotesPage() {
 
   const loadQuotes = useCallback(async () => {
     try {
-      const data = await fetchQuotes();
+      const [data, reqs] = await Promise.all([
+        fetchQuotes(),
+        fetchQuoteRequests().catch(() => [])
+      ]);
       setQuotes(data);
+      setRequests(reqs || []);
     } catch (err) {
       console.error('Failed to fetch quotes:', err);
     } finally {
@@ -781,7 +786,7 @@ export function QuotesPage() {
 
           {/* Right: summary panel */}
           <div>
-            <RequestSummaryPanel quotes={quotes} />
+            <RequestSummaryPanel quotes={quotes} requests={requests} />
           </div>
         </div>
       </div>
