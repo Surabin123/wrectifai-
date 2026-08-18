@@ -209,6 +209,12 @@ quotesRouter.post('/garage-requests/:id/accept', authenticate, async (req, res) 
     const garageId = req.user?.garageId;
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
     
+    // Check if garage is suspended or deleted
+    const garageCheck = await query(`SELECT approval_status FROM garages WHERE id = $1`, [garageId]);
+    if (garageCheck.rows[0]?.approval_status === 'suspended' || garageCheck.rows[0]?.approval_status === 'deleted' || garageCheck.rows[0]?.approval_status === 'inactive') {
+      return error(res, 'Your garage account is suspended or inactive. You cannot accept requests.', 'FORBIDDEN', 403);
+    }
+    
     const result = await query(
       `UPDATE quote_requests SET status = 'selected' WHERE id = $1 AND status = 'open' AND garage_id = $2 RETURNING id`,
       [req.params.id, garageId]
@@ -236,6 +242,12 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
     const garageId = req.user?.garageId;
     if (!garageId) {
       return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
+    }
+
+    // Check if garage is suspended or deleted
+    const garageCheck = await query(`SELECT approval_status FROM garages WHERE id = $1`, [garageId]);
+    if (garageCheck.rows[0]?.approval_status === 'suspended' || garageCheck.rows[0]?.approval_status === 'deleted' || garageCheck.rows[0]?.approval_status === 'inactive') {
+      return error(res, 'Your garage account is suspended or inactive. You cannot submit quotes.', 'FORBIDDEN', 403);
     }
 
     const existingQuote = await query(
@@ -335,6 +347,16 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
       }
       return success(res, createdRequests[0], 201);
     } else {
+      // Check if specific garage is suspended or deleted
+      const garageCheck = await query(`SELECT approval_status FROM garages WHERE id = $1`, [garageId]);
+      if (garageCheck.rows.length === 0) {
+        return error(res, 'Garage not found', 'NOT_FOUND', 404);
+      }
+      const status = garageCheck.rows[0].approval_status;
+      if (status === 'suspended' || status === 'deleted' || status === 'inactive') {
+        return error(res, 'This garage is not available for new requests.', 'FORBIDDEN', 403);
+      }
+
       const result = await query(
         `INSERT INTO quote_requests (customer_id, vehicle_id, diagnosis_request_id, issue_summary, preferred_date, status, garage_id)
          VALUES ($1, $2, $3, $4, $5, 'open', $6)

@@ -33,7 +33,8 @@ export default function AdminDashboardPage() {
 
   const handleAction = async (id: string, action: string) => {
     try {
-      await apiClient.post(`/admin/onboarding/garages/${id}/${action}`, {});
+      const status = action === 'activate' ? 'active' : action === 'suspend' ? 'suspended' : action === 'delete' ? 'deleted' : action;
+      await apiClient.put(`/admin/garages/${id}/status`, { status });
       await loadData();
       setActionModal({isOpen: false, id: '', action: '', type: 'confirm', message: ''});
     } catch (err) {
@@ -155,10 +156,13 @@ export default function AdminDashboardPage() {
                      </td>
                      <td className="p-4">
                        <div className="flex gap-2">
-                         {g.approvalStatus === 'active' && (
-                           <button onClick={() => setActionModal({isOpen: true, id: g.id, action: 'suspend', type: 'confirm', message: `Are you sure you want to suspend ${g.name}?`})} className="text-[10px] bg-red-50 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 font-bold transition-colors">Suspend</button>
+                         {(g.approvalStatus === 'active' || g.approvalStatus === 'approved') && (
+                           <>
+                             <button onClick={() => setActionModal({isOpen: true, id: g.id, action: 'suspend', type: 'confirm', message: `Are you sure you want to suspend ${g.name}?`})} className="text-[10px] bg-orange-50 text-orange-700 px-3 py-1.5 rounded-lg hover:bg-orange-100 font-bold transition-colors">Suspend</button>
+                             <button onClick={() => setActionModal({isOpen: true, id: g.id, action: 'delete', type: 'confirm', message: `Are you sure you want to delete ${g.name}?`})} className="text-[10px] bg-red-50 text-red-700 px-3 py-1.5 rounded-lg hover:bg-red-100 font-bold transition-colors">Delete</button>
+                           </>
                          )}
-                         {g.approvalStatus === 'inactive' && (
+                         {(g.approvalStatus === 'inactive' || g.approvalStatus === 'suspended') && (
                            <button onClick={() => setActionModal({isOpen: true, id: g.id, action: 'activate', type: 'confirm', message: `Are you sure you want to activate ${g.name}?`})} className="text-[10px] bg-green-50 text-green-700 px-3 py-1.5 rounded-lg hover:bg-green-100 font-bold transition-colors">Make Active</button>
                          )}
                        </div>

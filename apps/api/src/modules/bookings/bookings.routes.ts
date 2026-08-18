@@ -123,9 +123,18 @@ async function createBookingInternal(req: any, res: any, data: {
     return error(res, 'Garage ID is required to create a booking', 'BAD_REQUEST', 400);
   }
 
-  const finalServiceType = serviceType || 'General Service';
-
   try {
+    // Check if garage is suspended or deleted
+    const garageCheck = await query(`SELECT approval_status FROM garages WHERE id = $1`, [garageId]);
+    if (garageCheck.rows.length === 0) {
+      return error(res, 'Garage not found', 'NOT_FOUND', 404);
+    }
+    const garageStatus = garageCheck.rows[0].approval_status;
+    if (garageStatus === 'suspended' || garageStatus === 'deleted' || garageStatus === 'inactive') {
+      return error(res, 'This garage is not available for new bookings.', 'FORBIDDEN', 403);
+    }
+
+    const finalServiceType = serviceType || 'General Service';
     let finalAmount = Number(totalAmount);
     let offerId: string | null = null;
     let discountApplied = 0;
@@ -462,6 +471,13 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       if (userRoles.includes('garage')) {
         const garageId = req.user?.garageId;
         if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+        const gCheckResult = await query(`SELECT approval_status FROM garages WHERE id = $1`, [garageId]);
+        const gStatus = gCheckResult.rows[0]?.approval_status;
+        if (gStatus === 'suspended' || gStatus === 'deleted' || gStatus === 'inactive') {
+          return error(res, 'Your garage account is suspended or inactive.', 'FORBIDDEN', 403);
+        }
+
         garageCheck = ' AND garage_id = $2';
         params.push(garageId);
       } else {

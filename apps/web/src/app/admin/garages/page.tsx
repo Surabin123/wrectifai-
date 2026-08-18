@@ -172,8 +172,11 @@ export default function AllGaragesPage() {
                                 
                                 <div className="border-t border-slate-100 my-1"></div>
                                 
-                                {g.approvalStatus === 'active' ? (
-                                  <button onClick={() => { setOpenDropdownId(null); setActionModal({isOpen: true, id: g.id, action: 'suspend'}); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2"><ShieldAlert className="w-3.5 h-3.5"/> Suspend</button>
+                                {g.approvalStatus === 'active' || g.approvalStatus === 'approved' ? (
+                                  <>
+                                    <button onClick={() => { setOpenDropdownId(null); setActionModal({isOpen: true, id: g.id, action: 'suspend'}); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-orange-600 hover:bg-orange-50 flex items-center gap-2"><ShieldAlert className="w-3.5 h-3.5"/> Suspend</button>
+                                    <button onClick={() => { setOpenDropdownId(null); setActionModal({isOpen: true, id: g.id, action: 'delete'}); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 flex items-center gap-2"><ShieldAlert className="w-3.5 h-3.5"/> Delete</button>
+                                  </>
                                 ) : (
                                   <button onClick={() => { setOpenDropdownId(null); setActionModal({isOpen: true, id: g.id, action: 'activate'}); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-green-600 hover:bg-green-50 flex items-center gap-2"><ShieldCheck className="w-3.5 h-3.5"/> Make Active</button>
                                 )}
@@ -325,10 +328,10 @@ export default function AllGaragesPage() {
 
       {/* Action Confirmation Modal */}
       <Modal isOpen={actionModal.isOpen} onClose={() => setActionModal({isOpen: false, id: '', action: ''})} title="Confirm Action" className="max-w-md">
-        <p className="text-sm text-slate-600 mb-6 leading-relaxed">Are you sure you want to <strong>{actionModal.action === 'activate' ? 'activate' : 'suspend'}</strong> this garage? This will immediately affect their visibility in the system.</p>
+        <p className="text-sm text-slate-600 mb-6 leading-relaxed">Are you sure you want to <strong>{actionModal.action === 'activate' ? 'activate' : actionModal.action === 'suspend' ? 'suspend' : 'delete'}</strong> this garage? This will immediately affect their visibility in the system.</p>
         <div className="flex justify-end gap-3">
            <button onClick={() => setActionModal({isOpen: false, id: '', action: ''})} className="px-4 py-2 text-sm font-bold text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors">Cancel</button>
-           <button onClick={() => handleVerify(actionModal.id, actionModal.action)} className={`px-4 py-2 text-sm font-bold text-white rounded-lg shadow-sm transition-colors flex items-center gap-2 ${actionModal.action === 'activate' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700'}`}>
+           <button onClick={() => handleVerify(actionModal.id, actionModal.action)} className={`px-4 py-2 text-sm font-bold text-white rounded-lg shadow-sm transition-colors flex items-center gap-2 ${actionModal.action === 'activate' ? 'bg-green-600 hover:bg-green-700' : actionModal.action === 'suspend' ? 'bg-orange-600 hover:bg-orange-700' : 'bg-red-600 hover:bg-red-700'}`}>
              {actionModal.action === 'activate' ? <CheckCircle2 className="w-4 h-4"/> : <ShieldAlert className="w-4 h-4"/>} Confirm
            </button>
         </div>
