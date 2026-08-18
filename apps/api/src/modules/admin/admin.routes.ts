@@ -176,9 +176,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
           return result.secure_url;
         } catch (err) {
           console.error('Cloudinary Upload Error:', err);
-          if (process.env.RENDER === 'true') {
-            throw new Error('Cloudinary upload failed. Production cannot fallback to local storage.');
-          }
+          throw new Error('Cloudinary upload failed. Production cannot fallback to local storage.');
         }
       }
       return saveBase64File(fileObj, folder);
