@@ -41,7 +41,8 @@ import {
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { cn } from '@/utils/cn';
+import { cn } from '@/lib/utils';
+import { resolveImageUrl } from '@/lib/utils';
 import { formatCurrency } from '@/lib/currency';
 import { getCountryForCity } from '@/utils/location';
 
@@ -590,7 +591,7 @@ function GarageCard({
   return (
     <Card className="overflow-hidden rounded-[16px] shadow-[0_12px_26px_rgba(20,44,112,0.08)]">
       <div className={cn('relative h-[86px] bg-gradient-to-r', artwork)}>
-        <Image src={image || '/assets/garage_1_1778071156220.png'} alt={name} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
+        <Image src={resolveImageUrl(image) || '/assets/garage_1_1778071156220.png'} alt={name} fill sizes="(max-width: 768px) 100vw, 33vw" className="object-cover" />
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.02),rgba(5,8,17,0.3))]" />
         <div className="absolute inset-x-3 top-3 flex items-start justify-between">
           {badge ? <Badge tone={tone}>{badge}</Badge> : <div />}
@@ -871,7 +872,7 @@ function SeasonalDeals({
                     {deal.image ? (
                       <>
                         <Image
-                           src={deal.image}
+                           src={resolveImageUrl(deal.image)}
                            alt={deal.title}
                            fill
                            sizes="(max-width: 768px) 100vw, 15vw"
