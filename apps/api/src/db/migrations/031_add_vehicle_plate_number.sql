@@ -1,0 +1,1 @@
+ALTER TABLE vehicles ADD COLUMN IF NOT EXISTS plate_number VARCHAR(50);
