@@ -410,6 +410,7 @@ export function GarageDetailPage({
                   fill
                   sizes="(max-width: 1024px) 100vw, 70vw"
                   className="object-cover opacity-90"
+                  unoptimized
                 />
               )}
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20" />

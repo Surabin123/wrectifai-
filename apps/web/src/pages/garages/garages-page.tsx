@@ -36,6 +36,7 @@ import {
 import { resultIssues } from '@/components/ai-diagnose/diagnose-flow-shared';
 
 import { GarageDetailPage } from '@/components/garages/garage-detail-page';
+import { resolveImageUrl } from '@/lib/utils';
 import { fetchGarages, type Garage as ApiGarage } from '@/lib/garages-api';
 import { getLocationCookie, getCountryForCity } from '@/utils/location';
 import { formatCurrency } from '@/lib/currency';
@@ -248,11 +249,12 @@ function GarageCard({
       >
         {image && (
           <Image
-            src={image}
+            src={resolveImageUrl(image)}
             alt={name}
             fill
             sizes="(max-width: 768px) 100vw, 33vw"
             className="object-cover"
+            unoptimized
           />
         )}
         <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.03),rgba(5,8,17,0.4))]" />
