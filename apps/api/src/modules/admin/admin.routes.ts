@@ -169,7 +169,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       if (!fileObj || !fileObj.data) return null;
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
-          const { v2 as cloudinary } = require('cloudinary');
+          const { v2: cloudinary } = require('cloudinary');
           const result = await cloudinary.uploader.upload(fileObj.data, {
             folder: `wrectifai/${folder}`
           });
