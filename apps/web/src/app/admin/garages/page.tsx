@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useEffect, useState, useRef } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
+import { resolveImageUrl } from '@/lib/utils';
 
 export default function AllGaragesPage() {
   const [garages, setGarages] = useState<any[]>([]);
@@ -200,12 +201,23 @@ export default function AllGaragesPage() {
           <div className="flex-1 overflow-y-auto pr-2 pb-4 space-y-8 custom-scrollbar">
             
             {/* Header Section */}
-            <div className="flex justify-between items-start border-b border-slate-100 pb-6">
-              <div>
-                <h2 className="text-2xl font-black text-[#17307a] mb-2">{selectedGarage.name}</h2>
-                <div className="flex gap-4 items-center text-xs text-slate-600 font-medium">
-                   <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400"/> {selectedGarage.city || 'City N/A'}, {selectedGarage.country || 'Country N/A'}</span>
-                   <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-400"/> Joined {formatTime(selectedGarage.createdAt)}</span>
+            <div className="flex justify-between items-start border-b border-slate-100 pb-6 gap-6">
+              <div className="flex gap-6 items-center">
+                {selectedGarage.image ? (
+                  <div className="w-20 h-20 rounded-xl overflow-hidden flex-shrink-0 border shadow-sm">
+                     <img src={resolveImageUrl(selectedGarage.image)} alt={selectedGarage.name} className="w-full h-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="w-20 h-20 rounded-xl bg-slate-100 border flex items-center justify-center flex-shrink-0">
+                     <span className="text-slate-400 text-xs font-bold">No Image</span>
+                  </div>
+                )}
+                <div>
+                  <h2 className="text-2xl font-black text-[#17307a] mb-2">{selectedGarage.name}</h2>
+                  <div className="flex gap-4 items-center text-xs text-slate-600 font-medium">
+                     <span className="flex items-center gap-1.5"><MapPin className="w-3.5 h-3.5 text-slate-400"/> {selectedGarage.locality && selectedGarage.locality !== selectedGarage.city ? `${selectedGarage.locality}, ` : ''}{selectedGarage.city || 'City N/A'}, {selectedGarage.country || 'Country N/A'}</span>
+                     <span className="flex items-center gap-1.5"><Calendar className="w-3.5 h-3.5 text-slate-400"/> Joined {formatTime(selectedGarage.createdAt)}</span>
+                  </div>
                 </div>
               </div>
               <div>

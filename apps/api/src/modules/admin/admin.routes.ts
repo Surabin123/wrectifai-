@@ -72,6 +72,7 @@ adminRouter.get('/onboarding/garages', async (req, res) => {
               u.name as "ownerName"
        FROM garages g
        LEFT JOIN users u ON g.owner_user_id = u.id
+       WHERE g.approval_status != 'deleted'
        ORDER BY g.created_at DESC`
     );
     return success(res, result.rows);
@@ -100,6 +101,17 @@ adminRouter.get('/onboarding/garages/:id', async (req, res) => {
     const garageData = garageResult.rows[0];
     garageData.servicesList = servicesResult.rows;
     garageData.docsList = docsResult.rows;
+
+    // Extract fields from jsonb 'location'
+    if (garageData.location && typeof garageData.location === 'object') {
+      garageData.country = garageData.location.country || garageData.country;
+      garageData.locality = garageData.location.locality || garageData.locality;
+    }
+
+    // Map fields for frontend
+    garageData.businessHours = garageData.business_hours || garageData.businessHours;
+    garageData.createdAt = garageData.created_at || garageData.createdAt;
+    garageData.approvalStatus = garageData.approval_status || garageData.approvalStatus;
     
     return success(res, garageData);
   } catch (err) {
@@ -271,14 +283,15 @@ adminRouter.post('/onboarding/garages/:id/verify-status', async (req, res) => {
 adminRouter.put('/garages/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
-    if (!['active', 'inactive', 'suspended', 'rejected', 'deleted'].includes(status)) {
+    const finalStatus = status === 'delete' ? 'deleted' : status;
+    if (!['active', 'inactive', 'suspended', 'rejected', 'deleted'].includes(finalStatus)) {
       return error(res, 'Invalid action', 'INVALID_ACTION', 400);
     }
-    const is_approved = (status === 'active');
+    const is_approved = (finalStatus === 'active');
     
     const result = await query(
       `UPDATE garages SET approval_status = $1, is_approved = $2 WHERE id = $3 RETURNING id`,
-      [status, is_approved, req.params.id]
+      [finalStatus, is_approved, req.params.id]
     );
     if (result.rows.length === 0) return error(res, 'Garage not found', 'NOT_FOUND', 404);
     

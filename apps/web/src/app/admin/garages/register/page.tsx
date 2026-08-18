@@ -56,7 +56,7 @@ export default function RegisterGaragePage() {
   
   const getCitiesForCountry = (code: string): string[] => {
     switch (code) {
-      case '+91': return ['Mumbai', 'Delhi', 'Bangalore', 'Hyderabad', 'Chennai'];
+      case '+91': return ['Mumbai', 'Delhi', 'Bengaluru', 'Hyderabad', 'Chennai'];
       case '+1': return ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'];
       case '+971': return ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Fujairah'];
       default: return [];
