@@ -23,7 +23,7 @@ adminRouter.get('/stats', async (req, res) => {
       completedJobsCount
     ] = await Promise.all([
       query(`SELECT COUNT(*) FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id WHERE r.code = 'customer'`),
-      query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'active'`),
+      query(`SELECT COUNT(*) FROM garages WHERE approval_status IN ('active', 'approved')`),
       query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'pending'`),
       query(`SELECT COUNT(*) FROM bookings WHERE status IN ('confirmed', 'inService')`),
       query(`SELECT COUNT(*) FROM quotes`),
@@ -36,7 +36,7 @@ adminRouter.get('/stats', async (req, res) => {
         SELECT g.id, g.name, u.name as "ownerName", u.mobile_number as phone, g.city, g.created_at as "createdAt", g.approval_status as "approvalStatus"
         FROM garages g
         LEFT JOIN users u ON g.owner_user_id = u.id
-        WHERE g.approval_status = 'active'
+        WHERE g.approval_status IN ('active', 'approved')
         ORDER BY g.created_at DESC
       `),
       query(`

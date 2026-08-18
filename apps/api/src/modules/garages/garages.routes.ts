@@ -41,7 +41,7 @@ function mapGarageDbRow(g: any) {
     // badge intentionally omitted — no promotional badges
     image: g.image || null,
     chips: g.specializations || [],
-    verified: g.approval_status === 'active',
+    verified: g.approval_status === 'active' || g.approval_status === 'approved',
     // responseMins: null means not specified — frontend must NOT default to 30
     responseMins: (g.responseMins !== null && g.responseMins !== undefined) ? Number(g.responseMins) : null,
     coordinates,
@@ -59,7 +59,7 @@ garagesRouter.get('/', async (req, res) => {
     // No GPS coords provided: return NULL — never show seeded/fake distance values
     let distanceSql = 'NULL::NUMERIC as "distanceKm"';
     const params: any[] = [];
-    let condition = "g.approval_status = 'active'";
+    let condition = "g.approval_status IN ('active', 'approved')";
 
     if (lat !== null && !isNaN(lat) && lng !== null && !isNaN(lng)) {
       // Haversine formula in Postgres to calculate distance in km using JSONB coordinates
@@ -186,7 +186,7 @@ garagesRouter.get('/search', async (req, res) => {
   try {
     const { rating, specialization, price_range, lat, lng, distance, city } = req.query;
 
-    const conditions: string[] = ["g.approval_status = 'active'"];
+    const conditions: string[] = ["g.approval_status IN ('active', 'approved')"];
     const params: any[] = [];
 
     if (rating) {
