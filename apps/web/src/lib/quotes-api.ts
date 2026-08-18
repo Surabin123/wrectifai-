@@ -71,8 +71,14 @@ export async function acceptQuoteRequest(id: string): Promise<{ success: boolean
 export interface SubmitQuotePayload {
   labourCost: number;
   partsCost: number;
+  consumablesCost?: number;
+  gstCost?: number;
+  otherCost?: number;
   estimatedTime: string;
   remarks: string;
+  availability?: string;
+  pickupDrop?: string;
+  warranty?: string;
 }
 
 export async function submitGarageQuote(quoteRequestId: string, payload: SubmitQuotePayload): Promise<{ success: boolean; quoteId: string }> {

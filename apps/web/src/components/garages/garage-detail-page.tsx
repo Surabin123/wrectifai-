@@ -225,7 +225,11 @@ export function GarageDetailPage({
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false);
   const [moreServicesModalOpen, setMoreServicesModalOpen] = useState(false);
 
-  const detailImageSources = [garage.image].filter((src): src is string =>
+  const processedImage = garage.image?.startsWith('/uploads') 
+    ? `${(process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1').replace(/\/api\/v1\/?$/, '')}${garage.image}`
+    : garage.image;
+
+  const detailImageSources = [processedImage].filter((src): src is string =>
     Boolean(src)
   );
   const isQuoteContext = mode === 'quote-context' && Boolean(quoteContext);

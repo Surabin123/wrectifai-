@@ -397,7 +397,7 @@ function mapBackendGarageToFrontend(g: any): Garage {
   const chips = g.chips && g.chips.length > 0 ? g.chips : ['General Service'];
   let image = g.image || '/assets/garage_1_1778071156220.png';
   if (image.startsWith('/uploads')) {
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+    const apiUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
     image = `${apiUrl.replace(/\/api\/v1\/?$/, '')}${image}`;
   }
   
@@ -407,9 +407,9 @@ function mapBackendGarageToFrontend(g: any): Garage {
   const city = ld.city || g.city || null;
   
   // Format: "Locality \u2022 City" or just "City" — NEVER hardcoded
-  const location = locality && city && locality.toLowerCase() !== city.toLowerCase()
-    ? `${locality} \u2022 ${city}`
-    : (city || locality || 'Location not set');
+  const location = locality && city && locality.trim().toLowerCase() !== city.trim().toLowerCase()
+    ? `${locality.trim()} \u2022 ${city.trim()}`
+    : (city?.trim() || locality?.trim() || 'Location not set');
 
   // distanceKm: only use when GPS-calculated from API (null = GPS unavailable)
   // Do NOT fall back to seeded/hardcoded distance values
