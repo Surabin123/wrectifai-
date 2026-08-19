@@ -183,8 +183,8 @@ authRouter.post('/register', async (req, res, next) => {
       
       const hashedPassword = await bcrypt.hash(password, 10);
       const userResult = await query(
-        "INSERT INTO users (email, name, password_hash, mobile_number, status, country) VALUES ($1, $2, $3, $4, 'active', $5) RETURNING id, email, name, mobile_number, status, country",
-        [email, name, hashedPassword, mobileNumber || null, country || null]
+        "INSERT INTO users (email, name, password_hash, mobile_number, status) VALUES ($1, $2, $3, $4, 'active') RETURNING id, email, name, mobile_number, status",
+        [email, name, hashedPassword, mobileNumber || null]
       );
       user = userResult.rows[0];
       isNew = true;
@@ -204,8 +204,8 @@ authRouter.post('/register', async (req, res, next) => {
       }
       
       const userResult = await query(
-        "INSERT INTO users (mobile_number, name, status, country) VALUES ($1, $2, 'active', $3) RETURNING id, email, name, mobile_number, status, country",
-        [mobileNumber, name, country || null]
+        "INSERT INTO users (mobile_number, name, status) VALUES ($1, $2, 'active') RETURNING id, email, name, mobile_number, status",
+        [mobileNumber, name]
       );
       user = userResult.rows[0];
       isNew = true;
