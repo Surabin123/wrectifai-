@@ -137,7 +137,27 @@ function FeatureAside() {
 
 export function VehiclesPage() {
   const { user } = useAuth();
-  const country = user?.country || 'India';
+
+  const getCountry = () => {
+    if (user?.country) {
+      if (['IN', 'India'].includes(user.country)) return 'IN';
+      if (['US', 'USA'].includes(user.country)) return 'US';
+      if (['AE', 'UAE'].includes(user.country)) return 'AE';
+    }
+    if (user?.mobileNumber) {
+      if (user.mobileNumber.startsWith('+1')) return 'US';
+      if (user.mobileNumber.startsWith('+971')) return 'AE';
+      if (user.mobileNumber.startsWith('+91')) return 'IN';
+    }
+    return 'IN';
+  };
+  
+  const currentCountryCode = getCountry();
+  const isIndia = currentCountryCode === 'IN';
+  const isUSA = currentCountryCode === 'US';
+  const isUAE = currentCountryCode === 'AE';
+  const displayCountry = isUSA ? 'USA' : isUAE ? 'UAE' : 'India';
+
   const { vehicles, loading, errorText, fetchVehicles } = useVehicles();
 
   // Modal control states
@@ -184,12 +204,8 @@ export function VehiclesPage() {
       return;
     }
 
-    const isIndia = country === 'India';
-    const isUSA = country === 'USA';
-    const isUAE = country === 'UAE';
-    
     if (vin.trim().length !== 17) {
-      setFormError(`VIN number must be exactly 17 characters for ${country}.`);
+      setFormError(`VIN number must be exactly 17 characters for ${displayCountry}.`);
       return;
     }
 
@@ -260,12 +276,8 @@ export function VehiclesPage() {
       return;
     }
 
-    const isIndia = country === 'India';
-    const isUSA = country === 'USA';
-    const isUAE = country === 'UAE';
-
     if (vin.trim().length !== 17) {
-      setFormError(`VIN number must be exactly 17 characters for ${country}.`);
+      setFormError(`VIN number must be exactly 17 characters for ${displayCountry}.`);
       return;
     }
 
