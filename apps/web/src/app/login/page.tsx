@@ -160,19 +160,11 @@ export default function LoginPage() {
     }
 
     try {
-      // Safely handle React strict-mode / fast-refresh by clearing old verifiers
-      if (window.recaptchaVerifier) {
-        try {
-          window.recaptchaVerifier.clear();
-          window.recaptchaVerifier = undefined;
-          const container = document.getElementById('recaptcha-container');
-          if (container) container.innerHTML = '';
-        } catch (e) {}
+      if (!window.recaptchaVerifier) {
+        window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+          size: 'invisible'
+        });
       }
-      
-      window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-        size: 'invisible'
-      });
       
       signInWithPhoneNumber(auth, fullPhone, window.recaptchaVerifier)
         .then((confirmation) => {
