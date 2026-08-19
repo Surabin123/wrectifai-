@@ -196,11 +196,6 @@ export default function GarageDashboard() {
                  </div>
               </GarageSummaryCard>
             </div>
-          </div>
-          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-            <div className="p-5 border-b border-slate-200">
-              <h2 className="text-lg font-bold text-[#17307a]">Pending Quote Requests</h2>
-            </div>
         </div>
       </DashboardShell>
     </RoleGuard>
