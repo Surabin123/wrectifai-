@@ -131,61 +131,6 @@ export default function GarageDashboard() {
                  </Card>
                  
               </div>
-
-              <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden mt-6">
-                <div className="p-5 border-b border-slate-200 flex justify-between items-center">
-                  <h2 className="text-lg font-bold text-[#17307a]">Pending Quote Requests</h2>
-                  <Link href="/garage/incoming-requests" className="text-xs text-blue-600">View All</Link>
-                </div>
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
-                      <tr>
-                        <th className="px-6 py-4 font-medium">Customer</th>
-                        <th className="px-6 py-4 font-medium">Vehicle</th>
-                        <th className="px-6 py-4 font-medium">Issue</th>
-                        <th className="px-6 py-4 font-medium">Created</th>
-                        <th className="px-6 py-4 font-medium text-right">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {recentRequests.length === 0 ? (
-                        <tr>
-                          <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
-                            No pending requests found.
-                          </td>
-                        </tr>
-                      ) : (
-                        recentRequests.map(req => (
-                          <tr key={req.id} className="hover:bg-slate-50 transition-colors">
-                            <td className="px-6 py-4">
-                              <div className="font-medium text-slate-900">{req.customerName || 'Customer'}</div>
-                            </td>
-                            <td className="px-6 py-4">
-                              <div className="text-slate-700">{req.vehicleMake || req.vehicle?.make || ''} {req.vehicleModel || req.vehicle?.model || ''}</div>
-                            </td>
-                            <td className="px-6 py-4 max-w-[200px] truncate text-slate-700">
-                              {req.issueSummary}
-                            </td>
-                            <td className="px-6 py-4 text-slate-500">
-                              {new Date(req.createdAt).toLocaleDateString()} {formatTime(req.createdAt)}
-                            </td>
-                            <td className="px-6 py-4 text-right">
-                              <button 
-                                onClick={() => router.push(`/garage/incoming-requests`)}
-                                className="text-blue-600 hover:text-blue-800 font-medium px-4 py-2 hover:bg-blue-50 rounded-lg transition-colors"
-                              >
-                                View
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
             </div>
 
             <div className="col-span-4 space-y-6">
@@ -195,6 +140,60 @@ export default function GarageDashboard() {
                    <div className="flex justify-between items-center p-3 bg-slate-50 rounded-lg"><div className="flex items-center gap-2"><CheckCircle className="w-4 h-4 text-blue-500"/> <span className="text-sm font-medium">Satisfaction Rate</span></div> <span className="font-bold">{ratingStats.satisfactionRate}</span></div>
                  </div>
               </GarageSummaryCard>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+            <div className="p-5 border-b border-slate-200 flex justify-between items-center">
+              <h2 className="text-lg font-bold text-[#17307a]">Pending Quote Requests</h2>
+              <Link href="/garage/incoming-requests" className="text-xs text-blue-600">View All</Link>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-slate-50 text-slate-600 border-b border-slate-200">
+                  <tr>
+                    <th className="px-6 py-4 font-medium">Customer</th>
+                    <th className="px-6 py-4 font-medium">Vehicle</th>
+                    <th className="px-6 py-4 font-medium">Issue</th>
+                    <th className="px-6 py-4 font-medium">Created</th>
+                    <th className="px-6 py-4 font-medium text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recentRequests.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="px-6 py-12 text-center text-slate-500">
+                        No pending requests found.
+                      </td>
+                    </tr>
+                  ) : (
+                    recentRequests.map(req => (
+                      <tr key={req.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-slate-900">{req.customerName || 'Customer'}</div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="text-slate-700">{req.vehicleMake || req.vehicle?.make || ''} {req.vehicleModel || req.vehicle?.model || ''}</div>
+                        </td>
+                        <td className="px-6 py-4 max-w-[200px] truncate text-slate-700">
+                          {req.issueSummary}
+                        </td>
+                        <td className="px-6 py-4 text-slate-500">
+                          {new Date(req.createdAt).toLocaleDateString()} {formatTime(req.createdAt)}
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <button 
+                            onClick={() => router.push(`/garage/incoming-requests`)}
+                            className="text-blue-600 hover:text-blue-800 font-medium px-4 py-2 hover:bg-blue-50 rounded-lg transition-colors"
+                          >
+                            View
+                          </button>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
