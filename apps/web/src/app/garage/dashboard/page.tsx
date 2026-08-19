@@ -196,6 +196,7 @@ export default function GarageDashboard() {
                  </div>
               </GarageSummaryCard>
             </div>
+          </div>
         </div>
       </DashboardShell>
     </RoleGuard>
