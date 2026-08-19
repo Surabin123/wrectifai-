@@ -386,6 +386,7 @@ authRouter.post('/login', async (req, res, next) => {
         mobileNumber: user.mobile_number,
         status: user.status,
         roles,
+        country: user.country,
       },
       requiresPasswordChange
     });
@@ -501,6 +502,7 @@ authRouter.get('/me', authenticate, async (req, res) => {
         mobileNumber: user.mobile_number,
         status: user.status,
         roles,
+        country: user.country,
       },
     });
   } catch (err) {

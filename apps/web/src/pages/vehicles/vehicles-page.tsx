@@ -149,14 +149,15 @@ export function VehiclesPage() {
       if (user.mobileNumber.startsWith('+971')) return 'AE';
       if (user.mobileNumber.startsWith('+91')) return 'IN';
     }
-    return 'IN';
+    // Cannot determine country — do not default to India
+    return 'UNKNOWN';
   };
   
   const currentCountryCode = getCountry();
   const isIndia = currentCountryCode === 'IN';
   const isUSA = currentCountryCode === 'US';
   const isUAE = currentCountryCode === 'AE';
-  const displayCountry = isUSA ? 'USA' : isUAE ? 'UAE' : 'India';
+  const displayCountry = isUSA ? 'USA' : isUAE ? 'UAE' : isIndia ? 'India' : 'your country';
 
   const { vehicles, loading, errorText, fetchVehicles } = useVehicles();
 
