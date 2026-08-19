@@ -16,7 +16,7 @@ export function CartPage() {
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
 
   useEffect(() => {
-    const items = sessionStorage.getItem('shopCart');
+    const items = localStorage.getItem('shopCart');
     if (items) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setCartItems(JSON.parse(items));
@@ -25,7 +25,7 @@ export function CartPage() {
 
   const updateCart = (newItems: any[]) => {
     setCartItems(newItems);
-    sessionStorage.setItem('shopCart', JSON.stringify(newItems));
+    localStorage.setItem('shopCart', JSON.stringify(newItems));
     window.dispatchEvent(new Event('cart-updated'));
   };
 

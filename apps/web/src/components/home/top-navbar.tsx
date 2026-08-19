@@ -479,12 +479,12 @@ export function TopNavbar() {
                           size="sm"
                           className="h-8 text-xs bg-blue-600 text-white"
                           onClick={() => {
-                            const cart = JSON.parse(sessionStorage.getItem('shopCart') || '[]');
+                            const cart = JSON.parse(localStorage.getItem('shopCart') || '[]');
                             const existing = cart.find((i: any) => i.id === item.id);
                             const newCart = existing
                               ? cart.map((i: any) => i.id === item.id ? { ...i, quantity: (i.quantity || 1) + 1 } : i)
                               : [...cart, { ...item, quantity: 1 }];
-                            sessionStorage.setItem('shopCart', JSON.stringify(newCart));
+                            localStorage.setItem('shopCart', JSON.stringify(newCart));
                             window.dispatchEvent(new Event('cart-updated'));
                             const newWishlist = wishlistItems.filter((i: any) => i.id !== item.id);
                             setWishlistItems(newWishlist);
