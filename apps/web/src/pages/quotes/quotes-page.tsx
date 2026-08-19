@@ -49,7 +49,6 @@ function quoteTabStatus(q: QuoteItem, tab: string): boolean {
     return s === 'quoted' || s === 'open' || s === 'pending';
   }
   if (tab === 'Viewed') return q.isBooked === true || q.status?.toLowerCase() === 'accepted';
-  if (tab === 'Expired') return q.status?.toLowerCase() === 'expired' || q.status?.toLowerCase() === 'cancelled';
   return true;
 }
 
@@ -510,7 +509,7 @@ function RequestSummaryPanel({ quotes, requests }: { quotes: QuoteItem[], reques
 ────────────────────────────────────── */
 
 const SORT_OPTIONS = ['Lowest Price', 'Highest Price', 'Newest', 'Highest Rated'];
-const TABS = ['All Quotes', 'New', 'Viewed', 'Expired'];
+const TABS = ['All Quotes', 'New', 'Viewed'];
 
 export function QuotesPage() {
   const router = useRouter();
@@ -622,16 +621,11 @@ export function QuotesPage() {
     'All Quotes': quotes.length,
     'New': quotes.filter(q => quoteTabStatus(q, 'New')).length,
     'Viewed': quotes.filter(q => quoteTabStatus(q, 'Viewed')).length,
-    'Expired': quotes.filter(q => quoteTabStatus(q, 'Expired')).length,
   };
 
   const handleToggleCompare = (quoteId: string) => {
     setSelectedQuotes(prev => {
       if (prev.includes(quoteId)) return prev.filter(id => id !== quoteId);
-      if (prev.length >= 3) {
-        alert('You can only compare up to 3 quotes at a time.');
-        return prev;
-      }
       return [...prev, quoteId];
     });
   };
@@ -701,7 +695,7 @@ export function QuotesPage() {
             )}
           </div>
           
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex items-center gap-2 group relative">
             <button
               onClick={() => {
                 setIsComparing(!isComparing);
@@ -714,6 +708,9 @@ export function QuotesPage() {
             >
               {isComparing ? 'Cancel Compare' : 'Compare Quotes'}
             </button>
+            <div className="absolute top-[calc(100%+8px)] right-0 z-50 hidden group-hover:block w-48 rounded bg-[#17307a] p-2 text-center text-xs text-white shadow-xl">
+              Compare up to 3 garages. Select a minimum of 2.
+            </div>
           </div>
         </div>
 

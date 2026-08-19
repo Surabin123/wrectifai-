@@ -34,8 +34,8 @@ import type { QuoteItem } from '@/components/quotes/quotes-shared';
 import { resultIssues } from '@/components/ai-diagnose/diagnose-flow-shared';
 import { cn } from '@/utils/cn';
 import { getVehicleImage } from '@/lib/vehicle-image-catalog';
+import { formatCurrency } from '@/lib/currency';
 
-const DOLLAR = '$';
 const BULLET = '\u2022';
 
 const homeSectionHeadingClass = 'ui-page-title';
@@ -176,53 +176,83 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     const quoteValuesTotal: Record<string, string> = {};
     const quoteValuesSavings: Record<string, string> = {};
 
+    const ccy = quotes[0]?.currency || 'INR';
+    const fmt = (val: number) => formatCurrency(val, ccy);
+
+    const partsArr: number[] = [];
+    const labourArr: number[] = [];
+    const consumablesArr: number[] = [];
+    const gstArr: number[] = [];
+    const totalArr: number[] = [];
+
     quotes.forEach((q) => {
       const details = q.details as any;
-      const parts = details?.parts ?? 0;
-      const labour = details?.labour ?? 0;
-      const consumables = details?.consumables ?? 0;
-      const gst = details?.gst ?? 0;
-      const total = parts + labour + consumables + gst;
-      const savings = details?.savings ?? 0;
-      const savingsPercent = total > 0 ? Math.round((savings / 3600) * 100) : 0;
+      const parts = Number(details?.partsCost || details?.parts || 0);
+      const labour = Number(details?.laborCost || details?.labourCost || details?.labour || 0);
+      const consumables = Number(details?.consumablesCost || details?.consumables || 0);
+      const gst = Number(details?.gstCost || details?.gst || 0);
+      const total = Number(details?.totalCost || (q as any).totalCost || q.price?.replace(/[^0-9.-]/g, '') || 0);
+      
+      partsArr.push(parts);
+      labourArr.push(labour);
+      consumablesArr.push(consumables);
+      gstArr.push(gst);
+      totalArr.push(total);
 
-      quoteValuesParts[q.id] = `${DOLLAR}${parts.toLocaleString('en-US')}`;
-      quoteValuesLabour[q.id] = `${DOLLAR}${labour.toLocaleString('en-US')}`;
-      quoteValuesConsumables[q.id] = `${DOLLAR}${consumables.toLocaleString('en-US')}`;
-      quoteValuesGst[q.id] = `${DOLLAR}${gst.toLocaleString('en-US')}`;
-      quoteValuesTotal[q.id] = `${q.price}`;
-      quoteValuesSavings[q.id] = `${q.savings} (${savingsPercent}%)`;
+      // Determine highest quote total to calculate savings
+      const highestTotal = quotes.reduce((max, sq) => {
+        const sqDetails = sq.details as any;
+        const sqTotal = Number(sqDetails?.totalCost || (sq as any).totalCost || sq.price?.replace(/[^0-9.-]/g, '') || 0);
+        return sqTotal > max ? sqTotal : max;
+      }, 0);
+      
+      const savings = Math.max(0, highestTotal - total);
+      const savingsPercent = highestTotal > 0 ? Math.round((savings / highestTotal) * 100) : 0;
+
+      quoteValuesParts[q.id] = fmt(parts);
+      quoteValuesLabour[q.id] = fmt(labour);
+      quoteValuesConsumables[q.id] = fmt(consumables);
+      quoteValuesGst[q.id] = fmt(gst);
+      quoteValuesTotal[q.id] = fmt(total);
+      quoteValuesSavings[q.id] = `${fmt(savings)} (${savingsPercent}%)`;
     });
+
+    const getRange = (arr: number[]) => {
+      if (arr.length === 0) return '—';
+      const lo = Math.min(...arr);
+      const hi = Math.max(...arr);
+      return lo === hi ? fmt(lo) : `${fmt(lo)} \u2013 ${fmt(hi)}`;
+    };
 
     return [
       {
         label: 'Parts',
-        aiValue: `${DOLLAR}1,600 \u2013 ${DOLLAR}2,100`,
+        aiValue: getRange(partsArr),
         quoteValues: quoteValuesParts,
       },
       {
         label: 'Labour',
-        aiValue: `${DOLLAR}1,000 \u2013 ${DOLLAR}1,300`,
+        aiValue: getRange(labourArr),
         quoteValues: quoteValuesLabour,
       },
       {
         label: 'Consumables',
-        aiValue: `${DOLLAR}200 \u2013 ${DOLLAR}300`,
+        aiValue: getRange(consumablesArr),
         quoteValues: quoteValuesConsumables,
       },
       {
         label: 'GST',
-        aiValue: `${DOLLAR}200 \u2013 ${DOLLAR}300`,
+        aiValue: getRange(gstArr),
         quoteValues: quoteValuesGst,
       },
       {
         label: 'Total Estimate',
-        aiValue: `${DOLLAR}2,800 \u2013 ${DOLLAR}3,600`,
+        aiValue: getRange(totalArr),
         quoteValues: quoteValuesTotal,
         emphasize: true,
       },
       {
-        label: `You Save (vs WrectifAI high)`,
+        label: `You Save (vs Highest)`,
         aiValue: '\u2013',
         quoteValues: quoteValuesSavings,
         savings: true,
@@ -260,8 +290,10 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
         state: 'rating' as const 
       };
       
-      let expYears = 8;
-      if (q.garageCreatedAt) {
+      let expYears = 0;
+      if ((q as any).garageEstablishedYear) {
+         expYears = new Date().getFullYear() - Number((q as any).garageEstablishedYear);
+      } else if (q.garageCreatedAt) {
          expYears = new Date().getFullYear() - new Date(q.garageCreatedAt).getFullYear();
       }
       
@@ -486,7 +518,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
                 </div>
 
                 <div className="mt-[54px] text-center text-[15.5px] font-semibold tracking-[-0.03em] text-[#17307a]">
-                  {DOLLAR}2,800 - {DOLLAR}3,600
+                  {priceRows.find(r => r.label === 'Total Estimate')?.aiValue || '—'}
                 </div>
 
                 <button

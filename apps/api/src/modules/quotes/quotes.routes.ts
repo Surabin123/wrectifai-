@@ -17,7 +17,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
       `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details,
               q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
               g.id as "garageId", g.name as "garageName", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported",
-              g.address as "garageAddress", g.image as "garageImage", g.created_at as "garageCreatedAt",
+              g.address as "garageAddress", g.image as "garageImage", g.created_at as "garageCreatedAt", g.established_year as "garageEstablishedYear",
               qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary", qr.preferred_date as "preferredDate",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage", v.fuel_type as "vehicleFuelType",
               b.id as "bookingId", b.status as "bookingStatus", b.created_at as "bookingCreatedAt", b.scheduled_at as "bookingScheduledAt",
@@ -65,6 +65,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
         garageAddress: row.garageAddress || null,
         garageImage: row.garageImage || null,
         garageCreatedAt: row.garageCreatedAt,
+        garageEstablishedYear: row.garageEstablishedYear,
         customerName: row.customerName,
         image: row.garageImage || '/assets/garage_1_1778071156220.png',
         rating: String(Number(row.ratingAvg || 0).toFixed(1)),
@@ -269,14 +270,29 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
 
     const amount = Number(labourCost || 0) + Number(partsCost || 0) + Number(consumablesCost || 0) + Number(gstCost || 0) + Number(otherCost || 0);
 
+    const currencyRequestRes = await query('SELECT customer_id FROM quote_requests WHERE id = $1', [req.params.quoteRequestId]);
+    const quoteCustomerId = currencyRequestRes.rows[0]?.customer_id;
+    let quoteCurrency = 'INR';
+    if (quoteCustomerId) {
+      const userRes = await query('SELECT currency, location FROM users WHERE id = $1', [quoteCustomerId]);
+      if (userRes.rows[0]?.currency) {
+        quoteCurrency = userRes.rows[0].currency;
+      } else if (userRes.rows[0]?.location && typeof userRes.rows[0].location === 'string') {
+        const loc = userRes.rows[0].location.toLowerCase();
+        if (loc.includes('us') || loc.includes('united states')) quoteCurrency = 'USD';
+        else if (loc.includes('uae') || loc.includes('dubai') || loc.includes('emirates')) quoteCurrency = 'AED';
+      }
+    }
+
     const result = await query(
       `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details)
-       VALUES ($1, $2, $3, 'USD', 'active', $4)
+       VALUES ($1, $2, $3, $4, 'active', $5)
        RETURNING id`,
       [
         req.params.quoteRequestId, 
         garageId, 
-        amount, 
+        amount,
+        quoteCurrency,
         JSON.stringify({ 
           remarks,
           laborCost: labourCost,
