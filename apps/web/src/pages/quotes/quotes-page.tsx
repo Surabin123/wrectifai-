@@ -15,6 +15,8 @@ import {
   Layers,
   LifeBuoy,
   MapPin,
+  MessageCircleMore,
+  Scale,
   Shield,
   Star,
   X,
@@ -399,6 +401,15 @@ function GarageQuoteCard({
               </span>
               <span className="text-[10px] leading-tight text-[#5f7099] whitespace-nowrap">View Quotes</span>
             </button>
+            <button
+              type="button"
+              className="flex flex-col items-center gap-1 text-center"
+            >
+              <span className="flex h-[40px] w-[40px] items-center justify-center rounded-full border border-[#fce8fa] bg-white text-[#d421b8] hover:bg-[#fdf2fc] transition-colors">
+                <MessageCircleMore className="h-[18px] w-[18px]" />
+              </span>
+              <span className="text-[10px] leading-tight text-[#d421b8] whitespace-nowrap">Message<br/>Garage</span>
+            </button>
             <GarageMoreMenu
               smallTrigger
               triggerLabel="More Options"
@@ -486,6 +497,15 @@ function RequestSummaryPanel({ quotes, requests }: { quotes: QuoteItem[], reques
           <LifeBuoy className="h-4 w-4" />
           View Help Center
         </a>
+      </div>
+
+      {/* Why compare quotes? */}
+      <div className="rounded-[18px] border border-[#e6ecfb] bg-white p-5 shadow-[0_4px_16px_rgba(37,73,153,0.04)]">
+        <div className="flex items-start gap-2.5 mb-3">
+          <Scale className="h-5 w-5 shrink-0 text-[#2451f6] mt-0.5" />
+          <div className="text-[14px] font-bold text-[#17307a]">Why compare quotes?</div>
+        </div>
+        <p className="text-[12.5px] text-[#5f7099]">Compare prices, services, and ratings to ensure you get the best deal for your car repair.</p>
       </div>
 
       {/* Data safety */}
@@ -665,51 +685,57 @@ export function QuotesPage() {
             ))}
           </div>
 
-          {/* Sort */}
-          <div ref={sortRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setSortOpen(o => !o)}
-              className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#dde6ff] bg-white px-3.5 py-1.5 text-[12.5px] font-semibold text-[#17307a] hover:bg-[#f5f8ff] transition-colors"
-            >
-              <Layers className="h-3.5 w-3.5 text-[#5f7099]" />
-              Sort by: <span className="text-[#2451f6]">{sortBy}</span>
-              <ChevronDown className="h-3.5 w-3.5 text-[#5f7099]" />
-            </button>
-            {sortOpen && (
-              <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-[175px] rounded-[14px] border border-[#e4ecff] bg-white p-1.5 shadow-[0_10px_28px_rgba(23,48,122,0.12)]">
-                {SORT_OPTIONS.map(opt => (
-                  <button
-                    key={opt}
-                    onClick={() => { setSortBy(opt); setSortOpen(false); }}
-                    className={cn(
-                      'flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[12.5px] font-semibold transition-colors',
-                      sortBy === opt ? 'bg-[#f0f4ff] text-[#2451f6]' : 'text-[#17307a] hover:bg-[#f5f8ff]'
-                    )}
-                  >
-                    {sortBy === opt && <CheckCircle2 className="h-3.5 w-3.5 text-[#2451f6]" />}
-                    {opt}
-                  </button>
-                ))}
+          <div className="flex items-center gap-3 ml-auto">
+            {/* Compare Quotes */}
+            <div className="group relative">
+              <button
+                onClick={() => {
+                  setIsComparing(!isComparing);
+                  if (isComparing) setSelectedQuotes([]);
+                }}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-[10px] px-4 py-1.5 text-[12.5px] font-bold transition-colors",
+                  isComparing ? "bg-red-50 text-red-600 hover:bg-red-100" : "bg-[#f5f8ff] text-[#2451f6] border border-[#c7d6ff] hover:bg-[#e6ebfa]"
+                )}
+              >
+                <Scale className="h-4 w-4" />
+                {isComparing ? 'Cancel Compare' : 'Compare Quotes'}
+                <span className="flex items-center justify-center bg-[#2451f6] text-white rounded-full w-4 h-4 text-[9px] ml-1">
+                  {selectedQuotes.length}
+                </span>
+              </button>
+              <div className="absolute top-[calc(100%+8px)] right-0 z-50 hidden group-hover:block w-48 rounded bg-[#17307a] p-2 text-center text-xs text-white shadow-xl">
+                Compare up to 3 garages. Select a minimum of 2.
               </div>
-            )}
-          </div>
-          
-          <div className="ml-auto flex items-center gap-2 group relative">
-            <button
-              onClick={() => {
-                setIsComparing(!isComparing);
-                if (isComparing) setSelectedQuotes([]);
-              }}
-              className={cn(
-                "inline-flex items-center gap-1.5 rounded-[10px] px-4 py-1.5 text-[12.5px] font-bold transition-colors",
-                isComparing ? "bg-red-50 text-red-600 hover:bg-red-100" : "bg-[#f5f8ff] text-[#2451f6] hover:bg-[#e6ebfa]"
+            </div>
+
+            {/* Sort */}
+            <div ref={sortRef} className="relative">
+              <button
+                type="button"
+                onClick={() => setSortOpen(o => !o)}
+                className="inline-flex items-center gap-1.5 rounded-[10px] border border-[#dde6ff] bg-white px-3.5 py-1.5 text-[12.5px] font-semibold text-[#17307a] hover:bg-[#f5f8ff] transition-colors"
+              >
+                Sort by: <span className="text-[#2451f6]">{sortBy}</span>
+                <ChevronDown className="h-3.5 w-3.5 text-[#5f7099]" />
+              </button>
+              {sortOpen && (
+                <div className="absolute right-0 top-[calc(100%+6px)] z-50 w-[175px] rounded-[14px] border border-[#e4ecff] bg-white p-1.5 shadow-[0_10px_28px_rgba(23,48,122,0.12)]">
+                  {SORT_OPTIONS.map(opt => (
+                    <button
+                      key={opt}
+                      onClick={() => { setSortBy(opt); setSortOpen(false); }}
+                      className={cn(
+                        'flex w-full items-center gap-2 rounded-[10px] px-3 py-2 text-left text-[12.5px] font-semibold transition-colors',
+                        sortBy === opt ? 'bg-[#f0f4ff] text-[#2451f6]' : 'text-[#17307a] hover:bg-[#f5f8ff]'
+                      )}
+                    >
+                      {sortBy === opt && <CheckCircle2 className="h-3.5 w-3.5 text-[#2451f6]" />}
+                      {opt}
+                    </button>
+                  ))}
+                </div>
               )}
-            >
-              {isComparing ? 'Cancel Compare' : 'Compare Quotes'}
-            </button>
-            <div className="absolute top-[calc(100%+8px)] right-0 z-50 hidden group-hover:block w-48 rounded bg-[#17307a] p-2 text-center text-xs text-white shadow-xl">
-              Compare up to 3 garages. Select a minimum of 2.
             </div>
           </div>
         </div>
@@ -783,8 +809,10 @@ export function QuotesPage() {
           </div>
 
           {/* Right: summary panel */}
-          <div>
-            <RequestSummaryPanel quotes={quotes} requests={requests} />
+          <div className="hidden xl:block">
+            <div className="sticky top-24">
+              <RequestSummaryPanel quotes={quotes} requests={requests} />
+            </div>
           </div>
         </div>
       </div>
