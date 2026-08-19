@@ -84,12 +84,8 @@ garagesRouter.get('/', async (req, res) => {
 
     // Strict city filter — backend enforced, not frontend hidden
     if (city && city !== 'location') {
-      if (city === 'bengaluru' || city === 'bangalore') {
-        condition += ` AND (LOWER(g.location->>'city') IN ('bengaluru', 'bangalore'))`;
-      } else {
-        condition += ` AND (LOWER(g.location->>'city') = $${params.length + 1})`;
-        params.push(city);
-      }
+      condition += ` AND (LOWER(g.location->>'city') = $${params.length + 1} OR LOWER(g.city) = $${params.length + 1})`;
+      params.push(city);
     }
 
     // Country filter — region-scopes the query so India/USA/UAE garages never mix.
@@ -203,12 +199,8 @@ garagesRouter.get('/search', async (req, res) => {
     }
 
     if (city) {
-      if ((city as string).toLowerCase() === 'bengaluru' || (city as string).toLowerCase() === 'bangalore') {
-        conditions.push(`LOWER(g.location->>'city') IN ('bengaluru', 'bangalore')`);
-      } else {
-        params.push(city);
-        conditions.push(`LOWER(g.location->>'city') = $${params.length}`);
-      }
+      params.push(city);
+      conditions.push(`(LOWER(g.location->>'city') = $${params.length} OR LOWER(g.city) = $${params.length})`);
     }
 
     const whereClause = `WHERE ${conditions.join(' AND ')}`;
