@@ -28,6 +28,7 @@ export function createApp() {
         const isAllowed = 
           allowedOrigins.includes(normalizedOrigin) ||
           normalizedOrigin.endsWith('.onrender.com') ||
+          normalizedOrigin.endsWith('.vercel.app') ||
           normalizedOrigin.startsWith('http://localhost:') ||
           normalizedOrigin.startsWith('http://127.0.0.1:') ||
           normalizedOrigin === 'http://localhost' ||
