@@ -101,7 +101,7 @@ export default function AdminDashboardPage() {
               </div>
             </Card>
           </Link>
-          <Link href="/admin/service-requests?filter=completed" className="block">
+          <Link href="/admin/service-history" className="block">
             <Card className="p-5 flex items-center gap-4 h-full hover:shadow-md transition-shadow">
               <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center"><CheckCircle2 className="w-6 h-6"/></div>
               <div>

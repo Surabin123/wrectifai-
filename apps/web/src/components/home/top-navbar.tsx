@@ -72,25 +72,31 @@ export function TopNavbar() {
       setWishlistCount(parsed.length);
       setWishlistItems(parsed);
     };
-    const updateNotifications = () => {
-      const items = localStorage.getItem('wrectifai_notifications');
-      if (items) {
-        const parsed = JSON.parse(items);
-        const isAdmin = user?.roles?.includes('admin');
-        const isGarage = user?.roles?.includes('garage');
-        const audienceRole = isAdmin ? 'Admin' : isGarage ? 'Garage' : 'Customer';
-        const relevantNotifs = parsed.filter((n: any) =>
-          n.audience === 'All' || n.audience === audienceRole
-        );
-        setNotificationCount(relevantNotifs.filter((n: any) => !n.read).length);
-      } else {
+    const updateNotifications = async () => {
+      if (!user) {
         setNotificationCount(0);
+        return;
+      }
+      try {
+        const { apiClient } = await import('@/lib/api-client');
+        let url = '/notifications';
+        if (user.roles?.includes('garage') && (user as any).garageId) {
+          url += `?garageId=${(user as any).garageId}`;
+        }
+        const res = await apiClient<{ data: any[] }>(url);
+        if (res?.data) {
+          setNotificationCount(res.data.filter((n: any) => !n.is_read).length);
+        }
+      } catch (err) {
+        console.error('Failed to fetch notifications for navbar', err);
       }
     };
 
     updateCart();
     updateWishlist();
     updateNotifications();
+
+    const notifInterval = setInterval(updateNotifications, 15000);
 
     window.addEventListener('cart-updated', updateCart);
     window.addEventListener('wishlist-updated', updateWishlist);
@@ -114,6 +120,7 @@ export function TopNavbar() {
       window.removeEventListener('cart-updated', updateCart);
       window.removeEventListener('wishlist-updated', updateWishlist);
       window.removeEventListener('notifications-updated', updateNotifications);
+      clearInterval(notifInterval);
     };
   }, [user]);
 

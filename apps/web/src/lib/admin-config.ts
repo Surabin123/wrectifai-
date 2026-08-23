@@ -23,10 +23,10 @@ export const adminNavItems: AdminNavItem[] = [
   },
   { label: 'Customer Management', icon: Users, href: '/admin/users', slug: 'users' },
   { 
-    label: 'Service Requests', 
+    label: 'Service History', 
     icon: FileText, 
-    href: '/admin/service-requests',
-    slug: 'service-requests'
+    href: '/admin/service-history',
+    slug: 'service-history'
   },
   { label: 'Bookings', icon: FileSpreadsheet, href: '/admin/bookings', slug: 'bookings' },
   { label: 'Quotes', icon: FileSpreadsheet, href: '/admin/quotes', slug: 'quotes' },

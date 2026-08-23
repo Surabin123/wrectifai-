@@ -563,26 +563,26 @@ adminRouter.post('/service-requests', async (req, res) => {
   }
 });
 
-adminRouter.get('/service-requests', async (req, res) => {
+adminRouter.get('/service-history', async (req, res) => {
   try {
       const result = await query(
-      `SELECT DISTINCT ON (qr.created_at) qr.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", 
-              v.make as "vehicleMake", v.model as "vehicleModel", v.vin as "vin", qr.preferred_date as "preferredDate",
-              COALESCE(
-                qr.issue_summary,
-                NULLIF((SELECT string_agg(i->>'title', ', ') FROM diagnosis_results dres, jsonb_array_elements(dres.issues) i WHERE dres.diagnosis_request_id = qr.diagnosis_request_id), ''),
-                NULLIF((SELECT symptom_text FROM diagnosis_requests dr WHERE dr.id = qr.diagnosis_request_id), ''),
-                'General Service'
-              ) as "details", qr.status, qr.created_at as "createdAt"
-       FROM quote_requests qr
-       LEFT JOIN users u ON qr.customer_id = u.id
-       LEFT JOIN garages g ON qr.garage_id = g.id
-       LEFT JOIN vehicles v ON qr.vehicle_id = v.id
-       ORDER BY qr.created_at DESC`
+      `SELECT b.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName",
+              COALESCE(b.total_amount, q.amount) as "totalAmount", COALESCE(b.currency, g.business_currency, 'USD') as "currency",
+              b.status, b.created_at as "createdAt", b.updated_at as "completedAt",
+              v.make as "vehicleMake", v.model as "vehicleModel", v.vin as "vin",
+              COALESCE(qr.issue_summary, b.booking_type, 'General Service') as "details"
+       FROM bookings b
+       LEFT JOIN users u ON b.customer_id = u.id
+       LEFT JOIN garages g ON b.garage_id = g.id
+       LEFT JOIN vehicles v ON b.vehicle_id = v.id
+       LEFT JOIN quotes q ON b.quote_id = q.id
+       LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
+       WHERE b.status = 'completed'
+       ORDER BY b.updated_at DESC`
       );
     return success(res, result.rows);
   } catch (err) {
-    return error(res, 'Failed to fetch service requests', 'DATABASE_ERROR', 500);
+    return error(res, 'Failed to fetch service history', 'DATABASE_ERROR', 500);
   }
 });
 

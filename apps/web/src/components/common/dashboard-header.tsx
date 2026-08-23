@@ -1,13 +1,42 @@
 'use client';
 
-import { ChevronDown } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ChevronDown, Bell } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { cn } from '@/utils/cn';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
+import Link from 'next/link';
 
 export function DashboardHeader({ title }: { title?: string }) {
   const { user, logout } = useAuth();
   const router = useRouter();
+  const pathname = usePathname() || '';
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+    const updateNotifications = async () => {
+      try {
+        const { apiClient } = await import('@/lib/api-client');
+        let url = '/notifications';
+        if (user.roles?.includes('garage') && (user as any).garageId) {
+          url += `?garageId=${(user as any).garageId}`;
+        }
+        const res = await apiClient<{ data: any[] }>(url);
+        if (res?.data) {
+          setUnreadCount(res.data.filter((n: any) => !n.is_read).length);
+        }
+      } catch (err) {
+        console.error('Failed to fetch notifications', err);
+      }
+    };
+    
+    updateNotifications();
+    const interval = setInterval(updateNotifications, 15000);
+    return () => clearInterval(interval);
+  }, [user]);
+
+  const basePath = pathname.startsWith('/admin') ? '/admin' : pathname.startsWith('/garage') ? '/garage' : '';
 
   return (
     <header className="flex w-full items-center justify-between gap-4">
@@ -29,8 +58,24 @@ export function DashboardHeader({ title }: { title?: string }) {
         )}
       </div>
 
-      {/* Right: User Profile Dropdown */}
-      <div className="flex items-center ml-auto">
+      {/* Right: Notifications & User Profile Dropdown */}
+      <div className="flex items-center ml-auto gap-4">
+        {/* Notification Bell */}
+        {user && basePath && (
+          <Link
+            href={`${basePath}/notifications`}
+            className="relative flex h-10 w-10 items-center justify-center rounded-full border border-[#dbe6ff] bg-white text-[#17307a] hover:bg-[#f5f8ff] transition-colors shadow-sm"
+          >
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white shadow-sm ring-2 ring-white">
+                {unreadCount > 99 ? '99+' : unreadCount}
+              </span>
+            )}
+          </Link>
+        )}
+
+        {/* Profile Dropdown */}
         {user && (
           <div className="relative group ml-[5px]">
             <button className="flex h-9 lg:h-10 shrink-0 items-center gap-2 rounded-full border border-[#dbe6ff] bg-white p-0.5 lg:py-1 lg:pl-1.5 lg:pr-3 hover:bg-[#fcfdff] transition-all shadow-sm focus:outline-none">
@@ -45,8 +90,8 @@ export function DashboardHeader({ title }: { title?: string }) {
                 <button
                   onClick={() => {
                     const path = window.location.pathname;
-                    const basePath = path.startsWith('/admin') ? '/admin' : path.startsWith('/garage') ? '/garage' : '';
-                    router.push(`${basePath}/profile`);
+                    const basePathLocal = path.startsWith('/admin') ? '/admin' : path.startsWith('/garage') ? '/garage' : '';
+                    router.push(`${basePathLocal}/profile`);
                   }}
                   className="w-full text-left px-3 py-2 text-[13px] font-semibold text-[#1a56db] hover:bg-[#f2f6ff] rounded-lg transition-colors border-b border-[#f2f6ff] mb-1"
                 >
