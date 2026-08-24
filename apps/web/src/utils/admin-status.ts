@@ -15,7 +15,9 @@ export function formatAdminStatus(status: string | undefined | null): string {
     accepted: 'Accepted',
     ready: 'Ready',
     approved: 'Approved',
-    pendingverification: 'Pending Verification'
+    pendingverification: 'Pending Verification',
+    readyforcollection: 'Ready for Collection',
+    collected: 'Collected'
   };
   const lower = status.toLowerCase();
   return statusMap[lower] || status.charAt(0).toUpperCase() + status.slice(1);

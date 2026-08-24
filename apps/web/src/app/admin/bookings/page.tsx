@@ -106,6 +106,8 @@ export default function AdminBookingsPage() {
                       <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase border ${
                         b.status === 'confirmed' || b.status === 'accepted' ? 'bg-blue-50 text-blue-700 border-blue-100' :
                         b.status === 'completed' ? 'bg-green-50 text-green-700 border-green-100' :
+                        b.status === 'readyForCollection' ? 'bg-yellow-50 text-yellow-700 border-yellow-100' :
+                        b.status === 'collected' ? 'bg-slate-50 text-slate-700 border-slate-200' :
                         b.status === 'cancelled' ? 'bg-red-50 text-red-700 border-red-100' :
                         'bg-orange-50 text-orange-700 border-orange-100'
                       }`}>

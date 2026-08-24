@@ -24,6 +24,8 @@ export function BookingsPage() {
   const [cancelError, setCancelError] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [viewDetailsBooking, setViewDetailsBooking] = useState<any | null>(null);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
+  const [bookingToCollect, setBookingToCollect] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('all');
 
   const loadBookings = async () => {
@@ -92,13 +94,32 @@ export function BookingsPage() {
     }
   };
 
+  const handleMarkCollected = (id: string) => {
+    setBookingToCollect(id);
+    setCollectionModalOpen(true);
+  };
+
+  const confirmMarkCollected = async () => {
+    if (!bookingToCollect) return;
+    try {
+      await updateBookingStatus(bookingToCollect, 'collected');
+      setBookings((prev) =>
+        prev.map((b) => (b.id === bookingToCollect ? { ...b, status: 'collected' as any } : b))
+      );
+      setCollectionModalOpen(false);
+      setBookingToCollect(null);
+    } catch (err) {
+      console.error('Failed to mark collected', err);
+    }
+  };
+
   const filteredBookings = useMemo(() => {
     return bookings.filter((b) => {
       if (activeTab === 'all') return true;
       if (activeTab === 'upcoming') return b.status === 'pendingPayment';
       if (activeTab === 'accepted') return b.status === 'confirmed' || b.status === 'accepted';
       if (activeTab === 'inProgress') return b.status === 'in_progress';
-      if (activeTab === 'completed') return b.status === 'completed';
+      if (activeTab === 'completed') return b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected';
       if (activeTab === 'cancelled') return b.status === 'cancelled';
       return true;
     });
@@ -186,6 +207,8 @@ export function BookingsPage() {
                         (b.status === 'confirmed' || b.status === 'accepted') && 'bg-[#e0f2fe] text-[#0369a1]',
                         b.status === 'in_progress' && 'bg-[#e0e7ff] text-[#4338ca]',
                         b.status === 'completed' && 'bg-[#dcfce7] text-[#15803d]',
+                        b.status === 'readyForCollection' && 'bg-[#fef9c3] text-[#ca8a04]',
+                        b.status === 'collected' && 'bg-[#e5e7eb] text-[#374151]',
                         b.status === 'cancelled' && 'bg-[#fee2e2] text-[#b91c1c]'
                       )}
                     >
@@ -194,6 +217,8 @@ export function BookingsPage() {
                         b.status === 'accepted' ? 'Accepted' : 
                         b.status === 'in_progress' ? 'In Progress' : 
                         b.status === 'completed' ? 'Completed' :
+                        b.status === 'readyForCollection' ? 'Ready for Collection' :
+                        b.status === 'collected' ? 'Collected' :
                         b.status === 'cancelled' ? 'Cancelled' :
                         b.status}
                     </span>
@@ -251,6 +276,15 @@ export function BookingsPage() {
                         className="h-8 rounded-[9px] px-2.5 text-[10.5px] font-semibold border-red-200 text-red-600 hover:bg-red-50 hover:text-red-700"
                       >
                         Cancel
+                      </Button>
+                    )}
+                    {b.status === 'readyForCollection' && (
+                      <Button
+                        onClick={() => handleMarkCollected(b.id)}
+                        variant="outline"
+                        className="h-8 rounded-[9px] px-2.5 text-[10.5px] font-semibold border-green-200 text-green-600 hover:bg-green-50 hover:text-green-700"
+                      >
+                        Mark Vehicle Collected
                       </Button>
                     )}
                   </div>
@@ -365,6 +399,42 @@ export function BookingsPage() {
                 Yes, Cancel
               </Button>
             )}
+          </div>
+        </div>
+      </Modal>
+      <Modal 
+        isOpen={collectionModalOpen} 
+        onClose={() => setCollectionModalOpen(false)}
+        title="Vehicle Collection"
+      >
+        <div className="py-4 flex flex-col items-center text-center">
+          <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
+            <ShieldCheck className="w-8 h-8" />
+          </div>
+          
+          <h3 className="text-xl font-bold text-[#17307a] mb-2">
+            Confirm Vehicle Collection
+          </h3>
+          
+          <p className="text-slate-600 mb-8 max-w-sm">
+            Have you received your vehicle from this garage?
+          </p>
+          
+          <div className="flex gap-3 w-full">
+            <Button 
+              variant="outline" 
+              className="flex-1"
+              onClick={() => setCollectionModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="default" 
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white border-green-600"
+              onClick={confirmMarkCollected}
+            >
+              Confirm Vehicle Collected
+            </Button>
           </div>
         </div>
       </Modal>

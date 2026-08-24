@@ -8,7 +8,7 @@ export interface Booking {
   quoteId?: string | null;
   bookingType: 'instant' | 'quoteBased';
   scheduledAt: string;
-  status: 'pendingPayment' | 'confirmed' | 'accepted' | 'in_progress' | 'completed' | 'cancelled';
+  status: 'pendingPayment' | 'confirmed' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'readyForCollection' | 'collected';
   totalAmount: number;
   currency: string;
   createdAt: string;
@@ -41,6 +41,6 @@ export async function createBooking(data: {
   return apiClient.post<Booking>('/bookings', data);
 }
 
-export async function updateBookingStatus(id: string, status: string): Promise<Booking> {
-  return apiClient.patch<Booking>(`/bookings/${id}/status`, { status });
+export async function updateBookingStatus(id: string, status: string, collectionTime?: string): Promise<Booking> {
+  return apiClient.patch<Booking>(`/bookings/${id}/status`, { status, collectionTime });
 }

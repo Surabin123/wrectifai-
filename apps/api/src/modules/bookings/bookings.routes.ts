@@ -464,9 +464,9 @@ bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
 bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const { status } = req.body;
+    const { status, collectionTime } = req.body;
 
-    const allowedStatuses = ['pendingPayment', 'pending', 'confirmed', 'accepted', 'in_progress', 'completed', 'cancelled', 'rejected'];
+    const allowedStatuses = ['pendingPayment', 'pending', 'confirmed', 'accepted', 'in_progress', 'completed', 'cancelled', 'rejected', 'readyForCollection', 'collected'];
     if (!status || !allowedStatuses.includes(status)) {
       return error(res, `Invalid or missing status. Allowed values: ${allowedStatuses.join(', ')}`, 'BAD_REQUEST', 400);
     }
@@ -499,22 +499,26 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
     if (status === 'rejected') dbStatus = 'cancelled';
     if (status === 'in_progress') dbStatus = 'inService';
 
-    const result = await query(
-      `UPDATE bookings
-       SET status = $${params.length + 1}, updated_at = NOW()
-       WHERE id = $1${garageCheck}
-       RETURNING id, status, updated_at as "updatedAt"`,
-      [...params, dbStatus]
-    );
+    let updateQuery = `UPDATE bookings SET status = $${params.length + 1}, updated_at = NOW()`;
+    const updateParams = [...params, dbStatus];
+
+    if (dbStatus === 'readyForCollection' && collectionTime) {
+      updateQuery += `, collection_time = $${updateParams.length + 1}`;
+      updateParams.push(collectionTime);
+    }
+
+    updateQuery += ` WHERE id = $1${garageCheck} RETURNING id, status, updated_at as "updatedAt"`;
+
+    const result = await query(updateQuery, updateParams);
 
     if (result.rows.length === 0) {
       return error(res, 'Booking not found', 'NOT_FOUND', 404);
     }
 
-    if (dbStatus === 'completed') {
+    if (dbStatus === 'completed' || dbStatus === 'readyForCollection' || dbStatus === 'collected') {
       // Fetch details for comprehensive notification
       const bookingRes = await query(
-        `SELECT b.customer_note as service_type, u.name as customer_name, g.name as garage_name
+        `SELECT b.customer_note as service_type, u.name as customer_name, u.id as customer_id, g.name as garage_name
          FROM bookings b
          JOIN users u ON b.customer_id = u.id
          JOIN garages g ON b.garage_id = g.id
@@ -525,13 +529,43 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       const serviceStr = bData?.service_type || 'A service';
       const customerStr = bData?.customer_name || 'a customer';
       const garageStr = bData?.garage_name || 'a garage';
+      const custId = bData?.customer_id;
 
-      await NotificationsService.createNotification({
-        isAdmin: true,
-        type: 'Booking',
-        title: 'Service Completed',
-        description: `${serviceStr} has been completed by ${garageStr} for ${customerStr}.`
-      }).catch(err => console.error('Failed to create notification', err));
+      if (dbStatus === 'completed') {
+        await NotificationsService.createNotification({
+          isAdmin: true,
+          type: 'Booking',
+          title: 'Service Completed',
+          description: `${serviceStr} has been completed by ${garageStr} for ${customerStr}.`
+        }).catch(err => console.error('Failed to create notification', err));
+      } else if (dbStatus === 'readyForCollection') {
+        const timeStr = collectionTime ? ` (Collection Time: ${new Date(collectionTime).toLocaleString()})` : '';
+        await NotificationsService.createNotification({
+          userId: custId,
+          type: 'Booking',
+          title: 'Vehicle Ready for Collection',
+          description: `Your vehicle is ready for collection at ${garageStr}${timeStr}. Please contact the garage if you have any questions.`
+        }).catch(err => console.error('Failed to create notification', err));
+        await NotificationsService.createNotification({
+          isAdmin: true,
+          type: 'Booking',
+          title: 'Vehicle Ready',
+          description: `${garageStr} marked vehicle ready for ${customerStr}.`
+        }).catch(err => console.error('Failed to create notification', err));
+      } else if (dbStatus === 'collected') {
+        await NotificationsService.createNotification({
+          garageId: req.user?.garageId || undefined,
+          type: 'Booking',
+          title: 'Vehicle Collected',
+          description: `${customerStr} has confirmed collection of their vehicle.`
+        }).catch(err => console.error('Failed to create notification', err));
+        await NotificationsService.createNotification({
+          isAdmin: true,
+          type: 'Booking',
+          title: 'Vehicle Collected',
+          description: `${customerStr} collected their vehicle from ${garageStr}.`
+        }).catch(err => console.error('Failed to create notification', err));
+      }
     }
 
     return success(res, result.rows[0], 200);

@@ -15,6 +15,9 @@ export default function BookingsPage() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
+  const [collectionModalOpen, setCollectionModalOpen] = useState(false);
+  const [bookingForCollection, setBookingForCollection] = useState<string | null>(null);
+  const [collectionTime, setCollectionTime] = useState('');
 
   useEffect(() => {
     fetchBookings()
@@ -28,9 +31,9 @@ export default function BookingsPage() {
       });
   }, []);
 
-  const handleUpdateStatus = async (id: string, newStatus: string) => {
+  const handleUpdateStatus = async (id: string, newStatus: string, extraData?: string) => {
     try {
-      await updateBookingStatus(id, newStatus);
+      await updateBookingStatus(id, newStatus, extraData);
       setBookings(prev => prev.map(b => b.id === id ? { ...b, status: newStatus } : b));
       localStorage.setItem('wrectifai_sync_bookings', Date.now().toString());
       
@@ -57,6 +60,14 @@ export default function BookingsPage() {
         title = 'Service Completed';
         desc = `The garage has completed the service for booking ${id.substring(0, 8)}.`;
         icon = 'CheckCircle2'; color = 'text-emerald-500'; bg = 'bg-emerald-50';
+      } else if (newStatus === 'readyForCollection') {
+        title = 'Ready for Collection';
+        desc = `Vehicle for booking ${id.substring(0, 8)} is ready for collection.`;
+        icon = 'CheckCircle2'; color = 'text-yellow-500'; bg = 'bg-yellow-50';
+      } else if (newStatus === 'collected') {
+        title = 'Vehicle Collected';
+        desc = `Vehicle for booking ${id.substring(0, 8)} has been collected by the customer.`;
+        icon = 'CheckCircle2'; color = 'text-gray-500'; bg = 'bg-gray-50';
       }
       
       if (title) {
@@ -106,7 +117,7 @@ export default function BookingsPage() {
                         <td className="p-3 text-sm text-slate-600">{new Date(b.scheduledAt).toLocaleString()}</td>
                         <td className="p-3 text-sm text-slate-600">{b.vehicleMake} {b.vehicleModel}</td>
                         <td className="p-3 text-sm text-slate-600 capitalize">
-                          {b.status === 'pendingPayment' ? 'Pending' : b.status === 'in_progress' ? 'In Progress' : b.status}
+                          {b.status === 'pendingPayment' ? 'Pending' : b.status === 'in_progress' ? 'In Progress' : b.status === 'readyForCollection' ? 'Ready for Collection' : b.status === 'collected' ? 'Collected' : b.status}
                         </td>
                         <td className="p-3 text-sm text-right space-x-2 flex justify-end items-center h-full">
                           {b.status === 'pendingPayment' && (
@@ -130,16 +141,21 @@ export default function BookingsPage() {
                             </button>
                           )}
                           {b.status === 'completed' && (
-                            <button onClick={() => router.push(`/garage/service-history`)} className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded font-semibold hover:bg-slate-200 inline-block">
+                            <button onClick={() => { setBookingForCollection(b.id); setCollectionTime(''); setCollectionModalOpen(true); }} className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded font-semibold hover:bg-yellow-200 ml-2">
+                              Ready for Collection
+                            </button>
+                          )}
+                          {(b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected') && (
+                            <button onClick={() => router.push(`/garage/service-history`)} className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded font-semibold hover:bg-slate-200 inline-block ml-2">
                               View History
                             </button>
                           )}
                           {b.status === 'cancelled' && (
-                            <button onClick={() => setSelectedBooking(b)} className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded font-semibold hover:bg-slate-200 inline-block">
+                            <button onClick={() => setSelectedBooking(b)} className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded font-semibold hover:bg-slate-200 inline-block ml-2">
                               View Details
                             </button>
                           )}
-                          {b.status !== 'cancelled' && b.status !== 'completed' && (
+                          {b.status !== 'cancelled' && b.status !== 'completed' && b.status !== 'readyForCollection' && b.status !== 'collected' && (
                             <button onClick={() => setSelectedBooking(b)} className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded font-semibold hover:bg-slate-200 inline-block ml-2">
                               Details
                             </button>
@@ -230,7 +246,7 @@ export default function BookingsPage() {
               <div>
                 <span className="block font-bold text-slate-500 mb-1">Current Status</span>
                 <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 font-bold text-xs rounded uppercase">
-                  {selectedBooking.status === 'pendingPayment' ? 'Pending' : selectedBooking.status === 'in_progress' ? 'In Progress' : selectedBooking.status}
+                  {selectedBooking.status === 'pendingPayment' ? 'Pending' : selectedBooking.status === 'in_progress' ? 'In Progress' : selectedBooking.status === 'readyForCollection' ? 'Ready for Collection' : selectedBooking.status === 'collected' ? 'Collected' : selectedBooking.status}
                 </span>
               </div>
             </div>
@@ -244,6 +260,52 @@ export default function BookingsPage() {
             </div>
           </Modal>
         )}
+
+        <Modal 
+          isOpen={collectionModalOpen} 
+          onClose={() => setCollectionModalOpen(false)}
+          title="Vehicle Ready for Collection"
+        >
+          <div className="py-4 flex flex-col items-center">
+            <h3 className="text-lg font-bold text-[#17307a] mb-2 text-center">
+              Set Collection Time
+            </h3>
+            <p className="text-sm text-slate-600 mb-6 text-center">
+              Please provide the date and time the vehicle will be ready for the customer to collect.
+            </p>
+            <div className="w-full max-w-sm">
+              <label className="block text-sm font-semibold text-slate-700 mb-1">Collection Date & Time</label>
+              <input
+                type="datetime-local"
+                value={collectionTime}
+                onChange={(e) => setCollectionTime(e.target.value)}
+                className="w-full border border-slate-300 rounded px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+            
+            <div className="flex gap-3 w-full max-w-sm mt-8">
+              <button 
+                className="flex-1 px-4 py-2 bg-slate-100 text-slate-700 rounded font-bold hover:bg-slate-200 transition-colors"
+                onClick={() => setCollectionModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                className="flex-1 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded font-bold transition-colors disabled:opacity-50"
+                onClick={() => {
+                  if (bookingForCollection && collectionTime) {
+                    handleUpdateStatus(bookingForCollection, 'readyForCollection', new Date(collectionTime).toISOString());
+                    setCollectionModalOpen(false);
+                    setBookingForCollection(null);
+                  }
+                }}
+                disabled={!collectionTime}
+              >
+                Confirm
+              </button>
+            </div>
+          </div>
+        </Modal>
       </DashboardShell>
     </RoleGuard>
   );
