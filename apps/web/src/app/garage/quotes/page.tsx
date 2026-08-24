@@ -307,10 +307,7 @@ export default function QuotesPage() {
                 <button onClick={() => setViewDetailsQuote(null)} className="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
               </div>
               <div className="p-6 overflow-y-auto space-y-4 text-sm">
-                <div>
-                  <span className="font-bold text-slate-600 block">Quote ID:</span>
-                  <p className="text-slate-800">{viewDetailsQuote.quote.id}</p>
-                </div>
+
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <span className="font-bold text-slate-600 block">Customer Name:</span>
