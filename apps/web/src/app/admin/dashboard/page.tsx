@@ -33,7 +33,7 @@ export default function AdminDashboardPage() {
 
   const handleAction = async (id: string, action: string) => {
     try {
-      const status = action === 'activate' ? 'active' : action === 'suspend' ? 'suspended' : action === 'delete' ? 'deleted' : action;
+      const status = action === 'activate' ? 'active' : action === 'suspend' ? 'suspended' : action;
       await apiClient.put(`/admin/garages/${id}/status`, { status });
       await loadData();
       setActionModal({isOpen: false, id: '', action: '', type: 'confirm', message: ''});
