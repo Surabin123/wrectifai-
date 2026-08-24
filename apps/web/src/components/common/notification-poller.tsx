@@ -22,9 +22,9 @@ export function NotificationPoller() {
           url += `?garageId=${(user as any).garageId}`;
         }
         
-        const res = await apiClient<{ data: any[] }>(url);
-        if (res?.data) {
-          const unread = res.data.filter((n: any) => !n.is_read);
+        const res = await apiClient<any[]>(url);
+        if (Array.isArray(res)) {
+          const unread = res.filter((n: any) => !n.is_read);
           
           unread.forEach((n: any) => {
             if (!notifiedIds.current.has(n.id)) {

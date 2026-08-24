@@ -22,9 +22,9 @@ export function DashboardHeader({ title }: { title?: string }) {
         if (user.roles?.includes('garage') && (user as any).garageId) {
           url += `?garageId=${(user as any).garageId}`;
         }
-        const res = await apiClient<{ data: any[] }>(url);
-        if (res?.data) {
-          setUnreadCount(res.data.filter((n: any) => !n.is_read).length);
+        const res = await apiClient<any[]>(url);
+        if (Array.isArray(res)) {
+          setUnreadCount(res.filter((n: any) => !n.is_read).length);
         }
       } catch (err) {
         console.error('Failed to fetch notifications', err);

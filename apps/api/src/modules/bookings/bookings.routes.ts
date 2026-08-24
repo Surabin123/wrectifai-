@@ -230,15 +230,15 @@ async function createBookingInternal(req: any, res: any, data: {
     await NotificationsService.createNotification({
       garageId: garageId,
       type: 'Booking',
-      title: 'New Booking Received',
-      description: `${customerName} has booked a service.`
+      title: 'New Booking',
+      description: `${customerName} booked your garage.`
     }).catch(err => console.error('Failed to create notification', err));
 
     await NotificationsService.createNotification({
       isAdmin: true,
       type: 'Booking',
       title: 'New Booking',
-      description: `${customerName} has booked a service at ${garageName}.`
+      description: `${customerName} booked ${garageName}.`
     }).catch(err => console.error('Failed to create notification', err));
 
     return success(
@@ -489,7 +489,12 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
         garageCheck = ' AND garage_id = $2';
         params.push(garageId);
       } else {
-        return error(res, 'Only garages and admins can update booking status', 'FORBIDDEN', 403);
+        // Customer check: Customers can only cancel or mark as collected
+        if (status !== 'cancelled' && status !== 'collected') {
+          return error(res, 'Customers can only cancel bookings or mark them as collected', 'FORBIDDEN', 403);
+        }
+        garageCheck = ' AND customer_id = $2';
+        params.push(req.user?.userId);
       }
     }
 
@@ -515,7 +520,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       return error(res, 'Booking not found', 'NOT_FOUND', 404);
     }
 
-    if (dbStatus === 'completed' || dbStatus === 'readyForCollection' || dbStatus === 'collected') {
+    if (dbStatus === 'inService' || dbStatus === 'completed' || dbStatus === 'readyForCollection' || dbStatus === 'collected') {
       // Fetch details for comprehensive notification
       const bookingRes = await query(
         `SELECT b.customer_note as service_type, u.name as customer_name, u.id as customer_id, g.name as garage_name
@@ -531,7 +536,20 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       const garageStr = bData?.garage_name || 'a garage';
       const custId = bData?.customer_id;
 
-      if (dbStatus === 'completed') {
+      if (dbStatus === 'inService') {
+        await NotificationsService.createNotification({
+          userId: custId,
+          type: 'Booking',
+          title: 'Service In Progress',
+          description: 'Your vehicle is currently being serviced.'
+        }).catch(err => console.error('Failed to create notification', err));
+      } else if (dbStatus === 'completed') {
+        await NotificationsService.createNotification({
+          userId: custId,
+          type: 'Booking',
+          title: 'Service Completed',
+          description: 'Your vehicle service is completed.'
+        }).catch(err => console.error('Failed to create notification', err));
         await NotificationsService.createNotification({
           isAdmin: true,
           type: 'Booking',
@@ -539,12 +557,12 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
           description: `${serviceStr} has been completed by ${garageStr} for ${customerStr}.`
         }).catch(err => console.error('Failed to create notification', err));
       } else if (dbStatus === 'readyForCollection') {
-        const timeStr = collectionTime ? ` (Collection Time: ${new Date(collectionTime).toLocaleString()})` : '';
+        const timeStr = collectionTime ? ` at ${new Date(collectionTime).toLocaleString()}` : '';
         await NotificationsService.createNotification({
           userId: custId,
           type: 'Booking',
           title: 'Vehicle Ready for Collection',
-          description: `Your vehicle is ready for collection at ${garageStr}${timeStr}. Please contact the garage if you have any questions.`
+          description: `Your vehicle is ready. Please collect it${timeStr}.`
         }).catch(err => console.error('Failed to create notification', err));
         await NotificationsService.createNotification({
           isAdmin: true,

@@ -36,9 +36,9 @@ export function Notifications() {
       if (user?.roles?.includes('garage') && (user as any)?.garageId) {
         url += `?garageId=${(user as any).garageId}`;
       }
-      const data = await apiClient<{ data: any[] }>(url);
-      if (data?.data) {
-        setNotifications(data.data);
+      const data = await apiClient<any[]>(url);
+      if (Array.isArray(data)) {
+        setNotifications(data);
       }
     } catch (err) {
       console.error('Failed to fetch notifications', err);
