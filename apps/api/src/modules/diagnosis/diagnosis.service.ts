@@ -702,6 +702,7 @@ The required JSON schema is:
         const llmRaw = await generateText({
           model: modelInstance,
           system: finalSystemPrompt,
+          maxTokens: 2000,
           messages: [
             {
               role: 'user',
@@ -714,7 +715,13 @@ The required JSON schema is:
         // Strip reasoning tags that Qwen models produce
         text = text.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '').trim();
         text = text.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
-        llmResponseObj = JSON.parse(text);
+        
+        try {
+          llmResponseObj = JSON.parse(text);
+        } catch (parseErr) {
+          console.error(`[Diagnosis] JSON parse failed. Raw text was: ${JSON.stringify(llmRaw.text)}`);
+          throw parseErr;
+        }
 
         // Rough validation
         if (!llmResponseObj?.issues || !Array.isArray(llmResponseObj.issues)) {
@@ -746,13 +753,39 @@ The required JSON schema is:
         console.error(`LLM generation failed (retries left: ${retries}):`, err);
         lastError = err;
         if (retries === 0) {
-          throw new Error(`AI diagnostic service temporarily unavailable: ${err instanceof Error ? err.message : 'Unknown LLM error'}`);
+          console.warn(`[Diagnosis] Retries exhausted. Using fallback diagnosis object.`);
+          llmResponseObj = {
+            issues: [
+              {
+                name: "AI Diagnosis Unavailable",
+                category: "general",
+                confidence: 0,
+                estimatedPriceRange: { min: 0, max: 0 },
+                requiredParts: []
+              }
+            ],
+            confidenceScore: 0,
+            riskLevel: "low",
+            diyAllowed: false,
+            diySteps: [
+              "Diagnosis Summary:",
+              "The AI diagnostic service was unable to complete the analysis due to a temporary service issue. Please try again later or consult a professional.",
+              "Recommended Repairs:",
+              "Professional inspection recommended.",
+              "Safety Advice:",
+              "If you suspect a critical issue, do not drive the vehicle.",
+              "DIY Category: none"
+            ],
+            nextAction: "bookGarage"
+          };
+          break; // Proceed with the fallback
         }
         retries--;
       }
     }
 
     if (!llmResponseObj) {
+      // This should theoretically not be reached now because of the fallback above
       throw new Error(`Failed to generate LLM response: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
     }
     result = DiagnosisService.applySafetyGuardrail(llmResponseObj, symptomText, matchedIssues);
