@@ -55,24 +55,29 @@ export class QuoteEstimationService {
     const modelInstance = aiProvider(env.llmModel);
 
     const systemPrompt = `You are an expert automotive repair cost estimator.
-Your task is to estimate a realistic repair cost range based strictly on the specific vehicle, the specific issue described, and the local market pricing for the provided location.
+Your task is to estimate a realistic repair cost range based strictly on the EXACT diagnosed issues and required repairs. 
+CRITICAL RULE: DO NOT over-weight the vehicle model. Even for a premium vehicle, a minor issue (like a punctured tyre) should only cost the price of that specific repair, NOT a generic "premium car service" price. Evaluate the severity of the issue and price only the necessary parts and labour for that specific issue.
 
 VEHICLE: ${vehicleContext}
 LOCATION: ${locationContext}
-ISSUE: ${issueSummary}
+DIAGNOSED ISSUE(S): ${issueSummary}
 
 INSTRUCTIONS:
-1. Provide a realistic local market estimate for this specific vehicle and issue in the location's local currency.
-2. DO NOT use a US Dollar (USD) base price and convert it using forex. Use actual local purchasing power and local automotive repair market rates.
-3. If the location is in India (e.g. Bengaluru), output in INR. If in UAE (e.g. Dubai), output in AED. If in USA, output in USD.
-4. Output EXACTLY a valid JSON object matching the following schema, and NO markdown or other text:
+1. Generate the estimate dynamically from the exact diagnosed issue(s) + severity + local market rates for the required repair/parts. Do not use generic vehicle-class pricing or fixed ranges.
+2. Provide a realistic local market estimate for this specific vehicle and issue in the location's local currency.
+3. DO NOT use a US Dollar (USD) base price and convert it using forex/PPP. Use actual local purchasing power and local automotive repair market rates.
+4. If the location is in India, output in INR. If in UAE, output in AED. If in USA, output in USD.
+5. Provide a sensible breakdown (Parts, Labour, Consumables, GST/Tax) where possible.
+6. Output EXACTLY a valid JSON object matching the following schema, and NO markdown or other text:
 {
-  "minPrice": number,
-  "maxPrice": number,
-  "currency": "string (e.g. INR, AED, USD)",
+  "minPrice": 300,
+  "maxPrice": 500,
+  "currency": "INR",
   "breakup": {
-    "parts": "number (optional, null if unknown)",
-    "labour": "number (optional, null if unknown)"
+    "parts": 100,
+    "labour": 150,
+    "consumables": 50,
+    "gst": 54
   }
 }`;
 
