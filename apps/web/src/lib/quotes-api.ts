@@ -56,9 +56,13 @@ export async function getQuoteRequest(id: string): Promise<QuoteRequestResponse>
   return apiClient.get(`/quotes/requests/${id}`);
 }
 
-export async function fetchQuoteRequests(): Promise<QuoteRequestResponse[]> {
+export const fetchQuoteRequests = async (): Promise<any[]> => {
   return apiClient.get('/quotes/requests');
-}
+};
+
+export const fetchAiEstimate = async (quoteRequestId: string): Promise<any> => {
+  return apiClient.post(`/quotes/requests/${quoteRequestId}/estimate`, {});
+};
 
 export async function getGarageIncomingRequests(): Promise<QuoteRequestResponse[]> {
   return apiClient.get('/quotes/garage-requests');

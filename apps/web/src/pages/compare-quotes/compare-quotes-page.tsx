@@ -20,6 +20,11 @@ import {
   WalletCards,
   Wrench,
   XCircle,
+  ArrowLeft, 
+  Check, 
+  ChevronRight, 
+  Shield, 
+  Sparkles
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { DashboardShell } from '@/components/home/dashboard-shell';
@@ -29,7 +34,7 @@ import { GarageMoreMenu } from '@/components/quotes/garage-more-menu';
 import {
   quoteContextDefaultIssueIds,
 } from '@/components/quotes/quotes-shared';
-import { fetchQuotes, fetchQuoteRequests } from '@/lib/quotes-api';
+import { fetchQuotes, fetchQuoteRequests, fetchAiEstimate } from '@/lib/quotes-api';
 import type { QuoteItem } from '@/components/quotes/quotes-shared';
 import { resultIssues } from '@/components/ai-diagnose/diagnose-flow-shared';
 import { cn } from '@/utils/cn';
@@ -102,6 +107,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
+  const [aiEstimate, setAiEstimate] = useState<any>(null);
 
   useEffect(() => {
     async function loadQuotes() {
@@ -116,6 +122,11 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
           setSelectedQuoteIds(ids.split(',').map((item) => item.trim()).filter(Boolean).slice(0, 3));
         } else if (data.length > 0) {
           setSelectedQuoteIds(data.slice(0, 3).map((q) => q.id));
+        }
+        
+        const firstReqId = data[0]?.quoteRequestId || reqs[0]?.id;
+        if (firstReqId) {
+          fetchAiEstimate(firstReqId).then(est => setAiEstimate(est)).catch(console.error);
         }
       } catch (err) {
         console.error('Failed to fetch quotes:', err);
@@ -224,23 +235,11 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     };
 
     const getAiRange = () => {
-      if (!requestedIssues || requestedIssues.length === 0) return '—';
-      const allNumbers: number[] = [];
-      requestedIssues.forEach((issue: any) => {
-         if (issue.estimatedCost) {
-            const matches = issue.estimatedCost.match(/\d+(?:,\d+)*(?:\.\d+)?/g);
-            if (matches) matches.forEach((m: string) => allNumbers.push(parseFloat(m.replace(/,/g, ''))));
-         }
-      });
-      if (allNumbers.length === 0) return '—';
-      let min = Math.min(...allNumbers);
-      let max = Math.max(...allNumbers);
-      
-      const localCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
-      min = convertCurrency(min, 'USD', localCurrency);
-      max = convertCurrency(max, 'USD', localCurrency);
-      
-      return min === max ? fmt(min) : `${fmt(min)} \u2013 ${fmt(max)}`;
+      if (aiEstimate) {
+        if (aiEstimate.minPrice === aiEstimate.maxPrice) return formatCurrency(aiEstimate.maxPrice, aiEstimate.currency);
+        return `${formatCurrency(aiEstimate.minPrice, aiEstimate.currency)} \u2013 ${formatCurrency(aiEstimate.maxPrice, aiEstimate.currency)}`;
+      }
+      return '—';
     };
 
     const aiTotalEstimate = getAiRange();

@@ -4,12 +4,10 @@ export function convertCurrency(amount: number, fromCode: string, toCode: string
   if (fromCode === toCode) return amount;
   
   // Approximate conversion rates relative to USD (base)
-  // We use Purchasing Power Parity (PPP) rates for services, not just raw forex,
-  // to ensure repair estimates are realistic in local economies (e.g. India).
   const rates: Record<string, number> = {
     'USD': 1,
-    'INR': 25.0, // PPP rate for auto repair services in India
-    'AED': 3.0   // PPP rate for auto repair services in UAE
+    'INR': 84.0,
+    'AED': 3.67
   };
 
   const rateFrom = rates[fromCode] || 1;

@@ -1,5 +1,5 @@
 'use client';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import {
@@ -26,7 +26,7 @@ import { TopNavbar } from '@/components/home/top-navbar';
 import { Modal } from '@/components/common/modal';
 import { BookingDialog } from '@/components/customer/booking-dialog';
 import { GarageMoreMenu } from '@/components/quotes/garage-more-menu';
-import { fetchQuotes, acceptQuoteRequest, fetchQuoteRequests } from '@/lib/quotes-api';
+import { fetchQuotes, acceptQuoteRequest, fetchQuoteRequests, fetchAiEstimate } from '@/lib/quotes-api';
 import type { QuoteItem } from '@/components/quotes/quotes-shared';
 import { formatCurrency, convertCurrency } from '@/lib/currency';
 import { getSavedCity, getCurrencyCodeForCity } from '@/utils/location';
@@ -86,25 +86,14 @@ function tagColor(status?: string): { bg: string; text: string; label: string } 
    AI Estimate Banner
 ────────────────────────────────────── */
 
-function AiEstimateBanner({ requestedIssues }: { requestedIssues: any[] }) {
+function AiEstimateBanner({ requestedIssues, aiEstimate }: { requestedIssues: any[], aiEstimate?: any }) {
   const getAiRange = () => {
     if (!requestedIssues || requestedIssues.length === 0) return '—';
-    const allNumbers: number[] = [];
-    requestedIssues.forEach((issue: any) => {
-       if (issue.estimatedCost) {
-          const matches = issue.estimatedCost.match(/\d+(?:,\d+)*(?:\.\d+)?/g);
-          if (matches) matches.forEach((m: string) => allNumbers.push(parseFloat(m.replace(/,/g, ''))));
-       }
-    });
-    if (allNumbers.length === 0) return '—';
-    let min = Math.min(...allNumbers);
-    let max = Math.max(...allNumbers);
-    
-    const localCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
-    min = convertCurrency(min, 'USD', localCurrency);
-    max = convertCurrency(max, 'USD', localCurrency);
-    
-    return min === max ? formatCurrency(min) : `${formatCurrency(min)} \u2013 ${formatCurrency(max)}`;
+    if (aiEstimate) {
+      if (aiEstimate.minPrice === aiEstimate.maxPrice) return formatCurrency(aiEstimate.maxPrice, aiEstimate.currency);
+      return `${formatCurrency(aiEstimate.minPrice, aiEstimate.currency)} \u2013 ${formatCurrency(aiEstimate.maxPrice, aiEstimate.currency)}`;
+    }
+    return '—';
   };
   
   const estimatedCostRange = getAiRange();
@@ -296,6 +285,7 @@ function GarageQuoteCard({
   isComparing,
   isSelected,
   onToggleCompare,
+  maxAiEstimate,
 }: {
   quote: QuoteItem;
   savedGarages: string[];
@@ -611,6 +601,8 @@ export function QuotesPage() {
     return () => document.removeEventListener('mousedown', handler);
   }, []);
 
+  const [aiEstimate, setAiEstimate] = useState<any>(null);
+
   const loadQuotes = useCallback(async () => {
     try {
       const [data, reqs] = await Promise.all([
@@ -619,6 +611,11 @@ export function QuotesPage() {
       ]);
       setQuotes(data);
       setRequests(reqs || []);
+      
+      const firstReqId = data[0]?.quoteRequestId || reqs[0]?.id;
+      if (firstReqId) {
+        fetchAiEstimate(firstReqId).then(est => setAiEstimate(est)).catch(console.error);
+      }
     } catch (err) {
       console.error('Failed to fetch quotes:', err);
     } finally {
@@ -677,21 +674,7 @@ export function QuotesPage() {
     return [];
   }, [searchParams, quotes, requests]);
 
-  const maxAiEstimate = useMemo(() => {
-    if (!requestedIssues || requestedIssues.length === 0) return 0;
-    const allNumbers: number[] = [];
-    requestedIssues.forEach((issue: any) => {
-       if (issue.estimatedCost) {
-          const matches = issue.estimatedCost.match(/\d+(?:,\d+)*(?:\.\d+)?/g);
-          if (matches) matches.forEach((m: string) => allNumbers.push(parseFloat(m.replace(/,/g, ''))));
-       }
-    });
-    if (allNumbers.length === 0) return 0;
-    let max = Math.max(...allNumbers);
-    const localCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
-    max = convertCurrency(max, 'USD', localCurrency);
-    return max;
-  }, [requestedIssues]);
+  const maxAiEstimate = aiEstimate?.maxPrice || 0;
 
   const filteredQuotes = sortQuotes(
     quotes.filter(q => quoteTabStatus(q, activeTab)),
@@ -810,7 +793,7 @@ export function QuotesPage() {
           {/* Left: quotes */}
           <div className="space-y-4">
             {/* AI estimate banner */}
-            {!loading && requestedIssues?.length > 0 && <AiEstimateBanner requestedIssues={requestedIssues} />}
+            {!loading && requestedIssues?.length > 0 && <AiEstimateBanner requestedIssues={requestedIssues} aiEstimate={aiEstimate} />}
 
             {/* Cards */}
             {loading ? (
@@ -843,6 +826,7 @@ export function QuotesPage() {
                   onSelectGarage={() => setBookingQuote(quote)}
                   onViewQuotes={() => setViewQuote(quote)}
                   onSaveGarage={() => toggleSave(quote)}
+                  maxAiEstimate={maxAiEstimate}
                   onViewGarageProfile={() => {
                     const gName = quote.garage;
                     router.push(`/garages?garage=${encodeURIComponent(gName)}`);
@@ -868,7 +852,6 @@ export function QuotesPage() {
                   isComparing={isComparing}
                   isSelected={selectedQuotes.includes(quote.id)}
                   onToggleCompare={() => handleToggleCompare(quote.id)}
-                  maxAiEstimate={maxAiEstimate}
                 />
               ))
             )}

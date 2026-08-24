@@ -3,6 +3,7 @@ import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
 import { query } from '../../config/database';
 import { NotificationsService } from '../notifications/notifications.service';
+import { QuoteEstimationService } from './quote-estimation.service';
 
 export const quotesRouter = Router();
 
@@ -232,7 +233,33 @@ quotesRouter.post('/garage-requests/:id/accept', authenticate, async (req, res) 
 
     return success(res, { success: true, message: 'Request accepted' });
   } catch (err) {
-    return error(res, 'Database error', 'DATABASE_ERROR', 500);
+    return error(res, 'Internal server error', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+quotesRouter.post('/requests/:id/estimate', authenticate, async (req, res) => {
+  try {
+    const customerId = req.user?.userId;
+    if (!customerId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
+    
+    const { id } = req.params;
+    
+    // Check if estimate already exists
+    const existing = await query(`SELECT ai_estimate FROM quote_requests WHERE id = $1`, [id]);
+    if (existing.rows.length === 0) {
+      return error(res, 'Quote request not found', 'NOT_FOUND', 404);
+    }
+    
+    if (existing.rows[0].ai_estimate) {
+      return success(res, existing.rows[0].ai_estimate);
+    }
+    
+    // Generate new estimate
+    const estimate = await QuoteEstimationService.generateLocalEstimate(id);
+    return success(res, estimate);
+  } catch (err: any) {
+    console.error('Estimate generation error:', err);
+    return error(res, err.message || 'Failed to generate estimate', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
 
