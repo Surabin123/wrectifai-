@@ -31,6 +31,8 @@ import type { QuoteItem } from '@/components/quotes/quotes-shared';
 import { formatCurrency, convertCurrency } from '@/lib/currency';
 import { getSavedCity, getCurrencyCodeForCity } from '@/utils/location';
 import { cn } from '@/utils/cn';
+import { useSearchParams } from 'next/navigation';
+import { resultIssues } from '@/components/ai-diagnose/diagnose-flow-shared';
 
 /* ──────────────────────────────────────
    Helpers
@@ -308,6 +310,7 @@ function GarageQuoteCard({
   isComparing?: boolean;
   isSelected?: boolean;
   onToggleCompare?: () => void;
+  maxAiEstimate?: number;
 }) {
   const tag = tagColor(quote.status);
   const isSaved = savedGarages.includes(quote.garageId || quote.id);
@@ -381,17 +384,20 @@ function GarageQuoteCard({
         {/* RIGHT — Price block + action buttons in one horizontal row */}
         <div className="flex items-center gap-3 ml-4 shrink-0">
 
-          {/* Price */}
           <div className="text-right shrink-0">
             <div className="text-[19px] font-bold text-[#17307a] leading-tight whitespace-nowrap">
               {formatCurrency(priceNum)}
             </div>
             <div className="text-[11px] text-[#8ea0c7] mt-0.5">Total Estimate</div>
-            {quote.isBooked && (
+            {quote.isBooked ? (
               <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                 <CheckCircle2 className="h-3 w-3" /> Booked
               </div>
-            )}
+            ) : maxAiEstimate && maxAiEstimate > priceNum ? (
+              <div className="mt-1 inline-flex items-center gap-1 rounded-full bg-[#e8f8eb] px-2 py-0.5 text-[10px] font-bold text-[#1ea15f]">
+                You save {formatCurrency(maxAiEstimate - priceNum)}
+              </div>
+            ) : null}
           </div>
 
           {/* Divider */}
@@ -544,6 +550,7 @@ const TABS = ['All Quotes', 'New', 'Viewed', 'Expired'];
 
 export function QuotesPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [quotes, setQuotes] = useState<QuoteItem[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -642,6 +649,49 @@ export function QuotesPage() {
       window.removeEventListener('wishlist-updated', handleWishlistSync);
     };
   }, [loadQuotes]);
+
+  const requestedIssues = useMemo(() => {
+    const issuesFromQuery = searchParams?.get('issues');
+    if (issuesFromQuery) {
+      const ids = issuesFromQuery.split(',').map((item) => item.trim()).filter(Boolean);
+      return resultIssues.filter((issue) => ids.includes(issue.id));
+    }
+    const dbSummary = quotes[0]?.requestIssueSummary || requests[0]?.issueSummary;
+    if (dbSummary) {
+      return dbSummary.split(',').map((name: string, index: number) => {
+        const found = resultIssues.find((r) => r.title.toLowerCase() === name.trim().toLowerCase());
+        if (found) return found;
+        return {
+          id: `db_summary_${index}`,
+          title: name.trim(),
+          badge: 'Caution',
+          badgeClass: 'text-[#e27622] bg-[#fdf5ed]',
+          description: `Requested issue: ${name.trim()}`,
+          match: 80,
+          risks: [],
+          estimatedCost: '',
+          imageSrc: ''
+        };
+      });
+    }
+    return [];
+  }, [searchParams, quotes, requests]);
+
+  const maxAiEstimate = useMemo(() => {
+    if (!requestedIssues || requestedIssues.length === 0) return 0;
+    const allNumbers: number[] = [];
+    requestedIssues.forEach((issue: any) => {
+       if (issue.estimatedCost) {
+          const matches = issue.estimatedCost.match(/\d+(?:,\d+)*(?:\.\d+)?/g);
+          if (matches) matches.forEach((m: string) => allNumbers.push(parseFloat(m.replace(/,/g, ''))));
+       }
+    });
+    if (allNumbers.length === 0) return 0;
+    let max = Math.max(...allNumbers);
+    const localCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
+    max = convertCurrency(max, 'USD', localCurrency);
+    return max;
+  }, [requestedIssues]);
 
   const filteredQuotes = sortQuotes(
     quotes.filter(q => quoteTabStatus(q, activeTab)),
@@ -818,6 +868,7 @@ export function QuotesPage() {
                   isComparing={isComparing}
                   isSelected={selectedQuotes.includes(quote.id)}
                   onToggleCompare={() => handleToggleCompare(quote.id)}
+                  maxAiEstimate={maxAiEstimate}
                 />
               ))
             )}
