@@ -18,6 +18,9 @@ export default function AllGaragesPage() {
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState<'down' | 'up'>('down');
   const [previewModal, setPreviewModal] = useState({ isOpen: false, url: '', name: '' });
+  
+  const [editModal, setEditModal] = useState<{isOpen: boolean, data: any}>({ isOpen: false, data: null });
+  const [isUpdating, setIsUpdating] = useState(false);
 
   const handleDropdownClick = (e: React.MouseEvent, id: string) => {
     if (openDropdownId === id) {
@@ -72,6 +75,39 @@ export default function AllGaragesPage() {
       setSelectedGarage(null);
     } finally {
       setDetailsLoading(false);
+    }
+  };
+
+  const handleEditGarage = async (id: string) => {
+    setOpenDropdownId(null);
+    try {
+      const data = await apiClient.get<any>(`/admin/onboarding/garages/${id}`);
+      setEditModal({ isOpen: true, data: JSON.parse(JSON.stringify(data)) }); // Deep copy for editing
+    } catch (err) {
+      console.error('Failed to load garage for edit', err);
+    }
+  };
+
+  const handleUpdateGarage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editModal.data) return;
+    setIsUpdating(true);
+    try {
+      await apiClient.put(`/admin/garages/${editModal.data.id}`, {
+        name: editModal.data.name,
+        address: editModal.data.address,
+        description: editModal.data.description,
+        businessHours: editModal.data.businessHours,
+      });
+      setEditModal({ isOpen: false, data: null });
+      await loadData();
+      if (selectedGarage?.id === editModal.data.id) {
+        handleViewDetails(editModal.data.id);
+      }
+    } catch (err) {
+      console.error('Failed to update garage', err);
+    } finally {
+      setIsUpdating(false);
     }
   };
 
@@ -170,6 +206,7 @@ export default function AllGaragesPage() {
                             {openDropdownId === g.id && (
                               <div className={`absolute right-0 ${dropdownPosition === 'up' ? 'bottom-full mb-1' : 'top-full mt-1'} w-40 bg-white border border-slate-200 rounded-lg shadow-xl z-50 py-1 overflow-hidden`}>
                                 <button onClick={() => { setOpenDropdownId(null); handleViewDetails(g.id); }} className="w-full text-left px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2"><Eye className="w-3.5 h-3.5"/> View Details</button>
+                                <button onClick={() => handleEditGarage(g.id)} className="w-full text-left px-4 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 flex items-center gap-2"><Edit className="w-3.5 h-3.5"/> Edit Details</button>
                                 
                                 <div className="border-t border-slate-100 my-1"></div>
                                 
@@ -279,7 +316,16 @@ export default function AllGaragesPage() {
               <div className="space-y-4">
                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 border-b pb-2">Working Hours</h3>
                  {selectedGarage.businessHours ? (
-                   <div className="text-sm text-slate-700 font-medium">Configured in system.</div>
+                   <div className="grid grid-cols-1 gap-2 text-sm text-slate-700 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                     {Object.entries(selectedGarage.businessHours).map(([day, data]: [string, any]) => (
+                        data.open ? (
+                          <div key={day} className="flex justify-between items-center py-1 border-b border-slate-100 last:border-0">
+                            <span className="capitalize font-medium text-slate-600">{day}</span>
+                            <span className="font-bold text-slate-800">{data.start} - {data.end}</span>
+                          </div>
+                        ) : null
+                     ))}
+                   </div>
                  ) : (
                    <div className="flex items-center gap-2 text-sm text-slate-500 italic bg-slate-50 p-3 rounded-lg border border-slate-100">
                      <Clock className="w-4 h-4" /> Not provided
@@ -362,6 +408,116 @@ export default function AllGaragesPage() {
             <img src={previewModal.url} alt={previewModal.name} className="max-w-full max-h-full object-contain" />
           )}
         </div>
+      </Modal>
+
+      {/* Edit Garage Modal */}
+      <Modal isOpen={editModal.isOpen} onClose={() => setEditModal({isOpen: false, data: null})} title="Edit Garage Basic Details" className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        {editModal.data && (
+          <form onSubmit={handleUpdateGarage} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="col-span-2 md:col-span-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">Garage Name</label>
+                <input 
+                  type="text" 
+                  value={editModal.data.name || ''} 
+                  onChange={(e) => setEditModal({...editModal, data: {...editModal.data, name: e.target.value}})} 
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" 
+                  required 
+                />
+              </div>
+              <div className="col-span-2 md:col-span-1">
+                <label className="block text-xs font-bold text-slate-700 mb-1">Contact Phone (Reference only)</label>
+                <input 
+                  type="text" 
+                  value={editModal.data.ownerPhone || ''} 
+                  disabled
+                  className="w-full border border-slate-200 bg-slate-50 rounded-lg px-3 py-2 text-sm text-slate-500 outline-none cursor-not-allowed" 
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">Complete Address</label>
+                <input 
+                  type="text" 
+                  value={editModal.data.address || ''} 
+                  onChange={(e) => setEditModal({...editModal, data: {...editModal.data, address: e.target.value}})} 
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none" 
+                  required 
+                />
+              </div>
+              <div className="col-span-2">
+                <label className="block text-xs font-bold text-slate-700 mb-1">Description</label>
+                <textarea 
+                  value={editModal.data.description || ''} 
+                  onChange={(e) => setEditModal({...editModal, data: {...editModal.data, description: e.target.value}})} 
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none min-h-[100px]" 
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-bold text-slate-700 mb-3 border-b pb-2">Working Hours</h3>
+              {editModal.data.businessHours ? (
+                <div className="grid grid-cols-1 gap-3">
+                  {Object.entries(editModal.data.businessHours).map(([day, data]: [string, any]) => (
+                    <div key={day} className="flex items-center gap-4 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                      <div className="w-24">
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input 
+                            type="checkbox" 
+                            checked={data.open}
+                            onChange={(e) => {
+                              const newHours = {...editModal.data.businessHours};
+                              newHours[day].open = e.target.checked;
+                              setEditModal({...editModal, data: {...editModal.data, businessHours: newHours}});
+                            }}
+                            className="rounded text-blue-600 focus:ring-blue-500"
+                          />
+                          <span className="text-sm font-bold capitalize text-slate-700">{day}</span>
+                        </label>
+                      </div>
+                      {data.open && (
+                        <div className="flex items-center gap-2 flex-1">
+                          <input 
+                            type="text" 
+                            value={data.start}
+                            onChange={(e) => {
+                              const newHours = {...editModal.data.businessHours};
+                              newHours[day].start = e.target.value;
+                              setEditModal({...editModal, data: {...editModal.data, businessHours: newHours}});
+                            }}
+                            placeholder="09:00 AM"
+                            className="w-24 border border-slate-200 rounded px-2 py-1 text-sm outline-none"
+                          />
+                          <span className="text-slate-400 text-sm">to</span>
+                          <input 
+                            type="text" 
+                            value={data.end}
+                            onChange={(e) => {
+                              const newHours = {...editModal.data.businessHours};
+                              newHours[day].end = e.target.value;
+                              setEditModal({...editModal, data: {...editModal.data, businessHours: newHours}});
+                            }}
+                            placeholder="07:00 PM"
+                            className="w-24 border border-slate-200 rounded px-2 py-1 text-sm outline-none"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500 italic">No business hours defined.</p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+               <button type="button" onClick={() => setEditModal({isOpen: false, data: null})} className="px-4 py-2 text-sm font-bold text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">Cancel</button>
+               <button type="submit" disabled={isUpdating} className="px-6 py-2 text-sm font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 shadow-sm transition-colors disabled:opacity-50">
+                 {isUpdating ? 'Saving...' : 'Save Changes'}
+               </button>
+            </div>
+          </form>
+        )}
       </Modal>
       
       {/* Global click handler to close dropdown */}

@@ -4,6 +4,8 @@ import { AuthProvider } from '@/lib/auth-context';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import { AuthGuard } from '@/components/common/auth-guard';
 import { FavoritesProvider } from '@/lib/favorites-context';
+import { Toaster } from 'sonner';
+import { NotificationPoller } from '@/components/common/notification-poller';
 
 const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ['latin'],
@@ -35,6 +37,8 @@ export default function RootLayout({
             <FavoritesProvider>
               <AuthGuard>
                 {children}
+                <NotificationPoller />
+                <Toaster position="bottom-right" richColors />
               </AuthGuard>
             </FavoritesProvider>
           </AuthProvider>

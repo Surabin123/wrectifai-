@@ -6,6 +6,7 @@ import { apiClient } from '@/lib/api-client';
 import { useRouter } from 'next/navigation';
 import { COUNTRIES, getCountryByCallingCode } from '@/lib/countries';
 import { Modal } from '@/components/common/modal';
+import { toast } from 'sonner';
 
 
 export default function RegisterGaragePage() {
@@ -814,7 +815,15 @@ export default function RegisterGaragePage() {
           <Card className="p-6">
             <h3 className="font-bold text-[#17307a] mb-2">Need Help?</h3>
             <p className="text-[11px] text-slate-600 mb-4 leading-relaxed">If you need any assistance while registering your garage, our support team is here to help you.</p>
-            <button className="w-full border border-blue-200 rounded-lg py-2 text-blue-600 text-xs font-bold flex items-center justify-center gap-2 hover:bg-blue-50"><HeadphonesIcon className="w-4 h-4"/> Contact Support</button>
+            <button 
+              onClick={() => {
+                navigator.clipboard.writeText('+91 98765 43210');
+                toast.success('Support number copied to clipboard!');
+              }}
+              className="w-full border border-blue-200 rounded-lg py-2 text-blue-600 text-xs font-bold flex items-center justify-center gap-2 hover:bg-blue-50"
+            >
+              <HeadphonesIcon className="w-4 h-4"/> Contact Support
+            </button>
           </Card>
         </div>
       </div>
