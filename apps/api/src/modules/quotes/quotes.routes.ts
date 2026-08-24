@@ -426,6 +426,14 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
     const vehicleStr = vehicle.make ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : issueSummary;
     const customerName = req.user?.name || 'A customer';
 
+    let validDiagnosisRequestId = null;
+    if (diagnosisRequestId) {
+      const diagCheck = await query('SELECT id FROM diagnosis_requests WHERE id = $1', [diagnosisRequestId]);
+      if (diagCheck.rows.length > 0) {
+        validDiagnosisRequestId = diagnosisRequestId;
+      }
+    }
+
     if (garageId === 'ALL') {
       const garagesRes = await query(`SELECT id FROM garages WHERE is_approved = true OR approval_status = 'approved'`);
       if (garagesRes.rows.length === 0) {
@@ -437,7 +445,7 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
           `INSERT INTO quote_requests (customer_id, vehicle_id, diagnosis_request_id, issue_summary, preferred_date, status, garage_id)
            VALUES ($1, $2, $3, $4, $5, 'open', $6)
            RETURNING id, customer_id as "customerId", vehicle_id as "vehicleId", diagnosis_request_id as "diagnosisRequestId", issue_summary as "issueSummary", preferred_date as "preferredDate", status, created_at as "createdAt"`,
-          [customerId, vehicleId, diagnosisRequestId || null, issueSummary, preferredDate || null, row.id]
+          [customerId, vehicleId, validDiagnosisRequestId, issueSummary, preferredDate || null, row.id]
         );
         createdRequests.push(result.rows[0]);
         
@@ -464,7 +472,7 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
         `INSERT INTO quote_requests (customer_id, vehicle_id, diagnosis_request_id, issue_summary, preferred_date, status, garage_id)
          VALUES ($1, $2, $3, $4, $5, 'open', $6)
          RETURNING id, customer_id as "customerId", vehicle_id as "vehicleId", diagnosis_request_id as "diagnosisRequestId", issue_summary as "issueSummary", preferred_date as "preferredDate", status, created_at as "createdAt"`,
-        [customerId, vehicleId, diagnosisRequestId || null, issueSummary, preferredDate || null, garageId]
+        [customerId, vehicleId, validDiagnosisRequestId, issueSummary, preferredDate || null, garageId]
       );
       
       await NotificationsService.createNotification({

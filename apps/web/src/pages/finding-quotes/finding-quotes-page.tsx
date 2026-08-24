@@ -33,6 +33,8 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
   const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
   const [customIssues, setCustomIssues] = useState<any[]>([]);
   const [isMounted, setIsMounted] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
 
   useEffect(() => {
     async function loadData() {
@@ -134,6 +136,7 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
     if (chosenIssues.length === 0) return;
     async function submitRequest() {
       try {
+        setErrorMsg(null);
         hasSubmitted.current = true;
         const vehicleId = selectedVehicle?.id || '00000000-0000-0000-0000-000000000002';
         const issueSummary = chosenIssues.map((i) => i.title).join(', ');
@@ -157,13 +160,14 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
         } else {
           console.log('[FindingQuotes] API completed but page was unmounted.');
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error('[FindingQuotes] Failed to create quote request:', err);
         hasSubmitted.current = false;
+        setErrorMsg(err.message || 'Failed to request quotes. Please try again.');
       }
     }
     submitRequest();
-  }, [isMounted, selectedVehicle?.id, diagnosisRequestId, chosenIssues]);
+  }, [isMounted, selectedVehicle?.id, diagnosisRequestId, chosenIssues, retryCount]);
 
   useEffect(() => {
     console.log('[FindingQuotes] Redirect check effect. currentStep:', currentStep, 'requestId:', requestId);
@@ -250,6 +254,23 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
                 <div className="absolute right-[86px] top-[124px] h-1.5 w-1.5 rounded-full bg-[#bfd1ff]" />
               </div>
             </div>
+
+            {errorMsg && (
+              <div className="mx-auto mt-6 max-w-[400px] rounded-[14px] border border-[#ffcfcf] bg-[#fff5f5] px-4 py-3 text-[14px] font-medium text-[#d32f2f] shadow-sm">
+                <p>{errorMsg}</p>
+                <button
+                  onClick={() => {
+                    hasSubmitted.current = false;
+                    setErrorMsg(null);
+                    setCurrentStep(0);
+                    setRetryCount(r => r + 1);
+                  }}
+                  className="mt-3 inline-flex h-8 items-center justify-center rounded-[8px] bg-[#d32f2f] px-4 text-[13px] font-semibold text-white shadow-sm hover:bg-[#b71c1c] transition-all"
+                >
+                  Retry Now
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
