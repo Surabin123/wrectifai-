@@ -51,6 +51,10 @@ function quoteTabStatus(q: QuoteItem, tab: string): boolean {
     return s === 'quoted' || s === 'open' || s === 'pending';
   }
   if (tab === 'Viewed') return q.isBooked === true || q.status?.toLowerCase() === 'accepted';
+  if (tab === 'Expired') {
+    const s = q.status?.toLowerCase();
+    return s === 'expired' || s === 'cancelled' || s === 'rejected';
+  }
   return true;
 }
 
@@ -309,18 +313,18 @@ function GarageQuoteCard({
       {/* ── Row 2: Main card body ── */}
       <div className="flex items-stretch gap-0 px-4 pb-4 pt-2">
 
-        {/* LEFT — Garage image & Compare Checkbox */}
+        {/* LEFT — Compare Checkbox */}
+        <div className="flex items-center justify-center pr-4">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onToggleCompare}
+            className="w-5 h-5 cursor-pointer rounded border-[#c7d6ff] text-[#2451f6] focus:ring-[#2451f6]"
+          />
+        </div>
+
+        {/* LEFT — Garage image */}
         <div className="relative h-[82px] w-[106px] shrink-0 self-start overflow-hidden rounded-[12px] bg-slate-100 mr-4">
-          {isComparing && (
-            <div className="absolute top-1 left-1 z-10 bg-white/80 rounded-sm p-0.5">
-              <input
-                type="checkbox"
-                checked={isSelected}
-                onChange={onToggleCompare}
-                className="w-4 h-4 cursor-pointer"
-              />
-            </div>
-          )}
           <Image
             src={imgSrc}
             alt={quote.garage}
@@ -529,7 +533,7 @@ function RequestSummaryPanel({ quotes, requests }: { quotes: QuoteItem[], reques
 ────────────────────────────────────── */
 
 const SORT_OPTIONS = ['Lowest Price', 'Highest Price', 'Newest', 'Highest Rated'];
-const TABS = ['All Quotes', 'New', 'Viewed'];
+const TABS = ['All Quotes', 'New', 'Viewed', 'Expired'];
 
 export function QuotesPage() {
   const router = useRouter();
@@ -641,6 +645,7 @@ export function QuotesPage() {
     'All Quotes': quotes.length,
     'New': quotes.filter(q => quoteTabStatus(q, 'New')).length,
     'Viewed': quotes.filter(q => quoteTabStatus(q, 'Viewed')).length,
+    'Expired': quotes.filter(q => quoteTabStatus(q, 'Expired')).length,
   };
 
   const handleToggleCompare = (quoteId: string) => {
@@ -689,23 +694,26 @@ export function QuotesPage() {
             {/* Compare Quotes */}
             <div className="group relative">
               <button
-                onClick={() => {
-                  setIsComparing(!isComparing);
-                  if (isComparing) setSelectedQuotes([]);
-                }}
+                onClick={handleCompareNow}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-[10px] px-4 py-1.5 text-[12.5px] font-bold transition-colors",
-                  isComparing ? "bg-red-50 text-red-600 hover:bg-red-100" : "bg-[#f5f8ff] text-[#2451f6] border border-[#c7d6ff] hover:bg-[#e6ebfa]"
+                  "inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold transition-colors border",
+                  selectedQuotes.length > 0 
+                    ? "bg-[#2451f6] text-white border-[#2451f6] shadow-md hover:bg-[#1a3ecc]" 
+                    : "bg-white text-[#2451f6] border-[#dde6ff] hover:bg-[#f5f8ff]"
                 )}
               >
                 <Scale className="h-4 w-4" />
-                {isComparing ? 'Cancel Compare' : 'Compare Quotes'}
-                <span className="flex items-center justify-center bg-[#2451f6] text-white rounded-full w-4 h-4 text-[9px] ml-1">
+                {selectedQuotes.length > 0 ? 'Compare Now' : 'Compare Quotes'}
+                <span className={cn(
+                  "flex items-center justify-center rounded-full w-5 h-5 text-[11px]",
+                  selectedQuotes.length > 0 ? "bg-white text-[#2451f6]" : "bg-[#2451f6] text-white"
+                )}>
                   {selectedQuotes.length}
                 </span>
+                <ChevronDown className="h-4 w-4 ml-1 opacity-70" />
               </button>
               <div className="absolute top-[calc(100%+8px)] right-0 z-50 hidden group-hover:block w-48 rounded bg-[#17307a] p-2 text-center text-xs text-white shadow-xl">
-                Compare up to 3 garages. Select a minimum of 2.
+                Select at least 2 quotes to compare.
               </div>
             </div>
 
