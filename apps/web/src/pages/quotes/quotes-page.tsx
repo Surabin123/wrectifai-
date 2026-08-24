@@ -90,8 +90,12 @@ function AiEstimateBanner({ requestedIssues, aiEstimate }: { requestedIssues: an
   const getAiRange = () => {
     if (!requestedIssues || requestedIssues.length === 0) return '—';
     if (aiEstimate) {
-      if (aiEstimate.minPrice === aiEstimate.maxPrice) return formatCurrency(aiEstimate.maxPrice, aiEstimate.currency);
-      return `${formatCurrency(aiEstimate.minPrice, aiEstimate.currency)} \u2013 ${formatCurrency(aiEstimate.maxPrice, aiEstimate.currency)}`;
+      const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
+      const minPrice = convertCurrency(aiEstimate.minPrice, aiEstimate.currency, targetCurrency);
+      const maxPrice = convertCurrency(aiEstimate.maxPrice, aiEstimate.currency, targetCurrency);
+      
+      if (minPrice === maxPrice) return formatCurrency(maxPrice, targetCurrency);
+      return `${formatCurrency(minPrice, targetCurrency)} \u2013 ${formatCurrency(maxPrice, targetCurrency)}`;
     }
     return '—';
   };
