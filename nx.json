@@ -15,6 +15,9 @@
     "libsDir": "packages"
   },
   "targetDefaults": {
+    "build": {
+      "cache": false
+    },
     "@nx/esbuild:esbuild": {
       "cache": true,
       "dependsOn": ["^build"],
