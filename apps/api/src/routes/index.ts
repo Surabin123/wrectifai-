@@ -47,6 +47,23 @@ apiRouter.get('/debug-garages', async (req, res) => {
   return res.json(result.rows);
 });
 
+apiRouter.get('/debug-schema', async (req, res) => {
+  try {
+    const migrations = await query('SELECT * FROM _migrations ORDER BY id DESC LIMIT 10');
+    const quotesSchema = await query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'quotes'
+    `);
+    res.json({
+      migrations: migrations.rows,
+      quotesSchema: quotesSchema.rows
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 apiRouter.get('/promos', async (req, res) => {
   try {
     const result = await query('SELECT * FROM promos ORDER BY relevance DESC');
