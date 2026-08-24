@@ -28,7 +28,8 @@ import { BookingDialog } from '@/components/customer/booking-dialog';
 import { GarageMoreMenu } from '@/components/quotes/garage-more-menu';
 import { fetchQuotes, acceptQuoteRequest, fetchQuoteRequests } from '@/lib/quotes-api';
 import type { QuoteItem } from '@/components/quotes/quotes-shared';
-import { formatCurrency } from '@/lib/currency';
+import { formatCurrency, convertCurrency } from '@/lib/currency';
+import { getSavedCity, getCurrencyCodeForCity } from '@/utils/location';
 import { cn } from '@/utils/cn';
 
 /* ──────────────────────────────────────
@@ -94,8 +95,13 @@ function AiEstimateBanner({ requestedIssues }: { requestedIssues: any[] }) {
        }
     });
     if (allNumbers.length === 0) return '—';
-    const min = Math.min(...allNumbers);
-    const max = Math.max(...allNumbers);
+    let min = Math.min(...allNumbers);
+    let max = Math.max(...allNumbers);
+    
+    const localCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
+    min = convertCurrency(min, 'USD', localCurrency);
+    max = convertCurrency(max, 'USD', localCurrency);
+    
     return min === max ? formatCurrency(min) : `${formatCurrency(min)} \u2013 ${formatCurrency(max)}`;
   };
   
