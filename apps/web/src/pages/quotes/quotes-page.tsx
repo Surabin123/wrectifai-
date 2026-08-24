@@ -89,8 +89,8 @@ function AiEstimateBanner({ quotes }: { quotes: QuoteItem[] }) {
   if (prices.length === 0) return null;
   const lo = Math.min(...prices);
   const hi = Math.max(...prices);
-  const fmtLo = formatCurrency(lo, currency);
-  const fmtHi = formatCurrency(hi, currency);
+  const fmtLo = formatCurrency(lo);
+  const fmtHi = formatCurrency(hi);
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 rounded-[18px] border border-[#d9e5ff] bg-[#f4f8ff] px-5 py-4">
@@ -139,12 +139,12 @@ function PriceBreakupModal({ quote, onClose }: { quote: QuoteItem; onClose: () =
           ].map(({ label, value }) => (
             <div key={label} className="flex items-center justify-between px-4 py-3">
               <span className="text-[13px] text-[#5f7099]">{label}</span>
-              <span className="text-[13px] font-semibold text-[#17307a]">{formatCurrency(value, currency)}</span>
+              <span className="text-[13px] font-semibold text-[#17307a]">{formatCurrency(value)}</span>
             </div>
           ))}
           <div className="flex items-center justify-between px-4 py-3 bg-[#f4f7ff] rounded-b-[12px]">
             <span className="text-[14px] font-bold text-[#17307a]">Total</span>
-            <span className="text-[16px] font-bold text-[#2451f6]">{formatCurrency(total, currency)}</span>
+            <span className="text-[16px] font-bold text-[#2451f6]">{formatCurrency(total)}</span>
           </div>
         </div>
         {d.remarks && (
@@ -223,21 +223,21 @@ function QuoteDetailsModal({ quote, onClose, onBookNow }: { quote: QuoteItem; on
         </div>
         <div>
           <span className="block font-bold text-slate-500 mb-1">Labour Cost</span>
-          <p className="font-semibold">{formatCurrency(quote.details?.labour ?? 0, quote.currency)}</p>
+          <p className="font-semibold">{formatCurrency(quote.details?.labour ?? 0)}</p>
         </div>
         <div>
           <span className="block font-bold text-slate-500 mb-1">Parts Cost</span>
-          <p className="font-semibold">{formatCurrency(quote.details?.parts ?? 0, quote.currency)}</p>
+          <p className="font-semibold">{formatCurrency(quote.details?.parts ?? 0)}</p>
         </div>
         {(quote.details?.other ?? 0) > 0 && (
           <div>
             <span className="block font-bold text-slate-500 mb-1">Other Charges</span>
-            <p className="font-semibold">{formatCurrency(quote.details?.other ?? 0, quote.currency)}</p>
+            <p className="font-semibold">{formatCurrency(quote.details?.other ?? 0)}</p>
           </div>
         )}
         <div>
           <span className="block font-bold text-slate-500 mb-1">Total Amount</span>
-          <p className="font-bold text-[#2451f6] text-base">{formatCurrency(safePrice(quote), quote.currency)}</p>
+          <p className="font-bold text-[#2451f6] text-base">{formatCurrency(safePrice(quote))}</p>
         </div>
         {quote.details?.remarks && (
           <div className="col-span-2">
@@ -368,7 +368,7 @@ function GarageQuoteCard({
           {/* Price */}
           <div className="text-right shrink-0">
             <div className="text-[19px] font-bold text-[#17307a] leading-tight whitespace-nowrap">
-              {formatCurrency(priceNum, quote.currency)}
+              {formatCurrency(priceNum)}
             </div>
             <div className="text-[11px] text-[#8ea0c7] mt-0.5">Total Estimate</div>
             {quote.isBooked && (
@@ -404,15 +404,6 @@ function GarageQuoteCard({
                 <FileText className="h-[18px] w-[18px]" />
               </span>
               <span className="text-[10px] leading-tight text-[#5f7099] whitespace-nowrap">View Quotes</span>
-            </button>
-            <button
-              type="button"
-              className="flex flex-col items-center gap-1 text-center"
-            >
-              <span className="flex h-[40px] w-[40px] items-center justify-center rounded-full border border-[#fce8fa] bg-white text-[#d421b8] hover:bg-[#fdf2fc] transition-colors">
-                <MessageCircleMore className="h-[18px] w-[18px]" />
-              </span>
-              <span className="text-[10px] leading-tight text-[#d421b8] whitespace-nowrap">Message<br/>Garage</span>
             </button>
             <GarageMoreMenu
               smallTrigger

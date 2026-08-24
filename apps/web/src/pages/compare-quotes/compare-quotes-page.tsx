@@ -45,7 +45,6 @@ const homeBodyClass = 'ui-body';
 const actionItems = [
   { label: 'Select', icon: CheckCircle2, tone: 'blue' as const },
   { label: 'View Quotes', icon: FileText, tone: 'blue' as const },
-  { label: 'Message', icon: MessageCircleMore, tone: 'purple' as const },
   { label: 'More', icon: MoreHorizontal, tone: 'blue' as const },
 ];
 
@@ -176,8 +175,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     const quoteValuesTotal: Record<string, string> = {};
     const quoteValuesSavings: Record<string, string> = {};
 
-    const ccy = quotes[0]?.currency || 'INR';
-    const fmt = (val: number) => formatCurrency(val, ccy);
+    const fmt = (val: number) => formatCurrency(val);
 
     const partsArr: number[] = [];
     const labourArr: number[] = [];
