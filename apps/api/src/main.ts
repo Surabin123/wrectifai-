@@ -1,3 +1,4 @@
+// build: 2026-08-24T06:35Z — fix quotes comparison_label constraint
 import { getEnv } from './config/env';
 import { createApp } from './app';
 import { runMigrations } from './db/migrations';
