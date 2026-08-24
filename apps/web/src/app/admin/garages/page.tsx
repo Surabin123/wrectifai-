@@ -458,7 +458,9 @@ export default function AllGaragesPage() {
               <h3 className="text-sm font-bold text-slate-700 mb-3 border-b pb-2">Working Hours</h3>
               {editModal.data.businessHours ? (
                 <div className="grid grid-cols-1 gap-3">
-                  {Object.entries(editModal.data.businessHours).map(([day, data]: [string, any]) => (
+                  {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].filter(d => editModal.data.businessHours[d]).map((day) => {
+                    const data = editModal.data.businessHours[day];
+                    return (
                     <div key={day} className="flex items-center gap-4 bg-slate-50 p-2 rounded-lg border border-slate-100">
                       <div className="w-24">
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -503,7 +505,8 @@ export default function AllGaragesPage() {
                         </div>
                       )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <p className="text-sm text-slate-500 italic">No business hours defined.</p>
