@@ -28,6 +28,7 @@ interface Vehicle {
   year: number;
   vin?: string;
   mileage?: number;
+  image?: string;
 }
 
 export function AIDiagnoseResultsPage() {
@@ -172,7 +173,7 @@ export function AIDiagnoseResultsPage() {
               <div className="mt-5 grid gap-5 lg:grid-cols-[220px_minmax(0,1fr)]">
                 <div className="flex flex-col items-center justify-center rounded-[14px] bg-[radial-gradient(circle_at_top,#f8faff_0%,#ffffff_70%)] border border-[#e8ecf8] px-4 py-4 text-center">
                   <Image
-                    src={getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
+                    src={selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
                     alt="Car"
                     width={230}
                     height={132}

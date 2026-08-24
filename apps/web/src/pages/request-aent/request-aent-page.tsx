@@ -36,7 +36,7 @@ function IssuePreview({
 
   return (
     <Image
-      src={getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
+      src={selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
       alt={issueTitle}
       width={60}
       height={60}
@@ -51,7 +51,7 @@ function VehiclePreview({ selectedVehicle }: { selectedVehicle: Vehicle | null }
   return (
     <div className="flex h-[112px] w-[112px] items-center justify-center rounded-[24px] bg-[radial-gradient(circle_at_top,#f7f9ff_0%,#eef3ff_62%,#e9efff_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
       <Image
-        src={getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
+        src={selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
         alt="Car"
         width={94}
         height={56}
@@ -70,6 +70,7 @@ interface Vehicle {
   year: number;
   vin?: string;
   mileage?: number;
+  image?: string;
 }
 
 import { getQuoteRequest } from '@/lib/quotes-api';
@@ -162,7 +163,7 @@ export function RequestAentPage({ issues, requestId }: { issues?: string; reques
                     badge,
                     badgeClass,
                     description: `Diagnosed issue: ${issue.name || issue.title}. Requires parts: ${issue.requiredParts?.join(', ') || 'None specified'}.`,
-                    imageSrc: getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)
+                    imageSrc: selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)
                   };
                 });
                 setSelectedIssues(mapped);
@@ -186,7 +187,7 @@ export function RequestAentPage({ issues, requestId }: { issues?: string; reques
                 badgeClass: 'text-[#e27622] bg-[#fdf5ed]',
                 description: `Requested issue: ${name.trim()}`,
                 match: 85,
-                imageSrc: getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)
+                imageSrc: selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)
               };
             });
             setSelectedIssues(summaryIssues);

@@ -27,6 +27,7 @@ interface Vehicle {
   year: number;
   vin?: string;
   mileage?: number;
+  image?: string;
 }
 
 interface LlmIssue {
@@ -165,7 +166,7 @@ function mapLlmIssueToDiagnosticResult(llmIssue: LlmIssue, index: number, overal
     category,
     risks: [capitalizedRisk],
     estimatedCost,
-    imageSrc: getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year),
+    imageSrc: selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year),
   };
 }
 
@@ -1276,7 +1277,7 @@ function DiagnoseResultsScreen({
       <IssueDetailsModal
         issue={activeIssueDetails}
         onClose={() => setActiveIssueDetails(null)}
-        vehicleImageSrc={getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
+        vehicleImageSrc={selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
       />
       <div>
         <div>
@@ -1365,7 +1366,7 @@ function DiagnoseResultsScreen({
             <div className="mt-4 grid gap-4 lg:grid-cols-[200px_minmax(0,1fr)]">
               <div className="flex flex-col items-center justify-center rounded-[14px] bg-[radial-gradient(circle_at_top,#f8faff_0%,#ffffff_70%)] border border-[#e8ecf8] px-4 py-4 text-center">
                 <Image
-                  src={getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
+                  src={selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
                   alt="Car"
                   width={230}
                   height={132}
@@ -1474,7 +1475,7 @@ function DiagnoseResultsScreen({
                       />
                     </label>
                     <div className="flex justify-center md:justify-start">
-                      <IssueVisual issue={issue} size={56} vehicleImageSrc={getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)} />
+                      <IssueVisual issue={issue} size={56} vehicleImageSrc={selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)} />
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-3">
@@ -1861,7 +1862,7 @@ function FindingQuotesScreen({
             <div className="absolute left-1/2 top-[106px] -translate-x-1/2">
               <div className="relative z-10 flex h-full items-center justify-center">
                 <Image
-                  src={getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
+                  src={selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
                   alt="Car"
                   width={420}
                   height={180}
@@ -1980,7 +1981,7 @@ function FindingQuotesScreen({
               >
                 <div className="flex justify-center md:justify-start">
                   <Image
-                    src={getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
+                    src={selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
                     alt={issue.title}
                     width={72}
                     height={72}

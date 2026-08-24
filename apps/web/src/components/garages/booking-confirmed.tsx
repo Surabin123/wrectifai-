@@ -50,6 +50,7 @@ interface Vehicle {
   year: number;
   vin?: string;
   mileage?: number;
+  image?: string;
 }
 
 export function BookingConfirmed({

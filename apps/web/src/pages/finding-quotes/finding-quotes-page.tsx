@@ -22,6 +22,7 @@ interface Vehicle {
   year: number;
   vin?: string;
   mileage?: number;
+  image?: string;
 }
 
 export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: string; diagnosisRequestId?: string }) {
@@ -76,7 +77,7 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
                 badgeClass,
                 description: `Diagnosed issue: ${issue.name || issue.title}. Requires parts: ${issue.requiredParts?.join(', ') || 'None specified'}.`,
                 match,
-                imageSrc: getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)
+                imageSrc: selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)
               };
             });
             setCustomIssues(mapped);

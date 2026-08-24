@@ -12,6 +12,7 @@ interface Vehicle {
   year: number;
   vin?: string;
   mileage?: number;
+  image?: string;
 }
 
 interface VehicleSelectorProps {

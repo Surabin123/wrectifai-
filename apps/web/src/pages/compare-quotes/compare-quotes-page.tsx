@@ -97,6 +97,7 @@ interface Vehicle {
   year: number;
   vin?: string;
   mileage?: number;
+  image?: string;
 }
 
 export function CompareQuotesPage({ ids }: { ids?: string }) {
@@ -170,7 +171,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
           badgeClass: 'text-[#e27622] bg-[#fdf5ed]',
           description: `Requested issue: ${name.trim()}`,
           match: 85,
-          imageSrc: getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year),
+          imageSrc: selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year),
         };
       });
     }
