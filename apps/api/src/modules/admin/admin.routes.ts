@@ -256,7 +256,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       `INSERT INTO garages (
         name, address, city, owner_user_id, approval_status, is_approved,
         specializations, image, location, response_mins, description, business_hours
-      ) VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      ) VALUES ($1, $2, $3, $4, 'approved', true, $5, $6, $7, $8, $9, $10) RETURNING id`,
       [
         name,
         address,
@@ -359,16 +359,17 @@ adminRouter.put('/garages/:id/status', async (req, res) => {
       return error(res, 'Invalid action', 'INVALID_ACTION', 400);
     }
     const is_approved = (status === 'active');
+    const dbStatus = status === 'active' ? 'approved' : status === 'inactive' ? 'pending' : status;
     
     const result = await query(
       `UPDATE garages SET approval_status = $1, is_approved = $2 WHERE id = $3 RETURNING id`,
-      [status, is_approved, req.params.id]
+      [dbStatus, is_approved, req.params.id]
     );
     if (result.rows.length === 0) return error(res, 'Garage not found', 'NOT_FOUND', 404);
     
     return success(res, {
       garageId: req.params.id,
-      approvalStatus: status,
+      approvalStatus: status, // return what frontend expects
       reviewedBy: req.user?.userId,
       reviewedAt: new Date().toISOString(),
     });
