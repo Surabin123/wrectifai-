@@ -627,7 +627,7 @@ adminRouter.get('/quotes', async (req, res) => {
   try {
     const result = await query(
       `SELECT q.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName", q.amount as "totalAmount",
-              COALESCE(q.currency, g.business_currency, 'USD') as "currency",
+              COALESCE(g.business_currency, q.currency, 'USD') as "currency",
               q.status, q.created_at as "createdAt", q.eta_days as "estimatedDays",
               v.make as "vehicleMake", v.model as "vehicleModel", v.vin as "vin",
               qr.preferred_date as "preferredDate", qr.issue_summary as "issueDescription"
