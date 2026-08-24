@@ -102,8 +102,8 @@ export async function handleUserLoginOrRegister(email: string, name: string) {
     await NotificationsService.createNotification({
       isAdmin: true,
       type: 'System',
-      title: 'New Customer Registered',
-      description: `Customer ${user.name} has registered successfully via OAuth.`
+      title: 'New User Registration',
+      description: `New user registered: ${user.name} (${user.email || user.mobile_number || 'N/A'})`
     }).catch(err => console.error('Failed to create notification', err));
   }
 
@@ -245,8 +245,8 @@ authRouter.post('/register', async (req, res, next) => {
       await NotificationsService.createNotification({
         isAdmin: true,
         type: 'System',
-        title: 'New Customer Registered',
-        description: `Customer ${user.name} has registered successfully.`
+        title: 'New User Registration',
+        description: `New user registered: ${user.name} (${user.email || user.mobile_number || 'N/A'})`
       }).catch(err => console.error('Failed to create notification', err));
     }
 
@@ -370,8 +370,8 @@ authRouter.post('/login', async (req, res, next) => {
       await NotificationsService.createNotification({
         isAdmin: true,
         type: 'System',
-        title: 'New Customer Registered',
-        description: `Customer ${user.name} has registered successfully.`
+        title: 'New User Registration',
+        description: `New user registered: ${user.name} (${user.email || user.mobile_number || 'N/A'})`
       }).catch(err => console.error('Failed to create notification', err));
     }
 

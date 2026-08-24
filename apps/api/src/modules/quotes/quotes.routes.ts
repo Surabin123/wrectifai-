@@ -247,18 +247,43 @@ quotesRouter.post('/requests/:id/estimate', authenticate, async (req, res) => {
     
     const { id } = req.params;
     
-    // Check if estimate already exists
-    const existing = await query(`SELECT ai_estimate FROM quote_requests WHERE id = $1`, [id]);
-    if (existing.rows.length === 0) {
+    // 1. Get request details
+    const reqDetails = await query(`SELECT vehicle_id, issue_summary, ai_estimate FROM quote_requests WHERE id = $1`, [id]);
+    if (reqDetails.rows.length === 0) {
       return error(res, 'Quote request not found', 'NOT_FOUND', 404);
     }
     
-    if (existing.rows[0].ai_estimate) {
+    // 2. Check if this exact request already has it
+    if (reqDetails.rows[0].ai_estimate) {
+      return success(res, reqDetails.rows[0].ai_estimate);
+    }
+
+    const { vehicle_id, issue_summary } = reqDetails.rows[0];
+
+    // 3. Check if ANY related request has it
+    const existing = await query(`
+      SELECT ai_estimate 
+      FROM quote_requests 
+      WHERE customer_id = $1 AND vehicle_id = $2 AND issue_summary = $3 AND ai_estimate IS NOT NULL
+      LIMIT 1
+    `, [customerId, vehicle_id, issue_summary]);
+
+    if (existing.rows.length > 0 && existing.rows[0].ai_estimate) {
+      // Sync it to the current request
+      await query(`UPDATE quote_requests SET ai_estimate = $1 WHERE id = $2`, [JSON.stringify(existing.rows[0].ai_estimate), id]);
       return success(res, existing.rows[0].ai_estimate);
     }
     
-    // Generate new estimate
+    // 4. Generate new estimate
     const estimate = await QuoteEstimationService.generateLocalEstimate(id);
+    
+    // 5. Save to ALL related requests to prevent inconsistencies
+    await query(`
+      UPDATE quote_requests 
+      SET ai_estimate = $1 
+      WHERE customer_id = $2 AND vehicle_id = $3 AND issue_summary = $4
+    `, [JSON.stringify(estimate), customerId, vehicle_id, issue_summary]);
+
     return success(res, estimate);
   } catch (err: any) {
     console.error('Estimate generation error:', err);
