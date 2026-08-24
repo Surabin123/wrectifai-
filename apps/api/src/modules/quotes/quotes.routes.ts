@@ -275,8 +275,8 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
     let quoteCurrency = 'USD'; // Default to USD since currency/location columns don't exist on users table yet
 
     const result = await query(
-      `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details, parts_cost, labor_cost, total_cost, eta_note, eta_days)
-       VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, $8, $9, $10)
+      `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details, parts_cost, labor_cost, total_cost, eta_note, eta_days, comparison_label)
+       VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
       [
         req.params.quoteRequestId, 
@@ -300,7 +300,8 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
         Number(labourCost || 0),
         amount,
         estimatedTime,
-        parseInt(estimatedTime) || null
+        parseInt(estimatedTime) || null,
+        'Standard Quote'
       ]
     );
 
