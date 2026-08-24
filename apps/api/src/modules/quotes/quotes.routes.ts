@@ -35,7 +35,10 @@ quotesRouter.get('/', authenticate, async (req, res) => {
     );
 
     const mapped = result.rows.map((row: Record<string, any>) => {
-      const details = row.details || {};
+      let details = row.details || {};
+      if (typeof details === 'string') {
+        try { details = JSON.parse(details); } catch(e) {}
+      }
       const amountNum = Number(row.amount || row.totalCost || 0);
       const laborCostNum = Number(row.laborCost || 0);
       const partsCostNum = Number(row.partsCost || 0);
@@ -604,15 +607,22 @@ quotesRouter.get('/garage/quotes', authenticate, async (req, res) => {
        ORDER BY q.created_at DESC`,
       [garageId]
     );
-    const mapped = result.rows.map(row => ({
-      ...row,
-      customerPhone: row.customerPhone || 'N/A',
-      customerEmail: row.customerEmail || 'N/A',
-      garageName: row.garageName || 'N/A',
-      laborCost: Number(row.laborCost || 0),
-      partsCost: Number(row.partsCost || 0),
-      totalCost: Number(row.totalCost || 0)
-    }));
+    const mapped = result.rows.map(row => {
+      let parsedDetails = row.details || {};
+      if (typeof parsedDetails === 'string') {
+        try { parsedDetails = JSON.parse(parsedDetails); } catch(e) {}
+      }
+      return {
+        ...row,
+        details: parsedDetails,
+        customerPhone: row.customerPhone || 'N/A',
+        customerEmail: row.customerEmail || 'N/A',
+        garageName: row.garageName || 'N/A',
+        laborCost: Number(row.laborCost || 0),
+        partsCost: Number(row.partsCost || 0),
+        totalCost: Number(row.totalCost || 0)
+      };
+    });
     return success(res, mapped);
   } catch (err) {
     return error(res, 'Failed to fetch quotes', 'DATABASE_ERROR', 500);
@@ -643,10 +653,17 @@ quotesRouter.get('/garage/completed-jobs', authenticate, async (req, res) => {
        ORDER BY b.updated_at DESC`,
       [garageId]
     );
-    const mapped = result.rows.map(row => ({
-      ...row,
-      quoteAmount: Number(row.quoteAmount || 0)
-    }));
+    const mapped = result.rows.map(row => {
+      let parsedDetails = row.details || {};
+      if (typeof parsedDetails === 'string') {
+        try { parsedDetails = JSON.parse(parsedDetails); } catch(e) {}
+      }
+      return {
+        ...row,
+        details: parsedDetails,
+        quoteAmount: Number(row.quoteAmount || 0)
+      };
+    });
     return success(res, mapped);
   } catch (err) {
     return error(res, 'Failed to fetch completed jobs', 'DATABASE_ERROR', 500);
@@ -682,7 +699,10 @@ quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
       return error(res, 'Forbidden: You do not have access to this quote', 'FORBIDDEN', 403);
     }
 
-    const details = row.details || {};
+    let details = row.details || {};
+    if (typeof details === 'string') {
+      try { details = JSON.parse(details); } catch(e) {}
+    }
     const amountNum = Number(row.amount || row.totalCost || 0);
     const laborCostNum = Number(row.laborCost || 0);
     const partsCostNum = Number(row.partsCost || 0);
