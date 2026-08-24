@@ -2519,7 +2519,13 @@ export function AIDiagnosePage() {
             setCustomResultIssues(mapped);
             setSelectedIssues(mapped.map((m: any) => m.id));
             if (typeof window !== 'undefined') {
-              localStorage.setItem('wrectifai_custom_issues', JSON.stringify(mapped));
+              try {
+                // Strip large base64 image strings before saving to avoid QuotaExceededError
+                const storageMapped = mapped.map((m: any) => ({ ...m, imageSrc: undefined }));
+                localStorage.setItem('wrectifai_custom_issues', JSON.stringify(storageMapped));
+              } catch (e) {
+                console.error('Failed to save to localStorage:', e);
+              }
             }
           }
         } catch (err) {
@@ -3066,7 +3072,13 @@ export function AIDiagnosePage() {
                   setCustomResultIssues(issues);
                   setSelectedIssues(issues.map((m: any) => m.id));
                   if (typeof window !== 'undefined') {
-                    localStorage.setItem('wrectifai_custom_issues', JSON.stringify(issues));
+                    try {
+                      // Strip large base64 image strings before saving to avoid QuotaExceededError
+                      const storageMapped = issues.map((m: any) => ({ ...m, imageSrc: undefined }));
+                      localStorage.setItem('wrectifai_custom_issues', JSON.stringify(storageMapped));
+                    } catch (e) {
+                      console.error('Failed to save to localStorage:', e);
+                    }
                   }
                 }
               } catch (err) {
