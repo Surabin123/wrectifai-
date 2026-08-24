@@ -83,6 +83,7 @@ export interface SubmitQuotePayload {
   availability?: string;
   pickupDrop?: string;
   warranty?: string;
+  validityDays?: number;
 }
 
 export async function submitGarageQuote(quoteRequestId: string, payload: SubmitQuotePayload): Promise<{ success: boolean; quoteId: string }> {

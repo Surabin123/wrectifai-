@@ -323,14 +323,16 @@ function GarageQuoteCard({
       <div className="flex items-stretch gap-0 px-4 pb-4 pt-2">
 
         {/* LEFT — Compare Checkbox */}
-        <div className="flex items-center justify-center pr-4">
-          <input
-            type="checkbox"
-            checked={isSelected}
-            onChange={onToggleCompare}
-            className="w-5 h-5 cursor-pointer rounded border-[#c7d6ff] text-[#2451f6] focus:ring-[#2451f6]"
-          />
-        </div>
+        {isComparing && (
+          <div className="flex items-center justify-center pr-4">
+            <input
+              type="checkbox"
+              checked={isSelected}
+              onChange={onToggleCompare}
+              className="w-5 h-5 cursor-pointer rounded border-[#c7d6ff] text-[#2451f6] focus:ring-[#2451f6]"
+            />
+          </div>
+        )}
 
         {/* LEFT — Garage image */}
         <div className="relative h-[82px] w-[106px] shrink-0 self-start overflow-hidden rounded-[12px] bg-slate-100 mr-4">
@@ -696,6 +698,10 @@ export function QuotesPage() {
   };
 
   const handleCompareNow = () => {
+    if (!isComparing) {
+      setIsComparing(true);
+      return;
+    }
     if (selectedQuotes.length < 2) {
       alert('Please select at least 2 quotes to compare.');
       return;
@@ -733,28 +739,40 @@ export function QuotesPage() {
           <div className="flex items-center gap-3 ml-auto">
             {/* Compare Quotes */}
             <div className="group relative">
+              {isComparing && (
+                <button
+                  onClick={() => setIsComparing(false)}
+                  className="mr-2 inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold text-slate-500 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                >
+                  Cancel
+                </button>
+              )}
               <button
                 onClick={handleCompareNow}
                 className={cn(
                   "inline-flex items-center gap-2 rounded-full px-4 py-2 text-[13px] font-bold transition-colors border",
-                  selectedQuotes.length > 0 
+                  (isComparing && selectedQuotes.length > 0)
                     ? "bg-[#2451f6] text-white border-[#2451f6] shadow-md hover:bg-[#1a3ecc]" 
                     : "bg-white text-[#2451f6] border-[#dde6ff] hover:bg-[#f5f8ff]"
                 )}
               >
                 <Scale className="h-4 w-4" />
-                {selectedQuotes.length > 0 ? 'Compare Now' : 'Compare Quotes'}
-                <span className={cn(
-                  "flex items-center justify-center rounded-full w-5 h-5 text-[11px]",
-                  selectedQuotes.length > 0 ? "bg-white text-[#2451f6]" : "bg-[#2451f6] text-white"
-                )}>
-                  {selectedQuotes.length}
-                </span>
-                <ChevronDown className="h-4 w-4 ml-1 opacity-70" />
+                {isComparing ? 'Compare Now' : 'Compare Quotes'}
+                {isComparing && (
+                  <span className={cn(
+                    "flex items-center justify-center rounded-full w-5 h-5 text-[11px]",
+                    selectedQuotes.length > 0 ? "bg-white text-[#2451f6]" : "bg-[#2451f6] text-white"
+                  )}>
+                    {selectedQuotes.length}
+                  </span>
+                )}
+                {isComparing && <ChevronDown className="h-4 w-4 ml-1 opacity-70" />}
               </button>
-              <div className="absolute top-[calc(100%+8px)] right-0 z-50 hidden group-hover:block w-48 rounded bg-[#17307a] p-2 text-center text-xs text-white shadow-xl">
-                Select at least 2 quotes to compare.
-              </div>
+              {isComparing && (
+                <div className="absolute top-[calc(100%+8px)] right-0 z-50 hidden group-hover:block w-48 rounded bg-[#17307a] p-2 text-center text-xs text-white shadow-xl">
+                  Select at least 2 quotes to compare.
+                </div>
+              )}
             </div>
 
             {/* Sort */}

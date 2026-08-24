@@ -21,6 +21,7 @@ export default function QuotesPage() {
   const [partsCost, setPartsCost] = useState('');
   const [consumablesCost, setConsumablesCost] = useState('');
   const [gstCost, setGstCost] = useState('');
+  const [validityDays, setValidityDays] = useState('1');
   const [availability, setAvailability] = useState('');
   const [warranty, setWarranty] = useState('No Warranty');
   const [pickupDrop, setPickupDrop] = useState('Available');
@@ -77,6 +78,7 @@ export default function QuotesPage() {
         consumablesCost: Number(consumablesCost || 0),
         gstCost: Number(gstCost || 0),
         estimatedTime,
+        validityDays: Number(validityDays || 1),
         remarks,
         availability,
         warranty,
@@ -89,6 +91,7 @@ export default function QuotesPage() {
       setPartsCost('');
       setConsumablesCost('');
       setGstCost('');
+      setValidityDays('1');
       setAvailability('');
       setWarranty('No Warranty');
       setPickupDrop('Available');

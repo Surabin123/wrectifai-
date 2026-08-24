@@ -216,8 +216,8 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
         return sqTotal > max ? sqTotal : max;
       }, 0);
       
-      const savings = Math.max(0, highestTotal - total);
-      const savingsPercent = highestTotal > 0 ? Math.round((savings / highestTotal) * 100) : 0;
+      const savings = aiEstimate?.maxPrice && aiEstimate.maxPrice > total ? (aiEstimate.maxPrice - total) : 0;
+      const savingsPercent = aiEstimate?.maxPrice && aiEstimate.maxPrice > 0 ? Math.round((savings / aiEstimate.maxPrice) * 100) : 0;
 
       quoteValuesParts[q.id] = fmt(parts);
       quoteValuesLabour[q.id] = fmt(labour);
@@ -318,8 +318,6 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       let expYears = 0;
       if ((q as any).garageEstablishedYear) {
          expYears = new Date().getFullYear() - Number((q as any).garageEstablishedYear);
-      } else if (q.garageCreatedAt) {
-         expYears = new Date().getFullYear() - new Date(q.garageCreatedAt).getFullYear();
       }
       
       experienceMap[q.id] = { 

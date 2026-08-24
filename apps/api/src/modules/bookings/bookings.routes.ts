@@ -108,8 +108,12 @@ async function createBookingInternal(req: any, res: any, data: {
   // If quoteId is provided, lookup the garageId from the quote if not provided
   if (quoteId) {
     try {
-      const quoteResult = await query('SELECT garage_id FROM quotes WHERE id = $1', [quoteId]);
+      const quoteResult = await query('SELECT garage_id, expires_at FROM quotes WHERE id = $1', [quoteId]);
       if (quoteResult.rows.length > 0) {
+        const expiresAt = quoteResult.rows[0].expires_at;
+        if (expiresAt && new Date(expiresAt) < new Date()) {
+          return error(res, 'This quote has expired and can no longer be booked.', 'BAD_REQUEST', 400);
+        }
         if (!garageId) {
           garageId = quoteResult.rows[0].garage_id;
         }
@@ -329,7 +333,7 @@ bookingsRouter.post('/from-quote/:quoteId', authenticate, async (req, res) => {
     
     // Auto-fetch missing data from quote and quote_request
     const quoteResult = await query(
-      `SELECT q.garage_id, q.total_cost, qr.vehicle_id, q.currency
+      `SELECT q.garage_id, q.total_cost, qr.vehicle_id, q.currency, q.expires_at
        FROM quotes q 
        JOIN quote_requests qr ON q.quote_request_id = qr.id
        WHERE q.id = $1`, 
@@ -341,6 +345,10 @@ bookingsRouter.post('/from-quote/:quoteId', authenticate, async (req, res) => {
     }
     
     const quoteData = quoteResult.rows[0];
+    
+    if (quoteData.expires_at && new Date(quoteData.expires_at) < new Date()) {
+      return error(res, 'This quote has expired and can no longer be booked.', 'BAD_REQUEST', 400);
+    }
     
     // Mark quote and quote_request as selected
     await query(`UPDATE quotes SET status = 'selected' WHERE id = $1`, [quoteId]);
