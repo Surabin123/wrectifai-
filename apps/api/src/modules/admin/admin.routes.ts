@@ -227,8 +227,28 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
           }
         }
       } catch (err) {
-        console.error('Geocoding error:', err);
+        console.warn('[WrectifAI Geocoding] Nominatim failed or timed out:', err);
       }
+      
+      // Smart Fallback for popular testing cities if GPS completely fails
+      console.warn('[WrectifAI Geocoding] Using smart fallback for city:', city);
+      const fallbackCities: Record<string, {lat: number, lng: number}> = {
+        'chennai': { lat: 13.0827, lng: 80.2707 },
+        'bengaluru': { lat: 12.9716, lng: 77.5946 },
+        'bangalore': { lat: 12.9716, lng: 77.5946 },
+        'mumbai': { lat: 19.0760, lng: 72.8777 },
+        'delhi': { lat: 28.7041, lng: 77.1025 },
+        'hyderabad': { lat: 17.3850, lng: 78.4867 },
+        'pune': { lat: 18.5204, lng: 73.8567 },
+        'dubai': { lat: 25.2048, lng: 55.2708 },
+        'new york': { lat: 40.7128, lng: -74.0060 }
+      };
+      
+      const cityKey = (city || '').toLowerCase().trim();
+      if (fallbackCities[cityKey]) {
+        return fallbackCities[cityKey];
+      }
+
       return { lat: null, lng: null };
     };
 

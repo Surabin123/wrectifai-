@@ -275,8 +275,8 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
     let quoteCurrency = 'USD'; // Default to USD since currency/location columns don't exist on users table yet
 
     const result = await query(
-      `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details)
-       VALUES ($1, $2, $3, $4, 'active', $5)
+      `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details, parts_cost, labor_cost, total_cost, eta_note, eta_days)
+       VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, $8, $9, $10)
        RETURNING id`,
       [
         req.params.quoteRequestId, 
@@ -295,7 +295,12 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
           availability: availability,
           pickupDrop: pickupDrop,
           warranty: warranty
-        })
+        }),
+        Number(partsCost || 0),
+        Number(labourCost || 0),
+        amount,
+        estimatedTime,
+        parseInt(estimatedTime) || null
       ]
     );
 
@@ -317,9 +322,9 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
     }
 
     return success(res, { success: true, quoteId: result.rows[0].id }, 201);
-  } catch (err) {
+  } catch (err: any) {
     console.error('Error creating quote:', err);
-    return error(res, 'Database error', 'DATABASE_ERROR', 500);
+    return error(res, err.message || 'Database error', 'DATABASE_ERROR', 500);
   }
 });
 
@@ -501,90 +506,6 @@ quotesRouter.get('/requests/:requestId', authenticate, async (req, res) => {
   }
 });
 
-quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
-  try {
-    const result = await query(
-      `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details, q.garage_id as "quoteGarageId",
-              q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
-              g.name as "garageName", g.owner_user_id as "garageOwnerId", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported", g.created_at as "garageCreatedAt",
-              qr.customer_id as "requestCustomerId", qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary",
-              v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage"
-       FROM quotes q
-       JOIN garages g ON q.garage_id = g.id
-       JOIN quote_requests qr ON q.quote_request_id = qr.id
-       LEFT JOIN vehicles v ON qr.vehicle_id = v.id
-       WHERE q.id = $1`,
-      [req.params.quoteId]
-    );
-
-    if (result.rows.length === 0) {
-      return error(res, 'Quote not found', 'NOT_FOUND', 404);
-    }
-
-    const row = result.rows[0];
-    
-    // Data isolation check for quote
-    const userId = req.user?.userId;
-    const userRoles = req.user?.roles || [];
-    if (!userRoles.includes('admin') && row.requestCustomerId !== userId && row.garageOwnerId !== userId) {
-      return error(res, 'Forbidden: You do not have access to this quote', 'FORBIDDEN', 403);
-    }
-
-    const details = row.details || {};
-    const amountNum = Number(row.amount || row.totalCost || 0);
-    const laborCostNum = Number(row.laborCost || 0);
-    const partsCostNum = Number(row.partsCost || 0);
-
-    const mapped = {
-      id: row.id,
-      quoteRequestId: row.quoteRequestId,
-      status: row.status || 'open',
-      garage: row.garageName,
-      garageCreatedAt: row.garageCreatedAt,
-      image: '/assets/garage_1_1778071156220.png',
-      rating: String(Number(row.ratingAvg || 0).toFixed(1)),
-      reviews: Number(row.ratingCount || 0),
-      distance: '3.0 km away',
-      meta: row.pickupDropSupported ? 'Pickup & drop • Certified technicians' : 'Certified technicians',
-      metaSecondary: details.warranty || '6 Months warranty',
-      price: `${amountNum}`,
-      currency: row.currency || 'INR',
-      savings: undefined,
-      time: row.etaNote || (row.etaDays ? `${row.etaDays} days` : 'TBD'),
-      tag: undefined,
-      requestCreatedAt: row.requestCreatedAt,
-      requestIssueSummary: row.requestIssueSummary,
-      vehicle: row.vehicleMake ? {
-        make: row.vehicleMake,
-        model: row.vehicleModel,
-        year: row.vehicleYear,
-        vin: row.vehicleVin,
-        mileage: row.vehicleMileage
-      } : null,
-      details: {
-        parts: partsCostNum,
-        labour: laborCostNum,
-        consumables: Number(details.consumablesCost || 0),
-        gst: Number(details.gstCost || 0),
-        other: Number(details.otherCost || details.otherCharges || 0),
-        total: amountNum,
-        remarks: details.remarks,
-        pickupDrop: details.pickupDrop || (row.pickupDropSupported ? 'Available' : 'Not Available'),
-        availability: details.availability,
-        warranty: details.warranty,
-      }
-    };
-
-    return success(res, mapped);
-  } catch (err) {
-    return error(
-      res,
-      err instanceof Error ? err.message : 'Database query failed',
-      'DATABASE_ERROR',
-      500
-    );
-  }
-});
 
 quotesRouter.get('/garage/active-jobs', authenticate, async (req, res) => {
   try {
@@ -692,3 +613,89 @@ quotesRouter.get('/garage/completed-jobs', authenticate, async (req, res) => {
     return error(res, 'Failed to fetch completed jobs', 'DATABASE_ERROR', 500);
   }
 });
+
+quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details, q.garage_id as "quoteGarageId",
+              q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
+              g.name as "garageName", g.owner_user_id as "garageOwnerId", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported", g.created_at as "garageCreatedAt",
+              qr.customer_id as "requestCustomerId", qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary",
+              v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage"
+       FROM quotes q
+       JOIN garages g ON q.garage_id = g.id
+       JOIN quote_requests qr ON q.quote_request_id = qr.id
+       LEFT JOIN vehicles v ON qr.vehicle_id = v.id
+       WHERE q.id = $1`,
+      [req.params.quoteId]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Quote not found', 'NOT_FOUND', 404);
+    }
+
+    const row = result.rows[0];
+    
+    // Data isolation check for quote
+    const userId = req.user?.userId;
+    const userRoles = req.user?.roles || [];
+    if (!userRoles.includes('admin') && row.requestCustomerId !== userId && row.garageOwnerId !== userId) {
+      return error(res, 'Forbidden: You do not have access to this quote', 'FORBIDDEN', 403);
+    }
+
+    const details = row.details || {};
+    const amountNum = Number(row.amount || row.totalCost || 0);
+    const laborCostNum = Number(row.laborCost || 0);
+    const partsCostNum = Number(row.partsCost || 0);
+
+    const mapped = {
+      id: row.id,
+      quoteRequestId: row.quoteRequestId,
+      status: row.status || 'open',
+      garage: row.garageName,
+      garageCreatedAt: row.garageCreatedAt,
+      image: '/assets/garage_1_1778071156220.png',
+      rating: String(Number(row.ratingAvg || 0).toFixed(1)),
+      reviews: Number(row.ratingCount || 0),
+      distance: '3.0 km away',
+      meta: row.pickupDropSupported ? 'Pickup & drop • Certified technicians' : 'Certified technicians',
+      metaSecondary: details.warranty || '6 Months warranty',
+      price: `${amountNum}`,
+      currency: row.currency || 'INR',
+      savings: undefined,
+      time: row.etaNote || (row.etaDays ? `${row.etaDays} days` : 'TBD'),
+      tag: undefined,
+      requestCreatedAt: row.requestCreatedAt,
+      requestIssueSummary: row.requestIssueSummary,
+      vehicle: row.vehicleMake ? {
+        make: row.vehicleMake,
+        model: row.vehicleModel,
+        year: row.vehicleYear,
+        vin: row.vehicleVin,
+        mileage: row.vehicleMileage
+      } : null,
+      details: {
+        parts: partsCostNum,
+        labour: laborCostNum,
+        consumables: Number(details.consumablesCost || 0),
+        gst: Number(details.gstCost || 0),
+        other: Number(details.otherCost || details.otherCharges || 0),
+        total: amountNum,
+        remarks: details.remarks,
+        pickupDrop: details.pickupDrop || (row.pickupDropSupported ? 'Available' : 'Not Available'),
+        availability: details.availability,
+        warranty: details.warranty,
+      }
+    };
+
+    return success(res, mapped);
+  } catch (err) {
+    return error(
+      res,
+      err instanceof Error ? err.message : 'Database query failed',
+      'DATABASE_ERROR',
+      500
+    );
+  }
+});
+
