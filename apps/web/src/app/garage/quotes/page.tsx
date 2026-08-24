@@ -19,6 +19,11 @@ export default function QuotesPage() {
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [labourCost, setLabourCost] = useState('');
   const [partsCost, setPartsCost] = useState('');
+  const [consumablesCost, setConsumablesCost] = useState('');
+  const [gstCost, setGstCost] = useState('');
+  const [availability, setAvailability] = useState('');
+  const [warranty, setWarranty] = useState('No Warranty');
+  const [pickupDrop, setPickupDrop] = useState('Available');
   const [estimatedTime, setEstimatedTime] = useState('');
   const [remarks, setRemarks] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -67,16 +72,26 @@ export default function QuotesPage() {
     setErrorMsg('');
     try {
       await submitGarageQuote(selectedRequest.id, {
-        labourCost: Number(labourCost),
-        partsCost: Number(partsCost),
+        labourCost: Number(labourCost || 0),
+        partsCost: Number(partsCost || 0),
+        consumablesCost: Number(consumablesCost || 0),
+        gstCost: Number(gstCost || 0),
         estimatedTime,
-        remarks
+        remarks,
+        availability,
+        warranty,
+        pickupDrop
       });
       setShowQuoteForm(false);
       setSelectedRequest(null);
       // Reset form
       setLabourCost('');
       setPartsCost('');
+      setConsumablesCost('');
+      setGstCost('');
+      setAvailability('');
+      setWarranty('No Warranty');
+      setPickupDrop('Available');
       setEstimatedTime('');
       setRemarks('');
       localStorage.setItem('wrectifai_sync_quotes', Date.now().toString());
@@ -223,47 +238,114 @@ export default function QuotesPage() {
                     </div>
                   )}
                   
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Labour Cost</label>
-                    <input
-                      type="number"
-                      required
-                      value={labourCost}
-                      onChange={(e) => setLabourCost(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Labour Cost</label>
+                      <input
+                        type="number"
+                        required
+                        value={labourCost}
+                        onChange={(e) => setLabourCost(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Parts Cost</label>
+                      <input
+                        type="number"
+                        required
+                        value={partsCost}
+                        onChange={(e) => setPartsCost(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Parts Cost</label>
-                    <input
-                      type="number"
-                      required
-                      value={partsCost}
-                      onChange={(e) => setPartsCost(e.target.value)}
-                      placeholder="0.00"
-                      className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
-                    />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Consumables Cost</label>
+                      <input
+                        type="number"
+                        value={consumablesCost}
+                        onChange={(e) => setConsumablesCost(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">GST / Taxes</label>
+                      <input
+                        type="number"
+                        value={gstCost}
+                        onChange={(e) => setGstCost(e.target.value)}
+                        placeholder="0.00"
+                        className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
+                      />
+                    </div>
                   </div>
+
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Total (Auto)</label>
                     <input
                       type="number"
                       disabled
-                      value={Number(labourCost || 0) + Number(partsCost || 0)}
+                      value={Number(labourCost || 0) + Number(partsCost || 0) + Number(consumablesCost || 0) + Number(gstCost || 0)}
                       className="w-full px-3 py-2 border border-slate-200 rounded bg-slate-100 text-slate-700 font-bold"
                     />
                   </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 mb-1">Estimated Days</label>
-                    <input
-                      type="number"
-                      required
-                      value={estimatedTime}
-                      onChange={(e) => setEstimatedTime(e.target.value)}
-                      placeholder="e.g. 2"
-                      className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
-                    />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Availability</label>
+                      <input
+                        type="text"
+                        value={availability}
+                        onChange={(e) => setAvailability(e.target.value)}
+                        placeholder="e.g. Today, 6:00 PM"
+                        className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Pickup & Drop</label>
+                      <select
+                        value={pickupDrop}
+                        onChange={(e) => setPickupDrop(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
+                      >
+                        <option value="Available">Available</option>
+                        <option value="Not Available">Not Available</option>
+                      </select>
+                    </div>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Warranty</label>
+                      <select
+                        value={warranty}
+                        onChange={(e) => setWarranty(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
+                      >
+                        <option value="No Warranty">No Warranty</option>
+                        <option value="1 Month">1 Month</option>
+                        <option value="3 Months">3 Months</option>
+                        <option value="6 Months">6 Months</option>
+                        <option value="1 Year">1 Year</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Estimated Days</label>
+                      <input
+                        type="number"
+                        required
+                        value={estimatedTime}
+                        onChange={(e) => setEstimatedTime(e.target.value)}
+                        placeholder="e.g. 2"
+                        className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block font-bold text-slate-700 mb-1">Notes</label>

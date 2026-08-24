@@ -83,14 +83,24 @@ function tagColor(status?: string): { bg: string; text: string; label: string } 
    AI Estimate Banner
 ────────────────────────────────────── */
 
-function AiEstimateBanner({ quotes }: { quotes: QuoteItem[] }) {
-  const currency = quotes[0]?.currency;
-  const prices = quotes.map(safePrice).filter(Boolean);
-  if (prices.length === 0) return null;
-  const lo = Math.min(...prices);
-  const hi = Math.max(...prices);
-  const fmtLo = formatCurrency(lo);
-  const fmtHi = formatCurrency(hi);
+function AiEstimateBanner({ requestedIssues }: { requestedIssues: any[] }) {
+  const getAiRange = () => {
+    if (!requestedIssues || requestedIssues.length === 0) return '—';
+    const allNumbers: number[] = [];
+    requestedIssues.forEach((issue: any) => {
+       if (issue.estimatedCost) {
+          const matches = issue.estimatedCost.match(/\d+(?:,\d+)*(?:\.\d+)?/g);
+          if (matches) matches.forEach((m: string) => allNumbers.push(parseFloat(m.replace(/,/g, ''))));
+       }
+    });
+    if (allNumbers.length === 0) return '—';
+    const min = Math.min(...allNumbers);
+    const max = Math.max(...allNumbers);
+    return min === max ? formatCurrency(min) : `${formatCurrency(min)} \u2013 ${formatCurrency(max)}`;
+  };
+  
+  const estimatedCostRange = getAiRange();
+  if (estimatedCostRange === '—') return null;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-4 rounded-[18px] border border-[#d9e5ff] bg-[#f4f8ff] px-5 py-4">
@@ -108,7 +118,7 @@ function AiEstimateBanner({ quotes }: { quotes: QuoteItem[] }) {
       <div className="text-right">
         <div className="text-[11px] font-semibold uppercase tracking-wide text-[#5f7099]">Estimated Price Range</div>
         <div className="mt-0.5 text-[22px] font-bold text-[#2451f6]">
-          {fmtLo} – {fmtHi}
+          {estimatedCostRange}
         </div>
       </div>
     </div>
@@ -744,7 +754,7 @@ export function QuotesPage() {
           {/* Left: quotes */}
           <div className="space-y-4">
             {/* AI estimate banner */}
-            {!loading && quotes.length > 0 && <AiEstimateBanner quotes={quotes} />}
+            {!loading && requestedIssues?.length > 0 && <AiEstimateBanner requestedIssues={requestedIssues} />}
 
             {/* Cards */}
             {loading ? (

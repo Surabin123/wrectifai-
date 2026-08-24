@@ -222,6 +222,23 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       return lo === hi ? fmt(lo) : `${fmt(lo)} \u2013 ${fmt(hi)}`;
     };
 
+    const getAiRange = () => {
+      if (!requestedIssues || requestedIssues.length === 0) return '—';
+      const allNumbers: number[] = [];
+      requestedIssues.forEach((issue: any) => {
+         if (issue.estimatedCost) {
+            const matches = issue.estimatedCost.match(/\d+(?:,\d+)*(?:\.\d+)?/g);
+            if (matches) matches.forEach((m: string) => allNumbers.push(parseFloat(m.replace(/,/g, ''))));
+         }
+      });
+      if (allNumbers.length === 0) return '—';
+      const min = Math.min(...allNumbers);
+      const max = Math.max(...allNumbers);
+      return min === max ? fmt(min) : `${fmt(min)} \u2013 ${fmt(max)}`;
+    };
+
+    const aiTotalEstimate = getAiRange();
+
     return [
       {
         label: 'Parts',
@@ -245,7 +262,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       },
       {
         label: 'Total Estimate',
-        aiValue: getRange(totalArr),
+        aiValue: aiTotalEstimate,
         quoteValues: quoteValuesTotal,
         emphasize: true,
       },
@@ -268,23 +285,28 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     quotes.forEach((q) => {
       const details = q.details as any;
       availabilityMap[q.id] = { 
-        value: details?.availability || 'Today, 6:00 PM', 
+        value: details?.availability || 'Not provided', 
         state: 'positive' as const 
       };
       
-      const hasPickup = details?.pickupDrop === 'Available' || details?.pickupDrop === true;
-      pickupDropMap[q.id] = { 
-        value: hasPickup ? 'Available' : 'Not Available', 
-        state: hasPickup ? 'positive' : 'negative' as const 
-      };
+      let pdState: DetailCellState = 'neutral';
+      let pdValue = 'Not provided';
+      if (details?.pickupDrop === 'Available' || details?.pickupDrop === true) {
+         pdValue = 'Available';
+         pdState = 'positive';
+      } else if (details?.pickupDrop === 'Not Available' || details?.pickupDrop === false) {
+         pdValue = 'Not Available';
+         pdState = 'negative';
+      }
+      pickupDropMap[q.id] = { value: pdValue, state: pdState };
       
       warrantyMap[q.id] = { 
-        value: details?.warranty || '6 Months warranty', 
+        value: details?.warranty || 'Not provided', 
         state: 'neutral' as const 
       };
       
       ratingMap[q.id] = { 
-        value: `${q.rating} (${q.reviews})`, 
+        value: `${q.rating || '0.0'} (${q.reviews || 0})`, 
         state: 'rating' as const 
       };
       
@@ -296,7 +318,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       }
       
       experienceMap[q.id] = { 
-        value: `${expYears > 0 ? expYears : 1}+ Years`, 
+        value: expYears > 0 ? `${expYears}+ Years` : 'Not provided', 
         state: 'neutral' as const 
       };
     });
