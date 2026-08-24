@@ -272,7 +272,17 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
 
     const currencyRequestRes = await query('SELECT customer_id FROM quote_requests WHERE id = $1', [req.params.quoteRequestId]);
     const quoteCustomerId = currencyRequestRes.rows[0]?.customer_id;
-    let quoteCurrency = 'USD'; // Default to USD since currency/location columns don't exist on users table yet
+    let quoteCurrency = 'INR';
+    if (quoteCustomerId) {
+      const userRes = await query('SELECT currency, location FROM users WHERE id = $1', [quoteCustomerId]);
+      if (userRes.rows[0]?.currency) {
+        quoteCurrency = userRes.rows[0].currency;
+      } else if (userRes.rows[0]?.location && typeof userRes.rows[0].location === 'string') {
+        const loc = userRes.rows[0].location.toLowerCase();
+        if (loc.includes('us') || loc.includes('united states')) quoteCurrency = 'USD';
+        else if (loc.includes('uae') || loc.includes('dubai') || loc.includes('emirates')) quoteCurrency = 'AED';
+      }
+    }
 
     const result = await query(
       `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details, parts_cost, labor_cost, total_cost, eta_note, eta_days, comparison_label)
