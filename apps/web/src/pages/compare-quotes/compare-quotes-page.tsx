@@ -644,9 +644,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
                           <span
                             className={cn(
                               'flex h-[32px] w-[32px] items-center justify-center rounded-full border bg-white',
-                              tone === 'purple'
-                                ? 'border-[#eedaff] text-[#d145ff]'
-                                : 'border-[#dbe5ff] text-[#1a56db]'
+                              'border-[#dbe5ff] text-[#1a56db]'
                             )}
                           >
                             <Icon className="h-4 w-4" />
@@ -654,9 +652,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
                           <span
                             className={cn(
                               'text-[10px] font-medium leading-4',
-                              tone === 'purple'
-                                ? 'text-[#8f53d8]'
-                                : 'text-[#1a56db]'
+                              'text-[#1a56db]'
                             )}
                           >
                             {label}
