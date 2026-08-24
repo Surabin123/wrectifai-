@@ -822,7 +822,7 @@ export default function RegisterGaragePage() {
               }}
               className="w-full border border-blue-200 rounded-lg py-2 text-blue-600 text-xs font-bold flex items-center justify-center gap-2 hover:bg-blue-50"
             >
-              <HeadphonesIcon className="w-4 h-4"/> Contact Support
+              <HeadphonesIcon className="w-4 h-4"/> +91 98765 43210
             </button>
           </Card>
         </div>

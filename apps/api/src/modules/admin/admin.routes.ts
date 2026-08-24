@@ -196,7 +196,6 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       return saveBase64File(fileObj, folder);
     };
 
-    // Helper to geocode address
     const geocodeAddress = async (address: string, area: string, city: string, country: string) => {
       try {
         const queryParts = [address, area, city, country].filter(Boolean);
@@ -210,6 +209,21 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
           const data = await res.json();
           if (data && data.length > 0) {
             return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+          }
+        }
+        
+        // Fallback: Try just city and country if full address fails
+        const fallbackQuery = encodeURIComponent([city, country].filter(Boolean).join(', '));
+        if (fallbackQuery) {
+          const fbRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${fallbackQuery}&limit=1`, {
+            headers: { 'User-Agent': 'WrectifAI-App/1.0 (admin@wrectifai.com)' },
+            signal: AbortSignal.timeout(5000)
+          });
+          if (fbRes.ok) {
+            const fbData = await fbRes.json();
+            if (fbData && fbData.length > 0) {
+              return { lat: parseFloat(fbData[0].lat), lng: parseFloat(fbData[0].lon) };
+            }
           }
         }
       } catch (err) {
