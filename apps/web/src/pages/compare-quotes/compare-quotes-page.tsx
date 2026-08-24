@@ -217,8 +217,11 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
         return sqTotal > max ? sqTotal : max;
       }, 0);
       
-      const savings = aiEstimate?.maxPrice && aiEstimate.maxPrice > total ? (aiEstimate.maxPrice - total) : 0;
-      const savingsPercent = aiEstimate?.maxPrice && aiEstimate.maxPrice > 0 ? Math.round((savings / aiEstimate.maxPrice) * 100) : 0;
+      const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
+      const aiMaxLocal = aiEstimate ? convertCurrency(aiEstimate.maxPrice, aiEstimate.currency, targetCurrency) : 0;
+      
+      const savings = aiMaxLocal && aiMaxLocal > total ? (aiMaxLocal - total) : 0;
+      const savingsPercent = aiMaxLocal && aiMaxLocal > 0 ? Math.round((savings / aiMaxLocal) * 100) : 0;
 
       quoteValuesParts[q.id] = fmt(parts);
       quoteValuesLabour[q.id] = fmt(labour);
@@ -235,10 +238,20 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       return lo === hi ? fmt(lo) : `${fmt(lo)} \u2013 ${fmt(hi)}`;
     };
 
+    const fmtAi = (val: number | undefined) => {
+      if (val === undefined || !aiEstimate) return '—';
+      const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
+      const localVal = convertCurrency(val, aiEstimate.currency, targetCurrency);
+      return formatCurrency(localVal, targetCurrency);
+    };
+
     const getAiRange = () => {
       if (aiEstimate) {
-        if (aiEstimate.minPrice === aiEstimate.maxPrice) return formatCurrency(aiEstimate.maxPrice, aiEstimate.currency);
-        return `${formatCurrency(aiEstimate.minPrice, aiEstimate.currency)} \u2013 ${formatCurrency(aiEstimate.maxPrice, aiEstimate.currency)}`;
+        const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
+        const minLocal = convertCurrency(aiEstimate.minPrice, aiEstimate.currency, targetCurrency);
+        const maxLocal = convertCurrency(aiEstimate.maxPrice, aiEstimate.currency, targetCurrency);
+        if (minLocal === maxLocal) return formatCurrency(maxLocal, targetCurrency);
+        return `${formatCurrency(minLocal, targetCurrency)} \u2013 ${formatCurrency(maxLocal, targetCurrency)}`;
       }
       return '—';
     };
@@ -248,22 +261,22 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     return [
       {
         label: 'Parts',
-        aiValue: getRange(partsArr),
+        aiValue: fmtAi(aiEstimate?.breakup?.parts),
         quoteValues: quoteValuesParts,
       },
       {
         label: 'Labour',
-        aiValue: getRange(labourArr),
+        aiValue: fmtAi(aiEstimate?.breakup?.labour),
         quoteValues: quoteValuesLabour,
       },
       {
         label: 'Consumables',
-        aiValue: getRange(consumablesArr),
+        aiValue: fmtAi(aiEstimate?.breakup?.consumables),
         quoteValues: quoteValuesConsumables,
       },
       {
         label: 'GST',
-        aiValue: getRange(gstArr),
+        aiValue: fmtAi(aiEstimate?.breakup?.gst),
         quoteValues: quoteValuesGst,
       },
       {
@@ -279,7 +292,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
         savings: true,
       },
     ];
-  }, [quotes]);
+  }, [quotes, aiEstimate]);
 
   const detailRows = useMemo(() => {
     const availabilityMap: Record<string, { value: string; state: DetailCellState }> = {};
@@ -322,7 +335,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       }
       
       experienceMap[q.id] = { 
-        value: expYears > 0 ? `${expYears}+ Years` : 'Not provided', 
+        value: expYears > 0 ? `${expYears} years` : 'Not provided', 
         state: 'neutral' as const 
       };
     });
