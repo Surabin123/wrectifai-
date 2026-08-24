@@ -112,8 +112,8 @@ export default function AllGaragesPage() {
   };
 
   const totalGarages = garages.length;
-  const activeGarages = garages.filter(g => g.approvalStatus === 'active').length;
-  const inactiveGarages = garages.filter(g => g.approvalStatus !== 'active').length;
+  const activeGarages = garages.filter(g => g.approvalStatus === 'active' || g.approvalStatus === 'approved').length;
+  const inactiveGarages = garages.filter(g => g.approvalStatus !== 'active' && g.approvalStatus !== 'approved').length;
 
   const formatTime = (isoString: string) => {
     if (!isoString) return 'N/A';
@@ -192,8 +192,8 @@ export default function AllGaragesPage() {
                     </td>
                     <td className="p-4 text-xs text-slate-600">{g.city || 'N/A'}</td>
                     <td className="p-4">
-                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${g.approvalStatus === 'active' ? 'bg-green-50 text-green-600 border-green-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
-                        {g.approvalStatus || 'PENDING'}
+                    <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border uppercase ${(g.approvalStatus === 'active' || g.approvalStatus === 'approved') ? 'bg-green-50 text-green-600 border-green-100' : 'bg-orange-50 text-orange-600 border-orange-100'}`}>
+                        {g.approvalStatus === 'approved' ? 'ACTIVE' : (g.approvalStatus || 'PENDING')}
                     </span>
                     </td>
                     <td className="p-4 text-xs text-slate-600">{formatTime(g.createdAt)}</td>

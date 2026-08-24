@@ -256,7 +256,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       `INSERT INTO garages (
         name, address, city, owner_user_id, approval_status, is_approved,
         specializations, image, location, response_mins, description, business_hours
-      ) VALUES ($1, $2, $3, $4, 'approved', true, $5, $6, $7, $8, $9, $10) RETURNING id`,
+      ) VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, $10) RETURNING id`,
       [
         name,
         address,
