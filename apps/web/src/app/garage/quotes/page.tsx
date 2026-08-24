@@ -271,6 +271,7 @@ export default function QuotesPage() {
                       <label className="block font-bold text-slate-700 mb-1">Consumables Cost</label>
                       <input
                         type="number"
+                        required
                         value={consumablesCost}
                         onChange={(e) => setConsumablesCost(e.target.value)}
                         placeholder="0.00"
@@ -281,6 +282,7 @@ export default function QuotesPage() {
                       <label className="block font-bold text-slate-700 mb-1">GST / Taxes</label>
                       <input
                         type="number"
+                        required
                         value={gstCost}
                         onChange={(e) => setGstCost(e.target.value)}
                         placeholder="0.00"
@@ -304,6 +306,7 @@ export default function QuotesPage() {
                       <label className="block font-bold text-slate-700 mb-1">Availability</label>
                       <input
                         type="text"
+                        required
                         value={availability}
                         onChange={(e) => setAvailability(e.target.value)}
                         placeholder="e.g. Today, 6:00 PM"
@@ -346,6 +349,20 @@ export default function QuotesPage() {
                         value={estimatedTime}
                         onChange={(e) => setEstimatedTime(e.target.value)}
                         placeholder="e.g. 2"
+                        className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block font-bold text-slate-700 mb-1">Quote Validity (Days)</label>
+                      <input
+                        type="number"
+                        required
+                        min="1"
+                        value={validityDays}
+                        onChange={(e) => setValidityDays(e.target.value)}
+                        placeholder="e.g. 1"
                         className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
                       />
                     </div>
