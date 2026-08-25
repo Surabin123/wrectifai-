@@ -15,7 +15,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
     }
 
     const result = await query(
-      `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details,
+      `SELECT q.id, q.quote_request_id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details,
               q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
               g.id as "garageId", g.name as "garageName", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported",
               g.address as "garageAddress", g.image as "garageImage", g.created_at as "garageCreatedAt", g.established_year as "garageEstablishedYear",
@@ -55,7 +55,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
 
       return {
         id: row.id,
-        quoteRequestId: row.quoteRequestId,
+        quoteRequestId: row.quoteRequestId || row.quote_request_id,
         garageId: row.garageId,
         status: row.status || 'open',
         isBooked: !!row.bookingId,
@@ -722,7 +722,7 @@ quotesRouter.get('/garage/completed-jobs', authenticate, async (req, res) => {
 quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
   try {
     const result = await query(
-      `SELECT q.id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details, q.garage_id as "quoteGarageId",
+      `SELECT q.id, q.quote_request_id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details, q.garage_id as "quoteGarageId",
               q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
               g.name as "garageName", g.owner_user_id as "garageOwnerId", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported", g.created_at as "garageCreatedAt",
               qr.customer_id as "requestCustomerId", qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary",
@@ -758,7 +758,7 @@ quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
 
     const mapped = {
       id: row.id,
-      quoteRequestId: row.quoteRequestId,
+      quoteRequestId: row.quoteRequestId || row.quote_request_id,
       status: row.status || 'open',
       garage: row.garageName,
       garageCreatedAt: row.garageCreatedAt,
