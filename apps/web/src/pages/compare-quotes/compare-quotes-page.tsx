@@ -124,10 +124,28 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
         } else if (data.length > 0) {
           setSelectedQuoteIds(data.slice(0, 3).map((q) => q.id));
         }
+        let reqId = null;
+        if (ids) {
+          const selectedQuotes = data.filter((q) => ids.includes(q.id));
+          if (selectedQuotes.length > 0) {
+            reqId = selectedQuotes[0].quoteRequestId;
+          }
+        }
+        if (!reqId) {
+          reqId = data[0]?.quoteRequestId || reqs[0]?.id;
+        }
         
-        const firstReqId = data[0]?.quoteRequestId || reqs[0]?.id;
-        if (firstReqId) {
-          fetchAiEstimate(firstReqId).then(est => setAiEstimate(est)).catch(console.error);
+        if (reqId) {
+          fetchAiEstimate(reqId).then(est => {
+            let parsedEst = est;
+            if (typeof est === 'string') {
+              try { parsedEst = JSON.parse(est); } catch(e) {}
+            }
+            if (typeof parsedEst === 'string') {
+              try { parsedEst = JSON.parse(parsedEst); } catch(e) {}
+            }
+            setAiEstimate(parsedEst);
+          }).catch(console.error);
         }
       } catch (err) {
         console.error('Failed to fetch quotes:', err);
@@ -210,13 +228,6 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       gstArr.push(gst);
       totalArr.push(total);
 
-      // Determine highest quote total to calculate savings
-      const highestTotal = quotes.reduce((max, sq) => {
-        const sqDetails = sq.details as any;
-        const sqTotal = Number(sqDetails?.totalCost || (sq as any).totalCost || sq.price?.replace(/[^0-9.-]/g, '') || 0);
-        return sqTotal > max ? sqTotal : max;
-      }, 0);
-      
       const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
       const aiMaxLocal = aiEstimate ? convertCurrency(aiEstimate.maxPrice, aiEstimate.currency || 'INR', targetCurrency) : 0;
       
