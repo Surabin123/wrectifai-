@@ -92,7 +92,7 @@ export default function CustomersPage() {
                 <th className="p-4 font-semibold w-[15%]">Name</th>
                 <th className="p-4 font-semibold w-[20%]">Email</th>
                 <th className="p-4 font-semibold w-[15%]">Phone</th>
-                <th className="p-4 font-semibold w-[12%]">Vehicle</th>
+                <th className="p-4 font-semibold w-[12%]">Status</th>
                 <th className="p-4 font-semibold w-[12%]">Created Date</th>
                 <th className="p-4 font-semibold w-[16%] text-right">Actions</th>
               </tr>
@@ -108,16 +108,17 @@ export default function CustomersPage() {
                     <td className="p-4 text-sm font-semibold text-slate-900 truncate">
                       <div className="flex items-center gap-2">
                         {c.name}
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
-                          c.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
-                        }`}>
-                          {c.status || 'active'}
-                        </span>
                       </div>
                     </td>
                     <td className="p-4 text-sm text-slate-700 truncate" title={c.email}>{c.email}</td>
                     <td className="p-4 text-sm text-slate-700 truncate">{c.phone || 'N/A'}</td>
-                    <td className="p-4 text-sm text-slate-700">{c.vehicles > 0 ? `${c.vehicles} Vehicle(s)` : 'None'}</td>
+                    <td className="p-4 text-sm text-slate-700">
+                      <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                        c.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                      }`}>
+                        {c.status || 'active'}
+                      </span>
+                    </td>
                     <td className="p-4 text-sm text-slate-700">{new Date(c.joined || c.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                     <td className="p-4 text-right flex gap-2 justify-end">
                        {c.status === 'suspended' ? (
