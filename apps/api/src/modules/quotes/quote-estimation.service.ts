@@ -6,8 +6,63 @@ dns.setDefaultResultOrder('ipv4first');
 
 const dynamicImport = new Function('specifier', 'return import(specifier)');
 
+/**
+ * Maps known cities to their country and currency.
+ * Mirrors the COUNTRIES array in the frontend's location.ts — single source of truth
+ * for the city→country relationship used to tell the AI which local currency to use.
+ */
+const CITY_TO_COUNTRY: Record<string, { country: string; currency: string }> = {
+  // India
+  Bengaluru: { country: 'India', currency: 'INR' },
+  Mumbai: { country: 'India', currency: 'INR' },
+  Delhi: { country: 'India', currency: 'INR' },
+  Hyderabad: { country: 'India', currency: 'INR' },
+  Chennai: { country: 'India', currency: 'INR' },
+  Kolkata: { country: 'India', currency: 'INR' },
+  Pune: { country: 'India', currency: 'INR' },
+  Kochi: { country: 'India', currency: 'INR' },
+  Ahmedabad: { country: 'India', currency: 'INR' },
+  Jaipur: { country: 'India', currency: 'INR' },
+  Surat: { country: 'India', currency: 'INR' },
+  Lucknow: { country: 'India', currency: 'INR' },
+  Kanpur: { country: 'India', currency: 'INR' },
+  Nagpur: { country: 'India', currency: 'INR' },
+  Patna: { country: 'India', currency: 'INR' },
+  // United States
+  'New York': { country: 'United States', currency: 'USD' },
+  'Los Angeles': { country: 'United States', currency: 'USD' },
+  Chicago: { country: 'United States', currency: 'USD' },
+  Houston: { country: 'United States', currency: 'USD' },
+  Phoenix: { country: 'United States', currency: 'USD' },
+  Philadelphia: { country: 'United States', currency: 'USD' },
+  'San Antonio': { country: 'United States', currency: 'USD' },
+  'San Diego': { country: 'United States', currency: 'USD' },
+  Dallas: { country: 'United States', currency: 'USD' },
+  Austin: { country: 'United States', currency: 'USD' },
+  'San Jose': { country: 'United States', currency: 'USD' },
+  'Fort Worth': { country: 'United States', currency: 'USD' },
+  Jacksonville: { country: 'United States', currency: 'USD' },
+  Columbus: { country: 'United States', currency: 'USD' },
+  Charlotte: { country: 'United States', currency: 'USD' },
+  // United Arab Emirates
+  Dubai: { country: 'United Arab Emirates', currency: 'AED' },
+  'Abu Dhabi': { country: 'United Arab Emirates', currency: 'AED' },
+  Sharjah: { country: 'United Arab Emirates', currency: 'AED' },
+  Ajman: { country: 'United Arab Emirates', currency: 'AED' },
+  'Ras Al Khaimah': { country: 'United Arab Emirates', currency: 'AED' },
+  Fujairah: { country: 'United Arab Emirates', currency: 'AED' },
+  'Umm Al Quwain': { country: 'United Arab Emirates', currency: 'AED' },
+  'Al Ain': { country: 'United Arab Emirates', currency: 'AED' },
+};
+
 export class QuoteEstimationService {
-  static async generateLocalEstimate(quoteRequestId: string): Promise<any> {
+  /**
+   * @param quoteRequestId - the quote request to estimate
+   * @param city - the user's currently selected city (from wrectifai_city cookie),
+   *               used to determine the correct local currency for the AI estimate.
+   *               If omitted, falls back to users.location from the DB.
+   */
+  static async generateLocalEstimate(quoteRequestId: string, city?: string): Promise<any> {
     const env = getEnv();
 
     // 1. Fetch Quote Request, Vehicle, and Location context
@@ -28,8 +83,19 @@ export class QuoteEstimationService {
 
     const data = reqRes.rows[0];
     const vehicleContext = `${data.year || ''} ${data.make || ''} ${data.model || ''} (${data.fuelType || 'Unknown Fuel'}, ${data.mileage || 'Unknown'} km)`.trim();
+
+    // 2. Build locationContext — priority:
+    //    a) city passed from frontend (wrectifai_city cookie) → most reliable
+    //    b) users.location from DB (JSONB object with .city / .country)
+    //    c) fallback: 'Unknown Location'
     let locationContext = 'Unknown Location';
-    if (data.location && typeof data.location === 'object') {
+
+    if (city && CITY_TO_COUNTRY[city]) {
+      // Path A: city was passed from the frontend cookie — use the mapping directly
+      const { country } = CITY_TO_COUNTRY[city];
+      locationContext = `${city}, ${country}`;
+    } else if (data.location && typeof data.location === 'object') {
+      // Path B: users.location is a JSONB object (future-proof if it ever gets populated)
       const loc = data.location as any;
       if (loc.city && loc.country) {
         locationContext = `${loc.city}, ${loc.country}`;
@@ -37,10 +103,11 @@ export class QuoteEstimationService {
         locationContext = loc.address;
       }
     }
+    // Path C: locationContext stays 'Unknown Location'
 
     const issueSummary = data.issueSummary || 'Unknown Issue';
 
-    // 2. Setup AI
+    // 3. Setup AI
     const { createOpenAI } = await dynamicImport('@ai-sdk/openai');
     const { generateText } = await dynamicImport('ai');
 
@@ -116,7 +183,7 @@ INSTRUCTIONS:
       throw new Error('Invalid estimate format returned by AI');
     }
 
-    // 3. Save to database
+    // 4. Save to database
     await query(
       `UPDATE quote_requests SET ai_estimate = $1 WHERE id = $2`,
       [JSON.stringify(estimateObj), quoteRequestId]

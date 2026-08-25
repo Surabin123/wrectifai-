@@ -1,5 +1,6 @@
 import { apiClient } from './api-client';
 import type { QuoteItem } from '@/components/quotes/quotes-shared';
+import { getSavedCity } from '@/utils/location';
 
 export async function fetchQuotes(): Promise<QuoteItem[]> {
   return apiClient.get('/quotes');
@@ -61,7 +62,11 @@ export const fetchQuoteRequests = async (): Promise<any[]> => {
 };
 
 export const fetchAiEstimate = async (quoteRequestId: string): Promise<any> => {
-  return apiClient.post(`/quotes/requests/${quoteRequestId}/estimate`, {});
+  // Pass the user's currently selected city so the backend AI generates
+  // the estimate directly in the correct local currency (INR/USD/AED)
+  // without any currency conversion.
+  const city = getSavedCity() || '';
+  return apiClient.post(`/quotes/requests/${quoteRequestId}/estimate`, { city });
 };
 
 export async function getGarageIncomingRequests(): Promise<QuoteRequestResponse[]> {

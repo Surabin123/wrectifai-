@@ -1,44 +1,41 @@
 import { QuoteEstimationService } from '../apps/api/src/modules/quotes/quote-estimation.service';
 import { query } from '../apps/api/src/config/database';
-import dotenv from 'dotenv';
-import path from 'path';
 
-// Load env
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
-
-async function verify() {
-  console.log("Starting backend estimate logic verification...");
-  const quoteRequestId = '4d1fb9cf-7ad0-4f02-8a3e-6fac24dfac1c';
+async function runTest() {
+  const quoteRequestId = 'b5a34dc8-3361-4f14-83a6-dd901e4cda38';
+  const city = 'Bengaluru';
+  
+  console.log(`Running QuoteEstimationService.generateLocalEstimate for request ${quoteRequestId} and city "${city}"...`);
   
   try {
-    // 1. Check if we can select from quote_requests with ai_estimate column
-    console.log("1. Querying quote_requests...");
-    const reqDetails = await query(
-      `SELECT vehicle_id, issue_summary, ai_estimate FROM quote_requests WHERE id = $1`,
-      [quoteRequestId]
-    );
-    console.log("Query response row:", reqDetails.rows[0]);
+    const estimate = await QuoteEstimationService.generateLocalEstimate(quoteRequestId, city);
+    console.log("\n=== ESTIMATE GENERATION RESULT ===");
+    console.log(JSON.stringify(estimate, null, 2));
     
-    // 2. Clear ai_estimate for testing to force generation
-    console.log("2. Clearing ai_estimate to force generation...");
-    await query(`UPDATE quote_requests SET ai_estimate = NULL WHERE id = $1`, [quoteRequestId]);
+    // Verify values
+    console.log("\n=== VERIFICATION CHECKLIST ===");
+    console.log("1. Currency is INR:", estimate.currency === 'INR' ? "✅ PASS" : "❌ FAIL");
+    console.log("2. minPrice is a number:", typeof estimate.minPrice === 'number' ? `✅ PASS (${estimate.minPrice})` : "❌ FAIL");
+    console.log("3. maxPrice is a number:", typeof estimate.maxPrice === 'number' ? `✅ PASS (${estimate.maxPrice})` : "❌ FAIL");
+    console.log("4. Breakup exists:", typeof estimate.breakup === 'object' && estimate.breakup !== null ? "✅ PASS" : "❌ FAIL");
     
-    // 3. Generate estimate
-    console.log("3. Calling QuoteEstimationService.generateLocalEstimate...");
-    const estimate = await QuoteEstimationService.generateLocalEstimate(quoteRequestId);
-    console.log("Estimate generated successfully:", JSON.stringify(estimate, null, 2));
-    
-    // 4. Verify it was saved to DB
-    console.log("4. Verifying saved state in DB...");
-    const saved = await query(`SELECT ai_estimate FROM quote_requests WHERE id = $1`, [quoteRequestId]);
-    console.log("Saved ai_estimate in DB:", saved.rows[0].ai_estimate);
-    
-  } catch (err: any) {
-    console.error("Verification failed with error:", err.message);
-    if (err.stack) {
-      console.error(err.stack);
+    if (estimate.breakup) {
+      const b = estimate.breakup;
+      const parts = Number(b.parts ?? b.partsCost ?? 0);
+      const labour = Number(b.labour ?? b.labor ?? b.labourCost ?? b.laborCost ?? 0);
+      const consumables = Number(b.consumables ?? b.consumablesCost ?? 0);
+      const gst = Number(b.gst ?? b.gstCost ?? 0);
+      const sum = parts + labour + consumables + gst;
+      console.log(`   - Parts: ${parts}`);
+      console.log(`   - Labour: ${labour}`);
+      console.log(`   - Consumables: ${consumables}`);
+      console.log(`   - GST/Taxes: ${gst}`);
+      console.log(`   - Sum of breakup: ${sum}`);
+      console.log(`   - Matches minPrice (${estimate.minPrice}):`, sum === estimate.minPrice ? "✅ PASS" : "⚠️ WARNING: Does not equal minPrice (Scaling will run in frontend)");
     }
+  } catch (err) {
+    console.error("Error running estimation service:", err);
   }
 }
 
-verify();
+runTest().then(() => process.exit(0));

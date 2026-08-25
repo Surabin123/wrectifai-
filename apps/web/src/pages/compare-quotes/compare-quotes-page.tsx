@@ -39,8 +39,7 @@ import type { QuoteItem } from '@/components/quotes/quotes-shared';
 import { resultIssues } from '@/components/ai-diagnose/diagnose-flow-shared';
 import { cn } from '@/utils/cn';
 import { getVehicleImage } from '@/lib/vehicle-image-catalog';
-import { formatCurrency, convertCurrency } from '@/lib/currency';
-import { getSavedCity, getCurrencyCodeForCity } from '@/utils/location';
+import { formatCurrency } from '@/lib/currency';
 
 const BULLET = '\u2022';
 
@@ -243,8 +242,9 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       gstArr.push(gst);
       totalArr.push(total);
 
+      // AI now generates directly in the correct local currency — no conversion needed.
       const aiMaxLocal = aiEstimate ? Number(aiEstimate.maxPrice || 0) : 0;
-      
+
       const savings = aiMaxLocal > 0 ? Math.max(0, aiMaxLocal - total) : 0;
       const savingsPercent = aiMaxLocal > 0 ? Math.round((savings / aiMaxLocal) * 100) : 0;
 
@@ -263,51 +263,55 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       return lo === hi ? fmt(lo) : `${fmt(lo)} \u2013 ${fmt(hi)}`;
     };
 
-    const aiBreakupSum = (() => {
-      if (!aiEstimate || !aiEstimate.breakup) return 0;
-      const b = aiEstimate.breakup;
-      const parts = Number(b.parts ?? b.partsCost ?? aiEstimate.parts ?? 0);
-      const labour = Number(b.labour ?? b.labor ?? b.labourCost ?? b.laborCost ?? aiEstimate.labour ?? aiEstimate.labor ?? 0);
-      const consumables = Number(b.consumables ?? b.consumablesCost ?? aiEstimate.consumables ?? 0);
-      const gst = Number(b.gst ?? b.gstCost ?? aiEstimate.gst ?? 0);
-      return parts + labour + consumables + gst;
-    })();
-
+    // fmtAi: AI now returns values directly in the correct local currency.
+    // No conversion — just format the raw AI value in aiEstimate.currency.
     const fmtAi = (val: number | string | undefined) => {
       if (val === undefined || val === null || !aiEstimate) return '—';
-      const currency = aiEstimate.currency || 'INR';
-      
+      const aiCurrency = aiEstimate.currency || 'INR';
+
       if (typeof val === 'string' && val.includes('-')) {
         return val;
       }
-      
+
       const numVal = typeof val === 'string' ? parseFloat(val.replace(/[^0-9.]/g, '')) : val;
       if (isNaN(numVal)) return '—';
 
       const minPrice = Number(aiEstimate.minPrice || 0);
       const maxPrice = Number(aiEstimate.maxPrice || 0);
 
+      // If minPrice === maxPrice, or no range, just format as a single value
       if (!minPrice || !maxPrice || minPrice === maxPrice) {
-        return formatCurrency(numVal, currency);
+        return formatCurrency(numVal, aiCurrency);
       }
 
-      // Scale range to match minPrice and maxPrice exactly based on breakup sum
-      const sum = aiBreakupSum || minPrice;
-      const minScaled = numVal * (minPrice / sum);
-      const maxScaled = numVal * (maxPrice / sum);
+      // Scale the breakup value proportionally to the min/max range
+      // so that parts + labour + consumables + gst = total estimate at both bounds
+      const aiBreakupSum = (() => {
+        if (!aiEstimate.breakup) return minPrice;
+        const b = aiEstimate.breakup;
+        const p = Number(b.parts ?? b.partsCost ?? aiEstimate.parts ?? 0);
+        const l = Number(b.labour ?? b.labor ?? b.labourCost ?? b.laborCost ?? aiEstimate.labour ?? aiEstimate.labor ?? 0);
+        const c = Number(b.consumables ?? b.consumablesCost ?? aiEstimate.consumables ?? 0);
+        const g = Number(b.gst ?? b.gstCost ?? aiEstimate.gst ?? 0);
+        const s = p + l + c + g;
+        return s > 0 ? s : minPrice;
+      })();
 
-      return `${formatCurrency(minScaled, currency)} \u2013 ${formatCurrency(maxScaled, currency)}`;
+      const minScaled = numVal * (minPrice / aiBreakupSum);
+      const maxScaled = numVal * (maxPrice / aiBreakupSum);
+      return `${formatCurrency(minScaled, aiCurrency)} \u2013 ${formatCurrency(maxScaled, aiCurrency)}`;
     };
 
     const getAiRange = () => {
       if (fetchError) return '—';
       if (!aiEstimate) return '—';
       if (aiEstimate.minPrice !== undefined && aiEstimate.maxPrice !== undefined) {
-        const currency = aiEstimate.currency || 'INR';
+        // AI generates directly in correct currency — display as-is, no conversion
+        const aiCurrency = aiEstimate.currency || 'INR';
         const minLocal = Number(aiEstimate.minPrice);
         const maxLocal = Number(aiEstimate.maxPrice);
-        if (minLocal === maxLocal) return formatCurrency(maxLocal, currency);
-        return `${formatCurrency(minLocal, currency)} \u2013 ${formatCurrency(maxLocal, currency)}`;
+        if (minLocal === maxLocal) return formatCurrency(maxLocal, aiCurrency);
+        return `${formatCurrency(minLocal, aiCurrency)} \u2013 ${formatCurrency(maxLocal, aiCurrency)}`;
       }
       return '—';
     };

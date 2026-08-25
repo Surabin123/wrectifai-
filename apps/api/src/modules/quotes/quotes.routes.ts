@@ -246,21 +246,31 @@ quotesRouter.post('/requests/:id/estimate', authenticate, async (req, res) => {
     if (!customerId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
     
     const { id } = req.params;
-    
+    // city is passed from the frontend (wrectifai_city cookie value)
+    // so the AI generates the estimate in the correct local currency natively
+    const { city } = req.body as { city?: string };
+
     // 1. Get request details
     const reqDetails = await query(`SELECT vehicle_id, issue_summary, ai_estimate FROM quote_requests WHERE id = $1`, [id]);
     if (reqDetails.rows.length === 0) {
       return error(res, 'Quote request not found', 'NOT_FOUND', 404);
     }
-    
-    // 2. Check if this exact request already has it
-    if (reqDetails.rows[0].ai_estimate) {
-      return success(res, reqDetails.rows[0].ai_estimate);
+
+    // 2. Check if this exact request already has a cached estimate in the CORRECT currency.
+    //    If city is known, invalidate estimates stored with a different currency (stale USD cache).
+    const cached = reqDetails.rows[0].ai_estimate;
+    if (cached) {
+      const cachedCurrency: string | undefined = cached.currency;
+      const cityOk = !city || !cachedCurrency || cachedCurrency === getExpectedCurrency(city);
+      if (cityOk) {
+        return success(res, cached);
+      }
+      // Stale currency — fall through to regenerate
     }
 
     const { vehicle_id, issue_summary } = reqDetails.rows[0];
 
-    // 3. Check if ANY related request has it
+    // 3. Check if ANY related request has a valid estimate in the correct currency
     const existing = await query(`
       SELECT ai_estimate 
       FROM quote_requests 
@@ -269,13 +279,19 @@ quotesRouter.post('/requests/:id/estimate', authenticate, async (req, res) => {
     `, [customerId, vehicle_id, issue_summary]);
 
     if (existing.rows.length > 0 && existing.rows[0].ai_estimate) {
-      // Sync it to the current request
-      await query(`UPDATE quote_requests SET ai_estimate = $1 WHERE id = $2`, [JSON.stringify(existing.rows[0].ai_estimate), id]);
-      return success(res, existing.rows[0].ai_estimate);
+      const existingEst = existing.rows[0].ai_estimate;
+      const existingCurrency: string | undefined = existingEst.currency;
+      const cityOk = !city || !existingCurrency || existingCurrency === getExpectedCurrency(city);
+      if (cityOk) {
+        // Sync it to the current request
+        await query(`UPDATE quote_requests SET ai_estimate = $1 WHERE id = $2`, [JSON.stringify(existingEst), id]);
+        return success(res, existingEst);
+      }
+      // Stale currency — fall through to regenerate
     }
     
-    // 4. Generate new estimate
-    const estimate = await QuoteEstimationService.generateLocalEstimate(id);
+    // 4. Generate new estimate, passing city so AI uses correct local currency
+    const estimate = await QuoteEstimationService.generateLocalEstimate(id, city);
     
     // 5. Save to ALL related requests to prevent inconsistencies
     await query(`
@@ -290,6 +306,18 @@ quotesRouter.post('/requests/:id/estimate', authenticate, async (req, res) => {
     return error(res, err.message || 'Failed to generate estimate', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
+
+/** Returns the expected ISO currency code for a known city, or undefined if unknown. */
+function getExpectedCurrency(city: string): string | undefined {
+  const indiaCities = ['Bengaluru','Mumbai','Delhi','Hyderabad','Chennai','Kolkata','Pune','Kochi','Ahmedabad','Jaipur','Surat','Lucknow','Kanpur','Nagpur','Patna'];
+  const uaeCities = ['Dubai','Abu Dhabi','Sharjah','Ajman','Ras Al Khaimah','Fujairah','Umm Al Quwain','Al Ain'];
+  const usCities = ['New York','Los Angeles','Chicago','Houston','Phoenix','Philadelphia','San Antonio','San Diego','Dallas','Austin','San Jose','Fort Worth','Jacksonville','Columbus','Charlotte'];
+  if (indiaCities.includes(city)) return 'INR';
+  if (uaeCities.includes(city)) return 'AED';
+  if (usCities.includes(city)) return 'USD';
+  return undefined;
+}
+
 
 quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
   try {
