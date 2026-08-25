@@ -523,7 +523,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
         selectedQuotes.map((quote) => row.quoteValues[quote.id] ?? '')
       )
     );
-  }, [selectedCount, selectedQuotes, showOnlyDifferences]);
+  }, [selectedCount, selectedQuotes, showOnlyDifferences, priceRows]);
 
   const visibleDetailRows = useMemo(() => {
     if (!showOnlyDifferences || selectedCount < 2) return detailRows;
@@ -532,7 +532,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
         selectedQuotes.map((quote) => row.quoteValues[quote.id]?.value ?? '')
       )
     );
-  }, [selectedCount, selectedQuotes, showOnlyDifferences]);
+  }, [selectedCount, selectedQuotes, showOnlyDifferences, detailRows]);
 
   return (
     <DashboardShell header={<TopNavbar />}>
