@@ -415,6 +415,11 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
       return error(res, 'Authentication failed: no customer ID found', 'UNAUTHORIZED', 401);
     }
 
+    const userCheck = await query('SELECT status FROM users WHERE id = $1', [customerId]);
+    if (userCheck.rows.length === 0 || userCheck.rows[0].status === 'suspended') {
+      return error(res, 'Your account is suspended. You cannot create new quote requests.', 'FORBIDDEN', 403);
+    }
+
     const vehicleRes = await query(
       'SELECT id, make, model, year FROM vehicles WHERE id = $1',
       [vehicleId]

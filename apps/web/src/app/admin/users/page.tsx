@@ -105,12 +105,26 @@ export default function CustomersPage() {
               ) : (
                 filtered.map((c) => (
                   <tr key={c.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-4 text-sm font-semibold text-slate-900 truncate">{c.name}</td>
+                    <td className="p-4 text-sm font-semibold text-slate-900 truncate">
+                      <div className="flex items-center gap-2">
+                        {c.name}
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                          c.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
+                        }`}>
+                          {c.status || 'active'}
+                        </span>
+                      </div>
+                    </td>
                     <td className="p-4 text-sm text-slate-700 truncate" title={c.email}>{c.email}</td>
                     <td className="p-4 text-sm text-slate-700 truncate">{c.phone || 'N/A'}</td>
                     <td className="p-4 text-sm text-slate-700">{c.vehicles > 0 ? `${c.vehicles} Vehicle(s)` : 'None'}</td>
                     <td className="p-4 text-sm text-slate-700">{new Date(c.joined || c.createdAt).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' })}</td>
                     <td className="p-4 text-right flex gap-2 justify-end">
+                       {c.status === 'suspended' ? (
+                         <button onClick={() => setActionModal({isOpen: true, id: c.id, action: 'activate', type: 'confirm', message: 'Are you sure you want to unsuspend this customer?'})} className="text-xs font-bold text-green-600 bg-green-50 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors">Unsuspend</button>
+                       ) : (
+                         <button onClick={() => setActionModal({isOpen: true, id: c.id, action: 'suspend', type: 'confirm', message: 'Are you sure you want to suspend this customer?'})} className="text-xs font-bold text-red-600 bg-red-50 px-3 py-1.5 rounded-lg hover:bg-red-100 transition-colors">Suspend</button>
+                       )}
                        <button onClick={() => handleViewDetails(c.id)} className="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1.5 rounded-lg hover:bg-blue-100 transition-colors">View Details</button>
                     </td>
                   </tr>

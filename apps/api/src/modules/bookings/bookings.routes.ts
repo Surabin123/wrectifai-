@@ -105,6 +105,11 @@ async function createBookingInternal(req: any, res: any, data: {
     return error(res, 'Missing required booking fields', 'BAD_REQUEST', 400);
   }
 
+  const userCheck = await query('SELECT status FROM users WHERE id = $1', [customerId]);
+  if (userCheck.rows.length === 0 || userCheck.rows[0].status === 'suspended') {
+    return error(res, 'Your account is suspended. You cannot create new bookings.', 'FORBIDDEN', 403);
+  }
+
   // If quoteId is provided, lookup the garageId from the quote if not provided
   if (quoteId) {
     try {
