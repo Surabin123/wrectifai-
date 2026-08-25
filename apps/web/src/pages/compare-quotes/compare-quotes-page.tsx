@@ -109,6 +109,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
   const [loading, setLoading] = useState(true);
   const [selectedQuoteIds, setSelectedQuoteIds] = useState<string[]>([]);
   const [aiEstimate, setAiEstimate] = useState<any>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadQuotes() {
@@ -138,14 +139,28 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
         if (reqId) {
           fetchAiEstimate(reqId).then(est => {
             let parsedEst = est;
-            if (typeof est === 'string') {
-              try { parsedEst = JSON.parse(est); } catch(e) {}
-            }
-            if (typeof parsedEst === 'string') {
-              try { parsedEst = JSON.parse(parsedEst); } catch(e) {}
+            let attempts = 0;
+            while (typeof parsedEst === 'string' && attempts < 5) {
+              attempts++;
+              try {
+                const next = JSON.parse(parsedEst);
+                if (typeof next === 'object' && next !== null) {
+                  parsedEst = next;
+                  break;
+                } else if (typeof next === 'string') {
+                  parsedEst = next;
+                } else {
+                  break;
+                }
+              } catch(e) {
+                break;
+              }
             }
             setAiEstimate(parsedEst);
-          }).catch(console.error);
+          }).catch(err => {
+            console.error(err);
+            setFetchError(err?.message || 'Error fetching estimate');
+          });
         }
       } catch (err) {
         console.error('Failed to fetch quotes:', err);
@@ -266,14 +281,16 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     };
 
     const getAiRange = () => {
-      if (aiEstimate && aiEstimate.minPrice !== undefined && aiEstimate.maxPrice !== undefined) {
+      if (fetchError) return 'DEBUG ERROR: ' + fetchError;
+      if (!aiEstimate) return 'DEBUG: null/undefined';
+      if (aiEstimate.minPrice !== undefined && aiEstimate.maxPrice !== undefined) {
         const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
         const minLocal = convertCurrency(aiEstimate.minPrice, aiEstimate.currency || 'INR', targetCurrency);
         const maxLocal = convertCurrency(aiEstimate.maxPrice, aiEstimate.currency || 'INR', targetCurrency);
         if (minLocal === maxLocal) return formatCurrency(maxLocal, targetCurrency);
         return `${formatCurrency(minLocal, targetCurrency)} \u2013 ${formatCurrency(maxLocal, targetCurrency)}`;
       }
-      return '—';
+      return 'DEBUG: missing min/max (keys: ' + (typeof aiEstimate === 'object' ? Object.keys(aiEstimate).join(',') : typeof aiEstimate) + ')';
     };
 
     const aiTotalEstimate = getAiRange();
