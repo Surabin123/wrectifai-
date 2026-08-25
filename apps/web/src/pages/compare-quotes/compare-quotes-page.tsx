@@ -218,7 +218,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       }, 0);
       
       const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
-      const aiMaxLocal = aiEstimate ? convertCurrency(aiEstimate.maxPrice, aiEstimate.currency, targetCurrency) : 0;
+      const aiMaxLocal = aiEstimate ? convertCurrency(aiEstimate.maxPrice, aiEstimate.currency || 'INR', targetCurrency) : 0;
       
       const savings = aiMaxLocal && aiMaxLocal > total ? (aiMaxLocal - total) : 0;
       const savingsPercent = aiMaxLocal && aiMaxLocal > 0 ? Math.round((savings / aiMaxLocal) * 100) : 0;
@@ -238,18 +238,27 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       return lo === hi ? fmt(lo) : `${fmt(lo)} \u2013 ${fmt(hi)}`;
     };
 
-    const fmtAi = (val: number | undefined) => {
-      if (val === undefined || !aiEstimate) return '—';
+    const fmtAi = (val: number | string | undefined) => {
+      if (val === undefined || val === null || !aiEstimate) return '—';
       const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
-      const localVal = convertCurrency(val, aiEstimate.currency, targetCurrency);
+      
+      // If it's already a range string from some AI formats, just return it as is or try to format.
+      if (typeof val === 'string' && val.includes('-')) {
+        return val;
+      }
+      
+      const numVal = typeof val === 'string' ? parseFloat(val.replace(/[^0-9.]/g, '')) : val;
+      if (isNaN(numVal)) return '—';
+      
+      const localVal = convertCurrency(numVal, aiEstimate.currency || 'INR', targetCurrency);
       return formatCurrency(localVal, targetCurrency);
     };
 
     const getAiRange = () => {
-      if (aiEstimate) {
+      if (aiEstimate && aiEstimate.minPrice !== undefined && aiEstimate.maxPrice !== undefined) {
         const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
-        const minLocal = convertCurrency(aiEstimate.minPrice, aiEstimate.currency, targetCurrency);
-        const maxLocal = convertCurrency(aiEstimate.maxPrice, aiEstimate.currency, targetCurrency);
+        const minLocal = convertCurrency(aiEstimate.minPrice, aiEstimate.currency || 'INR', targetCurrency);
+        const maxLocal = convertCurrency(aiEstimate.maxPrice, aiEstimate.currency || 'INR', targetCurrency);
         if (minLocal === maxLocal) return formatCurrency(maxLocal, targetCurrency);
         return `${formatCurrency(minLocal, targetCurrency)} \u2013 ${formatCurrency(maxLocal, targetCurrency)}`;
       }
@@ -261,22 +270,22 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     return [
       {
         label: 'Parts',
-        aiValue: fmtAi(aiEstimate?.breakup?.parts),
+        aiValue: fmtAi(aiEstimate?.breakup?.parts ?? aiEstimate?.breakup?.partsCost ?? aiEstimate?.parts),
         quoteValues: quoteValuesParts,
       },
       {
         label: 'Labour',
-        aiValue: fmtAi(aiEstimate?.breakup?.labour),
+        aiValue: fmtAi(aiEstimate?.breakup?.labour ?? aiEstimate?.breakup?.labor ?? aiEstimate?.breakup?.labourCost ?? aiEstimate?.breakup?.laborCost ?? aiEstimate?.labour ?? aiEstimate?.labor),
         quoteValues: quoteValuesLabour,
       },
       {
         label: 'Consumables',
-        aiValue: fmtAi(aiEstimate?.breakup?.consumables),
+        aiValue: fmtAi(aiEstimate?.breakup?.consumables ?? aiEstimate?.breakup?.consumablesCost ?? aiEstimate?.consumables),
         quoteValues: quoteValuesConsumables,
       },
       {
         label: 'GST',
-        aiValue: fmtAi(aiEstimate?.breakup?.gst),
+        aiValue: fmtAi(aiEstimate?.breakup?.gst ?? aiEstimate?.breakup?.gstCost ?? aiEstimate?.gst),
         quoteValues: quoteValuesGst,
       },
       {
