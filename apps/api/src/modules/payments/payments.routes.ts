@@ -18,7 +18,7 @@ paymentsRouter.post('/orders', authenticate, async (req, res) => {
   try {
     // Amount should be in paise for Razorpay
     const amountInPaise = Math.round(Number(amount) * 100);
-    const receiptId = bookingId ? `rcpt_${bookingId}` : `rcpt_${Date.now()}`;
+    const receiptId = bookingId ? bookingId.substring(0, 40) : `rcpt_${Date.now()}`;
     
     const order = await createRazorpayOrder(amountInPaise, receiptId, {
       userId: req.user?.userId,
@@ -37,6 +37,33 @@ paymentsRouter.post('/orders', authenticate, async (req, res) => {
     );
   } catch (err) {
     return error(res, 'Failed to create payment order', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// POST /api/v1/payments/verify - Verify Razorpay payment signature
+paymentsRouter.post('/verify', authenticate, async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+  
+  if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+    return error(res, 'Missing payment verification details', 'BAD_REQUEST', 400);
+  }
+
+  try {
+    const crypto = require('crypto');
+    const secret = process.env.RAZORPAY_KEY_SECRET || 'mock_secret';
+    
+    const generated_signature = crypto
+      .createHmac('sha256', secret)
+      .update(razorpay_order_id + '|' + razorpay_payment_id)
+      .digest('hex');
+
+    if (generated_signature === razorpay_signature) {
+      return success(res, { verified: true }, 200);
+    } else {
+      return error(res, 'Payment signature verification failed', 'BAD_REQUEST', 400);
+    }
+  } catch (err) {
+    return error(res, 'Failed to verify payment', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
 

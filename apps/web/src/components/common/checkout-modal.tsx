@@ -5,6 +5,7 @@ import { Button } from './button';
 import { formatCurrency } from '@/lib/currency';
 import { fetchWalletBalance } from '@/lib/wallet-api';
 import { validateOfferCode } from '@/lib/offers-api';
+import { apiClient } from '@/lib/api-client';
 
 interface CheckoutModalProps {
   isOpen: boolean;
@@ -81,11 +82,23 @@ export function CheckoutModal({ isOpen, onClose, subtotal, bookingPayload, onSub
           name: 'WrectifAI Services',
           description: 'Payment for Booking',
           order_id: result.razorpayOrderId,
-          handler: function (response: any) {
-            // Frontend callback success!
-            // In a real app we'd verify this signature on backend too
-            // But we rely on the webhook for atomic state changes.
-            onSuccess();
+          handler: async function (response: any) {
+            try {
+              const verifyRes = await apiClient.post<{verified: boolean}>('/payments/verify', {
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature
+              });
+              if (verifyRes.verified) {
+                onSuccess();
+              } else {
+                setOfferError('Payment verification failed.');
+                setIsProcessing(false);
+              }
+            } catch (err) {
+              setOfferError('Payment verification failed. Please contact support.');
+              setIsProcessing(false);
+            }
           },
           prefill: {
             name: 'Customer',

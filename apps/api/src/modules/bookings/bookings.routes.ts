@@ -214,7 +214,7 @@ async function createBookingInternal(req: any, res: any, data: {
     let razorpayOrder = null;
     if (remainingAmountToPay > 0) {
       const amountInPaise = Math.round(remainingAmountToPay * 100);
-      razorpayOrder = await createRazorpayOrder(amountInPaise, `rcpt_${bookingId}`, {
+      razorpayOrder = await createRazorpayOrder(amountInPaise, bookingId.substring(0, 40), {
         bookingId,
         customerId
       });
