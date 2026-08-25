@@ -243,11 +243,10 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       gstArr.push(gst);
       totalArr.push(total);
 
-      const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
-      const aiMaxLocal = aiEstimate ? convertCurrency(aiEstimate.maxPrice, aiEstimate.currency || 'INR', targetCurrency) : 0;
+      const aiMaxLocal = aiEstimate ? Number(aiEstimate.maxPrice || 0) : 0;
       
-      const savings = aiMaxLocal && aiMaxLocal > total ? (aiMaxLocal - total) : 0;
-      const savingsPercent = aiMaxLocal && aiMaxLocal > 0 ? Math.round((savings / aiMaxLocal) * 100) : 0;
+      const savings = aiMaxLocal > 0 ? Math.max(0, aiMaxLocal - total) : 0;
+      const savingsPercent = aiMaxLocal > 0 ? Math.round((savings / aiMaxLocal) * 100) : 0;
 
       quoteValuesParts[q.id] = fmt(parts);
       quoteValuesLabour[q.id] = fmt(labour);
@@ -264,33 +263,53 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       return lo === hi ? fmt(lo) : `${fmt(lo)} \u2013 ${fmt(hi)}`;
     };
 
+    const aiBreakupSum = (() => {
+      if (!aiEstimate || !aiEstimate.breakup) return 0;
+      const b = aiEstimate.breakup;
+      const parts = Number(b.parts ?? b.partsCost ?? aiEstimate.parts ?? 0);
+      const labour = Number(b.labour ?? b.labor ?? b.labourCost ?? b.laborCost ?? aiEstimate.labour ?? aiEstimate.labor ?? 0);
+      const consumables = Number(b.consumables ?? b.consumablesCost ?? aiEstimate.consumables ?? 0);
+      const gst = Number(b.gst ?? b.gstCost ?? aiEstimate.gst ?? 0);
+      return parts + labour + consumables + gst;
+    })();
+
     const fmtAi = (val: number | string | undefined) => {
       if (val === undefined || val === null || !aiEstimate) return '—';
-      const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
+      const currency = aiEstimate.currency || 'INR';
       
-      // If it's already a range string from some AI formats, just return it as is or try to format.
       if (typeof val === 'string' && val.includes('-')) {
         return val;
       }
       
       const numVal = typeof val === 'string' ? parseFloat(val.replace(/[^0-9.]/g, '')) : val;
       if (isNaN(numVal)) return '—';
-      
-      const localVal = convertCurrency(numVal, aiEstimate.currency || 'INR', targetCurrency);
-      return formatCurrency(localVal, targetCurrency);
+
+      const minPrice = Number(aiEstimate.minPrice || 0);
+      const maxPrice = Number(aiEstimate.maxPrice || 0);
+
+      if (!minPrice || !maxPrice || minPrice === maxPrice) {
+        return formatCurrency(numVal, currency);
+      }
+
+      // Scale range to match minPrice and maxPrice exactly based on breakup sum
+      const sum = aiBreakupSum || minPrice;
+      const minScaled = numVal * (minPrice / sum);
+      const maxScaled = numVal * (maxPrice / sum);
+
+      return `${formatCurrency(minScaled, currency)} \u2013 ${formatCurrency(maxScaled, currency)}`;
     };
 
     const getAiRange = () => {
-      if (fetchError) return 'DEBUG ERROR: ' + fetchError;
-      if (!aiEstimate) return 'DEBUG: null/undefined';
+      if (fetchError) return '—';
+      if (!aiEstimate) return '—';
       if (aiEstimate.minPrice !== undefined && aiEstimate.maxPrice !== undefined) {
-        const targetCurrency = getCurrencyCodeForCity(getSavedCity()) || 'INR';
-        const minLocal = convertCurrency(aiEstimate.minPrice, aiEstimate.currency || 'INR', targetCurrency);
-        const maxLocal = convertCurrency(aiEstimate.maxPrice, aiEstimate.currency || 'INR', targetCurrency);
-        if (minLocal === maxLocal) return formatCurrency(maxLocal, targetCurrency);
-        return `${formatCurrency(minLocal, targetCurrency)} \u2013 ${formatCurrency(maxLocal, targetCurrency)}`;
+        const currency = aiEstimate.currency || 'INR';
+        const minLocal = Number(aiEstimate.minPrice);
+        const maxLocal = Number(aiEstimate.maxPrice);
+        if (minLocal === maxLocal) return formatCurrency(maxLocal, currency);
+        return `${formatCurrency(minLocal, currency)} \u2013 ${formatCurrency(maxLocal, currency)}`;
       }
-      return 'DEBUG: missing min/max (keys: ' + (typeof aiEstimate === 'object' ? Object.keys(aiEstimate).join(',') : typeof aiEstimate) + ')';
+      return '—';
     };
 
     const aiTotalEstimate = getAiRange();
