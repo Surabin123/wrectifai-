@@ -9,9 +9,9 @@ import { Plus, Send, History, CreditCard, ChevronRight, HelpCircle, Gift, ArrowD
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { Modal } from '@/components/common/modal';
-// eslint-disable-next-line @nx/enforce-module-boundaries
+ 
 import jsPDF from 'jspdf';
-// eslint-disable-next-line @nx/enforce-module-boundaries
+ 
 import autoTable from 'jspdf-autotable';
 
 import { DashboardShell } from '@/components/home/dashboard-shell';

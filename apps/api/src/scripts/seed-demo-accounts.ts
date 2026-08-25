@@ -24,7 +24,7 @@ async function seedDemoAccounts() {
 
     // 3. Ensure Demo Customer (9876543210) exists
     const customerPhone = '9876543210';
-    let customerUser = await query('SELECT id FROM users WHERE mobile_number = $1', [customerPhone]);
+    const customerUser = await query('SELECT id FROM users WHERE mobile_number = $1', [customerPhone]);
     
     if (customerUser.rows.length === 0) {
       const insertCustomer = await query(
@@ -44,7 +44,7 @@ async function seedDemoAccounts() {
 
     // 4. Ensure Demo Admin (0000000000) exists
     const adminPhone = '0000000000';
-    let adminUser = await query('SELECT id FROM users WHERE mobile_number = $1', [adminPhone]);
+    const adminUser = await query('SELECT id FROM users WHERE mobile_number = $1', [adminPhone]);
     
     if (adminUser.rows.length === 0) {
       const insertAdmin = await query(

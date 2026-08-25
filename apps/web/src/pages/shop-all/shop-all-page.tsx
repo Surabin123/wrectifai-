@@ -37,7 +37,7 @@ export function ShopAllPage() {
     const savedWishlist = localStorage.getItem('shopWishlist');
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (savedCart) setCartItems(JSON.parse(savedCart));
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     if (savedWishlist) setWishlistItems(JSON.parse(savedWishlist));
 
     const handleSearch = (e: CustomEvent) => {

@@ -5,7 +5,7 @@ const logins = [
 ];
 
 async function test() { 
-  for (let l of logins) { 
+  for (const l of logins) { 
     const res = await fetch('http://127.0.0.1:3000/api/v1/auth/login', { 
       method: 'POST', 
       headers: { 'Content-Type': 'application/json' }, 

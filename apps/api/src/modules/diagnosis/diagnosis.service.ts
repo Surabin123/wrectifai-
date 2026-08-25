@@ -548,7 +548,7 @@ Rules:
     ]);
 
     const serviceHistory = historyRes.rows;
-    let matchedIssues = matchedIssuesResult;
+    const matchedIssues = matchedIssuesResult;
 
     // 2. We already have the media saved to disk via /upload-media.
     // We just map the URLs.

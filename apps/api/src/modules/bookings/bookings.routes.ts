@@ -15,7 +15,7 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
     const userRoles = req.user?.roles || [];
     const userId = req.user?.userId;
     let filterCondition = '1=1';
-    let params: any[] = [];
+    const params: any[] = [];
     
     if (!userRoles.includes('admin')) {
       if (userRoles.includes('garage')) {
@@ -334,7 +334,7 @@ bookingsRouter.post('/instant', authenticate, async (req, res) => {
 bookingsRouter.post('/from-quote/:quoteId', authenticate, async (req, res) => {
   try {
     const { quoteId } = req.params;
-    let { vehicleId, vehicle, issueDescription, scheduledAt, totalAmount, currency, serviceType } = req.body;
+    const { vehicleId, vehicle, issueDescription, scheduledAt, totalAmount, currency, serviceType } = req.body;
     
     // Auto-fetch missing data from quote and quote_request
     const quoteResult = await query(
@@ -392,7 +392,7 @@ bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
     const userRoles = req.user?.roles || [];
     const userId = req.user?.userId;
     let filterCondition = '1=1';
-    let params: any[] = [bookingId];
+    const params: any[] = [bookingId];
     
     if (!userRoles.includes('admin')) {
       if (userRoles.includes('garage')) {
@@ -478,7 +478,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
 
     const userRoles = req.user?.roles || [];
     let garageCheck = '';
-    let params: any[] = [bookingId];
+    const params: any[] = [bookingId];
 
     if (!userRoles.includes('admin')) {
       if (userRoles.includes('garage')) {

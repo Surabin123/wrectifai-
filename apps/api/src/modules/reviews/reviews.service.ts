@@ -61,7 +61,7 @@ export class ReviewsService {
 
     // Fetch replies for each paginated review
     const reviewIds = res.rows.map((r: any) => r.id);
-    let repliesByReviewId: Record<string, any[]> = {};
+    const repliesByReviewId: Record<string, any[]> = {};
     
     if (reviewIds.length > 0) {
       const repliesRes = await query(

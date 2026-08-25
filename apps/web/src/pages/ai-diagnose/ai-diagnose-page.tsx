@@ -2542,7 +2542,7 @@ export function AIDiagnosePage() {
   // Transition to results screen only when both timer is finished and API response has arrived
   useEffect(() => {
     if (apiResult && timerFinished) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       setIsAnalyzingResults(false);
       setIsDiagnosed(true);
     }
@@ -2583,14 +2583,14 @@ export function AIDiagnosePage() {
   };
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+     
     applyDiagnoseFlow(initialIssueParam);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialIssueParam]);
 
   useEffect(() => {
     if (selectedVehicleId && issueText && issueText !== DEFAULT_ISSUE_TEXT && !hasStartedDiagnose && !hasFailedDiagnose) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+       
       startDiagnoseSession(selectedVehicleId, issueText);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

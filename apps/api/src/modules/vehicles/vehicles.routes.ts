@@ -33,7 +33,7 @@ vehiclesRouter.get('/', authenticate, async (req, res) => {
     const userId = req.user?.userId;
     const userRoles = req.user?.roles || [];
     let filterCondition = 'is_active = true';
-    let params: any[] = [];
+    const params: any[] = [];
 
     if (!userRoles.includes('admin')) {
       filterCondition += ' AND customer_id = $1';
