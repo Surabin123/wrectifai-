@@ -99,6 +99,89 @@ export function BookingsPage() {
     setCollectionModalOpen(true);
   };
 
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const [paymentProcessingId, setPaymentProcessingId] = useState<string | null>(null);
+
+  const handlePayNow = async (booking: Booking) => {
+    try {
+      setPaymentProcessingId(booking.id);
+      const { payForBooking } = await import('@/lib/bookings-api');
+      const { razorpayOrderId } = await payForBooking(booking.id);
+      
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        alert('Failed to load Razorpay payment SDK.');
+        setPaymentProcessingId(null);
+        return;
+      }
+
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_mock123',
+        amount: Math.round(booking.totalAmount * 100),
+        currency: booking.currency || 'INR',
+        name: 'WrectifAI Services',
+        description: 'Payment for Booking',
+        order_id: razorpayOrderId,
+        handler: async function (response: any) {
+          try {
+            const { apiClient } = await import('@/lib/api-client');
+            const verifyRes = await apiClient.post<{verified: boolean}>('/payments/verify', {
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature
+            });
+            if (verifyRes.verified) {
+              setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, paymentStatus: 'paid' } : b)));
+              alert('Payment successful!');
+            } else {
+              alert('Payment verification failed.');
+            }
+          } catch (err) {
+            alert('Payment verification failed. Please contact support.');
+          } finally {
+            setPaymentProcessingId(null);
+          }
+        },
+        prefill: {
+          name: 'Customer',
+          contact: userPhone || '9999999999'
+        },
+        theme: {
+          color: '#2563EB'
+        },
+        modal: {
+          ondismiss: function() {
+            setPaymentProcessingId(null);
+          }
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        alert('Payment failed: ' + response.error.description);
+        setPaymentProcessingId(null);
+      });
+      rzp.open();
+    } catch (err) {
+      console.error('Payment intent generation failed', err);
+      alert('Failed to initialize payment.');
+      setPaymentProcessingId(null);
+    }
+  };
+
   const confirmMarkCollected = async () => {
     if (!bookingToCollect) return;
     try {
@@ -285,6 +368,24 @@ export function BookingsPage() {
                         className="h-8 rounded-[9px] px-2.5 text-[10.5px] font-semibold border-green-200 text-green-600 hover:bg-green-50 hover:text-green-700"
                       >
                         Mark Vehicle Collected
+                      </Button>
+                    )}
+                    {(b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected') && b.paymentStatus !== 'paid' && (
+                      <Button
+                        onClick={() => handlePayNow(b)}
+                        disabled={paymentProcessingId === b.id}
+                        className="h-8 rounded-[9px] px-2.5 text-[10.5px] font-semibold bg-[#17307a] text-white hover:bg-[#1a3a96]"
+                      >
+                        {paymentProcessingId === b.id ? 'Processing...' : 'Pay Now'}
+                      </Button>
+                    )}
+                    {b.status === 'collected' && (
+                      <Button
+                        onClick={() => window.location.href = `/garage-details/${b.garageId}`}
+                        variant="outline"
+                        className="h-8 rounded-[9px] px-2.5 text-[10.5px] font-semibold border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
+                      >
+                        Leave a Review
                       </Button>
                     )}
                   </div>

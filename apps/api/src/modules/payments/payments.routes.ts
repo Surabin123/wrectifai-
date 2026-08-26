@@ -285,9 +285,10 @@ paymentsRouter.post('/webhook', async (req, res) => {
             ['failed', providerIntentId]
           );
 
+          const failStatus = booking.status === 'pendingPayment' ? 'cancelled' : booking.status;
           await client.query(
             'UPDATE bookings SET status = $1, payment_status = $2 WHERE id = $3',
-            ['cancelled', 'failed', booking.id]
+            [failStatus, 'failed', booking.id]
           );
 
           // Release wallet hold

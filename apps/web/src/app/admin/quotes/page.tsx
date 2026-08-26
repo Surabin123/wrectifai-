@@ -141,11 +141,11 @@ export default function AdminQuotesPage() {
                  </div>
                  <div className="space-y-1">
                    <p className="text-[10px] uppercase font-bold text-slate-500">Customer City</p>
-                   <p className="font-semibold text-slate-900">N/A</p>
+                   <p className="font-semibold text-slate-900">{selectedQuote.customerCity || 'N/A'}</p>
                  </div>
                  <div className="space-y-1">
                    <p className="text-[10px] uppercase font-bold text-slate-500">Garage City</p>
-                   <p className="font-semibold text-slate-900">N/A</p>
+                   <p className="font-semibold text-slate-900">{selectedQuote.garageCity || 'N/A'}</p>
                  </div>
                  <div className="space-y-1">
                    <p className="text-[10px] uppercase font-bold text-slate-500">Garage Name</p>
@@ -164,7 +164,7 @@ export default function AdminQuotesPage() {
                    <p className="font-semibold text-slate-900">
                      {selectedQuote.preferredDate ? new Date(selectedQuote.preferredDate).toLocaleDateString() : 'N/A'}
                      {' '}
-                     {selectedQuote.preferredTime || ''}
+                     {selectedQuote.preferredDate ? new Date(selectedQuote.preferredDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
                    </p>
                  </div>
                  <div className="space-y-1 col-span-2">

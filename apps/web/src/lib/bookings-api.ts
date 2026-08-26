@@ -9,6 +9,7 @@ export interface Booking {
   bookingType: 'instant' | 'quoteBased';
   scheduledAt: string;
   status: 'pendingPayment' | 'confirmed' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'readyForCollection' | 'collected';
+  paymentStatus?: 'pending' | 'paid' | 'failed' | 'refunded' | 'refund_failed';
   totalAmount: number;
   currency: string;
   createdAt: string;
@@ -43,4 +44,8 @@ export async function createBooking(data: {
 
 export async function updateBookingStatus(id: string, status: string, collectionTime?: string): Promise<Booking> {
   return apiClient.patch<Booking>(`/bookings/${id}/status`, { status, collectionTime });
+}
+
+export async function payForBooking(id: string): Promise<{ razorpayOrderId: string }> {
+  return apiClient.post<{ razorpayOrderId: string }>(`/bookings/${id}/pay`);
 }

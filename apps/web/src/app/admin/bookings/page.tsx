@@ -154,7 +154,7 @@ export default function AdminBookingsPage() {
                  </div>
                  <div className="space-y-1">
                    <p className="text-[10px] uppercase font-bold text-slate-500">City / Address</p>
-                   <p className="font-semibold text-slate-900">N/A</p>
+                   <p className="font-semibold text-slate-900">{selectedBooking.customerCity || 'N/A'}</p>
                  </div>
                  <div className="space-y-1">
                    <p className="text-[10px] uppercase font-bold text-slate-500">Garage Details</p>

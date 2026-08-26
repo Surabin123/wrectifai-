@@ -40,6 +40,7 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
         b.booking_type as "bookingType",
         b.scheduled_at as "scheduledAt",
         b.status,
+        b.payment_status as "paymentStatus",
         b.total_amount as "totalAmount",
         b.currency,
         b.created_at as "createdAt",
@@ -164,9 +165,9 @@ async function createBookingInternal(req: any, res: any, data: {
       heldWalletAmount = Math.min(walletAmountToUse, finalAmount);
     }
 
-    // Insert booking in 'pendingPayment' (or 'confirmed' if completely paid)
+    // Insert booking in 'pendingPayment' (or 'confirmed' if completely paid)    // For "Pay at Garage", the payment_status should always be 'pending'.
     const status = finalAmount - heldWalletAmount <= 0 ? 'confirmed' : 'pendingPayment';
-    const paymentStatus = finalAmount - heldWalletAmount <= 0 ? 'paid' : 'pending';
+    const paymentStatus = 'pending';
 
     const result = await query(
       `INSERT INTO bookings (customer_id, garage_id, vehicle_id, quote_id, booking_type, scheduled_at, status, payment_status, total_amount, currency, customer_note, offer_id, discount_applied, wallet_used)
@@ -420,6 +421,7 @@ bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
         b.booking_type as "bookingType",
         b.scheduled_at as "scheduledAt",
         b.status,
+        b.payment_status as "paymentStatus",
         b.total_amount as "totalAmount",
         b.currency,
         b.created_at as "createdAt",
@@ -644,3 +646,50 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
     );
   }
 });
+
+// POST /bookings/:bookingId/pay — create payment intent for existing unpaid booking
+bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user?.userId;
+    
+    // 1. Verify booking ownership and status
+    const bookingRes = await query(
+      `SELECT id, total_amount, payment_status, status FROM bookings WHERE id = $1 AND customer_id = $2`,
+      [bookingId, userId]
+    );
+
+    if (bookingRes.rows.length === 0) {
+      return error(res, 'Booking not found or unauthorized', 'NOT_FOUND', 404);
+    }
+
+    const booking = bookingRes.rows[0];
+
+    if (booking.payment_status === 'paid') {
+      return error(res, 'Booking is already paid', 'BAD_REQUEST', 400);
+    }
+
+    const amountInPaise = Math.round(Number(booking.total_amount) * 100);
+
+    // 2. Create Razorpay order
+    const razorpayOrder = await createRazorpayOrder(amountInPaise, bookingId.substring(0, 40), {
+      bookingId,
+      customerId: userId,
+      type: 'existing_booking_payment'
+    });
+
+    if (!razorpayOrder) {
+      return error(res, 'Failed to initialize payment', 'INTERNAL_SERVER_ERROR', 500);
+    }
+
+    // 3. Update payment_intent_id
+    await query(`UPDATE bookings SET payment_intent_id = $1 WHERE id = $2`, [razorpayOrder.id, bookingId]);
+
+    return success(res, { razorpayOrderId: razorpayOrder.id }, 200);
+
+  } catch (err) {
+    console.error('Error generating payment intent for existing booking:', err);
+    return error(res, 'Payment initialization failed', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+

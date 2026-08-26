@@ -726,7 +726,7 @@ quotesRouter.get('/garage/completed-jobs', authenticate, async (req, res) => {
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN users u ON b.customer_id = u.id
-       WHERE b.garage_id = $1 AND b.status = 'completed'
+       WHERE b.garage_id = $1 AND b.status IN ('completed', 'readyForCollection', 'collected')
        ORDER BY b.updated_at DESC`,
       [garageId]
     );
