@@ -1,0 +1,2 @@
+ALTER TABLE bookings
+ADD COLUMN IF NOT EXISTS payment_intent_id VARCHAR(255);
