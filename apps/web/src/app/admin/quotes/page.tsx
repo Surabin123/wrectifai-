@@ -19,7 +19,7 @@ export default function AdminQuotesPage() {
 
   const loadData = async () => {
     try {
-      const data = await apiClient.get<any[]>('/admin/quotes').catch(() => []);
+      const data = await apiClient.get<any[]>('/quotes').catch(() => []);
       setQuotes(data);
     } catch (err) {
       console.warn('Failed to load quotes', err);
@@ -99,7 +99,7 @@ export default function AdminQuotesPage() {
                       <td className="p-4 text-sm font-semibold text-slate-900 truncate">{q.customerName || 'N/A'}</td>
                       <td className="p-4 text-sm text-slate-700 truncate">{q.garageName || 'N/A'}</td>
                       <td className="p-4 text-sm text-slate-700">{formatCurrency(q.totalAmount || 0, q.currency || 'USD')}</td>
-                      <td className="p-4 text-sm text-slate-700">N/A</td>
+                      <td className="p-4 text-sm text-slate-700">{q.customerCity || 'N/A'}</td>
                       <td className="p-4 text-sm text-slate-700">
                         <span className={`px-2 py-1 rounded-full text-[10px] font-bold uppercase border ${isQuoted ? 'bg-green-50 text-green-700 border-green-100' : 'bg-slate-50 text-slate-700 border-slate-200'}`}>
                           {statusText}
@@ -150,6 +150,10 @@ export default function AdminQuotesPage() {
                  <div className="space-y-1">
                    <p className="text-[10px] uppercase font-bold text-slate-500">Garage Name</p>
                    <p className="font-semibold text-slate-900">{selectedQuote.garageName || 'N/A'}</p>
+                 </div>
+                 <div className="space-y-1">
+                   <p className="text-[10px] uppercase font-bold text-slate-500">Preferred Date</p>
+                   <p className="font-semibold text-slate-900">{selectedQuote.preferredDate ? new Date(selectedQuote.preferredDate).toLocaleDateString() : 'N/A'}</p>
                  </div>
                  <div className="space-y-1">
                    <p className="text-[10px] uppercase font-bold text-slate-500">Created At</p>

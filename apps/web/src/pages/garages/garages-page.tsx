@@ -813,9 +813,15 @@ function GaragesContent() {
 
   const garageFromQuery = useMemo(() => {
     const garageName = searchParams?.get('garage');
+    const garageId = searchParams?.get('garageId');
 
-    if (!garageName) {
+    if (!garageName && !garageId) {
       return null;
+    }
+
+    if (garageId) {
+      const match = garagesList.find((garage) => garage.id === garageId);
+      if (match) return match;
     }
 
     return garagesList.find((garage) => garage.name === garageName) || null;

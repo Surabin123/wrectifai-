@@ -120,11 +120,13 @@ export default function BookingsPage() {
                           {b.status === 'pendingPayment' ? 'Pending' : b.status === 'in_progress' ? 'In Progress' : b.status === 'readyForCollection' ? 'Ready for Collection' : b.status === 'collected' ? 'Collected' : b.status}
                         </td>
                         <td className="p-3 text-sm text-right space-x-2 flex justify-end items-center h-full">
-                          {b.status === 'pendingPayment' && (
+                          {(b.status === 'pendingPayment' || b.status === 'confirmed') && (
                             <>
-                              <button onClick={() => handleUpdateStatus(b.id, 'accepted')} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded font-semibold hover:bg-blue-200">
-                                Accept
-                              </button>
+                              {b.status === 'pendingPayment' && (
+                                <button onClick={() => handleUpdateStatus(b.id, 'accepted')} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded font-semibold hover:bg-blue-200">
+                                  Accept
+                                </button>
+                              )}
                               <button onClick={() => handleUpdateStatus(b.id, 'rejected')} className="text-xs bg-red-100 text-red-700 px-3 py-1 rounded font-semibold hover:bg-red-200 ml-2">
                                 Reject
                               </button>

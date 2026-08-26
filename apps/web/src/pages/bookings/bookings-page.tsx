@@ -381,7 +381,7 @@ export function BookingsPage() {
                     )}
                     {b.status === 'collected' && (
                       <Button
-                        onClick={() => window.location.href = `/garage-details/${b.garageId}`}
+                        onClick={() => window.location.href = `/garages?garageId=${b.garageId}&bookingId=${b.id}&review=true`}
                         variant="outline"
                         className="h-8 rounded-[9px] px-2.5 text-[10.5px] font-semibold border-amber-200 text-amber-600 hover:bg-amber-50 hover:text-amber-700"
                       >
@@ -441,6 +441,14 @@ export function BookingsPage() {
               <span className="block font-bold text-slate-500 mb-1">Booking Status</span>
               <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 font-bold text-xs rounded uppercase">
                 {viewDetailsBooking.status}
+              </span>
+            </div>
+            <div>
+              <span className="block font-bold text-slate-500 mb-1">Payment Status</span>
+              <span className={`inline-block px-2 py-1 font-bold text-xs rounded uppercase ${
+                viewDetailsBooking.paymentStatus === 'paid' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
+              }`}>
+                {viewDetailsBooking.paymentStatus || 'pending'}
               </span>
             </div>
           </div>

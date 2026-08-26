@@ -195,20 +195,26 @@ export default function IncomingRequestsPage() {
                 </div>
               </div>
               <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
-                <button 
-                  disabled={isUpdating}
-                  onClick={() => handleUpdateStatus(selectedBooking.id, 'rejected')}
-                  className="px-4 py-2 border border-red-200 bg-white rounded text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
-                >
-                  Reject
-                </button>
-                <button 
-                  disabled={isUpdating}
-                  onClick={() => handleUpdateStatus(selectedBooking.id, 'accepted')}
-                  className="px-4 py-2 bg-green-600 rounded text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50"
-                >
-                  {isUpdating ? 'Updating...' : 'Accept'}
-                </button>
+                {selectedBooking && !['completed', 'readyForCollection', 'collected'].includes(selectedBooking.status || 'pendingPayment') && (
+                  <>
+                    <button 
+                      disabled={isUpdating}
+                      onClick={() => handleUpdateStatus(selectedBooking.id, 'rejected')}
+                      className="px-4 py-2 border border-red-200 bg-white rounded text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
+                    >
+                      Reject
+                    </button>
+                    {selectedBooking.status !== 'confirmed' && (
+                      <button 
+                        disabled={isUpdating}
+                        onClick={() => handleUpdateStatus(selectedBooking.id, 'accepted')}
+                        className="px-4 py-2 bg-green-600 rounded text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50"
+                      >
+                        {isUpdating ? 'Updating...' : 'Accept'}
+                      </button>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>

@@ -120,32 +120,6 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
         ['COMPLETED', booking.id, 'PENDING']
       );
       
-      // 4. Insert Razorpay payment into Wallet Transactions so it shows in history
-      let walletId;
-      const walletRes = await client.query('SELECT id, balance FROM wallets WHERE user_id = $1 FOR UPDATE', [booking.customer_id]);
-      if (walletRes.rows.length > 0) {
-        walletId = walletRes.rows[0].id;
-      } else {
-        const newWalletRes = await client.query('INSERT INTO wallets (user_id, balance) VALUES ($1, 0) RETURNING id', [booking.customer_id]);
-        walletId = newWalletRes.rows[0].id;
-      }
-      
-      const txCheck = await client.query(
-        "SELECT id FROM wallet_transactions WHERE wallet_id = $1 AND reference_id = $2 AND description LIKE '%Razorpay%'", 
-        [walletId, booking.id]
-      );
-      
-      if (txCheck.rows.length === 0) {
-        await client.query(
-          `INSERT INTO wallet_transactions 
-           (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
-           VALUES ($1, 'DEBIT', $2, 
-           (SELECT balance FROM wallets WHERE id = $1), 
-           (SELECT balance FROM wallets WHERE id = $1), 
-           'BOOKING', $3, 'COMPLETED', 'Payment for Booking (Razorpay)')`,
-          [walletId, paymentAmount, booking.id]
-        );
-      }
       
       await client.query('COMMIT');
       return success(res, { verified: true }, 200);
@@ -243,30 +217,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
             ['COMPLETED', booking.id, 'PENDING']
           );
           
-          let walletId;
-          const walletRes = await client.query('SELECT id, balance FROM wallets WHERE user_id = $1 FOR UPDATE', [booking.customer_id]);
-          if (walletRes.rows.length > 0) {
-            walletId = walletRes.rows[0].id;
-          } else {
-            const newWalletRes = await client.query('INSERT INTO wallets (user_id, balance) VALUES ($1, 0) RETURNING id', [booking.customer_id]);
-            walletId = newWalletRes.rows[0].id;
-          }
           
-          const txCheck = await client.query(
-            "SELECT id FROM wallet_transactions WHERE wallet_id = $1 AND reference_id = $2 AND description LIKE '%Razorpay%'", 
-            [walletId, booking.id]
-          );
-          if (txCheck.rows.length === 0) {
-            await client.query(
-              `INSERT INTO wallet_transactions 
-               (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
-               VALUES ($1, 'DEBIT', $2, 
-               (SELECT balance FROM wallets WHERE id = $1), 
-               (SELECT balance FROM wallets WHERE id = $1), 
-               'BOOKING', $3, 'COMPLETED', 'Payment for Booking (Razorpay)')`,
-              [walletId, amount, booking.id]
-            );
-          }
         }
       }
     } else if (webhookBody.event === 'payment.failed') {
@@ -312,10 +263,13 @@ paymentsRouter.post('/webhook', async (req, res) => {
       const refundId = refundEntity?.id;
 
       if (paymentId) {
-        await client.query(
-          "UPDATE payments SET status = 'refunded', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refunded'",
+        const updateRes = await client.query(
+          "UPDATE payments SET status = 'refunded', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refunded' RETURNING booking_id",
           [refundId, paymentId]
         );
+        if (updateRes.rows.length > 0) {
+          await client.query("UPDATE bookings SET payment_status = 'refunded', updated_at = NOW() WHERE id = $1", [updateRes.rows[0].booking_id]);
+        }
       }
     } else if (webhookBody.event === 'refund.failed') {
       const refundEntity = webhookBody.payload?.refund?.entity;
@@ -323,10 +277,13 @@ paymentsRouter.post('/webhook', async (req, res) => {
       const refundId = refundEntity?.id;
 
       if (paymentId) {
-        await client.query(
-          "UPDATE payments SET status = 'refund_failed', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refund_failed'",
+        const updateRes = await client.query(
+          "UPDATE payments SET status = 'refund_failed', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refund_failed' RETURNING booking_id",
           [refundId, paymentId]
         );
+        if (updateRes.rows.length > 0) {
+          await client.query("UPDATE bookings SET payment_status = 'refund_failed', updated_at = NOW() WHERE id = $1", [updateRes.rows[0].booking_id]);
+        }
       }
     }
 

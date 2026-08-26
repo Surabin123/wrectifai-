@@ -16,8 +16,15 @@ function AdminServiceHistoryContent() {
 
   const loadData = async () => {
     try {
-      const data = await apiClient.get<any[]>('/admin/service-history').catch(() => []);
-      setHistory(data);
+      const data = await apiClient.get<any[]>('/bookings').catch(() => []);
+      const completedBookings = data.filter((b: any) => 
+        ['completed', 'readyForCollection', 'collected'].includes(b.status)
+      ).map((b: any) => ({
+        ...b,
+        details: b.issueDescription,
+        completedAt: b.updatedAt || b.scheduledAt
+      }));
+      setHistory(completedBookings);
     } catch (err) {
       console.error('Failed to load history', err);
     } finally {

@@ -56,13 +56,16 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
         qr.preferred_date as "preferredDate",
         u.name as "customerName",
         u.mobile_number as "customerPhone",
-        u.email as "customerEmail"
+        u.email as "customerEmail",
+        p.city as "customerCity",
+        g.city as "garageCity"
        FROM bookings b
        JOIN garages g ON b.garage_id = g.id
        JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
        LEFT JOIN users u ON b.customer_id = u.id
+       LEFT JOIN profiles p ON u.id = p.user_id
        WHERE ${filterCondition}
        ORDER BY b.scheduled_at DESC`,
       params
@@ -295,7 +298,7 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
        LEFT JOIN profiles p ON u.id = p.user_id
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
-       WHERE b.garage_id = $1 AND b.status = 'pendingPayment'
+       WHERE b.garage_id = $1 AND b.status IN ('pendingPayment', 'confirmed')
        ORDER BY b.created_at DESC`,
       [garageId]
     );
@@ -437,13 +440,16 @@ bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
         qr.preferred_date as "preferredDate",
         u.name as "customerName",
         u.mobile_number as "customerPhone",
-        u.email as "customerEmail"
+        u.email as "customerEmail",
+        p.city as "customerCity",
+        g.city as "garageCity"
        FROM bookings b
        JOIN garages g ON b.garage_id = g.id
        JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
        LEFT JOIN users u ON b.customer_id = u.id
+       LEFT JOIN profiles p ON u.id = p.user_id
        WHERE b.id = $1 AND ${filterCondition}`,
       params
     );
@@ -533,6 +539,10 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
             'UPDATE payments SET status = $1, provider_refund_id = $2, updated_at = NOW() WHERE id = $3',
             ['refund_pending', refundResponse.id, paymentRecord.id]
           );
+          await query(
+            'UPDATE bookings SET payment_status = $1, updated_at = NOW() WHERE id = $2',
+            ['refund_pending', bookingId]
+          );
 
           // Insert wallet refund transaction
           const walletRes = await query('SELECT id FROM wallets WHERE user_id = $1', [currentBooking.customer_id]);
@@ -549,6 +559,10 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
           await query(
             'UPDATE payments SET status = $1, updated_at = NOW() WHERE id = $2',
             ['refund_failed', paymentRecord.id]
+          );
+          await query(
+            'UPDATE bookings SET payment_status = $1, updated_at = NOW() WHERE id = $2',
+            ['refund_failed', bookingId]
           );
         }
       }

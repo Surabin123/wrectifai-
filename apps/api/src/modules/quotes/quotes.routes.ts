@@ -10,8 +10,17 @@ export const quotesRouter = Router();
 quotesRouter.get('/', authenticate, async (req, res) => {
   try {
     const customerId = req.user?.userId;
-    if (!customerId) {
-      return error(res, 'Authentication failed: no customer ID found', 'UNAUTHORIZED', 401);
+    const userRoles = req.user?.roles || [];
+    
+    let filterCondition = '1=1';
+    const params: any[] = [];
+    
+    if (!userRoles.includes('admin')) {
+      if (!customerId) {
+        return error(res, 'Authentication failed: no customer ID found', 'UNAUTHORIZED', 401);
+      }
+      filterCondition = 'qr.customer_id = $1';
+      params.push(customerId);
     }
 
     const result = await query(
@@ -22,16 +31,18 @@ quotesRouter.get('/', authenticate, async (req, res) => {
               qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary", qr.preferred_date as "preferredDate",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage", v.fuel_type as "vehicleFuelType",
               b.id as "bookingId", b.status as "bookingStatus", b.created_at as "bookingCreatedAt", b.scheduled_at as "bookingScheduledAt",
-              u.name as "customerName"
+              u.name as "customerName", u.mobile_number as "customerPhone", u.email as "customerEmail",
+              g.city as "garageCity", p.city as "customerCity"
        FROM quotes q
        JOIN garages g ON q.garage_id = g.id
        JOIN quote_requests qr ON q.quote_request_id = qr.id
        LEFT JOIN vehicles v ON qr.vehicle_id = v.id
        LEFT JOIN LATERAL (SELECT id, status, created_at, scheduled_at FROM bookings WHERE quote_id = q.id ORDER BY created_at DESC LIMIT 1) b ON true
        LEFT JOIN users u ON qr.customer_id = u.id
-       WHERE qr.customer_id = $1
+       LEFT JOIN profiles p ON u.id = p.user_id
+       WHERE ${filterCondition}
        ORDER BY q.created_at DESC`,
-      [customerId]
+      params
     );
 
     const mapped = result.rows.map((row: Record<string, any>) => {
@@ -71,6 +82,10 @@ quotesRouter.get('/', authenticate, async (req, res) => {
         garageCreatedAt: row.garageCreatedAt,
         garageEstablishedYear: row.garageEstablishedYear,
         customerName: row.customerName,
+        customerPhone: row.customerPhone,
+        customerEmail: row.customerEmail,
+        customerCity: row.customerCity,
+        garageCity: row.garageCity,
         image: row.garageImage || '/assets/garage_1_1778071156220.png',
         rating: String(Number(row.ratingAvg || 0).toFixed(1)),
         reviews: Number(row.ratingCount || 0),

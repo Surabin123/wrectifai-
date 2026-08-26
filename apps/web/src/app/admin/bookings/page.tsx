@@ -20,7 +20,7 @@ export default function AdminBookingsPage() {
 
   const loadData = async () => {
     try {
-      const data = await apiClient.get<any[]>('/admin/bookings').catch(() => []);
+      const data = await apiClient.get<any[]>('/bookings').catch(() => []);
       setBookings(data);
     } catch (err) {
       console.warn('Failed to load bookings', err);
