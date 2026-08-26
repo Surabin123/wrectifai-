@@ -139,8 +139,9 @@ export function CheckoutModal({ isOpen, onClose, subtotal, bookingPayload, onSub
         // Fully paid via wallet or free
         onSuccess();
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
+      setOfferError(err?.message || 'Payment failed. Please try again.');
       setIsProcessing(false);
     }
   };
