@@ -25,16 +25,24 @@ export function CheckoutModal({ isOpen, onClose, subtotal, bookingPayload, onSub
   const [offerSuccess, setOfferSuccess] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  useEffect(() => {
-    if (isOpen) {
-      fetchWalletBalance().then(res => setWalletBalance(res.balance)).catch(console.error);
-      
-      // Load Razorpay SDK
+  const loadRazorpayScript = () => {
+    return new Promise<boolean>((resolve) => {
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
       const script = document.createElement('script');
       script.src = 'https://checkout.razorpay.com/v1/checkout.js';
       script.async = true;
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
       document.body.appendChild(script);
-      return () => { document.body.removeChild(script); };
+    });
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchWalletBalance().then(res => setWalletBalance(res.balance)).catch(console.error);
     }
   }, [isOpen]);
 
@@ -74,6 +82,12 @@ export function CheckoutModal({ isOpen, onClose, subtotal, bookingPayload, onSub
       const result = await onSubmit(finalPayload);
 
       if (result.razorpayOrderId && finalAmountToPay > 0) {
+        const loaded = await loadRazorpayScript();
+        if (!loaded) {
+          setOfferError('Failed to load Razorpay payment SDK. Please check your connection or disable adblocker.');
+          setIsProcessing(false);
+          return;
+        }
         // Open Razorpay Popup
         const options = {
           key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_mock123',
