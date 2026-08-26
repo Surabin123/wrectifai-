@@ -304,7 +304,6 @@ paymentsRouter.post('/webhook', async (req, res) => {
             );
           }
         }
-        }
       }
     } else if (webhookBody.event === 'refund.processed') {
       const refundEntity = webhookBody.payload?.refund?.entity;

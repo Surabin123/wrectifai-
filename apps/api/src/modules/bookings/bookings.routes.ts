@@ -95,6 +95,7 @@ async function createBookingInternal(req: any, res: any, data: {
   currency?: string;
   serviceType?: string;
   offerCode?: string;
+  walletAmountToUse?: number;
   paymentMethod?: string;
 }) {
   const customerId = req.user?.userId;
