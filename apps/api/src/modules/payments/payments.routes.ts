@@ -25,6 +25,11 @@ paymentsRouter.post('/orders', authenticate, async (req, res) => {
       bookingId
     });
 
+    if (bookingId) {
+      const pool = getDbPool();
+      await pool.query('UPDATE bookings SET payment_intent_id = $1 WHERE id = $2', [order.id, bookingId]);
+    }
+
     return success(
       res,
       {
@@ -80,15 +85,16 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
       const booking = bookingRes.rows[0];
       
       // Idempotency: if already paid, just return true
-      if (booking.payment_status === 'paid' || booking.status === 'confirmed') {
+      if (booking.payment_status === 'paid') {
         await client.query('ROLLBACK');
         return success(res, { verified: true }, 200);
       }
       
-      // 1. Update Booking
+      // 1. Update Booking (only change status to confirmed if it was pendingPayment)
+      const newStatus = booking.status === 'pendingPayment' ? 'confirmed' : booking.status;
       await client.query(
         'UPDATE bookings SET status = $1, payment_status = $2 WHERE id = $3',
-        ['confirmed', 'paid', booking.id]
+        [newStatus, 'paid', booking.id]
       );
       
       const paymentAmount = Number(booking.total_amount || 0) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
@@ -207,13 +213,14 @@ paymentsRouter.post('/webhook', async (req, res) => {
       if (bookingRes.rows.length > 0) {
         const booking = bookingRes.rows[0];
         
-        if (booking.payment_status === 'paid' || booking.status === 'confirmed') {
+        if (booking.payment_status === 'paid') {
           // Already paid, ignore safely
         } else {
           // Update booking status
+          const newStatus = booking.status === 'pendingPayment' ? 'confirmed' : booking.status;
           await client.query(
             'UPDATE bookings SET status = $1, payment_status = $2 WHERE id = $3',
-            ['confirmed', 'paid', booking.id]
+            [newStatus, 'paid', booking.id]
           );
 
           const paymentCheck = await client.query('SELECT id FROM payments WHERE provider_intent_id = $1', [providerIntentId]);
@@ -297,6 +304,29 @@ paymentsRouter.post('/webhook', async (req, res) => {
             );
           }
         }
+        }
+      }
+    } else if (webhookBody.event === 'refund.processed') {
+      const refundEntity = webhookBody.payload?.refund?.entity;
+      const paymentId = refundEntity?.payment_id;
+      const refundId = refundEntity?.id;
+
+      if (paymentId) {
+        await client.query(
+          "UPDATE payments SET status = 'refunded', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refunded'",
+          [refundId, paymentId]
+        );
+      }
+    } else if (webhookBody.event === 'refund.failed') {
+      const refundEntity = webhookBody.payload?.refund?.entity;
+      const paymentId = refundEntity?.payment_id;
+      const refundId = refundEntity?.id;
+
+      if (paymentId) {
+        await client.query(
+          "UPDATE payments SET status = 'refund_failed', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refund_failed'",
+          [refundId, paymentId]
+        );
       }
     }
 

@@ -61,3 +61,16 @@ export async function createRazorpayOrder(amountInPaise: number, receiptId: stri
     throw new Error('Failed to create payment order.');
   }
 }
+
+/**
+ * Issues a refund for a previously captured Razorpay payment.
+ */
+export async function issueRazorpayRefund(paymentId: string, amountInPaise?: number) {
+  try {
+    const options = amountInPaise ? { amount: amountInPaise } : {};
+    return await razorpayClient.payments.refund(paymentId, options);
+  } catch (error) {
+    console.error('Razorpay refund failed:', error);
+    throw new Error('Failed to initiate refund.');
+  }
+}

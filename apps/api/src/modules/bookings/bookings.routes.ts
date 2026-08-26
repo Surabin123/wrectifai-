@@ -95,11 +95,11 @@ async function createBookingInternal(req: any, res: any, data: {
   currency?: string;
   serviceType?: string;
   offerCode?: string;
-  walletAmountToUse?: number;
+  paymentMethod?: string;
 }) {
   const customerId = req.user?.userId;
   let { garageId } = data;
-  const { vehicleId, scheduledAt, totalAmount, bookingType, quoteId, currency, serviceType, offerCode, walletAmountToUse } = data;
+  const { vehicleId, scheduledAt, totalAmount, bookingType, quoteId, currency, serviceType, offerCode, walletAmountToUse, paymentMethod } = data;
 
   if (!vehicleId || !scheduledAt || totalAmount === undefined || !bookingType) {
     return error(res, 'Missing required booking fields', 'BAD_REQUEST', 400);
@@ -210,9 +210,9 @@ async function createBookingInternal(req: any, res: any, data: {
 
     const remainingAmountToPay = finalAmount - heldWalletAmount;
 
-    // 3. Create Razorpay Order if remaining balance is > 0
+    // 3. Create Razorpay Order if remaining balance is > 0 and not paying at garage
     let razorpayOrder = null;
-    if (remainingAmountToPay > 0) {
+    if (remainingAmountToPay > 0 && paymentMethod !== 'PAY_AT_GARAGE') {
       const amountInPaise = Math.round(remainingAmountToPay * 100);
       razorpayOrder = await createRazorpayOrder(amountInPaise, bookingId.substring(0, 40), {
         bookingId,
@@ -317,7 +317,7 @@ bookingsRouter.post('/', authenticate, async (req, res) => {
 
 // POST /bookings/instant — legacy/instant booking alias
 bookingsRouter.post('/instant', authenticate, async (req, res) => {
-  const { garageId, vehicleId, scheduledAt, totalAmount, currency, serviceType } = req.body;
+  const { garageId, vehicleId, scheduledAt, totalAmount, currency, serviceType, paymentMethod } = req.body;
   return createBookingInternal(req, res, {
     garageId,
     vehicleId,
@@ -327,6 +327,7 @@ bookingsRouter.post('/instant', authenticate, async (req, res) => {
     quoteId: null,
     currency,
     serviceType,
+    paymentMethod,
   });
 });
 
@@ -372,6 +373,7 @@ bookingsRouter.post('/from-quote/:quoteId', authenticate, async (req, res) => {
       quoteId,
       currency: currency || quoteData.currency || 'USD',
       serviceType: issueDescription || serviceType || 'Quote Based Service',
+      paymentMethod: req.body.paymentMethod,
     });
   } catch (err: any) {
     console.error('Error processing quote booking:', err);
@@ -508,6 +510,46 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
     if (status === 'accepted') dbStatus = 'confirmed';
     if (status === 'rejected') dbStatus = 'cancelled';
     if (status === 'in_progress') dbStatus = 'inService';
+
+    // Verify existing booking and handle refunds if paying online
+    const currentBookingRes = await query('SELECT payment_status, customer_id FROM bookings WHERE id = $1', [bookingId]);
+    if (currentBookingRes.rows.length === 0) {
+      return error(res, 'Booking not found', 'NOT_FOUND', 404);
+    }
+    const currentBooking = currentBookingRes.rows[0];
+
+    if (dbStatus === 'cancelled' && currentBooking.payment_status === 'paid') {
+      const paymentRes = await query("SELECT provider_payment_id, id, amount FROM payments WHERE booking_id = $1 AND status = 'succeeded'", [bookingId]);
+      if (paymentRes.rows.length > 0) {
+        const paymentRecord = paymentRes.rows[0];
+        try {
+          const { issueRazorpayRefund } = require('../payments/razorpay.service');
+          const refundResponse = await issueRazorpayRefund(paymentRecord.provider_payment_id);
+          
+          await query(
+            'UPDATE payments SET status = $1, provider_refund_id = $2, updated_at = NOW() WHERE id = $3',
+            ['refund_pending', refundResponse.id, paymentRecord.id]
+          );
+
+          // Insert wallet refund transaction
+          const walletRes = await query('SELECT id FROM wallets WHERE user_id = $1', [currentBooking.customer_id]);
+          if (walletRes.rows.length > 0) {
+             const walletId = walletRes.rows[0].id;
+             await query(`
+               INSERT INTO wallet_transactions 
+               (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
+               VALUES ($1, 'REFUND', $2, (SELECT balance FROM wallets WHERE id = $1), (SELECT balance FROM wallets WHERE id = $1), 'BOOKING', $3, 'COMPLETED', 'Refund for Cancelled Booking (Razorpay pending)')
+             `, [walletId, paymentRecord.amount, bookingId]);
+          }
+        } catch (refundErr) {
+          console.error('Failed to initiate refund during cancellation:', refundErr);
+          await query(
+            'UPDATE payments SET status = $1, updated_at = NOW() WHERE id = $2',
+            ['refund_failed', paymentRecord.id]
+          );
+        }
+      }
+    }
 
     let updateQuery = `UPDATE bookings SET status = $${params.length + 1}, updated_at = NOW()`;
     const updateParams = [...params, dbStatus];
