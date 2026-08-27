@@ -72,7 +72,6 @@ export default function IncomingRequestsPage() {
                <table className="w-full text-left border-collapse text-sm">
                  <thead className="bg-slate-100">
                    <tr>
-                     <th className="p-4 font-bold text-slate-600 border-b">Booking ID</th>
                      <th className="p-4 font-bold text-slate-600 border-b">Customer</th>
                      <th className="p-4 font-bold text-slate-600 border-b">Vehicle</th>
                      <th className="p-4 font-bold text-slate-600 border-b">Appointment</th>
@@ -83,15 +82,14 @@ export default function IncomingRequestsPage() {
                  <tbody className="divide-y divide-slate-100">
                    {loading ? (
                        <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-500">Loading bookings...</td>
+                          <td colSpan={5} className="p-8 text-center text-slate-500">Loading bookings...</td>
                        </tr>
                    ) : bookings.length === 0 ? (
                        <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-500">No incoming bookings found.</td>
+                          <td colSpan={5} className="p-8 text-center text-slate-500">No incoming bookings found.</td>
                        </tr>
                    ) : bookings.map(booking => (
                      <tr key={booking.id} className="hover:bg-slate-50">
-                       <td className="p-4 text-slate-800 font-medium">BKG-{booking.id.substring(0,8).toUpperCase()}</td>
                        <td className="p-4 text-slate-700">{booking.customerName || 'Customer'}</td>
                        <td className="p-4 text-slate-700">{booking.vehicleMake} {booking.vehicleModel} {booking.vehicleYear}</td>
                        <td className="p-4 text-slate-700 font-medium">{formatTime(booking.scheduledAt)}</td>
@@ -128,14 +126,6 @@ export default function IncomingRequestsPage() {
                 <div>
                   <span className="font-bold text-slate-600">Customer Phone:</span>
                   <p className="text-slate-800">{selectedBooking.customerPhone || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-600">Booking ID:</span>
-                  <p className="text-slate-800">{selectedBooking.id}</p>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-600">Quote ID:</span>
-                  <p className="text-slate-800">{selectedBooking.quoteId || 'N/A'}</p>
                 </div>
                 <div>
                   <span className="font-bold text-slate-600">Vehicle:</span>

@@ -104,7 +104,6 @@ export default function ServiceHistoryPage() {
                <table className="w-full text-left border-collapse">
                  <thead>
                    <tr className="bg-slate-50">
-                     <th className="p-4 text-[11px] font-bold text-slate-500 border-b">Job ID</th>
                      <th className="p-4 text-[11px] font-bold text-slate-500 border-b">Customer & Vehicle</th>
                      <th className="p-4 text-[11px] font-bold text-slate-500 border-b">Service Details</th>
                      <th className="p-4 text-[11px] font-bold text-slate-500 border-b">Amount</th>
@@ -115,15 +114,14 @@ export default function ServiceHistoryPage() {
                  <tbody className="divide-y divide-slate-100">
                    {loading ? (
                        <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-500 text-sm">Loading service history...</td>
+                          <td colSpan={5} className="p-8 text-center text-slate-500 text-sm">Loading service history...</td>
                        </tr>
                    ) : filteredHistory.length === 0 ? (
                        <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-500 text-sm">No service history found.</td>
+                          <td colSpan={5} className="p-8 text-center text-slate-500 text-sm">No service history found.</td>
                        </tr>
                    ) : filteredHistory.map(h => (
                      <tr key={h.id} className="hover:bg-slate-50 transition-colors">
-                       <td className="p-4 align-top"><p className="text-xs font-bold text-blue-600">JOB-{h.id.substring(0,8).toUpperCase()}</p></td>
                        <td className="p-4 align-top">
                           <div className="flex items-start gap-2">
                              <div className="w-8 h-8 rounded bg-blue-100 text-blue-600 flex items-center justify-center font-bold text-xs mt-1">{h.customerName ? h.customerName.substring(0,2).toUpperCase() : 'CU'}</div>
@@ -169,7 +167,6 @@ export default function ServiceHistoryPage() {
           ) : bookingDetails ? (
             <div className="space-y-4 text-sm text-slate-700">
               <div className="grid grid-cols-2 gap-4">
-                <div><span className="font-bold">Booking ID:</span> JOB-{bookingDetails.id.substring(0,8).toUpperCase()}</div>
                 <div><span className="font-bold">Status:</span> {bookingDetails.status}</div>
                 <div><span className="font-bold">Customer Name:</span> {bookingDetails.customerName || 'N/A'}</div>
                 <div><span className="font-bold">Garage:</span> {bookingDetails.garageName}</div>

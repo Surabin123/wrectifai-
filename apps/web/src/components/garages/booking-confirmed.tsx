@@ -213,28 +213,7 @@ export function BookingConfirmed({
                   Your appointment has been successfully booked.
                 </p>
 
-                <div className="mt-2.5 flex items-center justify-center sm:justify-start gap-1.5">
-                  <span className="text-[12px] font-bold text-[#475569]">
-                    Booking ID:{' '}
-                    <span className="text-[#0f172a] font-extrabold font-mono tracking-tight">
-                      {bookingId}
-                    </span>
-                  </span>
-                  <button
-                    onClick={handleCopy}
-                    className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-white border border-[#e2eefc] text-[#1a56db] hover:bg-[#f0f4ff] active:scale-95 transition-all shadow-sm"
-                    title="Copy Booking ID"
-                  >
-                    {copied ? (
-                      <Check
-                        className="h-3 w-3 text-[#0fa457]"
-                        strokeWidth={3}
-                      />
-                    ) : (
-                      <Copy className="h-3 w-3" />
-                    )}
-                  </button>
-                </div>
+
 
                 <p className="text-[11px] font-semibold text-[#64748b] pt-0.5">
                   We&apos;ve sent the booking details to your email and SMS.

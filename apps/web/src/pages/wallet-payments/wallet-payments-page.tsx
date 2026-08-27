@@ -491,10 +491,7 @@ export function WalletPaymentsPage() {
                 <span className="text-slate-500">Vehicle</span>
                 <span className="font-bold text-slate-900">{selectedTransaction.vehicle}</span>
               </div>
-              <div className="flex justify-between border-b border-slate-200 pb-2">
-                <span className="text-slate-500">Booking ID</span>
-                <span className="font-bold text-slate-900">{selectedTransaction.subdesc}</span>
-              </div>
+
               <div className="flex justify-between border-b border-slate-200 pb-2">
                 <span className="text-slate-500">Invoice</span>
                 <span className="font-bold text-slate-900">{selectedTransaction.invoice}</span>

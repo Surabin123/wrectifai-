@@ -103,7 +103,6 @@ export default function BookingsPage() {
                 <table className="w-full text-left border-collapse">
                   <thead>
                     <tr className="border-b">
-                      <th className="p-3 text-sm font-semibold text-[#17307a]">Booking ID</th>
                       <th className="p-3 text-sm font-semibold text-[#17307a]">Date</th>
                       <th className="p-3 text-sm font-semibold text-[#17307a]">Vehicle</th>
                       <th className="p-3 text-sm font-semibold text-[#17307a]">Status</th>
@@ -113,7 +112,6 @@ export default function BookingsPage() {
                   <tbody>
                     {bookings.map(b => (
                       <tr key={b.id} className="border-b border-slate-100 hover:bg-slate-50">
-                        <td className="p-3 text-sm font-medium">{b.id.substring(0, 8).toUpperCase()}</td>
                         <td className="p-3 text-sm text-slate-600">{new Date(b.scheduledAt).toLocaleString()}</td>
                         <td className="p-3 text-sm text-slate-600">{b.vehicleMake} {b.vehicleModel}</td>
                         <td className="p-3 text-sm text-slate-600 capitalize">
@@ -175,14 +173,6 @@ export default function BookingsPage() {
         {selectedBooking && (
           <Modal isOpen={true} onClose={() => setSelectedBooking(null)} title="Booking Details" className="max-w-2xl">
             <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm text-slate-700">
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Booking ID</span>
-                <p className="font-semibold">{selectedBooking.id}</p>
-              </div>
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Quote ID</span>
-                <p className="font-semibold">{selectedBooking.quoteId || 'N/A'}</p>
-              </div>
               <div>
                 <span className="block font-bold text-slate-500 mb-1">Garage Name</span>
                 <p className="font-semibold">{selectedBooking.garageName || 'N/A'}</p>

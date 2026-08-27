@@ -123,30 +123,28 @@ export default function QuotesPage() {
              
              <div className="overflow-x-auto">
                <table className="w-full text-left border-collapse text-sm">
-                 <thead className="bg-slate-100">
-                   <tr>
-                     <th className="p-4 font-bold text-slate-600 border-b">Quote ID</th>
-                     <th className="p-4 font-bold text-slate-600 border-b">Customer</th>
-                     <th className="p-4 font-bold text-slate-600 border-b">Vehicle</th>
-                     <th className="p-4 font-bold text-slate-600 border-b">Created</th>
-                     <th className="p-4 font-bold text-slate-600 border-b">Status</th>
-                     <th className="p-4 font-bold text-slate-600 border-b text-center">Action</th>
-                   </tr>
-                 </thead>
-                 <tbody className="divide-y divide-slate-100">
-                   {loading ? (
-                       <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-500">Loading records...</td>
-                       </tr>
-                   ) : requests.length === 0 ? (
-                       <tr>
-                          <td colSpan={6} className="p-8 text-center text-slate-500">No records found.</td>
-                       </tr>
-                   ) : requests.map(req => (
-                     <tr key={req.id} className="hover:bg-slate-50">
-                       <td className="p-4 text-slate-800 font-medium">REQ-{req.id.substring(0,8).toUpperCase()}</td>
-                       <td className="p-4 text-slate-700">{req.customerName || 'Customer'}</td>
-                       <td className="p-4 text-slate-700">{req.vehicle?.make} {req.vehicle?.model} {req.vehicle?.year}</td>
+                  <thead className="bg-slate-100">
+                    <tr>
+                      <th className="p-4 font-bold text-slate-600 border-b">Customer</th>
+                      <th className="p-4 font-bold text-slate-600 border-b">Vehicle</th>
+                      <th className="p-4 font-bold text-slate-600 border-b">Created</th>
+                      <th className="p-4 font-bold text-slate-600 border-b">Status</th>
+                      <th className="p-4 font-bold text-slate-600 border-b text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {loading ? (
+                        <tr>
+                           <td colSpan={5} className="p-8 text-center text-slate-500">Loading records...</td>
+                        </tr>
+                    ) : requests.length === 0 ? (
+                        <tr>
+                           <td colSpan={5} className="p-8 text-center text-slate-500">No records found.</td>
+                        </tr>
+                    ) : requests.map(req => (
+                      <tr key={req.id} className="hover:bg-slate-50">
+                        <td className="p-4 text-slate-700">{req.customerName || 'Customer'}</td>
+                        <td className="p-4 text-slate-700">{req.vehicle?.make} {req.vehicle?.model} {req.vehicle?.year}</td>
                        <td className="p-4 text-slate-600">{formatTime(req.createdAt)}</td>
                         <td className="p-4 text-slate-600 uppercase text-xs font-bold">
                            {req.status === 'open' ? 'Pending Quote' : req.status === 'quoted' ? 'Quote Sent' : req.status === 'selected' ? 'Booked' : req.status}

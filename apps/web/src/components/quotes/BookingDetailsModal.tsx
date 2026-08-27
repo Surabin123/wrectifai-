@@ -14,10 +14,6 @@ export function BookingDetailsModal({ booking, onClose, actions }: BookingDetail
     <Modal isOpen={true} onClose={onClose} title="Booking Details" className="max-w-lg">
       <div className="space-y-4 text-sm">
         <div className="flex justify-between items-start">
-          <div>
-            <span className="font-bold text-slate-600">Booking ID:</span>
-            <p className="text-slate-800 uppercase font-mono">{booking.id.substring(0, 8)}</p>
-          </div>
           <div className="text-right">
             <span className="font-bold text-slate-600">Status:</span>
             <p className="text-slate-800 capitalize font-bold text-blue-700">
