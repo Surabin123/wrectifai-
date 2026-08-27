@@ -130,7 +130,7 @@ export const emergencyItems = [
   { title: 'Roadside Assistance', image: '/assets/roadside_assistance.png', href: 'tel:+919999999999', imageClass: 'h-10 w-10' },
   { title: 'Tow Truck', image: '/assets/tow_truck.png', href: 'tel:+919999999999', imageClass: 'h-10 w-10' },
   { title: 'Battery Jump\u00A0Start', image: '/assets/battery_jump_start.png', href: 'tel:+919999999999', imageClass: 'h-8 w-8' },
-  { title: 'Call Support', image: '/assets/call.jfif', href: 'tel:+919999999999', imageClass: 'h-8 w-8' },
+  { title: 'Call Support', image: '/assets/call.jpg', href: 'tel:+919999999999', imageClass: 'h-8 w-8' },
 ];
 
 
