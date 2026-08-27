@@ -493,6 +493,12 @@ adminRouter.post('/users', async (req, res) => {
     }
     const phoneClean = phone && phone.trim() !== '' ? phone.trim() : null;
 
+    // --- Vehicle partial-entry guard (pre-transaction — returns 400, not 500) ---
+    const vehicleAnySupplied = vehicleMake || vehicleModel || vehicleYear;
+    if (vehicleAnySupplied && (!vehicleMake || !vehicleModel || !vehicleYear)) {
+      return error(res, 'Vehicle make, model, and year are all required when providing vehicle information', 'BAD_REQUEST', 400);
+    }
+
     // --- Duplicate checks (pre-transaction) ---
     const existingEmail = await dbClient.query('SELECT id FROM users WHERE email = $1', [emailClean]);
     if (existingEmail.rows.length > 0) {
@@ -542,11 +548,8 @@ adminRouter.post('/users', async (req, res) => {
       ]
     );
 
-    // 5. Optionally insert vehicle (make + model + year required, matching /vehicles validation)
+    // 5. Optionally insert vehicle (all three fields guaranteed present by pre-transaction validation above)
     if (vehicleMake || vehicleModel || vehicleYear) {
-      if (!vehicleMake || !vehicleModel || !vehicleYear) {
-        throw new Error('Vehicle make, model, and year are all required when providing vehicle information');
-      }
       await dbClient.query(
         `INSERT INTO vehicles (customer_id, make, model, year, vin, plate_number, trim, fuel_type, mileage, is_active)
          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)`,
