@@ -667,6 +667,18 @@ export function QuotesPage() {
     };
   }, [loadQuotes]);
 
+  const handleViewQuote = async (quote: QuoteItem) => {
+    setViewQuote(quote);
+    if (!quote.viewedAt) {
+      try {
+        await markQuoteViewed(quote.id);
+        setQuotes(prev => prev.map(q => q.id === quote.id ? { ...q, viewedAt: new Date().toISOString() } : q));
+      } catch (err) {
+        console.error('Failed to mark quote as viewed', err);
+      }
+    }
+  };
+
   const requestedIssues = useMemo(() => {
     const issuesFromQuery = searchParams?.get('issues');
     if (issuesFromQuery) {
