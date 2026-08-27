@@ -466,41 +466,130 @@ adminRouter.get('/users/:id', async (req, res) => {
   }
 });
 
-// Add a customer manually
+// Add a customer manually (Admin only — inherits authenticate + requireRole(['admin']) from router)
 adminRouter.post('/users', async (req, res) => {
+  const bcrypt = require('bcryptjs');
+  const dbClient = await getDbPool().connect();
   try {
-    const { name, email, phone, address, city, state, pincode, vehicleNumber, vehicleModel, vehicleBrand, vehicleType, status } = req.body;
-    if (!name || !email) return error(res, 'Name and email are required', 'BAD_REQUEST', 400);
-    
-    // 1. Insert user
-    const userRes = await query(
-      `INSERT INTO users (name, email, mobile_number, status)
-       VALUES ($1, $2, $3, $4) RETURNING *`,
-      [name, email, phone || null, status || 'active']
+    const {
+      name, email, password, phone,
+      address, city, state, pincode,
+      vehiclePlate, vehicleMake, vehicleModel, vehicleYear,
+      vehicleVin, vehicleTrim, vehicleFuelType, vehicleMileage,
+    } = req.body;
+
+    // --- Input validation ---
+    if (!name || !email || !password) {
+      return error(res, 'Name, email, and password are required', 'BAD_REQUEST', 400);
+    }
+    const emailClean = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean)) {
+      return error(res, 'A valid email address is required', 'BAD_REQUEST', 400);
+    }
+    // Same strength policy as the frontend signup page
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return error(res, 'Password must be at least 8 characters with uppercase, lowercase, and a special character', 'BAD_REQUEST', 400);
+    }
+    const phoneClean = phone && phone.trim() !== '' ? phone.trim() : null;
+
+    // --- Vehicle partial-entry guard (pre-transaction — returns 400, not 500) ---
+    const vehicleAnySupplied = vehicleMake || vehicleModel || vehicleYear;
+    if (vehicleAnySupplied && (!vehicleMake || !vehicleModel || !vehicleYear)) {
+      return error(res, 'Vehicle make, model, and year are all required when providing vehicle information', 'BAD_REQUEST', 400);
+    }
+
+    // --- Duplicate checks (pre-transaction) ---
+    const existingEmail = await dbClient.query('SELECT id FROM users WHERE email = $1', [emailClean]);
+    if (existingEmail.rows.length > 0) {
+      return error(res, 'A customer with this email already exists', 'CONFLICT', 409);
+    }
+    if (phoneClean) {
+      const existingPhone = await dbClient.query('SELECT id FROM users WHERE mobile_number = $1', [phoneClean]);
+      if (existingPhone.rows.length > 0) {
+        return error(res, 'A customer with this phone number already exists', 'CONFLICT', 409);
+      }
+    }
+
+    await dbClient.query('BEGIN');
+
+    // 1. Hash password using same approach as /auth/register
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // 2. Insert user — never return password_hash to caller
+    const userRes = await dbClient.query(
+      `INSERT INTO users (name, email, password_hash, mobile_number, status)
+       VALUES ($1, $2, $3, $4, 'active')
+       RETURNING id, name, email, mobile_number AS phone, status, created_at AS joined`,
+      [name.trim(), emailClean, passwordHash, phoneClean]
     );
     const user = userRes.rows[0];
 
-    // 2. Get customer role id
-    const roleRes = await query(`SELECT id FROM roles WHERE code = 'customer'`);
-    if (roleRes.rows.length > 0) {
-      await query(`INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`, [user.id, roleRes.rows[0].id]);
+    // 3. Assign customer role
+    const roleRes = await dbClient.query(`SELECT id FROM roles WHERE code = 'customer'`);
+    if (roleRes.rows.length === 0) {
+      throw new Error('Customer role not found in roles table');
     }
+    await dbClient.query(
+      `INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)`,
+      [user.id, roleRes.rows[0].id]
+    );
 
-    // (Profile insert removed since profiles table was deleted)
+    // 4. Create profile record (profiles.id has no DB default — generate via gen_random_uuid())
+    await dbClient.query(
+      `INSERT INTO profiles (id, user_id, address_line, city, state, postal_code)
+       VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)`,
+      [
+        user.id,
+        address ? address.trim() : null,
+        city    ? city.trim()    : null,
+        state   ? state.trim()   : null,
+        pincode ? pincode.trim() : null,
+      ]
+    );
 
-    // 4. Insert vehicle if provided
-    if (vehicleNumber || vehicleModel || vehicleBrand) {
-      await query(
-        `INSERT INTO vehicles (customer_id, plate_number, model, make, trim, fuel_type)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [user.id, vehicleNumber || null, vehicleModel || null, vehicleBrand || null, vehicleType || null, 'Petrol'] // default fuel
+    // 5. Optionally insert vehicle (all three fields guaranteed present by pre-transaction validation above)
+    if (vehicleMake || vehicleModel || vehicleYear) {
+      await dbClient.query(
+        `INSERT INTO vehicles (customer_id, make, model, year, vin, plate_number, trim, fuel_type, mileage, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)`,
+        [
+          user.id,
+          vehicleMake.trim(),
+          vehicleModel.trim(),
+          parseInt(vehicleYear, 10),
+          vehicleVin      ? vehicleVin.trim()      : null,
+          vehiclePlate    ? vehiclePlate.trim()    : null,
+          vehicleTrim     ? vehicleTrim.trim()     : null,
+          vehicleFuelType ? vehicleFuelType.trim() : null,
+          vehicleMileage  ? parseInt(vehicleMileage, 10) : null,
+        ]
       );
     }
-    
-    return success(res, user);
-  } catch (err) {
-    console.error('Add customer error:', err);
-    return error(res, 'Failed to add customer', 'DATABASE_ERROR', 500);
+
+    await dbClient.query('COMMIT');
+
+    // Return the safe user object — password_hash is never included
+    return success(res, user, 201);
+
+  } catch (err: any) {
+    await dbClient.query('ROLLBACK');
+    console.error('Admin add customer error:', err);
+
+    // Handle PostgreSQL unique-constraint violations as a final race-condition guard
+    if (err.code === '23505') {
+      if (err.constraint?.includes('email')) {
+        return error(res, 'A customer with this email already exists', 'CONFLICT', 409);
+      }
+      if (err.constraint?.includes('mobile_number')) {
+        return error(res, 'A customer with this phone number already exists', 'CONFLICT', 409);
+      }
+      return error(res, 'A customer with these details already exists', 'CONFLICT', 409);
+    }
+
+    return error(res, err.message || 'Failed to add customer', 'DATABASE_ERROR', 500);
+  } finally {
+    dbClient.release();
   }
 });
 
