@@ -10,6 +10,10 @@ export async function fetchQuote(id: string): Promise<QuoteItem> {
   return apiClient.get(`/quotes/${id}`);
 }
 
+export async function markQuoteViewed(id: string): Promise<{ success: boolean; message: string }> {
+  return apiClient.post(`/quotes/${id}/view`, {});
+}
+
 export interface QuoteRequestResponse {
   id: string;
   customerId: string;

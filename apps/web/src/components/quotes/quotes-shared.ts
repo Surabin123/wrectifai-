@@ -12,6 +12,8 @@ export type QuoteItem = {
   image: string;
   rating: string;
   reviews: number;
+  expiresAt?: string;
+  viewedAt?: string;
   distance: string;
   meta: string;
   metaSecondary: string;

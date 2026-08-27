@@ -7,6 +7,35 @@ import { QuoteEstimationService } from './quote-estimation.service';
 
 export const quotesRouter = Router();
 
+// POST /quotes/:quoteId/view - Mark a quote as viewed
+quotesRouter.post('/:quoteId/view', authenticate, async (req, res) => {
+  try {
+    const { quoteId } = req.params;
+    const userId = req.user?.userId;
+
+    // Verify ownership
+    const checkRes = await query(
+      `SELECT q.id FROM quotes q
+       JOIN quote_requests qr ON q.quote_request_id = qr.id
+       WHERE q.id = $1 AND qr.customer_id = $2`,
+      [quoteId, userId]
+    );
+
+    if (checkRes.rows.length === 0) {
+      return error(res, 'Quote not found or unauthorized', 'NOT_FOUND', 404);
+    }
+
+    await query(
+      `UPDATE quotes SET viewed_at = NOW() WHERE id = $1 AND viewed_at IS NULL`,
+      [quoteId]
+    );
+
+    return success(res, { message: 'Quote marked as viewed' });
+  } catch (err: any) {
+    return error(res, err.message || 'Failed to mark quote as viewed', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
 quotesRouter.get('/', authenticate, async (req, res) => {
   try {
     const customerId = req.user?.userId;
@@ -24,7 +53,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
     }
 
     const result = await query(
-      `SELECT q.id, q.quote_request_id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details,
+      `SELECT q.id, q.quote_request_id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.expires_at as "expiresAt", q.viewed_at as "viewedAt", q.details,
               q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
               g.id as "garageId", g.name as "garageName", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported",
               g.address as "garageAddress", g.image as "garageImage", g.created_at as "garageCreatedAt", g.established_year as "garageEstablishedYear",
@@ -97,6 +126,8 @@ quotesRouter.get('/', authenticate, async (req, res) => {
         savings: undefined,
         time: timeStr,
         tag: undefined,
+        expiresAt: row.expiresAt,
+        viewedAt: row.viewedAt,
         requestCreatedAt: row.requestCreatedAt,
         requestIssueSummary: row.requestIssueSummary,
         preferredDate: row.preferredDate,

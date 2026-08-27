@@ -26,7 +26,7 @@ import { TopNavbar } from '@/components/home/top-navbar';
 import { Modal } from '@/components/common/modal';
 import { BookingDialog } from '@/components/customer/booking-dialog';
 import { GarageMoreMenu } from '@/components/quotes/garage-more-menu';
-import { fetchQuotes, acceptQuoteRequest, fetchQuoteRequests, fetchAiEstimate } from '@/lib/quotes-api';
+import { fetchQuotes, acceptQuoteRequest, fetchQuoteRequests, fetchAiEstimate, markQuoteViewed } from '@/lib/quotes-api';
 import type { QuoteItem } from '@/components/quotes/quotes-shared';
 import { formatCurrency, convertCurrency } from '@/lib/currency';
 import { getSavedCity, getCurrencyCodeForCity } from '@/utils/location';
@@ -49,15 +49,24 @@ function timeAgo(dateStr?: string): string {
 
 function quoteTabStatus(q: QuoteItem, tab: string): boolean {
   if (tab === 'All Quotes') return true;
+
+  const s = q.status?.toLowerCase();
+  const bs = q.bookingDetails?.status?.toLowerCase();
+
+  const isCompleted = bs === 'completed' || bs === 'readyforcollection' || bs === 'collected';
+  const isAcceptedOrBooked = isCompleted || bs || s === 'accepted' || s === 'selected' || q.isBooked;
+  const isExpired = s === 'expired' || (q.expiresAt && new Date(q.expiresAt) < new Date());
+
+  if (tab === 'Completed') return !!isCompleted;
+  if (tab === 'Expired') return !!isExpired;
+
   if (tab === 'New') {
-    const s = q.status?.toLowerCase();
-    return s === 'quoted' || s === 'open' || s === 'pending';
+    return !q.viewedAt && !isAcceptedOrBooked && !isExpired;
   }
-  if (tab === 'Viewed') return q.isBooked === true || q.status?.toLowerCase() === 'accepted';
-  if (tab === 'Expired') {
-    const s = q.status?.toLowerCase();
-    return s === 'expired' || s === 'cancelled' || s === 'rejected';
+  if (tab === 'Viewed') {
+    return !!q.viewedAt && !isAcceptedOrBooked && !isExpired;
   }
+  
   return true;
 }
 
@@ -312,6 +321,11 @@ function GarageQuoteCard({
   const imgSrc = quote.garageImage || quote.image || '/assets/garage_1_1778071156220.png';
   const chips = (quote.meta || '').split('•').map(s => s.trim()).filter(Boolean);
 
+  const s = quote.status?.toLowerCase();
+  const bs = quote.bookingDetails?.status?.toLowerCase();
+  const isCompleted = bs === 'completed' || bs === 'readyforcollection' || bs === 'collected';
+  const isExpired = s === 'expired' || (quote.expiresAt && new Date(quote.expiresAt) < new Date());
+  
   return (
     <div className="rounded-[18px] border border-[#e6ecfb] bg-white shadow-[0_4px_16px_rgba(37,73,153,0.06)] hover:shadow-[0_6px_22px_rgba(37,73,153,0.10)] transition-shadow overflow-hidden">
 
@@ -401,7 +415,7 @@ function GarageQuoteCard({
 
           {/* Action buttons — horizontal, same row as price */}
           <div className="flex items-center gap-1">
-            {!quote.isBooked && (
+            {!quote.isBooked && !isExpired && !isCompleted && (
               <button
                 type="button"
                 onClick={onSelectGarage}
@@ -542,7 +556,7 @@ function RequestSummaryPanel({ quotes, requests }: { quotes: QuoteItem[], reques
 ────────────────────────────────────── */
 
 const SORT_OPTIONS = ['Lowest Price', 'Highest Price', 'Newest', 'Highest Rated'];
-const TABS = ['All Quotes', 'New', 'Viewed', 'Expired'];
+const TABS = ['All Quotes', 'New', 'Viewed', 'Completed', 'Expired'];
 
 export function QuotesPage() {
   const router = useRouter();
@@ -846,7 +860,7 @@ export function QuotesPage() {
                   quote={quote}
                   savedGarages={savedGarages}
                   onSelectGarage={() => setBookingQuote(quote)}
-                  onViewQuotes={() => setViewQuote(quote)}
+                  onViewQuotes={() => handleViewQuote(quote)}
                   onSaveGarage={() => toggleSave(quote)}
                   maxAiEstimate={maxAiEstimate}
                   onViewGarageProfile={() => {

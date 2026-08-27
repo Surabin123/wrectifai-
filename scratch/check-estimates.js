@@ -1,0 +1,1 @@
+﻿require('dotenv').config({path: './apps/api/.env'}); const { Pool } = require('pg'); const pool = new Pool({ connectionString: process.env.DATABASE_URL }); pool.query('SELECT id, issue_summary, ai_estimate FROM quote_requests WHERE ai_estimate IS NOT NULL').then(res => { console.dir(res.rows, {depth: null}); pool.end(); }).catch(console.error);

@@ -121,11 +121,55 @@ export class QuoteEstimationService {
     }
     const modelInstance = aiProvider(env.llmModel);
 
+    // Step 2a. Determine relevant search terms to query the services table
+    const searchPrompt = `Given the reported symptom: "${data.issueSummary}", list 3 to 5 very short keyword phrases (1-2 words max each) representing the most likely automotive services or parts required.
+Output ONLY a comma-separated list of keywords. Example: brake pads, rotor, brake fluid`;
+    
+    const searchRaw = await generateText({
+      model: modelInstance,
+      system: "You are an automotive diagnostician.",
+      messages: [{ role: 'user', content: searchPrompt }],
+    });
+    
+    const searchTerms = searchRaw.text.split(',').map((s: string) => s.trim().toLowerCase()).filter(Boolean);
+    
+    // Query DB for these terms using ILIKE
+    const conditions = [];
+    const params = [];
+    let paramIndex = 1;
+    for (const term of searchTerms) {
+      if (term.length > 2) {
+        conditions.push(`name ILIKE $${paramIndex} OR category ILIKE $${paramIndex}`);
+        params.push(`%${term}%`);
+        paramIndex++;
+      }
+    }
+    
+    let pricingContext = 'No specific local pricing data found. Fall back to your training data for local market prices.';
+    if (conditions.length > 0) {
+      const servicesRes = await query(`
+        SELECT name, category, AVG(price) as avg_price
+        FROM services
+        WHERE ${conditions.join(' OR ')}
+        GROUP BY name, category
+        ORDER BY count(*) DESC, avg_price ASC
+        LIMIT 10
+      `, params);
+      
+      if (servicesRes.rows.length > 0) {
+        pricingContext = servicesRes.rows.map((r: any) => `- ${r.name} (${r.category}): ~${Number(r.avg_price).toFixed(2)}`).join('\n');
+      }
+    }
+    
+    console.log(`[QuoteEstimationService] Diagnosis: ${data.issueSummary}`);
+    console.log(`[QuoteEstimationService] AI Extracted Terms:`, searchTerms);
+    console.log(`[QuoteEstimationService] Matched Services Pricing Context:\n${pricingContext}`);
+
     const systemPrompt = `You are an expert automotive repair cost estimator.
 Your task is to estimate a realistic repair cost range based strictly on the likely repair scope for the reported symptom.
 
 CRITICAL RULES FOR SCOPE:
-1. Distinguish between reported symptom → likely diagnosis → likely repair scope.
+1. Distinguish between reported symptom -> likely diagnosis -> likely repair scope.
 2. DO NOT treat every possible cause as a confirmed repair. For example, for "grinding noise from brakes", base the estimate on the most likely repair scope (e.g., brake pads), do NOT automatically add pads + rotors + calipers + shims together unless explicitly stated.
 3. Do not inflate the estimate by assuming every possible repair is required. Price only the necessary parts and labour for the most probable specific issue.
 4. DO NOT over-weight the vehicle model. A minor issue costs the price of that specific repair, not a generic "premium car service" price.
@@ -138,6 +182,10 @@ CRITICAL RULES FOR PRICING & LOCATION:
 5. If the location is in India: generate an INR estimate based on typical Indian pricing.
 6. If the location is in UAE: generate an AED estimate based on typical UAE pricing.
 7. If the location is in USA: generate a USD estimate based on typical US pricing.
+
+AVAILABLE LOCAL PRICING DATA:
+Below are real average prices from local garages for services matching this issue. Use these as a strong baseline for your estimate if they seem relevant to the scope:
+${pricingContext}
 
 VEHICLE: ${vehicleContext}
 LOCATION: ${locationContext}
