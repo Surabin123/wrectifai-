@@ -82,20 +82,7 @@ export default function BookingsPage() {
     }
   };
 
-  const handleConfirmCash = async (id: string) => {
-    try {
-      const { apiClient } = await import('@/lib/api-client');
-      await apiClient.post(`/bookings/${id}/confirm-cash`, {});
-      
-      setBookings(prev => prev.map(b => b.id === id ? { ...b, paymentStatus: 'PAID' } : b));
-      alert('Cash payment confirmed successfully.');
-      
-      const data = await fetchBookings();
-      setBookings(data);
-    } catch (err: any) {
-      alert(err.message || 'Failed to confirm cash payment');
-    }
-  };
+
 
   return (
     <RoleGuard allowedRoles={['garage']}>
@@ -160,11 +147,7 @@ export default function BookingsPage() {
                               Ready for Collection
                             </button>
                           )}
-                          {(b.status === 'completed' || b.status === 'readyForCollection') && b.paymentStatus !== 'PAID' && (
-                            <button onClick={() => handleConfirmCash(b.id)} className="text-xs bg-teal-100 text-teal-700 px-3 py-1 rounded font-semibold hover:bg-teal-200 inline-block ml-2">
-                              Confirm Cash
-                            </button>
-                          )}
+
                           {(b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected') && (
                             <button onClick={() => router.push(`/garage/service-history`)} className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded font-semibold hover:bg-slate-200 inline-block ml-2">
                               View History

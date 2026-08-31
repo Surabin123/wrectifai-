@@ -25,21 +25,6 @@ export function CheckoutModal({ isOpen, onClose, subtotal, bookingPayload, onSub
   const [offerSuccess, setOfferSuccess] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const loadRazorpayScript = () => {
-    return new Promise<boolean>((resolve) => {
-      if ((window as any).Razorpay) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.async = true;
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
-
   useEffect(() => {
     if (isOpen) {
       fetchWalletBalance().then(res => setWalletBalance(res.balance)).catch(console.error);
@@ -79,75 +64,18 @@ export function CheckoutModal({ isOpen, onClose, subtotal, bookingPayload, onSub
         walletAmountToUse
       };
 
-      const result = await onSubmit(finalPayload);
-
-      if (result.razorpayOrderId && finalAmountToPay > 0) {
-        const loaded = await loadRazorpayScript();
-        if (!loaded) {
-          setOfferError('Failed to load Razorpay payment SDK. Please check your connection or disable adblocker.');
-          setIsProcessing(false);
-          return;
-        }
-        // Open Razorpay Popup
-        const options = {
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_mock123',
-          amount: Math.round(finalAmountToPay * 100),
-          currency: 'INR',
-          name: 'WrectifAI Services',
-          description: 'Payment for Booking',
-          order_id: result.razorpayOrderId,
-          handler: async function (response: any) {
-            try {
-              const verifyRes = await apiClient.post<{verified: boolean}>('/payments/verify', {
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature
-              });
-              if (verifyRes.verified) {
-                onSuccess();
-              } else {
-                setOfferError('Payment verification failed.');
-                setIsProcessing(false);
-              }
-            } catch (err) {
-              setOfferError('Payment verification failed. Please contact support.');
-              setIsProcessing(false);
-            }
-          },
-          prefill: {
-            name: 'Customer',
-            email: 'customer@wrectifai.com',
-            contact: '9999999999'
-          },
-          theme: {
-            color: '#2563EB'
-          },
-          modal: {
-            ondismiss: function() {
-              setIsProcessing(false);
-            }
-          }
-        };
-
-        const rzp = new (window as any).Razorpay(options);
-        rzp.on('payment.failed', function (response: any) {
-          console.error(response.error);
-          setIsProcessing(false);
-        });
-        rzp.open();
-      } else {
-        // Fully paid via wallet or free
-        onSuccess();
-      }
+      await onSubmit(finalPayload);
+      onSuccess();
     } catch (err: any) {
       console.error(err);
-      setOfferError(err?.message || 'Payment failed. Please try again.');
+      setOfferError(err?.message || 'Booking failed. Please try again.');
+    } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Complete Your Payment" className="max-w-md">
+    <Modal isOpen={isOpen} onClose={onClose} title="Confirm Booking Details" className="max-w-md">
       <div className="space-y-6">
         <div className="bg-slate-50 p-4 rounded-lg space-y-3 text-sm">
           <div className="flex justify-between">
@@ -171,9 +99,10 @@ export function CheckoutModal({ isOpen, onClose, subtotal, bookingPayload, onSub
           )}
 
           <div className="flex justify-between items-center pt-3 border-t border-slate-200">
-            <span className="text-slate-900 font-bold text-base">Final Amount</span>
+            <span className="text-slate-900 font-bold text-base">Estimated Final Amount</span>
             <span className="font-bold text-blue-700 text-lg">{formatCurrency(finalAmountToPay)}</span>
           </div>
+          <p className="text-xs text-slate-500 mt-2">Payment will be collected only after the service is completed.</p>
         </div>
 
         <div>
@@ -197,7 +126,7 @@ export function CheckoutModal({ isOpen, onClose, subtotal, bookingPayload, onSub
           onClick={handlePay}
           disabled={isProcessing}
         >
-          {isProcessing ? 'Processing...' : finalAmountToPay > 0 ? `Pay ${formatCurrency(finalAmountToPay)} with Razorpay` : 'Confirm Booking'}
+          {isProcessing ? 'Processing...' : 'Confirm Booking'}
         </Button>
       </div>
     </Modal>

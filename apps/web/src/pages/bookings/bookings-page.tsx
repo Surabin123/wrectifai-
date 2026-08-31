@@ -30,6 +30,9 @@ export function BookingsPage() {
   const [invoiceData, setInvoiceData] = useState<any | null>(null);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [loadingInvoice, setLoadingInvoice] = useState(false);
+  const [paymentSelectionBooking, setPaymentSelectionBooking] = useState<Booking | null>(null);
+  const [paymentSelectionModalOpen, setPaymentSelectionModalOpen] = useState(false);
+  const [isProcessingCash, setIsProcessingCash] = useState(false);
 
   const handleViewInvoice = async (bookingId: string) => {
     setLoadingInvoice(true);
@@ -131,7 +134,15 @@ export function BookingsPage() {
 
   const [paymentProcessingId, setPaymentProcessingId] = useState<string | null>(null);
 
-  const handlePayNow = async (booking: Booking) => {
+  const handlePayNow = (booking: Booking) => {
+    setPaymentSelectionBooking(booking);
+    setPaymentSelectionModalOpen(true);
+  };
+
+  const handlePayOnline = async () => {
+    if (!paymentSelectionBooking) return;
+    const booking = paymentSelectionBooking;
+    setPaymentSelectionModalOpen(false);
     try {
       setPaymentProcessingId(booking.id);
       const { payForBooking } = await import('@/lib/bookings-api');
@@ -195,6 +206,22 @@ export function BookingsPage() {
       console.error('Payment intent generation failed', err);
       alert('Failed to initialize payment.');
       setPaymentProcessingId(null);
+    }
+  };
+
+  const handlePayCash = async () => {
+    if (!paymentSelectionBooking) return;
+    setIsProcessingCash(true);
+    try {
+      const { apiClient } = await import('@/lib/api-client');
+      await apiClient.post(`/bookings/${paymentSelectionBooking.id}/select-cash`, {});
+      alert('Your cash payment preference has been recorded.');
+      setPaymentSelectionModalOpen(false);
+      setPaymentSelectionBooking(null);
+    } catch (err: any) {
+      alert(err.message || 'Failed to select cash payment.');
+    } finally {
+      setIsProcessingCash(false);
     }
   };
 
@@ -619,6 +646,31 @@ export function BookingsPage() {
                 <p className="text-slate-600">{invoiceData.serviceType || 'Vehicle Service'}</p>
                 <p className="font-medium">{formatCurrency(invoiceData.subtotal, invoiceData.currency)}</p>
               </div>
+              
+              {/* Detailed Breakdown from Quote if available */}
+              {invoiceData.quoteDetails && (
+                <div className="ml-4 mt-2 space-y-1 text-sm">
+                  {invoiceData.quoteDetails.laborCost !== undefined && (
+                    <div className="flex justify-between text-slate-500">
+                      <span>Labour Cost</span>
+                      <span>{formatCurrency(invoiceData.quoteDetails.laborCost, invoiceData.currency)}</span>
+                    </div>
+                  )}
+                  {invoiceData.quoteDetails.partsCost !== undefined && (
+                    <div className="flex justify-between text-slate-500">
+                      <span>Parts Cost</span>
+                      <span>{formatCurrency(invoiceData.quoteDetails.partsCost, invoiceData.currency)}</span>
+                    </div>
+                  )}
+                  {invoiceData.quoteDetails.consumablesCost !== undefined && (
+                    <div className="flex justify-between text-slate-500">
+                      <span>Consumables</span>
+                      <span>{formatCurrency(invoiceData.quoteDetails.consumablesCost, invoiceData.currency)}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {Number(invoiceData.discountAmount) > 0 && (
                 <div className="flex justify-between py-2 text-green-600">
                   <p>Discount Applied</p>
@@ -655,11 +707,53 @@ export function BookingsPage() {
                   {invoiceData.paymentStatus}
                 </span>
               </div>
+              <div className="flex gap-2">
+                <Button 
+                  onClick={() => window.print()}
+                  variant="outline"
+                  className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                >
+                  Print / Save PDF
+                </Button>
+                <Button 
+                  onClick={() => setInvoiceModalOpen(false)}
+                  className="bg-slate-100 text-slate-700 hover:bg-slate-200"
+                >
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {paymentSelectionBooking && (
+        <Modal 
+          isOpen={paymentSelectionModalOpen} 
+          onClose={() => { setPaymentSelectionModalOpen(false); setPaymentSelectionBooking(null); }}
+          title="Select Payment Method"
+        >
+          <div className="py-4 flex flex-col items-center text-center">
+            <h3 className="text-xl font-bold text-[#17307a] mb-2">How would you like to pay?</h3>
+            <p className="text-slate-600 mb-8 max-w-sm">
+              Please choose whether to pay online right now or pay with cash directly at the garage.
+            </p>
+            <div className="flex gap-3 w-full">
               <Button 
-                onClick={() => setInvoiceModalOpen(false)}
-                className="bg-slate-100 text-slate-700 hover:bg-slate-200"
+                variant="outline" 
+                className="flex-1 bg-white border-slate-300 hover:bg-slate-50"
+                onClick={handlePayCash}
+                disabled={isProcessingCash}
               >
-                Close
+                {isProcessingCash ? 'Processing...' : 'Pay with Cash'}
+              </Button>
+              <Button 
+                variant="default" 
+                className="flex-1 bg-[#1a56db] hover:bg-blue-700 text-white"
+                onClick={handlePayOnline}
+                disabled={isProcessingCash}
+              >
+                Pay Online
               </Button>
             </div>
           </div>

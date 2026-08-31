@@ -718,6 +718,58 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
   }
 });
 
+// POST /bookings/:bookingId/select-cash — customer selects cash payment
+bookingsRouter.post('/:bookingId/select-cash', authenticate, async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const userId = req.user?.userId;
+    
+    // 1. Verify booking ownership and status
+    const bookingRes = await query(
+      `SELECT b.id, b.payment_status, b.status, COALESCE(i.total_amount, b.total_amount) as total_amount 
+       FROM bookings b 
+       LEFT JOIN invoices i ON i.booking_id = b.id
+       WHERE b.id = $1 AND b.customer_id = $2`,
+      [bookingId, userId]
+    );
+
+    if (bookingRes.rows.length === 0) {
+      return error(res, 'Booking not found or unauthorized', 'NOT_FOUND', 404);
+    }
+
+    const booking = bookingRes.rows[0];
+
+    if (booking.payment_status === 'PAID') {
+      return error(res, 'Booking is already paid', 'BAD_REQUEST', 400);
+    }
+    
+    if (booking.status !== 'completed' && booking.status !== 'readyForCollection') {
+      return error(res, 'Service must be completed before payment selection', 'BAD_REQUEST', 400);
+    }
+
+    // Check for existing pending cash payment
+    const existingPaymentRes = await query(
+      `SELECT id FROM payments WHERE booking_id = $1 AND provider = 'cash' AND status = 'pending'`,
+      [bookingId]
+    );
+
+    if (existingPaymentRes.rows.length === 0) {
+      // Insert one pending cash payment record
+      await query(
+        `INSERT INTO payments (payer_user_id, booking_id, provider, amount, status, payment_method)
+         VALUES ($1, $2, 'cash', $3, 'pending', 'cash')`,
+        [userId, bookingId, booking.total_amount]
+      );
+    }
+
+    return success(res, { message: 'Cash payment preference recorded' }, 200);
+
+  } catch (err) {
+    console.error('Error selecting cash for existing booking:', err);
+    return error(res, 'Cash selection failed', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
 // POST /bookings/:bookingId/confirm-cash — garage confirms cash receipt
 bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) => {
   try {

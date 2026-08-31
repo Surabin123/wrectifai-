@@ -58,7 +58,8 @@ invoicesRouter.get('/by-booking/:bookingId', authenticate, async (req, res) => {
         v.make as "vehicleMake",
         v.model as "vehicleModel",
         v.year as "vehicleYear",
-        v.vin as "vehicleVin"
+        v.vin as "vehicleVin",
+        q.details as "quoteDetails"
        FROM invoices i
        JOIN bookings b ON i.booking_id = b.id
        JOIN garages g ON b.garage_id = g.id
@@ -66,6 +67,7 @@ invoicesRouter.get('/by-booking/:bookingId', authenticate, async (req, res) => {
        LEFT JOIN users gu ON g.owner_user_id = gu.id
        LEFT JOIN profiles p ON u.id = p.user_id
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
+       LEFT JOIN quotes q ON b.quote_id = q.id
        WHERE i.booking_id = $1 AND ${filterCondition}`,
       params
     );
