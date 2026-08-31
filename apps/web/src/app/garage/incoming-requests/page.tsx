@@ -35,7 +35,7 @@ export default function IncomingRequestsPage() {
       await updateBookingStatus(id, status);
       // Dispatch Notifications
       const notifs = JSON.parse(localStorage.getItem('wrectifai_notifications') || '[]');
-      if (status === 'accepted') {
+      if (status === 'confirmed') {
         notifs.unshift({ id: Date.now(), type: 'Booking', title: 'Booking Confirmed', desc: `Your booking ${id.substring(0, 8)} has been confirmed by the garage.`, time: 'Just now', read: false, icon: 'CheckCircle2', color: 'text-green-500', bg: 'bg-green-50', audience: 'Customer' });
         notifs.unshift({ id: Date.now() + 1, type: 'Booking', title: 'Booking Accepted', desc: `Garage accepted booking ${id.substring(0, 8)}.`, time: 'Just now', read: false, icon: 'CheckCircle2', color: 'text-green-500', bg: 'bg-green-50', audience: 'Garage' });
       } else {
@@ -189,7 +189,7 @@ export default function IncomingRequestsPage() {
                   <>
                     <button 
                       disabled={isUpdating}
-                      onClick={() => handleUpdateStatus(selectedBooking.id, 'rejected')}
+                      onClick={() => handleUpdateStatus(selectedBooking.id, 'cancelled')}
                       className="px-4 py-2 border border-red-200 bg-white rounded text-sm font-bold text-red-600 hover:bg-red-50 disabled:opacity-50"
                     >
                       Reject
@@ -197,7 +197,7 @@ export default function IncomingRequestsPage() {
                     {selectedBooking.status !== 'confirmed' && (
                       <button 
                         disabled={isUpdating}
-                        onClick={() => handleUpdateStatus(selectedBooking.id, 'accepted')}
+                        onClick={() => handleUpdateStatus(selectedBooking.id, 'confirmed')}
                         className="px-4 py-2 bg-green-600 rounded text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50"
                       >
                         {isUpdating ? 'Updating...' : 'Accept'}
