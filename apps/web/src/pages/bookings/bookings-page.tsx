@@ -158,7 +158,7 @@ export function BookingsPage() {
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_mock123',
         amount: Math.round(booking.totalAmount * 100),
-        currency: booking.currency || 'INR',
+        currency: 'INR',
         name: 'WrectifAI Services',
         description: 'Payment for Booking',
         order_id: razorpayOrderId,
