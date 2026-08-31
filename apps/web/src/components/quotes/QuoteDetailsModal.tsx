@@ -82,40 +82,40 @@ export function QuoteDetailsModal({ quote, onClose, onBookNow, showBookNow = fal
         <div className="mt-4 pt-4 border-t border-slate-200">
           <h3 className="font-bold text-slate-800 mb-4 text-base">Quote Summary</h3>
           <div className="grid grid-cols-2 gap-y-4 gap-x-6">
-            {Number(quote?.details?.labour || quote?.laborCost || 0) > 0 && (
+            {Number(quote?.details?.laborCost || quote?.details?.labour || quote?.laborCost || 0) > 0 && (
               <div>
                 <span className="font-bold text-slate-500 block mb-1 text-xs uppercase tracking-wider">Labour Cost</span>
-                <p className="text-slate-800 font-medium">{formatCurrency(Number(quote?.details?.labour || quote?.laborCost || 0), quote.currency)}</p>
+                <p className="text-slate-800 font-medium">{formatCurrency(Number(quote?.details?.laborCost || quote?.details?.labour || quote?.laborCost || 0), quote.currency)}</p>
               </div>
             )}
-            {Number(quote?.details?.parts || quote?.partsCost || 0) > 0 && (
+            {Number(quote?.details?.partsCost || quote?.details?.parts || quote?.partsCost || 0) > 0 && (
               <div>
                 <span className="font-bold text-slate-500 block mb-1 text-xs uppercase tracking-wider">Parts Cost</span>
-                <p className="text-slate-800 font-medium">{formatCurrency(Number(quote?.details?.parts || quote?.partsCost || 0), quote.currency)}</p>
+                <p className="text-slate-800 font-medium">{formatCurrency(Number(quote?.details?.partsCost || quote?.details?.parts || quote?.partsCost || 0), quote.currency)}</p>
               </div>
             )}
-            {Number(quote?.details?.consumables || 0) > 0 && (
+            {Number(quote?.details?.consumablesCost || quote?.details?.consumables || 0) > 0 && (
               <div>
                 <span className="font-bold text-slate-500 block mb-1 text-xs uppercase tracking-wider">Consumables</span>
-                <p className="text-slate-800 font-medium">{formatCurrency(Number(quote.details.consumables), quote.currency)}</p>
+                <p className="text-slate-800 font-medium">{formatCurrency(Number(quote?.details?.consumablesCost || quote?.details?.consumables || 0), quote.currency)}</p>
               </div>
             )}
-            {Number(quote?.details?.gst || 0) > 0 && (
+            {Number(quote?.details?.gstCost || quote?.details?.gst || 0) > 0 && (
               <div>
                 <span className="font-bold text-slate-500 block mb-1 text-xs uppercase tracking-wider">GST / Tax</span>
-                <p className="text-slate-800 font-medium">{formatCurrency(Number(quote.details.gst), quote.currency)}</p>
+                <p className="text-slate-800 font-medium">{formatCurrency(Number(quote?.details?.gstCost || quote?.details?.gst || 0), quote.currency)}</p>
               </div>
             )}
-            {Number(quote?.details?.other || 0) > 0 && (
+            {Number(quote?.details?.otherCost || quote?.details?.other || 0) > 0 && (
               <div>
                 <span className="font-bold text-slate-500 block mb-1 text-xs uppercase tracking-wider">Other Charges</span>
-                <p className="text-slate-800 font-medium">{formatCurrency(Number(quote.details.other), quote.currency)}</p>
+                <p className="text-slate-800 font-medium">{formatCurrency(Number(quote?.details?.otherCost || quote?.details?.other || 0), quote.currency)}</p>
               </div>
             )}
-            {(quote.totalCost != null || quote?.details?.total != null || quote.price != null) && (
+            {(quote?.details?.totalCost != null || quote?.details?.total != null || quote.totalCost != null || quote.price != null) && (
               <div className="col-span-2 pt-2 border-t border-slate-100">
                 <span className="font-bold text-slate-500 block mb-1 text-xs uppercase tracking-wider">Final Total</span>
-                <p className="text-[#17307a] font-bold text-xl">{formatCurrency(Number(quote?.details?.total || quote?.totalCost || String(quote?.price || '0').replace(/[^0-9.-]/g, '')), quote.currency)}</p>
+                <p className="text-[#17307a] font-bold text-xl">{formatCurrency(Number(quote?.details?.totalCost || quote?.details?.total || quote?.totalCost || String(quote?.price || '0').replace(/[^0-9.-]/g, '')), quote.currency)}</p>
               </div>
             )}
             {quote.time != null && (
