@@ -99,16 +99,16 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
       const paymentAmount = Number(booking.total_amount || 0) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
       
       // 2. Insert into Payments (if not exists)
-      const paymentCheck = await client.query('SELECT id FROM payments WHERE provider_intent_id = $1', [razorpay_order_id]);
+      const paymentCheck = await client.query('SELECT id FROM payments WHERE provider_order_id = $1', [razorpay_order_id]);
       if (paymentCheck.rows.length === 0) {
         await client.query(
-          `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, provider_payment_id, amount, status)
+          `INSERT INTO payments (customer_user_id, booking_id, method, provider_order_id, provider_payment_id, amount, status)
            VALUES ($1, $2, 'razorpay', $3, $4, $5, 'succeeded')`,
           [booking.customer_id, booking.id, razorpay_order_id, razorpay_payment_id, paymentAmount]
         );
       } else {
         await client.query(
-          `UPDATE payments SET provider_payment_id = $1, status = 'succeeded' WHERE provider_intent_id = $2`,
+          `UPDATE payments SET provider_payment_id = $1, status = 'succeeded' WHERE provider_order_id = $2`,
           [razorpay_payment_id, razorpay_order_id]
         );
       }
@@ -195,16 +195,16 @@ paymentsRouter.post('/webhook', async (req, res) => {
             ['PAID', booking.id]
           );
 
-          const paymentCheck = await client.query('SELECT id FROM payments WHERE provider_intent_id = $1', [providerIntentId]);
+          const paymentCheck = await client.query('SELECT id FROM payments WHERE provider_order_id = $1', [providerIntentId]);
           if (paymentCheck.rows.length === 0) {
             await client.query(
-              `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, provider_payment_id, amount, status)
+              `INSERT INTO payments (customer_user_id, booking_id, method, provider_order_id, provider_payment_id, amount, status)
                VALUES ($1, $2, 'razorpay', $3, $4, $5, 'succeeded')`,
               [booking.customer_id, booking.id, providerIntentId, paymentEntity.id, amount]
             );
           } else {
             await client.query(
-              'UPDATE payments SET provider_payment_id = $1, status = $2 WHERE provider_intent_id = $3',
+              'UPDATE payments SET provider_payment_id = $1, status = $2 WHERE provider_order_id = $3',
               [paymentEntity.id, 'succeeded', providerIntentId]
             );
           }
@@ -230,7 +230,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
            // Already handled
         } else {
           await client.query(
-            'UPDATE payments SET status = $1 WHERE provider_intent_id = $2',
+            'UPDATE payments SET status = $1 WHERE provider_order_id = $2',
             ['failed', providerIntentId]
           );
 

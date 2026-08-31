@@ -1,0 +1,514 @@
+﻿TABLE: _migrations
+   id integer
+   filename character varying
+   applied_at timestamp with time zone
+TABLE: users
+   id uuid
+   email character varying
+   mobile_number character varying
+   password_hash character varying
+   name character varying
+   status character varying
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+   verification_status character varying
+   verified boolean
+TABLE: user_roles
+   id uuid
+   user_id uuid
+   role_id uuid
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: roles
+   id uuid
+   code character varying
+   name character varying
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: vehicle_service_history
+   id uuid
+   vehicle_id uuid
+   service_date timestamp with time zone
+   description text
+   garage_id uuid
+   cost numeric
+   created_at timestamp with time zone
+TABLE: vehicles
+   id uuid
+   customer_id uuid
+   make character varying
+   model character varying
+   year integer
+   vin character varying
+   mileage integer
+   warranty jsonb
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+   is_active boolean
+   fuel_type text
+   trim text
+   engine_type text
+   plate_number text
+   is_default boolean
+TABLE: diagnosis_requests
+   id uuid
+   customer_id uuid
+   vehicle_id uuid
+   symptom_text text
+   status character varying
+   created_at timestamp with time zone
+TABLE: diagnosis_media
+   id uuid
+   diagnosis_request_id uuid
+   media_type character varying
+   url text
+   created_at timestamp with time zone
+TABLE: diagnosis_results
+   id uuid
+   diagnosis_request_id uuid
+   issues jsonb
+   confidence_score integer
+   risk_level character varying
+   diy_allowed boolean
+   diy_steps ARRAY
+   next_action character varying
+   created_at timestamp with time zone
+TABLE: garages
+   id uuid
+   owner_user_id uuid
+   name character varying
+   address text
+   location jsonb
+   specializations ARRAY
+   certifications ARRAY
+   pickup_drop_supported boolean
+   approval_status character varying
+   rating_avg numeric
+   rating_count integer
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+   starting_price character varying
+   distance_km character varying
+   image text
+   response_mins integer
+   address_line text
+   city text
+   state text
+   postal_code text
+   verification_status text
+   is_approved boolean
+   trust_score numeric
+   business_hours jsonb
+TABLE: garage_documents
+   id uuid
+   garage_id uuid
+   doc_type character varying
+   file_url text
+   verification_status character varying
+   reviewed_by uuid
+   reviewed_at timestamp with time zone
+   created_at timestamp with time zone
+TABLE: garage_slots
+   id uuid
+   garage_id uuid
+   start_at timestamp with time zone
+   end_at timestamp with time zone
+   is_available boolean
+TABLE: quote_requests
+   id uuid
+   customer_id uuid
+   vehicle_id uuid
+   diagnosis_request_id uuid
+   issue_summary text
+   preferred_date timestamp with time zone
+   status character varying
+   created_at timestamp with time zone
+   garage_id uuid
+   is_deleted boolean
+   deleted_at timestamp without time zone
+TABLE: bookings
+   id uuid
+   customer_id uuid
+   garage_id uuid
+   vehicle_id uuid
+   quote_id uuid
+   booking_type character varying
+   scheduled_at timestamp with time zone
+   status character varying
+   total_amount numeric
+   currency character varying
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+   checkin_mode text
+   customer_note text
+TABLE: sellers
+   id uuid
+   seller_type character varying
+   user_id uuid
+   garage_id uuid
+   approval_status character varying
+   created_at timestamp with time zone
+TABLE: quotes
+   id uuid
+   quote_request_id uuid
+   garage_id uuid
+   amount numeric
+   currency character varying
+   eta_days integer
+   status character varying
+   created_at timestamp with time zone
+   details jsonb
+   parts_cost numeric
+   labor_cost numeric
+   total_cost numeric
+   eta_note text
+   comparison_label text
+TABLE: products
+   id uuid
+   seller_id uuid
+   name character varying
+   description text
+   category character varying
+   price numeric
+   currency character varying
+   is_diy_kit boolean
+   is_active boolean
+   compatible_vehicle_rules jsonb
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: inventory
+   id uuid
+   product_id uuid
+   qty_available integer
+   updated_at timestamp with time zone
+TABLE: carts
+   id uuid
+   customer_id uuid
+   items jsonb
+   updated_at timestamp with time zone
+TABLE: orders
+   id uuid
+   customer_id uuid
+   order_number character varying
+   status character varying
+   subtotal numeric
+   shipping_cost numeric
+   tax numeric
+   total numeric
+   currency character varying
+   fulfillment_mode character varying
+   shipping_address jsonb
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: payments
+   id uuid
+   customer_user_id uuid
+   booking_id uuid
+   order_id uuid
+   method character varying
+   transaction_id character varying
+   amount numeric
+   currency character varying
+   status character varying
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: reviews
+   id uuid
+   booking_id uuid
+   customer_id uuid
+   garage_id uuid
+   rating_overall integer
+   rating_price integer
+   rating_quality integer
+   rating_time integer
+   rating_behavior integer
+   comment text
+   is_verified boolean
+   created_at timestamp with time zone
+TABLE: garage_badges
+   id uuid
+   garage_id uuid
+   badge_key character varying
+   active boolean
+   awarded_at timestamp with time zone
+TABLE: notifications
+   id uuid
+   user_id uuid
+   channel character varying
+   template_key character varying
+   payload jsonb
+   status character varying
+   created_at timestamp with time zone
+TABLE: refresh_tokens
+   id uuid
+   user_id uuid
+   token_hash character varying
+   expires_at timestamp with time zone
+   created_at timestamp with time zone
+TABLE: known_issues
+   id uuid
+   category character varying
+   symptom_keywords ARRAY
+   makes ARRAY
+   year_from integer
+   year_to integer
+   issue_name character varying
+   description text
+   risk_level character varying
+   diy_allowed boolean
+   safety_critical boolean
+   required_parts jsonb
+   estimated_cost_min numeric
+   estimated_cost_max numeric
+   diy_steps ARRAY
+   garage_steps ARRAY
+   base_confidence numeric
+TABLE: diagnose_issue_categories
+   id character varying
+   label character varying
+   summary text
+   summary_meaning text
+   keywords ARRAY
+   sort_order integer
+   created_at timestamp with time zone
+TABLE: promos
+   id character varying
+   badge character varying
+   icon character varying
+   title character varying
+   bullets ARRAY
+   numeric_price numeric
+   strike_price numeric
+   discount_percent integer
+   valid_till timestamp with time zone
+   used_count_value integer
+   image text
+   categories ARRAY
+   is_combo boolean
+   relevance integer
+   theme_preset character varying
+   created_at timestamp with time zone
+TABLE: diagnose_questions
+   id character varying
+   category_id character varying
+   label character varying
+   question text
+   options ARRAY
+   sort_order integer
+   created_at timestamp with time zone
+TABLE: diagnose_possible_issues
+   id character varying
+   category_id character varying
+   title character varying
+   badge character varying
+   badge_class character varying
+   description text
+   match_score integer
+   risks ARRAY
+   estimated_cost character varying
+   image_src text
+   sort_order integer
+   created_at timestamp with time zone
+TABLE: diagnose_result_summaries
+   id character varying
+   title character varying
+   heading text
+   body text
+   pill character varying
+   pill_class character varying
+   icon character varying
+   icon_class character varying
+   sort_order integer
+   created_at timestamp with time zone
+TABLE: diagnose_next_steps
+   id character varying
+   step_number character varying
+   title character varying
+   body text
+   meta character varying
+   sort_order integer
+   created_at timestamp with time zone
+TABLE: diagnose_trust_items
+   id character varying
+   title character varying
+   description text
+   icon character varying
+   sort_order integer
+   created_at timestamp with time zone
+TABLE: services
+   id uuid
+   garage_id uuid
+   name character varying
+   description text
+   price numeric
+   duration_mins integer
+   category character varying
+   is_active boolean
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: vehicle_images_cache
+   key character varying
+   image_url text
+   created_at timestamp without time zone
+TABLE: profiles
+   id uuid
+   user_id uuid
+   avatar_url text
+   bio text
+   address_line text
+   city text
+   state text
+   postal_code text
+   notification_preferences jsonb
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+   business_hours text
+   specializations jsonb
+   certifications jsonb
+TABLE: user_social_accounts
+   id uuid
+   user_id uuid
+   provider text
+   social_subject text
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: auth_sessions
+   id uuid
+   user_id uuid
+   access_token_hash text
+   refresh_token_hash text
+   role_code text
+   user_agent text
+   ip_address text
+   expires_at timestamp with time zone
+   refresh_expires_at timestamp with time zone
+   revoked_at timestamp with time zone
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: vehicle_repair_history
+   id uuid
+   vehicle_id uuid
+   issue_summary text
+   service_done text
+   shop_name text
+   status text
+   price_amount numeric
+   currency character
+   service_date date
+   created_at timestamp with time zone
+TABLE: diagnosis_sessions
+   id uuid
+   customer_user_id uuid
+   vehicle_id uuid
+   symptoms_text text
+   attachments jsonb
+   possible_issues jsonb
+   urgency text
+   diy_allowed boolean
+   risk_text text
+   next_questions jsonb
+   draft_estimate_min numeric
+   draft_estimate_max numeric
+   status text
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: issue_requests
+   id uuid
+   customer_user_id uuid
+   vehicle_id uuid
+   diagnosis_session_id uuid
+   summary text
+   issue_source text
+   issue_payload jsonb
+   status text
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: payment_intents
+   id uuid
+   booking_id uuid
+   customer_user_id uuid
+   amount numeric
+   currency character
+   method text
+   status text
+   client_secret text
+   expires_at timestamp with time zone
+   confirmed_at timestamp with time zone
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: support_tickets
+   id uuid
+   customer_user_id uuid
+   subject text
+   description text
+   status text
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: part_orders
+   id uuid
+   customer_user_id uuid
+   part_id uuid
+   qty integer
+   total_amount numeric
+   status text
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: parts_catalog
+   id uuid
+   name text
+   category text
+   price numeric
+   currency character
+   in_stock boolean
+   supplier text
+   created_at timestamp with time zone
+TABLE: otp_challenges
+   id uuid
+   phone character varying
+   purpose text
+   role_code text
+   full_name text
+   otp_code character varying
+   expires_at timestamp with time zone
+   consumed_at timestamp with time zone
+   created_at timestamp with time zone
+TABLE: sms_events
+   id uuid
+   user_id uuid
+   phone character varying
+   event_type text
+   status text
+   meta jsonb
+   created_at timestamp with time zone
+TABLE: runtime_app_config
+   key text
+   value_json jsonb
+   updated_at timestamp with time zone
+TABLE: garage_services
+   id uuid
+   garage_user_id uuid
+   name text
+   category text
+   price numeric
+   description text
+   active boolean
+   created_at timestamp with time zone
+   updated_at timestamp with time zone
+TABLE: ui_content
+   id integer
+   tenant_id text
+   module text
+   page text
+   locale text
+   version integer
+   content jsonb
+   updated_at timestamp with time zone
+TABLE: audit_logs
+   id uuid
+   entity_type character varying
+   entity_id uuid
+   old_status character varying
+   new_status character varying
+   user_id uuid
+   role character varying
+   created_at timestamp with time zone
