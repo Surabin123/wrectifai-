@@ -50,7 +50,7 @@ invoicesRouter.get('/by-booking/:bookingId', authenticate, async (req, res) => {
         g.name as "garageName",
         g.address as "garageAddress",
         g.city as "garageCity",
-        g.phone as "garagePhone",
+        gu.mobile_number as "garagePhone",
         u.name as "customerName",
         u.mobile_number as "customerPhone",
         u.email as "customerEmail",
@@ -63,6 +63,7 @@ invoicesRouter.get('/by-booking/:bookingId', authenticate, async (req, res) => {
        JOIN bookings b ON i.booking_id = b.id
        JOIN garages g ON b.garage_id = g.id
        LEFT JOIN users u ON b.customer_id = u.id
+       LEFT JOIN users gu ON g.owner_user_id = gu.id
        LEFT JOIN profiles p ON u.id = p.user_id
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        WHERE i.booking_id = $1 AND ${filterCondition}`,

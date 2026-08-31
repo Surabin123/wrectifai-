@@ -110,8 +110,8 @@ export function BookingsPage() {
     }
   };
 
-  const handleMarkCollected = (id: string) => {
-    setBookingToCollect(id);
+  const handleMarkCollected = (b: any) => {
+    setBookingToCollect(b.id);
     setCollectionModalOpen(true);
   };
 
@@ -379,11 +379,11 @@ export function BookingsPage() {
                     )}
                     {b.status === 'readyForCollection' && (
                       <Button
-                        onClick={() => handleMarkCollected(b.id)}
+                        onClick={() => handleMarkCollected(b)}
                         variant="outline"
                         className="h-8 rounded-[9px] px-2.5 text-[10.5px] font-semibold border-green-200 text-green-600 hover:bg-green-50 hover:text-green-700"
                       >
-                        Mark Vehicle Collected
+                        Confirm Collection
                       </Button>
                     )}
                     {(b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected') && (
@@ -543,28 +543,42 @@ export function BookingsPage() {
         title="Vehicle Collection"
       >
         <div className="py-4 flex flex-col items-center text-center">
-          <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
-            <ShieldCheck className="w-8 h-8" />
-          </div>
-          <h3 className="text-xl font-bold text-[#17307a] mb-2">Confirm Vehicle Collection</h3>
-          <p className="text-slate-600 mb-6 max-w-sm">
-            Are you sure you want to mark this vehicle as collected? This means the customer has received their vehicle and the service lifecycle is fully complete.
-          </p>
-          <div className="flex gap-3 w-full">
-            <Button 
-              variant="outline" 
-              className="flex-1"
-              onClick={() => setCollectionModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button 
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
-              onClick={confirmMarkCollected}
-            >
-              Confirm Collection
-            </Button>
-          </div>
+          {(() => {
+            const b = bookings.find(x => x.id === bookingToCollect);
+            const isPaid = b?.paymentStatus === 'PAID';
+            return (
+              <>
+                {!isPaid ? (
+                  <>
+                    <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
+                      <AlertCircle className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-bold text-[#17307a] mb-2">Payment Required</h3>
+                    <p className="text-slate-600 mb-6 max-w-sm">
+                      Payment is required before vehicle collection. Please complete the payment first.
+                    </p>
+                    <div className="flex gap-3 w-full">
+                      <Button className="flex-1 bg-slate-100 text-slate-700 hover:bg-slate-200" onClick={() => setCollectionModalOpen(false)}>Close</Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
+                      <ShieldCheck className="w-8 h-8" />
+                    </div>
+                    <h3 className="text-xl font-bold text-[#17307a] mb-2">Confirm Vehicle Collection</h3>
+                    <p className="text-slate-600 mb-6 max-w-sm">
+                      Are you sure you want to mark this vehicle as collected? This means the customer has received their vehicle and the service lifecycle is fully complete.
+                    </p>
+                    <div className="flex gap-3 w-full">
+                      <Button variant="outline" className="flex-1" onClick={() => setCollectionModalOpen(false)}>Cancel</Button>
+                      <Button className="flex-1 bg-green-600 hover:bg-green-700 text-white" onClick={confirmMarkCollected}>Confirm Collection</Button>
+                    </div>
+                  </>
+                )}
+              </>
+            );
+          })()}
         </div>
       </Modal>
 
