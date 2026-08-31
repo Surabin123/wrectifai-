@@ -33,7 +33,11 @@ export function DashboardHeader({ title }: { title?: string }) {
     
     updateNotifications();
     const interval = setInterval(updateNotifications, 15000);
-    return () => clearInterval(interval);
+    window.addEventListener('notifications-updated', updateNotifications);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('notifications-updated', updateNotifications);
+    };
   }, [user]);
 
   const basePath = pathname.startsWith('/admin') ? '/admin' : pathname.startsWith('/garage') ? '/garage' : '';

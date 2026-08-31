@@ -17,8 +17,17 @@ import {
   Sparkles,
   Video,
   Zap,
-  AlertTriangle,
+  AlertTriangle
 } from 'lucide-react';
+
+export function getIssueIcon(title: string) {
+  const t = title.toLowerCase();
+  if (t.includes('brake') || t.includes('suspension')) return <Settings className="h-6 w-6" />;
+  if (t.includes('engine') || t.includes('battery') || t.includes('start')) return <Activity className="h-6 w-6" />;
+  if (t.includes('oil') || t.includes('filter')) return <Wrench className="h-6 w-6" />;
+  if (t.includes('leak') || t.includes('noise')) return <AlertTriangle className="h-6 w-6" />;
+  return <Wrench className="h-6 w-6" />;
+}
 
 interface Vehicle {
   id: string;
@@ -102,6 +111,7 @@ import { VehicleSelector } from '@/components/common/vehicle-selector';
 import { submitDiagnosis, chatDiagnosis, syncChatHistory, uploadMedia, type DiagnosisResponse } from '../../lib/diagnosis-api';
 import { getVehicleImage } from '@/lib/vehicle-image-catalog';
 import { formatCurrency } from '@/lib/currency';
+import { resolveImageUrl } from '@/lib/utils';
 
 function getBadgeForIssue(name: string, overallRisk?: string, index?: number) {
   if (index === 0 && overallRisk) {
@@ -1947,8 +1957,15 @@ function FindingQuotesScreen({
         <Card className="rounded-[22px] border-[#e7edfd] bg-white px-5 py-5 shadow-[0_12px_30px_rgba(37,73,153,0.04)]">
           <h3 className={homeSectionHeadingClass}>Your Vehicle</h3>
           <div className="mt-10 flex flex-col items-center text-center">
-            <span className="flex h-[92px] w-[92px] items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#f5f8ff_0%,#edf2ff_100%)] text-[#244fe5] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-              <CarFront className="h-11 w-11" />
+            <span className="flex h-[92px] w-[92px] items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#f5f8ff_0%,#edf2ff_100%)] text-[#244fe5] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] overflow-hidden">
+              <Image 
+                src={selectedVehicle?.image ? resolveImageUrl(selectedVehicle.image) : getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
+                alt="Your Vehicle"
+                width={92}
+                height={92}
+                className="h-full w-full object-cover"
+                unoptimized={true}
+              />
             </span>
             <div className={cn('mt-8', homeCardHeadingClass)}>
               {selectedVehicle ? `${selectedVehicle.year} ${selectedVehicle.make} ${selectedVehicle.model}` : 'Honda City (TS07 AB 1234)'}
@@ -1980,15 +1997,9 @@ function FindingQuotesScreen({
                 className="grid gap-4 py-5 md:grid-cols-[76px_minmax(0,1fr)_92px] md:items-center"
               >
                 <div className="flex justify-center md:justify-start">
-                  <Image
-                    src={selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
-                    alt={issue.title}
-                    width={72}
-                    height={72}
-                    className="h-[66px] w-[66px] object-contain"
-                    style={{ width: '66px', height: '66px' }}
-                    unoptimized={true}
-                  />
+                  <span className="flex h-[66px] w-[66px] items-center justify-center rounded-[14px] bg-[radial-gradient(circle_at_top,#f6f8ff_0%,#eef2ff_100%)] text-[#2451e5] shadow-sm">
+                    {getIssueIcon(issue.title)}
+                  </span>
                 </div>
                 <div>
                   <div className="flex flex-wrap items-center gap-3">
@@ -3347,7 +3358,7 @@ export function AIDiagnosePage() {
                                               )
                                             }
                                             className={cn(
-                                              'flex w-full h-[42px] items-center justify-between rounded-[9px] border px-3.5 text-[13px] font-medium transition-all text-left',
+                                              'flex w-full min-h-[42px] py-2 h-auto items-center justify-between rounded-[9px] border px-3.5 text-[13px] font-medium transition-all text-left gap-3',
                                               isSelected
                                                 ? 'border-[#4d81ff] bg-[#fbfdff] text-[#2a5eea] shadow-[inset_0_0_0_1px_rgba(77,129,255,0.14)] font-bold'
                                                 : (hasSelected || !selectedVehicleId)
@@ -3355,9 +3366,9 @@ export function AIDiagnosePage() {
                                                   : 'border-[#e8edf8] bg-white text-[#52658f] hover:border-[#b9ccf9] hover:bg-[#f6f9ff]'
                                             )}
                                           >
-                                            <span>{option}</span>
+                                            <span className="whitespace-normal break-words leading-tight">{option}</span>
                                             {isSelected ? (
-                                              <span className="flex h-5 w-5 items-center justify-center rounded-full bg-[#2c62f0] text-white">
+                                              <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[#2c62f0] text-white">
                                                 <Check className="h-3.5 w-3.5 stroke-[3]" />
                                               </span>
                                             ) : null}

@@ -220,7 +220,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
     const quoteValuesTotal: Record<string, string> = {};
     const quoteValuesSavings: Record<string, string> = {};
 
-    const fmt = (val: number) => formatCurrency(val);
+    const fmt = (val: number, currency: string) => formatCurrency(val, currency);
 
     const partsArr: number[] = [];
     const labourArr: number[] = [];
@@ -248,19 +248,20 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
       const savings = aiMaxLocal > 0 ? Math.max(0, aiMaxLocal - total) : 0;
       const savingsPercent = aiMaxLocal > 0 ? Math.round((savings / aiMaxLocal) * 100) : 0;
 
-      quoteValuesParts[q.id] = fmt(parts);
-      quoteValuesLabour[q.id] = fmt(labour);
-      quoteValuesConsumables[q.id] = fmt(consumables);
-      quoteValuesGst[q.id] = fmt(gst);
-      quoteValuesTotal[q.id] = fmt(total);
-      quoteValuesSavings[q.id] = `${fmt(savings)} (${savingsPercent}%)`;
+      quoteValuesParts[q.id] = fmt(parts, q.currency || 'USD');
+      quoteValuesLabour[q.id] = fmt(labour, q.currency || 'USD');
+      quoteValuesConsumables[q.id] = fmt(consumables, q.currency || 'USD');
+      quoteValuesGst[q.id] = fmt(gst, q.currency || 'USD');
+      quoteValuesTotal[q.id] = fmt(total, q.currency || 'USD');
+      quoteValuesSavings[q.id] = `${fmt(savings, q.currency || 'USD')} (${savingsPercent}%)`;
     });
 
     const getRange = (arr: number[]) => {
       if (arr.length === 0) return '—';
       const lo = Math.min(...arr);
       const hi = Math.max(...arr);
-      return lo === hi ? fmt(lo) : `${fmt(lo)} \u2013 ${fmt(hi)}`;
+      const currency = aiEstimate?.currency || 'INR';
+      return lo === hi ? fmt(lo, currency) : `${fmt(lo, currency)} \u2013 ${fmt(hi, currency)}`;
     };
 
     // fmtAi: AI now returns values directly in the correct local currency.

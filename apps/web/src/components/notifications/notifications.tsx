@@ -68,6 +68,7 @@ export function Notifications() {
       }
       await apiClient(url, { method: 'POST' });
       setNotifications(notifications.map(n => ({ ...n, is_read: true })));
+      window.dispatchEvent(new Event('notifications-updated'));
     } catch (err) {
       console.error('Failed to mark all as read', err);
     }
@@ -80,6 +81,7 @@ export function Notifications() {
     try {
       await apiClient(`/notifications/${id}/read`, { method: 'PATCH' });
       setNotifications(notifications.map(n => n.id === id ? { ...n, is_read: true } : n));
+      window.dispatchEvent(new Event('notifications-updated'));
     } catch (err) {
       console.error('Failed to mark as read', err);
     }

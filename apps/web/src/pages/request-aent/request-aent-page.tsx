@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Check, Star, CarFront } from 'lucide-react';
+import { Check, Star, CarFront, Wrench, Settings, AlertTriangle, Activity } from 'lucide-react';
 import { resolveImageUrl } from '@/lib/utils';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
@@ -17,45 +17,38 @@ const BULLET = '\u2022';
 
 const homeSectionHeadingClass = 'ui-page-title';
 const homeCardHeadingClass = 'ui-card-title';
+
+function getIssueIcon(title: string) {
+  const t = title.toLowerCase();
+  if (t.includes('brake') || t.includes('suspension')) return <Settings className="h-6 w-6" />;
+  if (t.includes('engine') || t.includes('battery') || t.includes('start')) return <Activity className="h-6 w-6" />;
+  if (t.includes('oil') || t.includes('filter')) return <Wrench className="h-6 w-6" />;
+  if (t.includes('leak') || t.includes('noise')) return <AlertTriangle className="h-6 w-6" />;
+  return <Wrench className="h-6 w-6" />;
+}
+
 function IssuePreview({
   issueTitle,
-  selectedVehicle,
 }: {
   issueTitle: string;
-  selectedVehicle: Vehicle | null;
+  selectedVehicle?: any;
 }) {
-  const [showFallbackIcon, setShowFallbackIcon] = useState(false);
-
-  if (showFallbackIcon) {
-    return (
-      <span className="flex h-[60px] w-[60px] items-center justify-center rounded-[14px] bg-[radial-gradient(circle_at_top,#f6f8ff_0%,#eef2ff_100%)] text-[#2451e5]">
-        <CarFront className="h-8 w-8" />
-      </span>
-    );
-  }
-
   return (
-    <Image
-      src={selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
-      alt={issueTitle}
-      width={60}
-      height={60}
-      className="h-[60px] w-[60px] object-contain"
-      onError={() => setShowFallbackIcon(true)}
-      unoptimized={true}
-    />
+    <span className="flex h-[60px] w-[60px] items-center justify-center rounded-[14px] bg-[radial-gradient(circle_at_top,#f6f8ff_0%,#eef2ff_100%)] text-[#2451e5] shadow-sm">
+      {getIssueIcon(issueTitle)}
+    </span>
   );
 }
 
-function VehiclePreview({ selectedVehicle }: { selectedVehicle: Vehicle | null }) {
+function VehiclePreview({ selectedVehicle }: { selectedVehicle: any }) {
   return (
-    <div className="flex h-[112px] w-[112px] items-center justify-center rounded-[24px] bg-[radial-gradient(circle_at_top,#f7f9ff_0%,#eef3ff_62%,#e9efff_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.95)]">
+    <div className="flex h-[112px] w-[112px] items-center justify-center rounded-[24px] bg-[radial-gradient(circle_at_top,#f7f9ff_0%,#eef3ff_62%,#e9efff_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] overflow-hidden">
       <Image
-        src={selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
+        src={selectedVehicle?.image ? resolveImageUrl(selectedVehicle.image) : getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)}
         alt="Car"
-        width={94}
-        height={56}
-        className="h-auto w-[94px] object-contain"
+        width={112}
+        height={112}
+        className="h-full w-full object-cover"
         priority
         unoptimized={true}
       />

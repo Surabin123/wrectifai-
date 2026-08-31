@@ -490,7 +490,10 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
     }
 
     const userCheck = await query('SELECT status FROM users WHERE id = $1', [customerId]);
-    if (userCheck.rows.length === 0 || userCheck.rows[0].status === 'suspended') {
+    if (userCheck.rows.length === 0) {
+      return error(res, 'User account not found or invalid session. Please log in again.', 'UNAUTHORIZED', 401);
+    }
+    if (userCheck.rows[0].status === 'suspended') {
       return error(res, 'Your account is suspended. You cannot create new quote requests.', 'FORBIDDEN', 403);
     }
 
