@@ -8,8 +8,8 @@ export interface Booking {
   quoteId?: string | null;
   bookingType: 'instant' | 'quoteBased';
   scheduledAt: string;
-  status: 'pendingPayment' | 'confirmed' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'readyForCollection' | 'collected';
-  paymentStatus?: 'pending' | 'paid' | 'failed' | 'refunded' | 'refund_failed';
+  status: 'requested' | 'confirmed' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'readyForCollection' | 'collected';
+  paymentStatus?: 'UNPAID' | 'PAYMENT_DUE' | 'PAYMENT_PROCESSING' | 'PAID' | 'FAILED' | 'REFUND_PENDING' | 'REFUNDED' | 'REFUND_FAILED';
   totalAmount: number;
   currency: string;
   createdAt: string;

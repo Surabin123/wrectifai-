@@ -17,7 +17,7 @@ export function BookingDetailsModal({ booking, onClose, actions }: BookingDetail
           <div className="text-right">
             <span className="font-bold text-slate-600">Status:</span>
             <p className="text-slate-800 capitalize font-bold text-blue-700">
-              {booking.status === 'pendingPayment' ? 'Pending' : booking.status.replace('_', ' ')}
+              {booking.status === 'requested' ? 'Pending' : booking.status.replace('_', ' ')}
             </p>
           </div>
         </div>

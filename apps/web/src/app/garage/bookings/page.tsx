@@ -82,6 +82,21 @@ export default function BookingsPage() {
     }
   };
 
+  const handleConfirmCash = async (id: string) => {
+    try {
+      const { apiClient } = await import('@/lib/api-client');
+      await apiClient.post(`/bookings/${id}/confirm-cash`, {});
+      
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, paymentStatus: 'PAID' } : b));
+      alert('Cash payment confirmed successfully.');
+      
+      const data = await fetchBookings();
+      setBookings(data);
+    } catch (err: any) {
+      alert(err.message || 'Failed to confirm cash payment');
+    }
+  };
+
   return (
     <RoleGuard allowedRoles={['garage']}>
       <DashboardShell customNavItems={garageNavItems} hideBottomWidget={true} header={<DashboardHeader />}>
@@ -115,12 +130,12 @@ export default function BookingsPage() {
                         <td className="p-3 text-sm text-slate-600">{new Date(b.scheduledAt).toLocaleString()}</td>
                         <td className="p-3 text-sm text-slate-600">{b.vehicleMake} {b.vehicleModel}</td>
                         <td className="p-3 text-sm text-slate-600 capitalize">
-                          {b.status === 'pendingPayment' ? 'Pending' : b.status === 'in_progress' ? 'In Progress' : b.status === 'readyForCollection' ? 'Ready for Collection' : b.status === 'collected' ? 'Collected' : b.status}
+                          {b.status === 'requested' ? 'Pending' : b.status === 'in_progress' ? 'In Progress' : b.status === 'readyForCollection' ? 'Ready for Collection' : b.status === 'collected' ? 'Collected' : b.status}
                         </td>
                         <td className="p-3 text-sm text-right space-x-2 flex justify-end items-center h-full">
-                          {(b.status === 'pendingPayment' || b.status === 'confirmed') && (
+                          {(b.status === 'requested' || b.status === 'confirmed') && (
                             <>
-                              {b.status === 'pendingPayment' && (
+                              {b.status === 'requested' && (
                                 <button onClick={() => handleUpdateStatus(b.id, 'accepted')} className="text-xs bg-blue-100 text-blue-700 px-3 py-1 rounded font-semibold hover:bg-blue-200">
                                   Accept
                                 </button>
@@ -143,6 +158,11 @@ export default function BookingsPage() {
                           {b.status === 'completed' && (
                             <button onClick={() => { setBookingForCollection(b.id); setCollectionTime(''); setCollectionModalOpen(true); }} className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded font-semibold hover:bg-yellow-200 ml-2">
                               Ready for Collection
+                            </button>
+                          )}
+                          {(b.status === 'completed' || b.status === 'readyForCollection') && b.paymentStatus !== 'PAID' && (
+                            <button onClick={() => handleConfirmCash(b.id)} className="text-xs bg-teal-100 text-teal-700 px-3 py-1 rounded font-semibold hover:bg-teal-200 inline-block ml-2">
+                              Confirm Cash
                             </button>
                           )}
                           {(b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected') && (
@@ -238,7 +258,7 @@ export default function BookingsPage() {
               <div>
                 <span className="block font-bold text-slate-500 mb-1">Current Status</span>
                 <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 font-bold text-xs rounded uppercase">
-                  {selectedBooking.status === 'pendingPayment' ? 'Pending' : selectedBooking.status === 'in_progress' ? 'In Progress' : selectedBooking.status === 'readyForCollection' ? 'Ready for Collection' : selectedBooking.status === 'collected' ? 'Collected' : selectedBooking.status}
+                  {selectedBooking.status === 'requested' ? 'Pending' : selectedBooking.status === 'in_progress' ? 'In Progress' : selectedBooking.status === 'readyForCollection' ? 'Ready for Collection' : selectedBooking.status === 'collected' ? 'Collected' : selectedBooking.status}
                 </span>
               </div>
             </div>

@@ -185,7 +185,7 @@ export default function IncomingRequestsPage() {
                 </div>
               </div>
               <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
-                {selectedBooking && !['completed', 'readyForCollection', 'collected'].includes(selectedBooking.status || 'pendingPayment') && (
+                {selectedBooking && !['completed', 'readyForCollection', 'collected'].includes(selectedBooking.status || 'requested') && (
                   <>
                     <button 
                       disabled={isUpdating}

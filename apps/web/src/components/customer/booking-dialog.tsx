@@ -4,7 +4,6 @@ import { Modal } from '@/components/common/modal';
 import { Button } from '@/components/common/button';
 import { apiClient } from '@/lib/api-client';
 import type { QuoteItem } from '@/components/quotes/quotes-shared';
-import { CheckoutModal } from '@/components/common/checkout-modal';
 import { formatCurrency } from '@/lib/currency';
 import { getCurrencyCode } from '@/lib/user-phone';
 
@@ -18,9 +17,6 @@ export function BookingDialog({ quote, onClose, onSuccess }: { quote: QuoteItem,
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
-  
-  const [showCheckout, setShowCheckout] = useState(false);
-  const [bookingPayload, setBookingPayload] = useState<any>(null);
 
   useEffect(() => {
     apiClient.get<any[]>('/vehicles').then(data => {
@@ -47,6 +43,7 @@ export function BookingDialog({ quote, onClose, onSuccess }: { quote: QuoteItem,
     }
     
     setErrorMsg('');
+    setIsSubmitting(true);
     
     const rawAmount = Number(quote.price) || (quote as any).amount || (quote as any).totalCost || 0;
     
@@ -60,16 +57,9 @@ export function BookingDialog({ quote, onClose, onSuccess }: { quote: QuoteItem,
       currency: getCurrencyCode(),
     };
     
-    setBookingPayload(payload);
-    setShowCheckout(true);
-  };
-
-  const handleCheckoutSubmit = async (finalPayload: any) => {
-    const res = await apiClient.post<{ razorpayOrderId?: string | null, status: string }>(`/bookings/from-quote/${quote.id}`, finalPayload);
-    return res;
-  };
-
-  const handleCheckoutSuccess = () => {
+    try {
+      await apiClient.post(`/bookings/from-quote/${quote.id}`, payload);
+      
       // Dispatch Notifications
       const notifs = JSON.parse(localStorage.getItem('wrectifai_notifications') || '[]');
       const garageName = (quote as any).garageName || quote.garage || 'A Garage';
@@ -78,6 +68,11 @@ export function BookingDialog({ quote, onClose, onSuccess }: { quote: QuoteItem,
       localStorage.setItem('wrectifai_notifications', JSON.stringify(notifs));
       window.dispatchEvent(new Event('notifications-updated'));
       onSuccess();
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to create booking. Please try again.');
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -170,22 +165,11 @@ export function BookingDialog({ quote, onClose, onSuccess }: { quote: QuoteItem,
         <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
           <Button variant="outline" type="button" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
           <Button type="submit" disabled={isSubmitting} className="bg-[#1a56db] text-white">
-            Proceed to Payment
+            {isSubmitting ? 'Booking...' : 'Confirm Booking'}
           </Button>
         </div>
       </form>
     </Modal>
-    
-    {showCheckout && (
-      <CheckoutModal
-        isOpen={showCheckout}
-        onClose={() => setShowCheckout(false)}
-        subtotal={Number(quote.price) || (quote as any).amount || (quote as any).totalCost || 0}
-        bookingPayload={bookingPayload}
-        onSubmit={handleCheckoutSubmit}
-        onSuccess={handleCheckoutSuccess}
-      />
-    )}
     </>
   );
 }

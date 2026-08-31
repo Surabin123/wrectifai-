@@ -160,7 +160,7 @@ export function BookingsPage() {
               razorpay_signature: response.razorpay_signature
             });
             if (verifyRes.verified) {
-              setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, paymentStatus: 'paid' } : b)));
+              setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, paymentStatus: 'PAID' } : b)));
               alert('Payment successful!');
             } else {
               alert('Payment verification failed.');
@@ -215,7 +215,7 @@ export function BookingsPage() {
   const filteredBookings = useMemo(() => {
     return bookings.filter((b) => {
       if (activeTab === 'all') return true;
-      if (activeTab === 'upcoming') return b.status === 'pendingPayment';
+      if (activeTab === 'upcoming') return b.status === 'requested';
       if (activeTab === 'accepted') return b.status === 'confirmed' || b.status === 'accepted';
       if (activeTab === 'inProgress') return b.status === 'in_progress';
       if (activeTab === 'completed') return b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected';
@@ -302,7 +302,7 @@ export function BookingsPage() {
                     <span
                       className={cn(
                         'rounded-[6px] px-2 py-0.5 text-[10px] font-bold uppercase',
-                        b.status === 'pendingPayment' && 'bg-[#fef3c7] text-[#b45309]',
+                        b.status === 'requested' && 'bg-[#fef3c7] text-[#b45309]',
                         (b.status === 'confirmed' || b.status === 'accepted') && 'bg-[#e0f2fe] text-[#0369a1]',
                         b.status === 'in_progress' && 'bg-[#e0e7ff] text-[#4338ca]',
                         b.status === 'completed' && 'bg-[#dcfce7] text-[#15803d]',
@@ -311,7 +311,7 @@ export function BookingsPage() {
                         b.status === 'cancelled' && 'bg-[#fee2e2] text-[#b91c1c]'
                       )}
                     >
-                       {b.status === 'pendingPayment' ? 'Pending' : 
+                       {b.status === 'requested' ? 'Pending' : 
                         b.status === 'confirmed' ? 'Confirmed' :
                         b.status === 'accepted' ? 'Accepted' : 
                         b.status === 'in_progress' ? 'In Progress' : 
@@ -368,7 +368,7 @@ export function BookingsPage() {
                     >
                       View Details
                     </Button>
-                    {(b.status === 'pendingPayment' || b.status === 'confirmed' || b.status === 'accepted') && (
+                    {(b.status === 'requested' || b.status === 'confirmed' || b.status === 'accepted') && (
                       <Button
                         onClick={() => handleCancelBooking(b.id)}
                         variant="outline"
@@ -396,7 +396,7 @@ export function BookingsPage() {
                         {loadingInvoice ? 'Loading...' : 'View Invoice'}
                       </Button>
                     )}
-                    {(b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected') && b.paymentStatus !== 'paid' && (
+                    {(b.status === 'completed' || b.status === 'readyForCollection') && (b.paymentStatus === 'PAYMENT_DUE' || b.paymentStatus === 'FAILED') && (
                       <Button
                         onClick={() => handlePayNow(b)}
                         disabled={paymentProcessingId === b.id}
@@ -472,7 +472,7 @@ export function BookingsPage() {
             <div>
               <span className="block font-bold text-slate-500 mb-1">Payment Status</span>
               <span className={`inline-block px-2 py-1 font-bold text-xs rounded uppercase ${
-                viewDetailsBooking.paymentStatus === 'paid' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
+                viewDetailsBooking.paymentStatus === 'PAID' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
               }`}>
                 {viewDetailsBooking.paymentStatus || 'pending'}
               </span>

@@ -91,7 +91,7 @@ export default function ActiveJobsPage() {
                  {jobs.map(job => (
                    <Card key={job.id} className="p-4 border-l-4 border-l-blue-500">
                      <div className="flex justify-between items-start mb-3">
-                       <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded capitalize">{job.bookingStatus === 'pendingPayment' ? 'Pending' : job.bookingStatus === 'in_progress' ? 'In Progress' : (job.bookingStatus || 'Unknown')}</span>
+                       <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded capitalize">{job.bookingStatus === 'requested' ? 'Pending' : job.bookingStatus === 'in_progress' ? 'In Progress' : (job.bookingStatus || 'Unknown')}</span>
                      </div>
                      <p className="font-bold text-[#17307a] text-lg">{job.vehicleMake} {job.vehicleModel}</p>
                      <p className="text-sm text-slate-500 mb-4">{job.customerName}</p>

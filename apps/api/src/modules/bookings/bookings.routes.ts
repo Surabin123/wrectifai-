@@ -546,6 +546,10 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       }
     }
 
+    if (status === 'collected' && currentBooking.payment_status !== 'PAID') {
+      return error(res, 'Vehicle cannot be marked collected until payment is completed.', 'FORBIDDEN', 403);
+    }
+
     let updateQuery = `UPDATE bookings SET status = $${params.length + 1}, updated_at = NOW()`;
     const updateParams = [...params, status];
 
@@ -686,7 +690,7 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
       return error(res, 'Booking is already paid', 'BAD_REQUEST', 400);
     }
     
-    if (booking.status !== 'completed' && booking.status !== 'readyForCollection' && booking.status !== 'collected') {
+    if (booking.status !== 'completed' && booking.status !== 'readyForCollection') {
       return error(res, 'Service must be completed before payment', 'BAD_REQUEST', 400);
     }
 
