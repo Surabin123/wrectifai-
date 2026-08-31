@@ -62,34 +62,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     async function initAuth() {
       try {
-        const baseUrl = getBaseUrl();
-        // Fetch current user from HttpOnly cookie session
-        const res = await fetch(`${baseUrl}/auth/me`, {
-          credentials: 'include',
-          headers: { 'Content-Type': 'application/json' }
-        });
-
-        if (res.ok) {
-          const json = await res.json();
-          if (json.data && json.data.user && mounted) {
-            setUser(json.data.user);
-            setIsAuthenticated(true);
-          }
-        } else {
-          // No fallback to localStorage since we use HttpOnly cookies.
-          if (mounted) {
+        const { apiClient } = await import('./api-client');
+        const data = await apiClient<{ user: User }>('/auth/me');
+        
+        if (data && data.user && mounted) {
+          setUser(data.user);
+          setIsAuthenticated(true);
+        }
+      } catch (err: any) {
+        console.warn('[AuthContext] Auth initialization failed:', err);
+        if (mounted) {
+          // Distinguish between genuine auth failure (401/403) and temporary network/server failure
+          const isGenuineAuthFailure = err.status === 401 || err.status === 403;
+          
+          if (isGenuineAuthFailure) {
+            setUser(null);
+            setToken(null);
+            setIsAuthenticated(false);
+          } else {
+            // For temporary failures (network down, 5xx), we cannot authenticate them right now,
+            // but we don't aggressively clear their state via a full logout.
+            // They will simply be unauthenticated for this session attempt.
             setUser(null);
             setToken(null);
             setIsAuthenticated(false);
           }
-        }
-      } catch (err) {
-        // Handle network failures gracefully without throwing
-        console.warn('[AuthContext] Auth initialization network request failed or was aborted. Defaulting to unauthenticated state.');
-        if (mounted) {
-          setUser(null);
-          setToken(null);
-          setIsAuthenticated(false);
         }
       } finally {
         if (mounted) setIsLoading(false);

@@ -168,9 +168,9 @@ async function createBookingInternal(req: any, res: any, data: {
       heldWalletAmount = Math.min(walletAmountToUse, finalAmount);
     }
 
-    // Insert booking in 'pendingPayment' (or 'confirmed' if completely paid)    // For "Pay at Garage", the payment_status should always be 'pending'.
-    const status = finalAmount - heldWalletAmount <= 0 ? 'confirmed' : 'pendingPayment';
-    const paymentStatus = 'pending';
+    // Insert booking in 'requested' state. Payment happens post-service.
+    const status = 'requested';
+    const paymentStatus = 'UNPAID';
 
     const result = await query(
       `INSERT INTO bookings (customer_id, garage_id, vehicle_id, quote_id, booking_type, scheduled_at, status, payment_status, total_amount, currency, customer_note, offer_id, discount_applied, wallet_used)
@@ -215,22 +215,6 @@ async function createBookingInternal(req: any, res: any, data: {
 
     const remainingAmountToPay = finalAmount - heldWalletAmount;
 
-    // 3. Create Razorpay Order if remaining balance is > 0 and not paying at garage
-    let razorpayOrder = null;
-    if (remainingAmountToPay > 0 && paymentMethod !== 'PAY_AT_GARAGE') {
-      const amountInPaise = Math.round(remainingAmountToPay * 100);
-      razorpayOrder = await createRazorpayOrder(amountInPaise, bookingId.substring(0, 40), {
-        bookingId,
-        customerId
-      });
-      
-      // Save provider intent internally
-      await query(
-        `UPDATE bookings SET payment_intent_id = $1 WHERE id = $2`,
-        [razorpayOrder.id, bookingId]
-      );
-    }
-
     // Fetch customer name and garage name for notification
     const customerRes = await query('SELECT name FROM users WHERE id = $1', [customerId]);
     const garageRes = await query('SELECT name FROM garages WHERE id = $1', [garageId]);
@@ -257,7 +241,7 @@ async function createBookingInternal(req: any, res: any, data: {
         ...booking,
         totalAmount: Number(booking.totalAmount),
         finalAmountToPay: remainingAmountToPay,
-        razorpayOrderId: razorpayOrder?.id || null,
+        razorpayOrderId: null,
         status: booking.status
       },
       201
@@ -298,7 +282,7 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
        LEFT JOIN profiles p ON u.id = p.user_id
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
-       WHERE b.garage_id = $1 AND b.status IN ('pendingPayment', 'confirmed')
+       WHERE b.garage_id = $1 AND b.status IN ('requested', 'confirmed')
        ORDER BY b.created_at DESC`,
       [garageId]
     );
@@ -482,7 +466,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
     const { bookingId } = req.params;
     const { status, collectionTime } = req.body;
 
-    const allowedStatuses = ['pendingPayment', 'pending', 'confirmed', 'accepted', 'in_progress', 'completed', 'cancelled', 'rejected', 'readyForCollection', 'collected'];
+    const allowedStatuses = ['requested', 'confirmed', 'in_progress', 'completed', 'readyForCollection', 'collected', 'cancelled'];
     if (!status || !allowedStatuses.includes(status)) {
       return error(res, `Invalid or missing status. Allowed values: ${allowedStatuses.join(', ')}`, 'BAD_REQUEST', 400);
     }
@@ -514,20 +498,14 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       }
     }
 
-    let dbStatus = status;
-    if (status === 'pending') dbStatus = 'pendingPayment';
-    if (status === 'accepted') dbStatus = 'confirmed';
-    if (status === 'rejected') dbStatus = 'cancelled';
-    if (status === 'in_progress') dbStatus = 'inService';
-
     // Verify existing booking and handle refunds if paying online
-    const currentBookingRes = await query('SELECT payment_status, customer_id FROM bookings WHERE id = $1', [bookingId]);
+    const currentBookingRes = await query('SELECT payment_status, customer_id, status as old_status, total_amount, discount_applied, wallet_used, currency FROM bookings WHERE id = $1', [bookingId]);
     if (currentBookingRes.rows.length === 0) {
       return error(res, 'Booking not found', 'NOT_FOUND', 404);
     }
     const currentBooking = currentBookingRes.rows[0];
 
-    if (dbStatus === 'cancelled' && currentBooking.payment_status === 'paid') {
+    if (status === 'cancelled' && currentBooking.payment_status === 'PAID') {
       const paymentRes = await query("SELECT provider_payment_id, id, amount FROM payments WHERE booking_id = $1 AND status = 'succeeded'", [bookingId]);
       if (paymentRes.rows.length > 0) {
         const paymentRecord = paymentRes.rows[0];
@@ -541,7 +519,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
           );
           await query(
             'UPDATE bookings SET payment_status = $1, updated_at = NOW() WHERE id = $2',
-            ['refund_pending', bookingId]
+            ['REFUND_PENDING', bookingId]
           );
 
           // Insert wallet refund transaction
@@ -562,18 +540,23 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
           );
           await query(
             'UPDATE bookings SET payment_status = $1, updated_at = NOW() WHERE id = $2',
-            ['refund_failed', bookingId]
+            ['REFUND_FAILED', bookingId]
           );
         }
       }
     }
 
     let updateQuery = `UPDATE bookings SET status = $${params.length + 1}, updated_at = NOW()`;
-    const updateParams = [...params, dbStatus];
+    const updateParams = [...params, status];
 
-    if (dbStatus === 'readyForCollection' && collectionTime) {
+    if (status === 'readyForCollection' && collectionTime) {
       updateQuery += `, collection_time = $${updateParams.length + 1}`;
       updateParams.push(collectionTime);
+    }
+
+    // Set PAYMENT_DUE when service completes (if unpaid)
+    if (status === 'completed' && currentBooking.payment_status === 'UNPAID') {
+      updateQuery += `, payment_status = 'PAYMENT_DUE'`;
     }
 
     updateQuery += ` WHERE id = $1${garageCheck} RETURNING id, status, updated_at as "updatedAt"`;
@@ -584,7 +567,24 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       return error(res, 'Booking not found', 'NOT_FOUND', 404);
     }
 
-    if (dbStatus === 'inService' || dbStatus === 'completed' || dbStatus === 'readyForCollection' || dbStatus === 'collected') {
+    // Invoice generation upon completion
+    if (status === 'completed' && currentBooking.old_status !== 'completed') {
+      const existingInvoice = await query(`SELECT id FROM invoices WHERE booking_id = $1`, [bookingId]);
+      if (existingInvoice.rows.length === 0) {
+        const invoiceNum = `INV-${Date.now()}-${bookingId.substring(0, 4).toUpperCase()}`;
+        const totalAmount = currentBooking.total_amount || 0;
+        const discountAmount = currentBooking.discount_applied || 0;
+        const subtotal = Number(totalAmount) + Number(discountAmount);
+        
+        await query(
+          `INSERT INTO invoices (booking_id, invoice_number, subtotal, discount_amount, total_amount, currency)
+           VALUES ($1, $2, $3, $4, $5, $6)`,
+          [bookingId, invoiceNum, subtotal, discountAmount, totalAmount, currentBooking.currency || 'INR']
+        );
+      }
+    }
+
+    if (status === 'inService' || status === 'completed' || status === 'readyForCollection' || status === 'collected') {
       // Fetch details for comprehensive notification
       const bookingRes = await query(
         `SELECT b.customer_note as service_type, u.name as customer_name, u.id as customer_id, g.name as garage_name
@@ -600,14 +600,14 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       const garageStr = bData?.garage_name || 'a garage';
       const custId = bData?.customer_id;
 
-      if (dbStatus === 'inService') {
+      if (status === 'inService') {
         await NotificationsService.createNotification({
           userId: custId,
           type: 'Booking',
           title: 'Service In Progress',
           description: 'Your vehicle is currently being serviced.'
         }).catch(err => console.error('Failed to create notification', err));
-      } else if (dbStatus === 'completed') {
+      } else if (status === 'completed') {
         await NotificationsService.createNotification({
           userId: custId,
           type: 'Booking',
@@ -620,7 +620,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
           title: 'Service Completed',
           description: `${serviceStr} has been completed by ${garageStr} for ${customerStr}.`
         }).catch(err => console.error('Failed to create notification', err));
-      } else if (dbStatus === 'readyForCollection') {
+      } else if (status === 'readyForCollection') {
         const timeStr = collectionTime ? ` at ${new Date(collectionTime).toLocaleString()}` : '';
         await NotificationsService.createNotification({
           userId: custId,
@@ -634,7 +634,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
           title: 'Vehicle Ready',
           description: `${garageStr} marked vehicle ready for ${customerStr}.`
         }).catch(err => console.error('Failed to create notification', err));
-      } else if (dbStatus === 'collected') {
+      } else if (status === 'collected') {
         await NotificationsService.createNotification({
           garageId: req.user?.garageId || undefined,
           type: 'Booking',
@@ -669,7 +669,10 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
     
     // 1. Verify booking ownership and status
     const bookingRes = await query(
-      `SELECT id, total_amount, payment_status, status FROM bookings WHERE id = $1 AND customer_id = $2`,
+      `SELECT b.id, b.payment_status, b.status, COALESCE(i.total_amount, b.total_amount) as total_amount 
+       FROM bookings b 
+       LEFT JOIN invoices i ON i.booking_id = b.id
+       WHERE b.id = $1 AND b.customer_id = $2`,
       [bookingId, userId]
     );
 
@@ -679,8 +682,12 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
 
     const booking = bookingRes.rows[0];
 
-    if (booking.payment_status === 'paid') {
+    if (booking.payment_status === 'PAID') {
       return error(res, 'Booking is already paid', 'BAD_REQUEST', 400);
+    }
+    
+    if (booking.status !== 'completed' && booking.status !== 'readyForCollection' && booking.status !== 'collected') {
+      return error(res, 'Service must be completed before payment', 'BAD_REQUEST', 400);
     }
 
     const amountInPaise = Math.round(Number(booking.total_amount) * 100);
@@ -704,6 +711,63 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
   } catch (err) {
     console.error('Error generating payment intent for existing booking:', err);
     return error(res, 'Payment initialization failed', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// POST /bookings/:bookingId/confirm-cash — garage confirms cash receipt
+bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const userRoles = req.user?.roles || [];
+    
+    if (!userRoles.includes('garage') && !userRoles.includes('admin')) {
+      return error(res, 'Only garages or admins can confirm cash payments', 'FORBIDDEN', 403);
+    }
+    
+    const garageId = req.user?.garageId;
+    let garageCheck = '';
+    const params: any[] = [bookingId];
+    
+    if (userRoles.includes('garage') && !userRoles.includes('admin')) {
+      if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+      garageCheck = ' AND garage_id = $2';
+      params.push(garageId);
+    }
+
+    const bookingRes = await query(
+      `SELECT b.payment_status, COALESCE(i.total_amount, b.total_amount) as total_amount, b.customer_id, b.status 
+       FROM bookings b 
+       LEFT JOIN invoices i ON i.booking_id = b.id 
+       WHERE b.id = $1${garageCheck}`, 
+      params
+    );
+    
+    if (bookingRes.rows.length === 0) {
+      return error(res, 'Booking not found or unauthorized', 'NOT_FOUND', 404);
+    }
+    
+    const booking = bookingRes.rows[0];
+    
+    if (booking.payment_status === 'PAID') {
+      return error(res, 'Booking is already paid', 'BAD_REQUEST', 400);
+    }
+    
+    if (booking.status !== 'completed' && booking.status !== 'readyForCollection' && booking.status !== 'collected') {
+      return error(res, 'Service must be completed before payment', 'BAD_REQUEST', 400);
+    }
+    
+    await query(`UPDATE bookings SET payment_status = 'PAID', updated_at = NOW() WHERE id = $1`, [bookingId]);
+    
+    // Create a payment record for cash
+    await query(
+      `INSERT INTO payments (payer_user_id, booking_id, provider, amount, status, payment_method)
+       VALUES ($1, $2, 'cash', $3, 'succeeded', 'cash')`,
+      [booking.customer_id, bookingId, booking.total_amount]
+    );
+    
+    return success(res, { message: 'Cash payment confirmed' }, 200);
+  } catch (err) {
+    return error(res, 'Failed to confirm cash payment', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
 

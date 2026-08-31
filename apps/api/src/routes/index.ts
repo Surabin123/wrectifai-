@@ -14,6 +14,7 @@ import { notificationsRouter } from '../modules/notifications/notifications.rout
 import { adminRouter } from '../modules/admin/admin.routes';
 import { walletRouter } from '../modules/wallet/wallet.routes';
 import { offersRouter } from '../modules/offers/offers.routes';
+import { invoicesRouter } from '../modules/invoices/invoices.routes';
 import { getHealthStatus } from '../services/health.service';
 import { success, error } from '../utils/response';
 import { query } from '../config/database';
@@ -41,6 +42,7 @@ apiRouter.use('/admin', adminRouter);
 apiRouter.use('/wallet', walletRouter);
 apiRouter.use('/offers', offersRouter);
 apiRouter.use('/notifications', notificationsRouter);
+apiRouter.use('/invoices', invoicesRouter);
 
 apiRouter.get('/debug-garages', async (req, res) => {
   const result = await query('SELECT id, name, approval_status, is_approved FROM garages');

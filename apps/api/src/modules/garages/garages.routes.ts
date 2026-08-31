@@ -117,6 +117,7 @@ garagesRouter.get('/', async (req, res) => {
     `, params);
 
     const mapped = result.rows.map(mapGarageDbRow);
+    res.setHeader('Cache-Control', 'public, max-age=300');
     return success(res, mapped);
   } catch (err) {
     console.error('Error fetching garages:', err);
@@ -217,6 +218,7 @@ garagesRouter.get('/search', async (req, res) => {
     );
 
     const mapped = result.rows.map(mapGarageDbRow);
+    res.setHeader('Cache-Control', 'public, max-age=300');
     return success(res, mapped);
   } catch (err) {
     return error(
@@ -252,6 +254,7 @@ garagesRouter.get('/:id', async (req, res) => {
     }
     const mapped = mapGarageDbRow(result.rows[0]);
     
+    res.setHeader('Cache-Control', 'public, max-age=300');
     return success(res, { ...mapped, services: servicesResult.rows });
   } catch (err) {
     return error(

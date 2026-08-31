@@ -49,3 +49,7 @@ export async function updateBookingStatus(id: string, status: string, collection
 export async function payForBooking(id: string): Promise<{ razorpayOrderId: string }> {
   return apiClient.post<{ razorpayOrderId: string }>(`/bookings/${id}/pay`);
 }
+
+export async function fetchInvoice(bookingId: string): Promise<any> {
+  return apiClient.get<any>(`/invoices/by-booking/${bookingId}`);
+}

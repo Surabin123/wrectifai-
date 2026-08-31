@@ -85,16 +85,15 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
       const booking = bookingRes.rows[0];
       
       // Idempotency: if already paid, just return true
-      if (booking.payment_status === 'paid') {
+      if (booking.payment_status === 'PAID') {
         await client.query('ROLLBACK');
         return success(res, { verified: true }, 200);
       }
       
-      // 1. Update Booking (only change status to confirmed if it was pendingPayment)
-      const newStatus = booking.status === 'pendingPayment' ? 'confirmed' : booking.status;
+      // 1. Update Booking Payment Status
       await client.query(
-        'UPDATE bookings SET status = $1, payment_status = $2 WHERE id = $3',
-        [newStatus, 'paid', booking.id]
+        'UPDATE bookings SET payment_status = $1 WHERE id = $2',
+        ['PAID', booking.id]
       );
       
       const paymentAmount = Number(booking.total_amount || 0) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
@@ -187,14 +186,13 @@ paymentsRouter.post('/webhook', async (req, res) => {
       if (bookingRes.rows.length > 0) {
         const booking = bookingRes.rows[0];
         
-        if (booking.payment_status === 'paid') {
+        if (booking.payment_status === 'PAID') {
           // Already paid, ignore safely
         } else {
           // Update booking status
-          const newStatus = booking.status === 'pendingPayment' ? 'confirmed' : booking.status;
           await client.query(
-            'UPDATE bookings SET status = $1, payment_status = $2 WHERE id = $3',
-            [newStatus, 'paid', booking.id]
+            'UPDATE bookings SET payment_status = $1 WHERE id = $2',
+            ['PAID', booking.id]
           );
 
           const paymentCheck = await client.query('SELECT id FROM payments WHERE provider_intent_id = $1', [providerIntentId]);
@@ -228,7 +226,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
       if (bookingRes.rows.length > 0) {
         const booking = bookingRes.rows[0];
         
-        if (booking.payment_status === 'failed' || booking.status === 'cancelled') {
+        if (booking.payment_status === 'FAILED' || booking.status === 'cancelled') {
            // Already handled
         } else {
           await client.query(
@@ -236,10 +234,9 @@ paymentsRouter.post('/webhook', async (req, res) => {
             ['failed', providerIntentId]
           );
 
-          const failStatus = booking.status === 'pendingPayment' ? 'cancelled' : booking.status;
           await client.query(
-            'UPDATE bookings SET status = $1, payment_status = $2 WHERE id = $3',
-            [failStatus, 'failed', booking.id]
+            'UPDATE bookings SET payment_status = $1 WHERE id = $2',
+            ['FAILED', booking.id]
           );
 
           // Release wallet hold

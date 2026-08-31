@@ -6,7 +6,7 @@ import { TopNavbar } from '@/components/home/top-navbar';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { Modal } from '@/components/common/modal';
-import { fetchBookings, updateBookingStatus } from '@/lib/bookings-api';
+import { fetchBookings, updateBookingStatus, fetchInvoice } from '@/lib/bookings-api';
 import type { Booking } from '@/lib/bookings-api';
 import { cn } from '@/utils/cn';
 import { Calendar, Clock, Wrench, XCircle, AlertTriangle, ShieldCheck, AlertCircle } from 'lucide-react';
@@ -27,6 +27,22 @@ export function BookingsPage() {
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [bookingToCollect, setBookingToCollect] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>('all');
+  const [invoiceData, setInvoiceData] = useState<any | null>(null);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [loadingInvoice, setLoadingInvoice] = useState(false);
+
+  const handleViewInvoice = async (bookingId: string) => {
+    setLoadingInvoice(true);
+    try {
+      const data = await fetchInvoice(bookingId);
+      setInvoiceData(data);
+      setInvoiceModalOpen(true);
+    } catch (err) {
+      setErrorText(err instanceof Error ? err.message : 'Failed to fetch invoice');
+    } finally {
+      setLoadingInvoice(false);
+    }
+  };
 
   const loadBookings = async () => {
     await Promise.resolve();
@@ -370,6 +386,16 @@ export function BookingsPage() {
                         Mark Vehicle Collected
                       </Button>
                     )}
+                    {(b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected') && (
+                      <Button
+                        onClick={() => handleViewInvoice(b.id)}
+                        disabled={loadingInvoice}
+                        variant="outline"
+                        className="h-8 rounded-[9px] px-2.5 text-[10.5px] font-semibold border-indigo-200 text-indigo-600 hover:bg-indigo-50 hover:text-indigo-700"
+                      >
+                        {loadingInvoice ? 'Loading...' : 'View Invoice'}
+                      </Button>
+                    )}
                     {(b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected') && b.paymentStatus !== 'paid' && (
                       <Button
                         onClick={() => handlePayNow(b)}
@@ -520,15 +546,10 @@ export function BookingsPage() {
           <div className="w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mb-4">
             <ShieldCheck className="w-8 h-8" />
           </div>
-          
-          <h3 className="text-xl font-bold text-[#17307a] mb-2">
-            Confirm Vehicle Collection
-          </h3>
-          
-          <p className="text-slate-600 mb-8 max-w-sm">
-            Have you received your vehicle from this garage?
+          <h3 className="text-xl font-bold text-[#17307a] mb-2">Confirm Vehicle Collection</h3>
+          <p className="text-slate-600 mb-6 max-w-sm">
+            Are you sure you want to mark this vehicle as collected? This means the customer has received their vehicle and the service lifecycle is fully complete.
           </p>
-          
           <div className="flex gap-3 w-full">
             <Button 
               variant="outline" 
@@ -538,15 +559,99 @@ export function BookingsPage() {
               Cancel
             </Button>
             <Button 
-              variant="default" 
-              className="flex-1 bg-green-600 hover:bg-green-700 text-white border-green-600"
+              className="flex-1 bg-green-600 hover:bg-green-700 text-white"
               onClick={confirmMarkCollected}
             >
-              Confirm Vehicle Collected
+              Confirm Collection
             </Button>
           </div>
         </div>
       </Modal>
+
+      {invoiceData && (
+        <Modal isOpen={invoiceModalOpen} onClose={() => setInvoiceModalOpen(false)} title="Invoice" className="max-w-2xl">
+          <div className="p-4 bg-white text-slate-800">
+            <div className="flex justify-between items-start border-b pb-4 mb-4">
+              <div>
+                <h2 className="text-2xl font-bold text-slate-900">INVOICE</h2>
+                <p className="text-sm font-medium text-slate-500 mt-1">{invoiceData.invoiceNumber}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-bold text-slate-800">{invoiceData.garageName}</p>
+                <p className="text-sm text-slate-600">{invoiceData.garageAddress}</p>
+                <p className="text-sm text-slate-600">{invoiceData.garageCity}</p>
+              </div>
+            </div>
+            
+            <div className="flex justify-between mb-8">
+              <div>
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Billed To</p>
+                <p className="font-semibold">{invoiceData.customerName || 'Customer'}</p>
+                <p className="text-sm text-slate-600">{invoiceData.customerPhone || 'N/A'}</p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Vehicle</p>
+                <p className="font-semibold">{invoiceData.vehicleMake} {invoiceData.vehicleModel}</p>
+                <p className="text-sm text-slate-600">{invoiceData.vehicleVin || 'N/A'}</p>
+              </div>
+            </div>
+            
+            <div className="bg-slate-50 rounded-lg p-4 mb-6 border border-slate-100">
+              <div className="flex justify-between mb-2 pb-2 border-b border-slate-200">
+                <p className="font-bold text-slate-700">Description</p>
+                <p className="font-bold text-slate-700">Amount</p>
+              </div>
+              <div className="flex justify-between py-2">
+                <p className="text-slate-600">{invoiceData.serviceType || 'Vehicle Service'}</p>
+                <p className="font-medium">{formatCurrency(invoiceData.subtotal, invoiceData.currency)}</p>
+              </div>
+              {Number(invoiceData.discountAmount) > 0 && (
+                <div className="flex justify-between py-2 text-green-600">
+                  <p>Discount Applied</p>
+                  <p>- {formatCurrency(invoiceData.discountAmount, invoiceData.currency)}</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="flex justify-end mb-8">
+              <div className="w-64 space-y-3">
+                <div className="flex justify-between text-sm">
+                  <p className="text-slate-500 font-medium">Subtotal</p>
+                  <p className="font-semibold">{formatCurrency(invoiceData.subtotal, invoiceData.currency)}</p>
+                </div>
+                {Number(invoiceData.taxAmount) > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <p className="text-slate-500 font-medium">Tax</p>
+                    <p className="font-semibold">{formatCurrency(invoiceData.taxAmount, invoiceData.currency)}</p>
+                  </div>
+                )}
+                <div className="flex justify-between items-center border-t border-slate-200 pt-3 mt-3">
+                  <p className="font-bold text-slate-800 uppercase tracking-wider">Total</p>
+                  <p className="text-xl font-bold text-[#17307a]">{formatCurrency(invoiceData.totalAmount, invoiceData.currency)}</p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-between items-center border-t border-slate-200 pt-6">
+              <div>
+                <p className="text-xs text-slate-500 mb-1">Payment Status</p>
+                <span className={`inline-block px-3 py-1 font-bold text-xs rounded uppercase ${
+                  invoiceData.paymentStatus === 'PAID' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                }`}>
+                  {invoiceData.paymentStatus}
+                </span>
+              </div>
+              <Button 
+                onClick={() => setInvoiceModalOpen(false)}
+                className="bg-slate-100 text-slate-700 hover:bg-slate-200"
+              >
+                Close
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
     </DashboardShell>
   );
 }
