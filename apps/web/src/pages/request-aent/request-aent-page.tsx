@@ -18,29 +18,45 @@ const BULLET = '\u2022';
 const homeSectionHeadingClass = 'ui-page-title';
 const homeCardHeadingClass = 'ui-card-title';
 
-function getIssueIcon(title: string) {
-  const t = title.toLowerCase();
-  if (t.includes('brake') || t.includes('suspension')) return <Settings className="h-6 w-6" />;
-  if (t.includes('engine') || t.includes('battery') || t.includes('start')) return <Activity className="h-6 w-6" />;
-  if (t.includes('oil') || t.includes('filter')) return <Wrench className="h-6 w-6" />;
-  if (t.includes('leak') || t.includes('noise')) return <AlertTriangle className="h-6 w-6" />;
-  return <Wrench className="h-6 w-6" />;
-}
-
 function IssuePreview({
   issueTitle,
+  imageSrc,
 }: {
   issueTitle: string;
-  selectedVehicle?: any;
+  imageSrc?: string;
 }) {
+  const [showFallbackIcon, setShowFallbackIcon] = useState(false);
+
+  if (showFallbackIcon || !imageSrc) {
+    return (
+      <span className="flex h-[60px] w-[60px] items-center justify-center rounded-[14px] bg-[radial-gradient(circle_at_top,#f6f8ff_0%,#eef2ff_100%)] text-[#2451e5]">
+        <CarFront className="h-8 w-8" />
+      </span>
+    );
+  }
+
   return (
-    <span className="flex h-[60px] w-[60px] items-center justify-center rounded-[14px] bg-[radial-gradient(circle_at_top,#f6f8ff_0%,#eef2ff_100%)] text-[#2451e5] shadow-sm">
-      {getIssueIcon(issueTitle)}
-    </span>
+    <Image
+      src={imageSrc}
+      alt={issueTitle}
+      width={60}
+      height={60}
+      className="h-[60px] w-[60px] object-contain"
+      onError={() => setShowFallbackIcon(true)}
+      unoptimized={true}
+    />
   );
 }
 
-function VehiclePreview({ selectedVehicle }: { selectedVehicle: any }) {
+function VehiclePreview({ selectedVehicle, isLoading }: { selectedVehicle: any, isLoading?: boolean }) {
+  if (isLoading) {
+    return (
+      <div className="flex h-[112px] w-[112px] items-center justify-center rounded-[24px] bg-[#f1f5f9] shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] overflow-hidden animate-pulse">
+        <CarFront className="h-10 w-10 text-[#cbd5e1]" />
+      </div>
+    );
+  }
+
   return (
     <div className="flex h-[112px] w-[112px] items-center justify-center rounded-[24px] bg-[radial-gradient(circle_at_top,#f7f9ff_0%,#eef3ff_62%,#e9efff_100%)] shadow-[inset_0_1px_0_rgba(255,255,255,0.95)] overflow-hidden">
       <Image
@@ -120,6 +136,7 @@ export function RequestAentPage({ issues, requestId }: { issues?: string; reques
           }
           const filtered = allIssues.filter((issue) => selectedIssueIds.includes(issue.id));
           setSelectedIssues(filtered);
+          setIsLoading(false);
           return;
         }
 
@@ -150,13 +167,14 @@ export function RequestAentPage({ issues, requestId }: { issues?: string; reques
                 const mapped = diag.result.issues.map((issue: any, index: number) => {
                   const match = issue.confidence || 85;
                   const { badge, badgeClass } = getBadgeForIssue(issue.name || issue.title, diag.result.riskLevel, index);
+                  const found = resultIssues.find(r => r.title.toLowerCase() === (issue.name || issue.title).toLowerCase());
                   return {
                     id: `db_issue_${index}`,
                     title: issue.name || issue.title,
                     badge,
                     badgeClass,
                     description: `Diagnosed issue: ${issue.name || issue.title}. Requires parts: ${issue.requiredParts?.join(', ') || 'None specified'}.`,
-                    imageSrc: selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)
+                    imageSrc: found?.imageSrc || '/assets/tyres_and_wheels.png'
                   };
                 });
                 setSelectedIssues(mapped);
@@ -180,7 +198,7 @@ export function RequestAentPage({ issues, requestId }: { issues?: string; reques
                 badgeClass: 'text-[#e27622] bg-[#fdf5ed]',
                 description: `Requested issue: ${name.trim()}`,
                 match: 85,
-                imageSrc: selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)
+                imageSrc: '/assets/tyres_and_wheels.png'
               };
             });
             setSelectedIssues(summaryIssues);
@@ -276,12 +294,16 @@ export function RequestAentPage({ issues, requestId }: { issues?: string; reques
               <div className="mt-4 rounded-[16px] border border-[#e8eefc] bg-[linear-gradient(135deg,#fbfcff_0%,#f6f9ff_100%)] px-4 py-4">
                 <div className="grid gap-4 sm:grid-cols-[112px_minmax(0,1fr)] sm:items-center">
                   <div className="flex justify-center sm:justify-start">
-                    <VehiclePreview selectedVehicle={selectedVehicle} />
+                    <VehiclePreview selectedVehicle={selectedVehicle} isLoading={isLoading} />
                   </div>
 
                   <div className="min-w-0">
                     <div className={homeCardHeadingClass}>
-                      {selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} ${selectedVehicle.vin ? `(${selectedVehicle.vin.slice(-6)})` : ''}` : 'Honda City (TS07 AB 1234)'}
+                      {isLoading ? (
+                        <div className="h-6 w-3/4 rounded bg-slate-200 animate-pulse"></div>
+                      ) : (
+                        selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} ${selectedVehicle.vin ? `(${selectedVehicle.vin.slice(-6)})` : ''}` : 'Vehicle not found'
+                      )}
                     </div>
                     <div className="mt-1 text-[12px] text-[#5f7099]">
                       Active vehicle linked to this garage request
@@ -333,7 +355,11 @@ export function RequestAentPage({ issues, requestId }: { issues?: string; reques
               </div>
 
               <div className="mt-2 divide-y divide-[#edf2fb]">
-                {selectedIssues.map((issue, index) => (
+                {isLoading ? (
+                  <div className="py-4 flex justify-center">
+                    <div className="h-6 w-1/2 bg-slate-200 rounded animate-pulse"></div>
+                  </div>
+                ) : selectedIssues.map((issue, index) => (
                   <div
                     key={issue.id}
                     className="grid gap-3 py-3 md:grid-cols-[52px_minmax(0,1fr)_72px] md:items-center"
@@ -342,7 +368,7 @@ export function RequestAentPage({ issues, requestId }: { issues?: string; reques
                       <IssuePreview
                         key={issue.id}
                         issueTitle={issue.title}
-                        selectedVehicle={selectedVehicle}
+                        imageSrc={issue.imageSrc}
                       />
                     </div>
 

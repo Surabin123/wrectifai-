@@ -162,7 +162,15 @@ export default function LoginPage() {
     try {
       if (!window.recaptchaVerifier) {
         window.recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-          size: 'invisible'
+          size: 'invisible',
+          'expired-callback': () => {
+            if (window.recaptchaVerifier) {
+              window.recaptchaVerifier.clear();
+              window.recaptchaVerifier = null;
+            }
+            setIsSubmitting(false);
+            setErrorMsg('Security check expired. Please try again.');
+          }
         });
       }
       

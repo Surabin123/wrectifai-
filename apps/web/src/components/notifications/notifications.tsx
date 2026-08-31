@@ -29,6 +29,7 @@ export function Notifications() {
 
   const [notifications, setNotifications] = useState<any[]>([]);
   const [filter, setFilter] = useState('All');
+  const [isLoading, setIsLoading] = useState(true);
 
   const fetchNotifications = async () => {
     try {
@@ -42,6 +43,8 @@ export function Notifications() {
       }
     } catch (err) {
       console.error('Failed to fetch notifications', err);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -103,7 +106,19 @@ export function Notifications() {
         </div>
 
         <Card className="p-0 overflow-hidden border-slate-100 shadow-sm rounded-[16px]">
-          {filteredNotifications.length === 0 ? (
+          {isLoading ? (
+            <div className="divide-y divide-slate-100">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="p-4 flex gap-4 animate-pulse">
+                  <div className="w-10 h-10 rounded-full bg-slate-100 shrink-0"></div>
+                  <div className="flex-1 space-y-3 py-1">
+                    <div className="h-4 bg-slate-100 rounded w-1/3"></div>
+                    <div className="h-3 bg-slate-100 rounded w-2/3"></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : filteredNotifications.length === 0 ? (
             <div className="py-12 text-center text-slate-500">
               No notifications found.
             </div>

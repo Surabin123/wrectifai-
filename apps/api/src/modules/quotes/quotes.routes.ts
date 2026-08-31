@@ -229,16 +229,15 @@ quotesRouter.get('/garage/stats', authenticate, async (req, res) => {
       return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
     }
 
-    // Incoming Requests = Pending bookings (pendingPayment)
-    const incomingRes = await query(`SELECT COUNT(*) FROM bookings WHERE garage_id = $1 AND status = 'pendingPayment'`, [garageId]);
+    // Incoming Requests = Quote requests with status 'open'
+    const incomingRes = await query(`SELECT COUNT(*) FROM quote_requests WHERE garage_id = $1 AND status = 'open'`, [garageId]);
     
-    // Active Jobs (Bookings) = PendingPayment, Accepted, In Progress, Completed
-    const activeJobsRes = await query(`SELECT COUNT(*) FROM bookings WHERE garage_id = $1 AND status IN ('pendingPayment', 'confirmed', 'accepted', 'in_progress', 'completed')`, [garageId]);
+    // Active Jobs (Bookings)
+    const activeJobsRes = await query(`SELECT COUNT(*) FROM bookings WHERE garage_id = $1 AND status IN ('pendingPayment', 'confirmed', 'accepted', 'in_progress')`, [garageId]);
     
-    // Generated Quotes (Pending Quote Requests) = open
-    const generatedQuotesRes = await query(`SELECT COUNT(*) FROM quote_requests WHERE garage_id = $1`, [garageId]);
+    // Generated Quotes = Quotes submitted by this garage
+    const generatedQuotesRes = await query(`SELECT COUNT(*) FROM quotes WHERE garage_id = $1`, [garageId]);
 
-    
     // Completed Jobs = COMPLETED
     const completedRes = await query(`SELECT COUNT(*) FROM bookings WHERE garage_id = $1 AND status = 'completed'`, [garageId]);
 

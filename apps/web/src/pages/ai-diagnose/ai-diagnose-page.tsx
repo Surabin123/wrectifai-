@@ -176,7 +176,7 @@ function mapLlmIssueToDiagnosticResult(llmIssue: LlmIssue, index: number, overal
     category,
     risks: [capitalizedRisk],
     estimatedCost,
-    imageSrc: selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year),
+    imageSrc: llmIssue.imageSrc || '/assets/tyres_and_wheels.png',
   };
 }
 
