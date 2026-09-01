@@ -788,11 +788,13 @@ bookingsRouter.post('/:bookingId/select-cash', authenticate, async (req, res) =>
     );
 
     if (existingPaymentRes.rows.length === 0) {
-      // Insert one pending cash payment record
+      // transaction_id is NOT NULL and unique — use a deterministic cash reference
+      const cashRef = `cash_pending_${bookingId}`;
       await query(
-        `INSERT INTO payments (customer_user_id, booking_id, method, amount, status)
-         VALUES ($1, $2, 'cash', $3, 'pending')`,
-        [userId, bookingId, booking.total_amount]
+        `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, amount, status)
+         VALUES ($1, $2, 'cash', $3, $4, 'pending')
+         ON CONFLICT (transaction_id) DO NOTHING`,
+        [userId, bookingId, cashRef, booking.total_amount]
       );
     }
 
@@ -849,25 +851,29 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
     await query(`UPDATE bookings SET payment_status = 'PAID', updated_at = NOW() WHERE id = $1`, [bookingId]);
     
     // Create or update payment record for cash
+    const cashTransactionId = `cash_confirmed_${bookingId}`;
     const existingPayment = await query(
-      `SELECT id FROM payments WHERE booking_id = $1 AND method = 'cash'`,
+      `SELECT id, status FROM payments WHERE booking_id = $1 AND method = 'cash'`,
       [bookingId]
     );
     if (existingPayment.rows.length > 0) {
+      // Update the existing pending record to succeeded
       await query(
-        `UPDATE payments SET status = 'succeeded', updated_at = NOW() WHERE id = $1`,
-        [existingPayment.rows[0].id]
+        `UPDATE payments SET status = 'succeeded', transaction_id = $1, updated_at = NOW() WHERE id = $2`,
+        [cashTransactionId, existingPayment.rows[0].id]
       );
     } else {
       await query(
-        `INSERT INTO payments (customer_user_id, booking_id, method, amount, status)
-         VALUES ($1, $2, 'cash', $3, 'succeeded')`,
-        [booking.customer_id, bookingId, booking.total_amount]
+        `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, amount, status)
+         VALUES ($1, $2, 'cash', $3, $4, 'succeeded')
+         ON CONFLICT (transaction_id) DO NOTHING`,
+        [booking.customer_id, bookingId, cashTransactionId, booking.total_amount]
       );
     }
     
     return success(res, { message: 'Cash payment confirmed' }, 200);
-  } catch (err) {
+  } catch (err: any) {
+    console.error('[confirm-cash] error:', err?.message, err?.code);
     return error(res, 'Failed to confirm cash payment', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
