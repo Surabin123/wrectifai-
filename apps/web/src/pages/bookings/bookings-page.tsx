@@ -245,7 +245,7 @@ export function BookingsPage() {
         title: 'Cash Payment Selected',
         desc: 'Your cash payment preference has been recorded. Please pay at the garage.'
       });
-      setBookings((prev) => prev.map((b) => (b.id === paymentSelectionBooking.id ? { ...b, paymentStatus: 'PENDING_CASH' } : b)));
+      setBookings((prev) => prev.map((b) => (b.id === paymentSelectionBooking.id ? { ...b, paymentStatus: 'PENDING_CASH' as any } : b)));
       loadBookings();
       setPaymentSelectionBooking(null);
     } catch (err: any) {
