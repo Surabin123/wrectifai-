@@ -65,3 +65,16 @@ export async function issueRazorpayRefund(paymentId: string, amountInPaise?: num
     throw new Error('Failed to initiate refund.');
   }
 }
+
+/**
+ * Fetches details of a payment from Razorpay API.
+ */
+export async function fetchRazorpayPayment(paymentId: string) {
+  try {
+    return await razorpayClient.payments.fetch(paymentId);
+  } catch (error) {
+    console.error('Razorpay payment fetch failed:', error);
+    throw new Error('Failed to fetch payment details from Razorpay.');
+  }
+}
+

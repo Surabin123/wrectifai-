@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
 import { getDbPool } from '../../config/database';
-import { createRazorpayOrder, verifyWebhookSignature } from './razorpay.service';
+import { createRazorpayOrder, verifyWebhookSignature, fetchRazorpayPayment } from './razorpay.service';
 import { getEnv } from '../../config/env';
 import Razorpay from 'razorpay';
 
@@ -46,7 +46,7 @@ paymentsRouter.post('/orders', authenticate, async (req, res) => {
   }
 });
 
-// POST /api/v1/payments/verify - Verify Razorpay payment signature
+// POST /api/v1/payments/verify - Verify Razorpay payment signature & payment status
 paymentsRouter.post('/verify', authenticate, async (req, res) => {
   const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
   
@@ -54,35 +54,52 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
     return error(res, 'Missing payment verification details', 'BAD_REQUEST', 400);
   }
 
+  const secret = process.env.RAZORPAY_KEY_SECRET;
+  if (!secret) {
+    return error(res, 'Razorpay key secret is not configured on the server', 'CONFIGURATION_ERROR', 500);
+  }
+
+  const crypto = require('crypto');
+  const generated_signature = crypto
+    .createHmac('sha256', secret)
+    .update(razorpay_order_id + '|' + razorpay_payment_id)
+    .digest('hex');
+
+  if (generated_signature !== razorpay_signature) {
+    return error(res, 'Payment signature verification failed', 'BAD_REQUEST', 400);
+  }
+
+  // Also fetch and validate the payment details directly from Razorpay API
+  try {
+    const paymentRecord = await fetchRazorpayPayment(razorpay_payment_id);
+    if (!paymentRecord) {
+      return error(res, 'Payment record not found on Razorpay', 'BAD_REQUEST', 400);
+    }
+    if (paymentRecord.order_id !== razorpay_order_id) {
+      return error(res, 'Payment order ID mismatch', 'BAD_REQUEST', 400);
+    }
+    if (paymentRecord.status !== 'captured' && paymentRecord.status !== 'authorized') {
+      return error(res, `Payment status is invalid: ${paymentRecord.status}`, 'BAD_REQUEST', 400);
+    }
+  } catch (apiErr: any) {
+    console.error('Razorpay payment validation failed:', apiErr);
+    return error(res, apiErr?.message || 'Failed to validate payment with Razorpay', 'BAD_REQUEST', 400);
+  }
+
   const pool = getDbPool();
   const client = await pool.connect();
 
   try {
-    const crypto = require('crypto');
-    const secret = process.env.RAZORPAY_KEY_SECRET;
-    if (!secret) throw new Error('RAZORPAY_KEY_SECRET is not configured');
-    
-    const generated_signature = crypto
-      .createHmac('sha256', secret)
-      .update(razorpay_order_id + '|' + razorpay_payment_id)
-      .digest('hex');
-
     await client.query('BEGIN');
 
-    if (generated_signature !== razorpay_signature) {
-      // Signature mismatch - Explicitly mark it as failed verification in payments table if possible
-      await client.query('ROLLBACK');
-      return error(res, 'Payment signature verification failed', 'BAD_REQUEST', 400);
-    }
-    
     const bookingRes = await client.query(
-      'SELECT id, customer_id, total_amount, discount_applied, wallet_used, payment_status, status FROM bookings WHERE payment_intent_id = $1 FOR UPDATE', 
+      'SELECT id, customer_id, total_amount, discount_applied, wallet_used, payment_status, status, currency FROM bookings WHERE payment_intent_id = $1 FOR UPDATE', 
       [razorpay_order_id]
     );
     
     if (bookingRes.rows.length === 0) {
       await client.query('ROLLBACK');
-      return success(res, { verified: true }, 200);
+      return error(res, 'Booking for this payment order was not found', 'NOT_FOUND', 404);
     }
     
     const booking = bookingRes.rows[0];
@@ -122,7 +139,7 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('Verify error:', err);
-    return error(res, 'Failed to verify payment', 'INTERNAL_SERVER_ERROR', 500);
+    return error(res, 'Failed to update payment status', 'INTERNAL_SERVER_ERROR', 500);
   } finally {
     client.release();
   }

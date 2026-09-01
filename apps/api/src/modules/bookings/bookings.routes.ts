@@ -170,7 +170,9 @@ async function createBookingInternal(req: any, res: any, data: {
       });
       
       totalAmount = computedTotal;
-      finalServiceType = laborItems.map(l => l.name).join(', ');
+      if (!serviceType) {
+        finalServiceType = laborItems.map(l => l.name).join(', ');
+      }
       serviceDetailsJSON = {
         breakdown: { labor: laborItems, parts: [] },
         parts_cost: 0,
@@ -306,7 +308,8 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vin",
               u.name as "customerName", u.mobile_number as "customerPhone", p.avatar_url as "customerAvatar",
               q.details as "quoteDetails", q.amount as "quoteAmount", q.eta_days as "estimatedDays",
-              qr.issue_summary as "issueDescription"
+              COALESCE(qr.issue_summary, b.customer_note) as "issueSummary",
+              COALESCE(qr.issue_summary, b.customer_note) as "issueDescription"
        FROM bookings b
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN users u ON b.customer_id = u.id
@@ -780,15 +783,15 @@ bookingsRouter.post('/:bookingId/select-cash', authenticate, async (req, res) =>
 
     // Check for existing pending cash payment
     const existingPaymentRes = await query(
-      `SELECT id FROM payments WHERE booking_id = $1 AND provider = 'cash' AND status = 'pending'`,
+      `SELECT id FROM payments WHERE booking_id = $1 AND method = 'cash' AND status = 'pending'`,
       [bookingId]
     );
 
     if (existingPaymentRes.rows.length === 0) {
       // Insert one pending cash payment record
       await query(
-        `INSERT INTO payments (payer_user_id, booking_id, provider, amount, status, payment_method)
-         VALUES ($1, $2, 'cash', $3, 'pending', 'cash')`,
+        `INSERT INTO payments (customer_user_id, booking_id, method, amount, status)
+         VALUES ($1, $2, 'cash', $3, 'pending')`,
         [userId, bookingId, booking.total_amount]
       );
     }
@@ -845,12 +848,23 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
     
     await query(`UPDATE bookings SET payment_status = 'PAID', updated_at = NOW() WHERE id = $1`, [bookingId]);
     
-    // Create a payment record for cash
-    await query(
-      `INSERT INTO payments (payer_user_id, booking_id, provider, amount, status, payment_method)
-       VALUES ($1, $2, 'cash', $3, 'succeeded', 'cash')`,
-      [booking.customer_id, bookingId, booking.total_amount]
+    // Create or update payment record for cash
+    const existingPayment = await query(
+      `SELECT id FROM payments WHERE booking_id = $1 AND method = 'cash'`,
+      [bookingId]
     );
+    if (existingPayment.rows.length > 0) {
+      await query(
+        `UPDATE payments SET status = 'succeeded', updated_at = NOW() WHERE id = $1`,
+        [existingPayment.rows[0].id]
+      );
+    } else {
+      await query(
+        `INSERT INTO payments (customer_user_id, booking_id, method, amount, status)
+         VALUES ($1, $2, 'cash', $3, 'succeeded')`,
+        [booking.customer_id, bookingId, booking.total_amount]
+      );
+    }
     
     return success(res, { message: 'Cash payment confirmed' }, 200);
   } catch (err) {
