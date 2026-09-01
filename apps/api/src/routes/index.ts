@@ -7,7 +7,6 @@ import { diagnoseConfigRouter } from '../modules/diagnosis/diagnosis-config.rout
 import { garagesRouter } from '../modules/garages/garages.routes';
 import { quotesRouter } from '../modules/quotes/quotes.routes';
 import { bookingsRouter } from '../modules/bookings/bookings.routes';
-import { marketplaceRouter } from '../modules/marketplace/marketplace.routes';
 import { paymentsRouter } from '../modules/payments/payments.routes';
 import { reviewsRouter } from '../modules/reviews/reviews.routes';
 import { notificationsRouter } from '../modules/notifications/notifications.routes';
@@ -39,7 +38,6 @@ apiRouter.use('/garages', garagesRouter);
 apiRouter.use('/services', servicesRouter);
 apiRouter.use('/quotes', quotesRouter);
 apiRouter.use('/bookings', bookingsRouter);
-apiRouter.use('/marketplace', marketplaceRouter);
 apiRouter.use('/payments', paymentsRouter);
 apiRouter.use('/reviews', reviewsRouter);
 apiRouter.use('/admin', adminRouter);

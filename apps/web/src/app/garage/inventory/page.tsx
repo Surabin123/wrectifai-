@@ -1,132 +1,232 @@
 'use client';
 import { RoleGuard } from '@/components/common/role-guard';
-import { garageNavItems } from '@/lib/garage-config';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { DashboardHeader } from '@/components/common/dashboard-header';
-import { useState, useEffect } from 'react';
+import { garageNavItems } from '@/lib/garage-config';
 import { Card } from '@/components/common/card';
-import { Button } from '@/components/common/button';
-import { Input } from '@/components/common/input';
-import { Plus, Edit2, Trash2, Package } from 'lucide-react';
-import { Modal } from '@/components/common/modal';
-import Image from 'next/image';
+import { Search, Plus, Filter, Download, MoreVertical, Edit2 } from 'lucide-react';
 
-const defaultProducts = [
-  { id: 1, name: 'Mobil 1 5W-30 Fully Synthetic Engine Oil', category: 'Oils & Fluids', price: '$12.99', oldPrice: 1599, discount: '19% OFF', rating: '4.6', reviews: 128, img: '/assets/engine_oil_bottle.png', stock: 50 },
-  { id: 2, name: 'Bosch Car Air Filter', category: 'Engine Parts', price: '$5.99', oldPrice: 799, discount: '25% OFF', rating: '4.5', reviews: 96, img: '/assets/Parts and components.png', stock: 20 },
-];
+import { useState, useEffect } from 'react';
+import { apiClient } from '@/lib/api-client';
 
 export default function InventoryPage() {
-  const [products, setProducts] = useState<any[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingProduct, setEditingProduct] = useState<any>(null);
-  const [formData, setFormData] = useState({ name: '', category: 'Oils & Fluids', price: '', stock: 10, img: '/assets/engine_oil_bottle.png' });
+  const [inventory, setInventory] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const stored = localStorage.getItem('wrectifai_products');
-    if (stored) {
-      setProducts(JSON.parse(stored));
-    } else {
-      localStorage.setItem('wrectifai_products', JSON.stringify(defaultProducts));
-      setProducts(defaultProducts);
-    }
+    const fetchInventory = async () => {
+      try {
+        const response = await apiClient.get<any>('/garages/my-inventory');
+        if (response?.data) {
+          setInventory(response.data);
+        }
+      } catch (err) {
+        console.error('Failed to fetch inventory:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchInventory();
   }, []);
-
-  const saveProducts = (newProducts: any[]) => {
-    setProducts(newProducts);
-    localStorage.setItem('wrectifai_products', JSON.stringify(newProducts));
-    window.dispatchEvent(new Event('products-updated'));
-    // Notify admin
-    const storedNotifs = localStorage.getItem('wrectifai_notifications');
-    const notifs = storedNotifs ? JSON.parse(storedNotifs) : [];
-    notifs.unshift({ id: Date.now(), type: 'System', title: 'Inventory Update', desc: 'A garage updated their inventory.', time: 'Just now', read: false, icon: 'FileText', color: 'text-blue-500', bg: 'bg-blue-50', audience: 'Garage' });
-    localStorage.setItem('wrectifai_notifications', JSON.stringify(notifs));
-    window.dispatchEvent(new Event('notifications-updated'));
-  };
-
-  const handleSave = () => {
-    if (editingProduct) {
-      saveProducts(products.map(p => p.id === editingProduct.id ? { ...p, ...formData, price: formData.price.startsWith('$') ? formData.price : `$${formData.price}` } : p));
-    } else {
-      saveProducts([...products, { ...formData, id: Date.now(), price: formData.price.startsWith('$') ? formData.price : `$${formData.price}`, oldPrice: 0, discount: '', rating: '0.0', reviews: 0 }]);
-    }
-    setIsModalOpen(false);
-  };
-
-  const handleDelete = (id: number) => {
-    saveProducts(products.filter(p => p.id !== id));
-  };
-
-  const toggleOutOfStock = (p: any) => {
-    saveProducts(products.map(item => item.id === p.id ? { ...item, stock: item.stock === 0 ? 10 : 0 } : item));
-  };
 
   return (
     <RoleGuard allowedRoles={['garage']}>
-      <DashboardShell customNavItems={garageNavItems} hideBottomWidget={true} header={<DashboardHeader title="Inventory Management" />}>
-        <div className="p-4 lg:p-8 space-y-6 max-w-7xl mx-auto">
-          <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-slate-900">Manage Products</h2>
-            <Button className="bg-[#1a56db] hover:bg-[#174ac2] text-white" onClick={() => { setEditingProduct(null); setFormData({ name: '', category: 'Oils & Fluids', price: '', stock: 10, img: '/assets/engine_oil_bottle.png' }); setIsModalOpen(true); }}>
-              <Plus className="w-4 h-4 mr-2" /> Add Product
-            </Button>
+      <DashboardShell customNavItems={garageNavItems} hideBottomWidget={true} header={<DashboardHeader />}>
+        <div className="p-6 bg-slate-50 min-h-screen flex gap-6">
+          <div className="flex-1 bg-white rounded-xl shadow-sm border border-slate-100 flex flex-col overflow-hidden">
+             <div className="p-5 border-b border-slate-100 flex justify-between items-start">
+               <div>
+                 <h1 className="text-2xl font-bold text-[#17307a] mb-1">Inventory</h1>
+                 <p className="text-sm text-slate-500">Track and manage all your spare parts and consumables.</p>
+               </div>
+               <div className="flex gap-3">
+                 <button className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><Plus className="w-4 h-4"/> Add Item</button>
+                 <button className="bg-white text-slate-600 border px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><Download className="w-4 h-4"/> Import</button>
+                 <button className="bg-white text-slate-600 border px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><Filter className="w-4 h-4"/> Filters</button>
+               </div>
+             </div>
+             <div className="p-4 border-b border-slate-100 bg-slate-50 flex gap-4">
+                <div className="flex-1 bg-white border border-blue-100 rounded-lg p-4 flex justify-between items-center shadow-sm">
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 mb-1">Total Items</p>
+                    <p className="text-2xl font-black text-[#17307a]">{inventory.length}</p>
+                    <p className="text-[10px] text-slate-400">All items in inventory</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-500 flex items-center justify-center">📦</div>
+                </div>
+                <div className="flex-1 bg-white border border-green-100 rounded-lg p-4 flex justify-between items-center shadow-sm">
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 mb-1">Total Value</p>
+                    <p className="text-2xl font-black text-[#17307a]">₹{inventory.reduce((acc, curr) => acc + (Number(curr.price) * Number(curr.qty_available)), 0).toLocaleString()}</p>
+                    <p className="text-[10px] text-slate-400">Current inventory value</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-green-50 text-green-500 flex items-center justify-center">₹</div>
+                </div>
+                <div className="flex-1 bg-white border border-yellow-100 rounded-lg p-4 flex justify-between items-center shadow-sm">
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 mb-1">Low Stock Items</p>
+                    <p className="text-2xl font-black text-[#17307a]">{inventory.filter(i => i.qty_available > 0 && i.qty_available <= 20).length}</p>
+                    <p className="text-[10px] text-slate-400">Reorder soon</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-yellow-50 text-yellow-500 flex items-center justify-center">!</div>
+                </div>
+                <div className="flex-1 bg-white border border-red-100 rounded-lg p-4 flex justify-between items-center shadow-sm">
+                  <div>
+                    <p className="text-xs font-bold text-slate-500 mb-1">Out of Stock Items</p>
+                    <p className="text-2xl font-black text-[#17307a]">{inventory.filter(i => i.qty_available <= 0).length}</p>
+                    <p className="text-[10px] text-slate-400">Need immediate attention</p>
+                  </div>
+                  <div className="w-10 h-10 rounded-full bg-red-50 text-red-500 flex items-center justify-center">×</div>
+                </div>
+             </div>
+             <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white">
+               <div className="relative w-80">
+                 <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                 <input type="text" placeholder="Search by part name, brand or part number..." className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-1 focus:ring-blue-500" />
+               </div>
+               <div className="flex gap-3">
+                 <select className="border rounded-lg px-3 py-2 text-sm outline-none bg-slate-50 font-medium text-slate-600"><option>All Categories</option></select>
+                 <select className="border rounded-lg px-3 py-2 text-sm outline-none bg-slate-50 font-medium text-slate-600"><option>All Brands</option></select>
+                 <select className="border rounded-lg px-3 py-2 text-sm outline-none bg-slate-50 font-medium text-slate-600"><option>All Status</option></select>
+                 <select className="border rounded-lg px-3 py-2 text-sm outline-none bg-slate-50 font-medium text-slate-600"><option>Sort by: Newest</option></select>
+               </div>
+             </div>
+             <div className="flex-1 overflow-auto">
+               <table className="w-full text-left border-collapse">
+                 <thead>
+                   <tr className="bg-slate-50">
+                     <th className="p-4 text-xs font-bold text-slate-500 border-b">Item Details</th>
+                     <th className="p-4 text-xs font-bold text-slate-500 border-b">Category</th>
+                     <th className="p-4 text-xs font-bold text-slate-500 border-b">Brand</th>
+                     <th className="p-4 text-xs font-bold text-slate-500 border-b">Part Number</th>
+                     <th className="p-4 text-xs font-bold text-slate-500 border-b text-center">Stock</th>
+                     <th className="p-4 text-xs font-bold text-slate-500 border-b">Unit Price</th>
+                     <th className="p-4 text-xs font-bold text-slate-500 border-b">Total Value</th>
+                     <th className="p-4 text-xs font-bold text-slate-500 border-b">Status</th>
+                     <th className="p-4 text-xs font-bold text-slate-500 border-b text-center">Actions</th>
+                   </tr>
+                 </thead>
+                 <tbody className="divide-y divide-slate-100">
+                   {loading ? (
+                     <tr><td colSpan={9} className="p-8 text-center text-slate-500">Loading inventory...</td></tr>
+                   ) : inventory.length === 0 ? (
+                     <tr><td colSpan={9} className="p-8 text-center text-slate-500">No inventory found. Add some items.</td></tr>
+                   ) : inventory.map((item) => {
+                     const stock = Number(item.qty_available);
+                     const price = Number(item.price);
+                     const status = stock > 20 ? 'In Stock' : stock > 0 ? 'Low Stock' : 'Out of Stock';
+                     const total = stock * price;
+                     return (
+                     <tr key={item.inventory_id} className="hover:bg-slate-50 transition-colors">
+                       <td className="p-4"><div className="flex gap-3 items-center"><div className="w-10 h-10 rounded bg-slate-100 flex items-center justify-center overflow-hidden">{item.image ? <img src={item.image} className="object-cover w-full h-full"/> : '📦'}</div><div><p className="text-sm font-bold text-[#17307a]">{item.name}</p><p className="text-[10px] text-slate-500">{item.description || 'No description'}</p></div></div></td>
+                       <td className="p-4"><p className="text-xs font-medium text-slate-600">{item.category}</p></td>
+                       <td className="p-4"><p className="text-xs font-medium text-slate-600">-</p></td>
+                       <td className="p-4"><p className="text-xs font-medium text-slate-600">{item.product_id?.substring(0, 8)}</p></td>
+                       <td className="p-4 text-center"><p className="text-sm font-bold text-slate-800">{stock}</p><p className="text-[10px] text-slate-400">Pcs</p></td>
+                       <td className="p-4"><p className="text-xs font-medium text-slate-600">₹{price.toLocaleString()}</p></td>
+                       <td className="p-4"><p className="text-xs font-medium text-slate-600">₹{total.toLocaleString()}</p></td>
+                       <td className="p-4">
+                         <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${status === 'In Stock' ? 'bg-green-50 text-green-600' : status === 'Low Stock' ? 'bg-yellow-50 text-yellow-600' : 'bg-red-50 text-red-600'}`}>{status}</span>
+                       </td>
+                       <td className="p-4 text-center">
+                         <div className="flex items-center justify-center gap-1.5">
+                           <button className="p-1.5 rounded-md hover:bg-slate-200 text-blue-500 bg-blue-50 border border-blue-100"><Edit2 className="w-3.5 h-3.5"/></button>
+                           <button className="p-1.5 rounded-md hover:bg-slate-200 text-slate-400 bg-slate-50 border border-slate-100"><MoreVertical className="w-3.5 h-3.5"/></button>
+                         </div>
+                       </td>
+                     </tr>
+                     );
+                   })}
+                 </tbody>
+               </table>
+             </div>
           </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {products.map(product => (
-              <Card key={product.id} className={`p-4 shadow-sm border-slate-100 flex flex-col justify-between ${product.stock === 0 ? 'opacity-70 grayscale' : ''}`}>
-                <div>
-                  <div className="relative w-full h-32 mb-4 bg-slate-50 rounded-xl overflow-hidden flex justify-center items-center">
-                    <Image src={product.img} alt={product.name} width={80} height={80} className="object-contain" />
-                    {product.stock === 0 && <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded">OUT OF STOCK</span>}
-                  </div>
-                  <h3 className="font-bold text-slate-900 text-sm line-clamp-2 min-h-[40px]">{product.name}</h3>
-                  <div className="flex items-center justify-between mt-2">
-                    <span className="font-bold text-[#1a56db]">{product.price}</span>
-                    <span className="text-xs font-semibold text-slate-500">Stock: {product.stock ?? 10}</span>
-                  </div>
-                </div>
-                <div className="flex gap-2 mt-4 pt-4 border-t border-slate-100">
-                  <Button variant="outline" className="flex-1 text-xs h-8" onClick={() => { setEditingProduct(product); setFormData({ name: product.name, category: product.category, price: product.price, stock: product.stock ?? 10, img: product.img }); setIsModalOpen(true); }}>
-                    <Edit2 className="w-3 h-3 mr-1" /> Edit
-                  </Button>
-                  <Button variant="outline" className="flex-1 text-xs h-8 text-orange-600 border-orange-200 hover:bg-orange-50" onClick={() => toggleOutOfStock(product)}>
-                    {product.stock === 0 ? 'Restock' : 'No Stock'}
-                  </Button>
-                  <Button variant="outline" className="px-2 h-8 text-red-600 border-red-200 hover:bg-red-50" onClick={() => handleDelete(product.id)}>
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </Card>
-            ))}
+          
+          <div className="w-72 flex flex-col gap-6 flex-shrink-0">
+             <Card className="p-5">
+               <div className="flex justify-between items-center mb-6">
+                 <h3 className="font-bold text-[#17307a]">Inventory Summary</h3>
+                 <span className="text-[10px] font-bold text-slate-500 border px-2 py-1 rounded bg-slate-50">This Month</span>
+               </div>
+               <div className="flex items-center gap-4 mb-4">
+                 <div className="w-24 h-24 rounded-full border-[8px] border-green-500 border-l-yellow-400 border-b-red-500 border-r-blue-500 flex items-center justify-center font-bold text-xl text-[#17307a]">
+                   <div className="text-center">{inventory.length}<div className="text-[9px] font-medium text-slate-400 -mt-1">Total Items</div></div>
+                 </div>
+                 <div className="space-y-2 text-[10px] font-bold text-slate-600 flex-1">
+                   <div className="flex items-center justify-between"><span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-green-500"></div> In Stock</span> <span>{inventory.filter(i => i.qty_available > 20).length}</span></div>
+                   <div className="flex items-center justify-between"><span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-yellow-400"></div> Low Stock</span> <span>{inventory.filter(i => i.qty_available > 0 && i.qty_available <= 20).length}</span></div>
+                   <div className="flex items-center justify-between"><span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-red-500"></div> Out of Stock</span> <span>{inventory.filter(i => i.qty_available <= 0).length}</span></div>
+                   <div className="flex items-center justify-between"><span className="flex items-center gap-2"><div className="w-2 h-2 rounded-full bg-blue-500"></div> Total Items</span> <span>{inventory.length}</span></div>
+                 </div>
+               </div>
+               <a href="#" className="block text-[11px] text-blue-600 font-bold mt-2">View Full Report &rarr;</a>
+             </Card>
+             <Card className="p-5">
+               <div className="flex justify-between items-center mb-4">
+                 <h3 className="font-bold text-[#17307a]">Low Stock Alerts</h3>
+                 <span className="text-[10px] text-blue-600 font-bold">View All</span>
+               </div>
+               <div className="space-y-4 text-xs font-bold text-slate-700">
+                 <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-slate-100"></div>
+                      <div><p className="text-xs">Brake Pads (Front)</p><p className="text-[9px] text-slate-500 font-medium flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-yellow-400"></div> Brembo • BR-FP-2211</p></div>
+                    </div>
+                    <div className="text-right"><p className="text-xs">18 Sets</p><p className="text-[9px] text-slate-400 font-medium">Min. 25</p></div>
+                 </div>
+                 <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-slate-100"></div>
+                      <div><p className="text-xs">Spark Plug</p><p className="text-[9px] text-slate-500 font-medium flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-yellow-400"></div> NGK • NGK-ILZKAR7B</p></div>
+                    </div>
+                    <div className="text-right"><p className="text-xs">25 Pcs</p><p className="text-[9px] text-slate-400 font-medium">Min. 40</p></div>
+                 </div>
+                 <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-slate-100"></div>
+                      <div><p className="text-xs">Car Battery (55Ah)</p><p className="text-[9px] text-slate-500 font-medium flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-yellow-400"></div> Exide • EX-55MF</p></div>
+                    </div>
+                    <div className="text-right"><p className="text-xs">7 Pcs</p><p className="text-[9px] text-slate-400 font-medium">Min. 10</p></div>
+                 </div>
+                 <div className="flex justify-between items-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-slate-100"></div>
+                      <div><p className="text-xs">Wiper Blade (20")</p><p className="text-[9px] text-slate-500 font-medium flex items-center gap-1"><div className="w-1.5 h-1.5 rounded-full bg-yellow-400"></div> Valeo • VA-20A</p></div>
+                    </div>
+                    <div className="text-right"><p className="text-xs">15 Pcs</p><p className="text-[9px] text-slate-400 font-medium">Min. 25</p></div>
+                 </div>
+               </div>
+             </Card>
+             <Card className="p-5">
+               <div className="flex justify-between items-center mb-4">
+                 <h3 className="font-bold text-[#17307a]">Recent Activity</h3>
+                 <span className="text-[10px] text-blue-600 font-bold">View All</span>
+               </div>
+               <div className="space-y-4 pl-6 relative before:absolute before:inset-0 before:ml-2 before:h-full before:w-px before:bg-slate-100">
+                 <div className="relative">
+                   <div className="absolute w-4 h-4 rounded-full bg-green-100 flex items-center justify-center -left-6 top-1 border-2 border-white"><div className="w-1.5 h-1.5 rounded-full bg-green-500"></div></div>
+                   <p className="text-[11px] font-bold text-slate-700">Engine Oil 5W-30 added<br/><span className="text-[9px] text-slate-400 font-medium">by Vinay K.</span></p>
+                   <p className="text-[9px] text-slate-400 absolute right-0 top-1">Today, 10:20 AM</p>
+                 </div>
+                 <div className="relative">
+                   <div className="absolute w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center -left-6 top-1 border-2 border-white"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div></div>
+                   <p className="text-[11px] font-bold text-slate-700">Brake Pads (Front) stock updated<br/><span className="text-[9px] text-slate-400 font-medium">by Amit K.</span></p>
+                   <p className="text-[9px] text-slate-400 absolute right-0 top-1">Today, 09:45 AM</p>
+                 </div>
+                 <div className="relative">
+                   <div className="absolute w-4 h-4 rounded-full bg-red-100 flex items-center justify-center -left-6 top-1 border-2 border-white"><div className="w-1.5 h-1.5 rounded-full bg-red-500"></div></div>
+                   <p className="text-[11px] font-bold text-slate-700">Air Filter <span className="text-red-500">marked as out of stock</span><br/><span className="text-[9px] text-slate-400 font-medium">by Manoj</span></p>
+                   <p className="text-[9px] text-slate-400 absolute right-0 top-1">Today, 09:10 AM</p>
+                 </div>
+                 <div className="relative">
+                   <div className="absolute w-4 h-4 rounded-full bg-blue-100 flex items-center justify-center -left-6 top-1 border-2 border-white"><div className="w-1.5 h-1.5 rounded-full bg-blue-500"></div></div>
+                   <p className="text-[11px] font-bold text-slate-700">Clutch Kit stock updated<br/><span className="text-[9px] text-slate-400 font-medium">by Vinay K.</span></p>
+                   <p className="text-[9px] text-slate-400 absolute right-0 top-1">Yesterday, 06:30 PM</p>
+                 </div>
+               </div>
+             </Card>
           </div>
         </div>
-
-        <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingProduct ? "Edit Product" : "Add Product"}>
-          <div className="space-y-4">
-            <div>
-              <label className="text-sm font-bold text-slate-700">Product Name</label>
-              <Input value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="e.g. Engine Oil" />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-bold text-slate-700">Price</label>
-                <Input value={formData.price} onChange={e => setFormData({ ...formData, price: e.target.value })} placeholder="$0.00" />
-              </div>
-              <div>
-                <label className="text-sm font-bold text-slate-700">Stock</label>
-                <Input type="number" value={formData.stock} onChange={e => setFormData({ ...formData, stock: parseInt(e.target.value) || 0 })} />
-              </div>
-            </div>
-            <div>
-              <label className="text-sm font-bold text-slate-700">Image URL</label>
-              <Input value={formData.img} onChange={e => setFormData({ ...formData, img: e.target.value })} placeholder="/assets/image.png" />
-            </div>
-            <Button className="w-full bg-[#1a56db] text-white hover:bg-[#174ac2]" onClick={handleSave}>
-              Save Product
-            </Button>
-          </div>
-        </Modal>
       </DashboardShell>
     </RoleGuard>
   );

@@ -188,16 +188,97 @@ garagesRouter.get('/my-inventory', authenticate, async (req, res) => {
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(
-      `SELECT id, name, category, quantity, min_stock as "minStock", price, location, last_restocked as "lastRestocked"
-       FROM inventory
-       WHERE garage_id = $1
-       ORDER BY name ASC`,
+      `SELECT gi.id as inventory_id, p.id as product_id, p.name, p.category, p.description, p.is_diy_kit, p.image,
+              gi.qty_available, COALESCE(gi.price, p.price) as price, gi.is_active,
+              p.price as "basePrice"
+       FROM garage_inventory gi
+       JOIN products p ON gi.product_id = p.id
+       WHERE gi.garage_id = $1
+       ORDER BY p.name ASC`,
       [garageId]
-    ).catch(e => ({ rows: [] })); // Catch if inventory table doesn't exist yet
+    );
 
     return success(res, result.rows);
   } catch (err) {
+    console.error(err);
     return error(res, 'Failed to fetch inventory', 'DATABASE_ERROR', 500);
+  }
+});
+
+garagesRouter.put('/my-inventory/:inventoryId', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const { price, qty_available, is_active } = req.body;
+    
+    // Ensure we only update if it belongs to this garage
+    const result = await query(
+      `UPDATE garage_inventory 
+       SET price = $1, qty_available = $2, is_active = COALESCE($3, is_active), updated_at = NOW()
+       WHERE id = $4 AND garage_id = $5
+       RETURNING *`,
+      [price, qty_available, is_active, req.params.inventoryId, garageId]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Inventory item not found or unauthorized', 'NOT_FOUND', 404);
+    }
+
+    return success(res, result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Failed to update inventory', 'DATABASE_ERROR', 500);
+  }
+});
+
+garagesRouter.get('/my-services', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const result = await query(
+      `SELECT s.id, ps.name, ps.category, ps.description, ps.icon, s.price, s.is_active, s.duration_mins,
+              ps.base_price as "basePrice"
+       FROM services s 
+       JOIN platform_services ps ON s.platform_service_id = ps.id 
+       WHERE s.garage_id = $1
+       ORDER BY ps.name ASC`,
+      [garageId]
+    );
+    return success(res, result.rows);
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Failed to fetch services', 'DATABASE_ERROR', 500);
+  }
+});
+
+garagesRouter.put('/my-services/:serviceId', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const { price, is_active, duration_mins } = req.body;
+    
+    const result = await query(
+      `UPDATE services 
+       SET price = $1, is_active = COALESCE($2, is_active), duration_mins = COALESCE($3, duration_mins), updated_at = NOW()
+       WHERE id = $4 AND garage_id = $5
+       RETURNING *`,
+      [price, is_active, duration_mins, req.params.serviceId, garageId]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Service not found or unauthorized', 'NOT_FOUND', 404);
+    }
+
+    return success(res, result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Failed to update service', 'DATABASE_ERROR', 500);
   }
 });
 
