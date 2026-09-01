@@ -8,6 +8,7 @@ import { Search, Plus, Filter, Download, MoreVertical, Edit2, X } from 'lucide-r
 
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { formatCurrency } from '@/lib/currency';
 
 export default function InventoryPage() {
   const [inventory, setInventory] = useState<any[]>([]);
@@ -129,10 +130,10 @@ export default function InventoryPage() {
                 <div className="flex-1 bg-white border border-green-100 rounded-lg p-4 flex justify-between items-center shadow-sm">
                   <div>
                     <p className="text-xs font-bold text-slate-500 mb-1">Total Value</p>
-                    <p className="text-2xl font-black text-[#17307a]">₹{inventory.reduce((acc, curr) => acc + (Number(curr.price) * Number(curr.qty_available)), 0).toLocaleString()}</p>
+                    <p className="text-2xl font-black text-[#17307a]">{formatCurrency(inventory.reduce((acc, curr) => acc + (Number(curr.price) * Number(curr.qty_available)), 0))}</p>
                     <p className="text-[10px] text-slate-400">Current inventory value</p>
                   </div>
-                  <div className="w-10 h-10 rounded-full bg-green-50 text-green-500 flex items-center justify-center">₹</div>
+                  <div className="w-10 h-10 rounded-full bg-green-50 text-green-500 flex items-center justify-center">💰</div>
                 </div>
                 <div className="flex-1 bg-white border border-yellow-100 rounded-lg p-4 flex justify-between items-center shadow-sm">
                   <div>
@@ -185,7 +186,7 @@ export default function InventoryPage() {
                        <td className="p-4"><p className="text-xs font-medium text-slate-600">{item.category}</p></td>
                        <td className="p-4"><p className="text-xs font-medium text-slate-600">{item.product_id?.substring(0, 8)}</p></td>
                        <td className="p-4 text-center"><p className="text-sm font-bold text-slate-800">{stock}</p><p className="text-[10px] text-slate-400">Pcs</p></td>
-                       <td className="p-4"><p className="text-xs font-medium text-slate-600">₹{price.toLocaleString()}</p></td>
+                       <td className="p-4"><p className="text-xs font-medium text-slate-600">{formatCurrency(price)}</p></td>
                        <td className="p-4">
                          <span className={`px-3 py-1 rounded-full text-[10px] font-bold ${status === 'In Stock' ? 'bg-green-50 text-green-600' : status === 'Low Stock' ? 'bg-yellow-50 text-yellow-600' : status === 'Inactive' ? 'bg-slate-100 text-slate-600' : 'bg-red-50 text-red-600'}`}>{status}</span>
                        </td>
@@ -225,12 +226,12 @@ export default function InventoryPage() {
                   >
                     <option value="">-- Choose a product --</option>
                     {products.map(p => (
-                      <option key={p.id} value={p.id}>{p.name} (Base: ₹{p.price})</option>
+                      <option key={p.id} value={p.id}>{p.name} (Base: {formatCurrency(p.price)})</option>
                     ))}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Your Price (₹)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Your Price</label>
                   <input type="number" value={formData.price} onChange={(e) => setFormData({...formData, price: Number(e.target.value)})} className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
@@ -256,11 +257,11 @@ export default function InventoryPage() {
               </div>
               <div className="mb-6">
                 <p className="font-bold text-slate-800">{selectedItem.name}</p>
-                <p className="text-xs text-slate-500">Base Price: ₹{selectedItem.basePrice || selectedItem.price}</p>
+                <p className="text-xs text-slate-500">Base Price: {formatCurrency(selectedItem.basePrice || selectedItem.price)}</p>
               </div>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Your Price (₹)</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Your Price</label>
                   <input type="number" value={formData.price} onChange={(e) => setFormData({...formData, price: Number(e.target.value)})} className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
