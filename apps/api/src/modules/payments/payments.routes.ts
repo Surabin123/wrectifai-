@@ -59,7 +59,8 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
 
   try {
     const crypto = require('crypto');
-    const secret = process.env.RAZORPAY_KEY_SECRET || 'mock_secret';
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    if (!secret) throw new Error('RAZORPAY_KEY_SECRET is not configured');
     
     const generated_signature = crypto
       .createHmac('sha256', secret)
@@ -188,8 +189,8 @@ paymentsRouter.post('/booking/:id/refund', authenticate, async (req, res) => {
     const payment = paymentRes.rows[0];
 
     const rzp = new Razorpay({
-      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || 'mock',
-      key_secret: process.env.RAZORPAY_KEY_SECRET || 'mock',
+      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || '',
+      key_secret: process.env.RAZORPAY_KEY_SECRET || '',
     });
 
     // Refund logic via Razorpay

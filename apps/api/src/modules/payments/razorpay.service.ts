@@ -4,21 +4,12 @@ import { getEnv } from '../../config/env';
 
 const env = getEnv();
 
-// Initialize Razorpay conditionally so tests don't crash if keys are missing
-export const razorpayInstance = new Razorpay({
-  key_id: env.groqApiKey || 'rzp_test_mock123', // We use dummy default if not set for safety
-  key_secret: env.jwtSecret || 'mock_secret_key', 
-});
-
-// Since the user might not have set real Razorpay keys in env yet,
-// we wrap this to avoid throwing on boot.
+// Initialize Razorpay strictly from env variables
 let razorpayClient: Razorpay;
 try {
-  // In a real app we'd load RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET
-  // Assuming they are in process.env
   razorpayClient = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_mock123',
-    key_secret: process.env.RAZORPAY_KEY_SECRET || 'mock_secret',
+    key_id: process.env.RAZORPAY_KEY_ID || '',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || '',
   });
 } catch (err) {
   console.warn('Razorpay keys not configured fully.');
