@@ -4,9 +4,9 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { useRouter } from 'next/navigation';
-import { Trash2, ShoppingBag, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
+import { Trash2, ShoppingBag, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
-import { Modal } from '@/components/common/modal';
+import { PaymentSuccessModal } from '@/components/common/payment-success-modal';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { apiClient } from '@/lib/api-client';
@@ -18,6 +18,7 @@ export function CartPage() {
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [userCity, setUserCity] = useState<string>('Bengaluru');
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   useEffect(() => {
     setUserCity(getSavedCity() || 'Bengaluru');
@@ -65,6 +66,7 @@ export function CartPage() {
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<any>(null);
+  const [paymentTransactionId, setPaymentTransactionId] = useState<string | undefined>();
 
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -83,6 +85,7 @@ export function CartPage() {
   const handleCheckout = async () => {
     if (cartItems.length === 0) return;
     
+    setErrorMsg(null);
     setIsProcessing(true);
     
     try {
@@ -123,11 +126,12 @@ export function CartPage() {
               providerSignature: response.razorpay_signature
             });
             setCompletedOrder(orderRes);
+            setPaymentTransactionId(response.razorpay_payment_id);
             setIsCheckoutModalOpen(true);
             updateCart([]);
           } catch (err) {
             console.error('Verification failed', err);
-            alert('Payment verification failed. Please contact support.');
+            setErrorMsg('Payment verification failed. Please contact support.');
           }
         },
         prefill: {
@@ -143,13 +147,13 @@ export function CartPage() {
       const rzp = new (window as any).Razorpay(options);
       rzp.on('payment.failed', function (response: any) {
         console.error('Payment failed', response.error);
-        alert('Payment failed. Please try again.');
+        setErrorMsg('Payment failed. Please try again.');
       });
       
       rzp.open();
     } catch (err: any) {
       console.error('Checkout failed', err);
-      alert(err.message || 'Checkout failed. Please try again.');
+      setErrorMsg(err.message || 'Checkout failed. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -165,6 +169,13 @@ export function CartPage() {
           </Button>
           <h1 className="text-2xl font-bold text-slate-900">Your Cart</h1>
         </div>
+
+        {errorMsg && (
+          <div className="rounded-[12px] bg-red-50 p-4 border border-red-100 flex items-start gap-3">
+            <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 shrink-0" />
+            <p className="text-sm text-red-700 leading-relaxed font-medium">{errorMsg}</p>
+          </div>
+        )}
 
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 space-y-4">
@@ -234,20 +245,27 @@ export function CartPage() {
         </div>
       </div>
 
-      <Modal isOpen={isCheckoutModalOpen} onClose={() => setIsCheckoutModalOpen(false)} title="Order Placed">
-        <div className="text-center py-6">
-          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-            <CheckCircle2 className="w-8 h-8 text-green-500" />
-          </div>
-          <h3 className="text-xl font-bold text-slate-900 mb-2">Checkout Successful!</h3>
-          <p className="text-slate-500 mb-6">Your order has been placed successfully. You will receive an email confirmation shortly.</p>
-          <Button onClick={() => { setIsCheckoutModalOpen(false); if (completedOrder) { router.push(`/invoices/${completedOrder.orderId}?type=order`); } else { router.push('/shop'); } }} className="w-full">
-            View Invoice
-          </Button>
-        </div>
-      </Modal>
+      <PaymentSuccessModal
+        isOpen={isCheckoutModalOpen}
+        onClose={() => setIsCheckoutModalOpen(false)}
+        title="Order Placed Successfully"
+        description="Your order has been placed successfully. You will receive an email confirmation shortly."
+        amount={total}
+        paymentMethod="online"
+        transactionId={paymentTransactionId}
+        primaryActionLabel="View Invoice"
+        onPrimaryAction={() => {
+          setIsCheckoutModalOpen(false);
+          if (completedOrder) {
+            router.push(`/invoices/${completedOrder.orderId}?type=order`);
+          } else {
+            router.push('/shop');
+          }
+        }}
+      />
     </DashboardShell>
   );
 }
 
 export default CartPage;
+

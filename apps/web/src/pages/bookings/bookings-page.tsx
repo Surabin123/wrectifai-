@@ -12,6 +12,7 @@ import { cn } from '@/utils/cn';
 import { Calendar, Clock, Wrench, XCircle, AlertTriangle, ShieldCheck, AlertCircle } from 'lucide-react';
 import { formatCurrency } from '@/lib/currency';
 import { useUserPhone } from '@/lib/user-phone';
+import { PaymentSuccessModal } from '@/components/common/payment-success-modal';
 
 type TabKey = 'all' | 'upcoming' | 'accepted' | 'inProgress' | 'completed' | 'cancelled';
 
@@ -33,6 +34,9 @@ export function BookingsPage() {
   const [paymentSelectionBooking, setPaymentSelectionBooking] = useState<Booking | null>(null);
   const [paymentSelectionModalOpen, setPaymentSelectionModalOpen] = useState(false);
   const [isProcessingCash, setIsProcessingCash] = useState(false);
+  
+  const [paymentSuccessData, setPaymentSuccessData] = useState<{isOpen: boolean, method: 'online'|'cash', amount: number, transactionId?: string, title?: string, desc?: string} | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const handleViewInvoice = async (bookingId: string) => {
     setLoadingInvoice(true);
@@ -150,7 +154,7 @@ export function BookingsPage() {
       
       const loaded = await loadRazorpayScript();
       if (!loaded) {
-        alert('Failed to load Razorpay payment SDK.');
+        setPaymentError('Failed to load Razorpay payment SDK.');
         setPaymentProcessingId(null);
         return;
       }
@@ -172,12 +176,19 @@ export function BookingsPage() {
             });
             if (verifyRes.verified) {
               setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, paymentStatus: 'PAID' } : b)));
-              alert('Payment successful!');
+              setPaymentSuccessData({
+                isOpen: true,
+                method: 'online',
+                amount: booking.totalAmount,
+                transactionId: response.razorpay_payment_id
+              });
+              // Force refresh bookings in background to ensure latest state
+              loadBookings();
             } else {
-              alert('Payment verification failed.');
+              setPaymentError('Payment verification failed. Your payment was not verified by our servers.');
             }
           } catch (err) {
-            alert('Payment verification failed. Please contact support.');
+            setPaymentError('Payment verification failed. Please contact support.');
           } finally {
             setPaymentProcessingId(null);
           }
@@ -208,14 +219,14 @@ export function BookingsPage() {
         } catch (e) {
           console.error('Failed to notify backend of payment failure', e);
         }
-        alert('Payment failed: ' + response.error.description);
+        setPaymentError('Payment failed: ' + response.error.description);
         setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, paymentStatus: 'FAILED' } : b)));
         setPaymentProcessingId(null);
       });
       rzp.open();
     } catch (err) {
       console.error('Payment intent generation failed', err);
-      alert('Failed to initialize payment.');
+      setPaymentError('Failed to initialize payment.');
       setPaymentProcessingId(null);
     }
   };
@@ -226,11 +237,19 @@ export function BookingsPage() {
     try {
       const { apiClient } = await import('@/lib/api-client');
       await apiClient.post(`/bookings/${paymentSelectionBooking.id}/select-cash`, {});
-      alert('Your cash payment preference has been recorded.');
       setPaymentSelectionModalOpen(false);
+      setPaymentSuccessData({
+        isOpen: true,
+        method: 'cash',
+        amount: paymentSelectionBooking.totalAmount,
+        title: 'Cash Payment Selected',
+        desc: 'Your cash payment preference has been recorded. Please pay at the garage.'
+      });
+      setBookings((prev) => prev.map((b) => (b.id === paymentSelectionBooking.id ? { ...b, paymentStatus: 'PENDING_CASH' } : b)));
+      loadBookings();
       setPaymentSelectionBooking(null);
     } catch (err: any) {
-      alert(err.message || 'Failed to select cash payment.');
+      setPaymentError(err.message || 'Failed to select cash payment.');
     } finally {
       setIsProcessingCash(false);
     }
@@ -242,10 +261,18 @@ export function BookingsPage() {
     try {
       const { apiClient } = await import('@/lib/api-client');
       await apiClient.post(`/payments/booking/${bookingId}/refund`, {});
-      alert('Refund processed successfully.');
       setBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, paymentStatus: 'REFUNDED' } : b)));
+      // Instead of alert, we could use a custom modal, but simple error modal works for success too with a tweak, or just a small notification.
+      // Let's use a standard Modal for simplicity or just repurpose PaymentSuccessModal.
+      setPaymentSuccessData({
+        isOpen: true,
+        method: 'online',
+        amount: bookings.find(b => b.id === bookingId)?.totalAmount || 0,
+        title: 'Refund Processed',
+        desc: 'Refund requested successfully. It may take a few days to reflect.'
+      });
     } catch (err: any) {
-      alert(err.message || 'Failed to request refund.');
+      setPaymentError(err.message || 'Failed to request refund.');
     } finally {
       setPaymentProcessingId(null);
     }
@@ -795,6 +822,35 @@ export function BookingsPage() {
           </div>
         </Modal>
       )}
+
+      {paymentSuccessData && (
+        <PaymentSuccessModal
+          isOpen={paymentSuccessData.isOpen}
+          onClose={() => setPaymentSuccessData(null)}
+          amount={paymentSuccessData.amount}
+          paymentMethod={paymentSuccessData.method}
+          transactionId={paymentSuccessData.transactionId}
+          title={paymentSuccessData.title}
+          description={paymentSuccessData.desc}
+          primaryActionLabel="View Bookings"
+          onPrimaryAction={() => setPaymentSuccessData(null)}
+        />
+      )}
+
+      <Modal isOpen={!!paymentError} onClose={() => setPaymentError(null)} title="Payment Issue">
+        <div className="py-4 flex flex-col items-center text-center">
+          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
+            <AlertCircle className="w-8 h-8" />
+          </div>
+          <h3 className="text-xl font-bold text-[#17307a] mb-2">Something went wrong</h3>
+          <p className="text-slate-600 mb-6 max-w-sm">
+            {paymentError}
+          </p>
+          <Button className="w-full bg-slate-100 text-slate-700 hover:bg-slate-200" onClick={() => setPaymentError(null)}>
+            Close
+          </Button>
+        </div>
+      </Modal>
 
     </DashboardShell>
   );

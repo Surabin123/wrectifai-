@@ -77,7 +77,14 @@ export default function BookNowPage() {
   }, [selectedServiceIds, availableServices]);
 
   const unselectedServices = useMemo(() => {
-    return availableServices.filter(s => !selectedServiceIds.includes(s.id));
+    const rawUnselected = availableServices.filter(s => !selectedServiceIds.includes(s.id));
+    // Deduplicate by name just in case the API returned multiple identical services
+    const seen = new Set();
+    return rawUnselected.filter(s => {
+      if (seen.has(s.name)) return false;
+      seen.add(s.name);
+      return true;
+    });
   }, [selectedServiceIds, availableServices]);
 
   const totalAmount = useMemo(() => {
@@ -120,7 +127,8 @@ export default function BookNowPage() {
         totalAmount: 0, // backend overwrites
         bookingType: 'instant',
         quoteId: null,
-        serviceType: notes
+        serviceType: notes,
+        issueDescription: notes
       });
 
       router.push('/bookings');
@@ -185,18 +193,17 @@ export default function BookNowPage() {
               </div>
 
               {unselectedServices.length > 0 && (
-                <div className="relative">
+                <div className="pt-2">
                   <select 
                     onChange={handleAddService} 
-                    className="w-full p-3 pl-10 border border-slate-200 rounded-xl appearance-none bg-white text-sm focus:outline-none focus:border-blue-500"
-                    defaultValue=""
+                    className="w-full p-3 font-semibold text-blue-600 border-2 border-dashed border-blue-200 rounded-xl appearance-none bg-blue-50 focus:outline-none focus:border-blue-500 text-center cursor-pointer hover:bg-blue-100 transition-colors"
+                    value=""
                   >
-                    <option value="" disabled>Add Another Service from {garage?.name}</option>
+                    <option value="" disabled>+ Add Another Service</option>
                     {unselectedServices.map(s => (
                       <option key={s.id} value={s.id}>{s.name} - {formatCurrencyForCity(s.price, userCity)}</option>
                     ))}
                   </select>
-                  <Plus className="w-5 h-5 text-blue-500 absolute left-3 top-3" />
                 </div>
               )}
             </Card>

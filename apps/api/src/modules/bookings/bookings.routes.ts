@@ -98,6 +98,8 @@ async function createBookingInternal(req: any, res: any, data: {
   quoteId?: string | null;
   currency?: string;
   serviceType?: string;
+  issueDescription?: string;
+  notes?: string;
   offerCode?: string;
   walletAmountToUse?: number;
   paymentMethod?: string;
@@ -105,7 +107,9 @@ async function createBookingInternal(req: any, res: any, data: {
 }) {
   const customerId = req.user?.userId;
   let { garageId } = data;
-  const { vehicleId, scheduledAt, bookingType, quoteId, currency, serviceType, offerCode, walletAmountToUse, paymentMethod, serviceIds } = data;
+  const { vehicleId, scheduledAt, bookingType, quoteId, currency, serviceType, issueDescription, notes, offerCode, walletAmountToUse, paymentMethod, serviceIds } = data;
+  
+  const extractedNotes = issueDescription || serviceType || notes || req.body?.issueDescription || req.body?.serviceType || req.body?.notes || '';
   let totalAmount = data.totalAmount;
 
   if (!vehicleId || !scheduledAt || totalAmount === undefined || !bookingType) {
@@ -150,7 +154,7 @@ async function createBookingInternal(req: any, res: any, data: {
       return error(res, 'This garage is not available for new bookings.', 'FORBIDDEN', 403);
     }
 
-    let finalServiceType = serviceType || 'General Service';
+    let finalServiceType = extractedNotes || 'General Service';
     let serviceDetailsJSON: any = null;
 
     if (serviceIds && serviceIds.length > 0) {
@@ -170,7 +174,7 @@ async function createBookingInternal(req: any, res: any, data: {
       });
       
       totalAmount = computedTotal;
-      if (!serviceType) {
+      if (!extractedNotes) {
         finalServiceType = laborItems.map(l => l.name).join(', ');
       }
       serviceDetailsJSON = {
@@ -308,6 +312,7 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vin",
               u.name as "customerName", u.mobile_number as "customerPhone", p.avatar_url as "customerAvatar",
               q.details as "quoteDetails", q.amount as "quoteAmount", q.eta_days as "estimatedDays",
+              b.customer_note as "customerNote",
               COALESCE(qr.issue_summary, b.customer_note) as "issueSummary",
               COALESCE(qr.issue_summary, b.customer_note) as "issueDescription"
        FROM bookings b
