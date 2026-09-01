@@ -29,7 +29,7 @@ export function PaymentSuccessModal({
   onPrimaryAction,
 }: PaymentSuccessModalProps) {
   return (
-    <Modal isOpen={isOpen} onClose={onClose}>
+    <Modal isOpen={isOpen} onClose={onClose} title={title}>
       <div className="relative flex flex-col items-center justify-center p-8 text-center">
         <button
           onClick={onClose}
