@@ -191,7 +191,7 @@ export default function BookNowPage() {
                     className="w-full p-3 pl-10 border border-slate-200 rounded-xl appearance-none bg-white text-sm focus:outline-none focus:border-blue-500"
                     defaultValue=""
                   >
-                    <option value="" disabled>+ Add Another Service from {garage?.name}</option>
+                    <option value="" disabled>Add Another Service from {garage?.name}</option>
                     {unselectedServices.map(s => (
                       <option key={s.id} value={s.id}>{s.name} - {formatCurrencyForCity(s.price, userCity)}</option>
                     ))}
