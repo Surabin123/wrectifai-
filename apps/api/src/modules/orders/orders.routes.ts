@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { query, pool } from '../../config/database';
+import { getDbPool } from '../../config/database';
 import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
 import Razorpay from 'razorpay';
@@ -24,6 +24,7 @@ ordersRouter.post('/', authenticate, async (req, res) => {
     return error(res, 'Missing required fields', 'BAD_REQUEST', 400);
   }
 
+  const pool = getDbPool();
   const client = await pool.connect();
   
   try {
@@ -105,7 +106,8 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
   if (!customerId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
 
   try {
-    const orderRes = await query(`SELECT * FROM orders WHERE id = $1 AND customer_id = $2`, [orderId, customerId]);
+    const pool = getDbPool();
+    const orderRes = await pool.query(`SELECT * FROM orders WHERE id = $1 AND customer_id = $2`, [orderId, customerId]);
     if (orderRes.rows.length === 0) return error(res, 'Order not found', 'NOT_FOUND', 404);
     
     const order = orderRes.rows[0];
@@ -121,8 +123,8 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
     });
     
     // Record payment intent
-    await query(
-      `INSERT INTO payments (payer_user_id, provider, provider_intent_id, amount, currency, status)
+    await pool.query(
+      `INSERT INTO payments (customer_user_id, method, provider_order_id, amount, currency, status)
        VALUES ($1, 'razorpay', $2, $3, 'INR', 'created')`,
       [customerId, rzpOrder.id, parseFloat(order.total)]
     );
@@ -155,6 +157,7 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
       return error(res, 'Invalid payment signature', 'PAYMENT_VERIFICATION_FAILED', 400);
     }
     
+    const pool = getDbPool();
     const client = await pool.connect();
     
     try {

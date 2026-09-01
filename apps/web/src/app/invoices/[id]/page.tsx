@@ -10,8 +10,8 @@ import { apiClient } from '@/lib/api-client';
 export default function InvoicePage() {
   const params = useParams();
   const searchParams = useSearchParams();
-  const id = params.id as string;
-  const type = searchParams.get('type');
+  const id = params?.id as string;
+  const type = searchParams?.get('type');
   
   const [invoiceData, setInvoiceData] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);

@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth';
 import { getDbPool } from '../../config/database';
 import { createRazorpayOrder, verifyWebhookSignature } from './razorpay.service';
 import { getEnv } from '../../config/env';
+import Razorpay from 'razorpay';
 
 export const paymentsRouter = Router();
 const env = getEnv();
@@ -53,6 +54,9 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
     return error(res, 'Missing payment verification details', 'BAD_REQUEST', 400);
   }
 
+  const pool = getDbPool();
+  const client = await pool.connect();
+
   try {
     const crypto = require('crypto');
     const secret = process.env.RAZORPAY_KEY_SECRET || 'mock_secret';
@@ -62,72 +66,167 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
       .update(razorpay_order_id + '|' + razorpay_payment_id)
       .digest('hex');
 
+    await client.query('BEGIN');
+
     if (generated_signature !== razorpay_signature) {
+      // Signature mismatch - Explicitly mark it as failed verification in payments table if possible
+      await client.query('ROLLBACK');
       return error(res, 'Payment signature verification failed', 'BAD_REQUEST', 400);
     }
-
-    const pool = getDbPool();
-    const client = await pool.connect();
     
-    try {
-      await client.query('BEGIN');
-      
-      const bookingRes = await client.query(
-        'SELECT id, customer_id, total_amount, discount_applied, wallet_used, payment_status, status FROM bookings WHERE payment_intent_id = $1 FOR UPDATE', 
-        [razorpay_order_id]
-      );
-      
-      if (bookingRes.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return success(res, { verified: true }, 200);
-      }
-      
-      const booking = bookingRes.rows[0];
-      
-      // Idempotency: if already paid, just return true
-      if (booking.payment_status === 'PAID') {
-        await client.query('ROLLBACK');
-        return success(res, { verified: true }, 200);
-      }
-      
-      // 1. Update Booking Payment Status
-      await client.query(
-        'UPDATE bookings SET payment_status = $1 WHERE id = $2',
-        ['PAID', booking.id]
-      );
-      
-      const paymentAmount = Number(booking.total_amount || 0) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
-      
-      // 2. Insert into Payments (if not exists)
-      const paymentCheck = await client.query('SELECT id FROM payments WHERE provider_intent_id = $1', [razorpay_payment_id]);
-      if (paymentCheck.rows.length === 0) {
-        await client.query(
-          `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, amount, status)
-           VALUES ($1, $2, 'razorpay', $3, $4, 'succeeded')`,
-          [booking.customer_id, booking.id, razorpay_payment_id, paymentAmount]
-        );
-      }
-      
-      // 3. Complete Wallet Hold (if any)
-      await client.query(
-        'UPDATE wallet_transactions SET status = $1 WHERE reference_id = $2 AND status = $3',
-        ['COMPLETED', booking.id, 'PENDING']
-      );
-      
-      
-      await client.query('COMMIT');
-      return success(res, { verified: true }, 200);
-    } catch (err) {
+    const bookingRes = await client.query(
+      'SELECT id, customer_id, total_amount, discount_applied, wallet_used, payment_status, status FROM bookings WHERE payment_intent_id = $1 FOR UPDATE', 
+      [razorpay_order_id]
+    );
+    
+    if (bookingRes.rows.length === 0) {
       await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
+      return success(res, { verified: true }, 200);
     }
+    
+    const booking = bookingRes.rows[0];
+    
+    // Idempotency: if already paid, just return true
+    if (booking.payment_status === 'PAID') {
+      await client.query('ROLLBACK');
+      return success(res, { verified: true }, 200);
+    }
+    
+    // 1. Update Booking Payment Status
+    await client.query(
+      'UPDATE bookings SET payment_status = $1 WHERE id = $2',
+      ['PAID', booking.id]
+    );
+    
+    const paymentAmount = Number(booking.total_amount || 0) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
+    
+    // 2. Insert into Payments (if not exists) using the correct verified columns
+    const paymentCheck = await client.query('SELECT id FROM payments WHERE provider_payment_id = $1', [razorpay_payment_id]);
+    if (paymentCheck.rows.length === 0) {
+      await client.query(
+        `INSERT INTO payments (customer_user_id, booking_id, method, provider_order_id, provider_payment_id, amount, status, signature_status)
+         VALUES ($1, $2, 'razorpay', $3, $4, $5, 'succeeded', 'valid')`,
+        [booking.customer_id, booking.id, razorpay_order_id, razorpay_payment_id, paymentAmount]
+      );
+    }
+    
+    // 3. Complete Wallet Hold (if any)
+    await client.query(
+      'UPDATE wallet_transactions SET status = $1 WHERE reference_id = $2 AND status = $3',
+      ['COMPLETED', booking.id, 'PENDING']
+    );
+    
+    await client.query('COMMIT');
+    return success(res, { verified: true }, 200);
   } catch (err) {
+    await client.query('ROLLBACK');
     console.error('Verify error:', err);
     return error(res, 'Failed to verify payment', 'INTERNAL_SERVER_ERROR', 500);
+  } finally {
+    client.release();
   }
 });
+
+// POST /api/v1/payments/fail - Handle Razorpay frontend payment failures
+paymentsRouter.post('/fail', authenticate, async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, error_reason } = req.body;
+  
+  if (!razorpay_order_id) {
+    return error(res, 'Missing order id', 'BAD_REQUEST', 400);
+  }
+
+  const pool = getDbPool();
+  try {
+    const bookingRes = await pool.query(
+      'SELECT id, customer_id, total_amount, discount_applied, wallet_used FROM bookings WHERE payment_intent_id = $1',
+      [razorpay_order_id]
+    );
+
+    if (bookingRes.rows.length === 0) {
+      return success(res, { marked: true }, 200);
+    }
+    
+    const booking = bookingRes.rows[0];
+    const paymentAmount = Number(booking.total_amount || 0) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
+
+    const paymentCheck = await pool.query('SELECT id FROM payments WHERE provider_order_id = $1 AND provider_payment_id = $2', [razorpay_order_id, razorpay_payment_id || 'unknown']);
+    if (paymentCheck.rows.length === 0) {
+      await pool.query(
+        `INSERT INTO payments (customer_user_id, booking_id, method, provider_order_id, provider_payment_id, amount, status)
+         VALUES ($1, $2, 'razorpay', $3, $4, $5, 'failed')`,
+        [booking.customer_id, booking.id, razorpay_order_id, razorpay_payment_id || 'unknown', paymentAmount]
+      );
+    }
+    
+    // Do NOT permanently fail the booking. Leave booking.payment_status untouched so the user can retry.
+    return success(res, { marked: true }, 200);
+  } catch (err) {
+    console.error('Payment failure logging error:', err);
+    return error(res, 'Failed to log payment failure', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// POST /api/v1/payments/booking/:id/refund - Process a refund by booking ID
+paymentsRouter.post('/booking/:id/refund', authenticate, async (req, res) => {
+  const bookingId = req.params.id;
+  const pool = getDbPool();
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+
+    const paymentRes = await client.query(
+      'SELECT * FROM payments WHERE booking_id = $1 AND status IN (\'paid\', \'succeeded\') FOR UPDATE',
+      [bookingId]
+    );
+
+    if (paymentRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return error(res, 'Payment not found or not in a refundable state', 'BAD_REQUEST', 400);
+    }
+
+    const payment = paymentRes.rows[0];
+
+    const rzp = new Razorpay({
+      key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || 'mock',
+      key_secret: process.env.RAZORPAY_KEY_SECRET || 'mock',
+    });
+
+    // Refund logic via Razorpay
+    let refund;
+    try {
+      refund = await rzp.payments.refund(payment.provider_payment_id, {
+        amount: Math.round(Number(payment.amount) * 100),
+        speed: 'normal' // Standard routing
+      });
+    } catch (rzpErr: any) {
+      await client.query('ROLLBACK');
+      return error(res, 'Razorpay refund API failed: ' + rzpErr?.message, 'BAD_REQUEST', 400);
+    }
+
+    const refundStatus = refund.status === 'processed' ? 'refunded' : 'refund_pending';
+    
+    await client.query(
+      'UPDATE payments SET status = $1, provider_refund_id = $2, updated_at = NOW() WHERE id = $3',
+      [refundStatus, refund.id, payment.id]
+    );
+
+    await client.query(
+      'UPDATE bookings SET payment_status = $1, updated_at = NOW() WHERE id = $2',
+      [refundStatus, payment.booking_id]
+    );
+
+    await client.query('COMMIT');
+    return success(res, { refund }, 200);
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Refund error:', err);
+    return error(res, 'Failed to process refund', 'INTERNAL_SERVER_ERROR', 500);
+  } finally {
+    client.release();
+  }
+});
+
 
 // POST /api/v1/payments/webhook - Server-side Razorpay Webhook Endpoint
 paymentsRouter.post('/webhook', async (req, res) => {
@@ -190,12 +289,12 @@ paymentsRouter.post('/webhook', async (req, res) => {
             ['PAID', booking.id]
           );
 
-          const paymentCheck = await client.query('SELECT id FROM payments WHERE provider_intent_id = $1', [paymentEntity.id]);
+          const paymentCheck = await client.query('SELECT id FROM payments WHERE provider_payment_id = $1', [paymentEntity.id]);
           if (paymentCheck.rows.length === 0) {
             await client.query(
-              `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, amount, status)
-               VALUES ($1, $2, 'razorpay', $3, $4, 'succeeded')`,
-              [booking.customer_id, booking.id, paymentEntity.id, amount]
+              `INSERT INTO payments (customer_user_id, booking_id, method, provider_order_id, provider_payment_id, amount, status)
+               VALUES ($1, $2, 'razorpay', $3, $4, $5, 'succeeded')`,
+              [booking.customer_id, booking.id, providerIntentId, paymentEntity.id, amount]
             );
           }
 
@@ -204,8 +303,6 @@ paymentsRouter.post('/webhook', async (req, res) => {
             'UPDATE wallet_transactions SET status = $1 WHERE reference_id = $2 AND status = $3',
             ['COMPLETED', booking.id, 'PENDING']
           );
-          
-          
         }
       }
     } else if (webhookBody.event === 'payment.failed') {
@@ -219,14 +316,12 @@ paymentsRouter.post('/webhook', async (req, res) => {
         if (booking.payment_status === 'FAILED' || booking.status === 'cancelled') {
            // Already handled
         } else {
-          // If we track failed payments, we'd insert one, but since we only insert on success currently, we can skip or insert failed.
-          // For now, just rely on booking status.
-          const failedPaymentCheck = await client.query('SELECT id FROM payments WHERE provider_intent_id = $1', [paymentEntity.id]);
+          const failedPaymentCheck = await client.query('SELECT id FROM payments WHERE provider_payment_id = $1', [paymentEntity.id]);
           if (failedPaymentCheck.rows.length === 0) {
             await client.query(
-              `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, amount, status)
-               VALUES ($1, $2, 'razorpay', $3, $4, 'failed')`,
-              [booking.customer_id, booking.id, paymentEntity.id, paymentEntity.amount / 100]
+              `INSERT INTO payments (customer_user_id, booking_id, method, provider_order_id, provider_payment_id, amount, status)
+               VALUES ($1, $2, 'razorpay', $3, $4, $5, 'failed')`,
+              [booking.customer_id, booking.id, providerIntentId, paymentEntity.id, paymentEntity.amount / 100]
             );
           }
 

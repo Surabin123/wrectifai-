@@ -197,8 +197,19 @@ export function BookingsPage() {
       };
 
       const rzp = new (window as any).Razorpay(options);
-      rzp.on('payment.failed', function (response: any) {
+      rzp.on('payment.failed', async function (response: any) {
+        try {
+          const { apiClient } = await import('@/lib/api-client');
+          await apiClient.post('/payments/fail', {
+            razorpay_order_id: response.error.metadata.order_id || razorpayOrderId,
+            razorpay_payment_id: response.error.metadata.payment_id,
+            error_reason: response.error.description
+          });
+        } catch (e) {
+          console.error('Failed to notify backend of payment failure', e);
+        }
         alert('Payment failed: ' + response.error.description);
+        setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, paymentStatus: 'FAILED' } : b)));
         setPaymentProcessingId(null);
       });
       rzp.open();
@@ -222,6 +233,21 @@ export function BookingsPage() {
       alert(err.message || 'Failed to select cash payment.');
     } finally {
       setIsProcessingCash(false);
+    }
+  };
+
+  const handleRefund = async (bookingId: string) => {
+    if (!confirm('Are you sure you want to request a refund for this booking?')) return;
+    setPaymentProcessingId(bookingId);
+    try {
+      const { apiClient } = await import('@/lib/api-client');
+      await apiClient.post(`/payments/booking/${bookingId}/refund`, {});
+      alert('Refund processed successfully.');
+      setBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, paymentStatus: 'REFUNDED' } : b)));
+    } catch (err: any) {
+      alert(err.message || 'Failed to request refund.');
+    } finally {
+      setPaymentProcessingId(null);
     }
   };
 
@@ -430,6 +456,16 @@ export function BookingsPage() {
                         className="h-8 rounded-[9px] px-2.5 text-[10.5px] font-semibold bg-[#17307a] text-white hover:bg-[#1a3a96]"
                       >
                         {paymentProcessingId === b.id ? 'Processing...' : 'Pay Now'}
+                      </Button>
+                    )}
+                    {b.paymentStatus === 'PAID' && b.status !== 'completed' && b.status !== 'collected' && (
+                      <Button
+                        onClick={() => handleRefund(b.id)}
+                        disabled={paymentProcessingId === b.id}
+                        variant="outline"
+                        className="h-8 rounded-[9px] px-2.5 text-[10.5px] font-semibold border-orange-200 text-orange-600 hover:bg-orange-50 hover:text-orange-700"
+                      >
+                        {paymentProcessingId === b.id ? 'Processing...' : 'Request Refund'}
                       </Button>
                     )}
                     {b.status === 'collected' && (
