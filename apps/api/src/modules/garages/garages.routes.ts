@@ -153,13 +153,55 @@ garagesRouter.get('/my-customers', authenticate, async (req, res) => {
     const garageId = req.user?.garageId;
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
-    // Get unique customers who have bookings with this garage
     const result = await query(
-      `SELECT DISTINCT u.id, u.name, u.email, u.mobile_number as "mobileNumber", NULL as "avatarUrl", b.created_at as "firstBookingDate"
+      `WITH customer_bookings AS (
+         SELECT customer_id, 
+                COUNT(*) as total_bookings,
+                COUNT(CASE WHEN status IN ('pendingPayment', 'confirmed', 'inService') THEN 1 END) as pending_bookings,
+                SUM(total_amount) as total_booking_spend,
+                MIN(created_at) as first_booking_date,
+                MAX(updated_at) as last_booking_date
+         FROM bookings
+         WHERE garage_id = $1
+         GROUP BY customer_id
+       ),
+       customer_orders AS (
+         SELECT customer_id, 
+                COUNT(*) as total_orders,
+                COUNT(CASE WHEN status IN ('pendingPayment', 'paid', 'processing', 'shipped') THEN 1 END) as pending_orders,
+                SUM(total) as total_order_spend,
+                MIN(created_at) as first_order_date,
+                MAX(updated_at) as last_order_date
+         FROM orders
+         WHERE garage_id = $1
+         GROUP BY customer_id
+       ),
+       customer_vehicles AS (
+         SELECT v.customer_id, array_agg(DISTINCT (v.make || ' ' || v.model || COALESCE(' (' || v.vin || ')', ''))) as vehicles
+         FROM vehicles v
+         JOIN bookings b ON b.vehicle_id = v.id
+         WHERE b.garage_id = $1
+         GROUP BY v.customer_id
+       )
+       SELECT 
+         u.id, 
+         u.name, 
+         u.email, 
+         u.mobile_number as "mobileNumber", 
+         v.vehicles,
+         COALESCE(cb.total_bookings, 0) as "totalBookings",
+         COALESCE(cb.pending_bookings, 0) as "pendingBookings",
+         COALESCE(co.total_orders, 0) as "totalOrders",
+         COALESCE(co.pending_orders, 0) as "pendingOrders",
+         COALESCE(cb.total_booking_spend, 0) + COALESCE(co.total_order_spend, 0) as "totalSpend",
+         LEAST(cb.first_booking_date, co.first_order_date) as "firstInteractionDate",
+         GREATEST(cb.last_booking_date, co.last_order_date) as "lastVisit"
        FROM users u
-       JOIN bookings b ON u.id = b.customer_id
-       WHERE b.garage_id = $1
-       ORDER BY b.created_at DESC`,
+       LEFT JOIN customer_bookings cb ON u.id = cb.customer_id
+       LEFT JOIN customer_orders co ON u.id = co.customer_id
+       LEFT JOIN customer_vehicles v ON u.id = v.customer_id
+       WHERE cb.customer_id IS NOT NULL OR co.customer_id IS NOT NULL
+       ORDER BY "lastVisit" DESC`,
       [garageId]
     );
 
@@ -168,12 +210,20 @@ garagesRouter.get('/my-customers', authenticate, async (req, res) => {
       name: row.name || 'Unknown',
       email: row.email,
       phone: row.mobileNumber,
-      avatar: row.avatarUrl,
-      joinDate: row.firstBookingDate
+      avatar: null,
+      vehicles: row.vehicles || [],
+      joinDate: row.firstInteractionDate,
+      lastVisit: row.lastVisit,
+      totalBookings: Number(row.totalBookings),
+      pendingBookings: Number(row.pendingBookings),
+      totalOrders: Number(row.totalOrders),
+      pendingOrders: Number(row.pendingOrders),
+      totalSpend: Number(row.totalSpend)
     }));
 
     return success(res, customers);
   } catch (err) {
+    console.error('Failed to fetch garage customers', err);
     return error(res, 'Failed to fetch customers', 'DATABASE_ERROR', 500);
   }
 });
