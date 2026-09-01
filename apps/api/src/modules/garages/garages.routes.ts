@@ -331,6 +331,42 @@ garagesRouter.get('/my-inventory', authenticate, async (req, res) => {
   }
 });
 
+garagesRouter.post('/my-inventory', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const { productId, price, qtyAvailable } = req.body;
+    
+    if (!productId || price === undefined || qtyAvailable === undefined) {
+      return error(res, 'Missing required fields', 'BAD_REQUEST', 400);
+    }
+
+    // Check if it already exists
+    const existing = await query(
+      `SELECT id FROM garage_inventory WHERE garage_id = $1 AND product_id = $2`,
+      [garageId, productId]
+    );
+
+    if (existing.rows.length > 0) {
+      return error(res, 'Product already in your inventory', 'ALREADY_EXISTS', 400);
+    }
+
+    const result = await query(
+      `INSERT INTO garage_inventory (garage_id, product_id, price, qty_available, is_active)
+       VALUES ($1, $2, $3, $4, true)
+       RETURNING *`,
+      [garageId, productId, price, qtyAvailable]
+    );
+
+    return success(res, result.rows[0], 201);
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Failed to add inventory item', 'DATABASE_ERROR', 500);
+  }
+});
+
 garagesRouter.put('/my-inventory/:inventoryId', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
@@ -378,6 +414,42 @@ garagesRouter.get('/my-services', authenticate, async (req, res) => {
   } catch (err) {
     console.error(err);
     return error(res, 'Failed to fetch services', 'DATABASE_ERROR', 500);
+  }
+});
+
+garagesRouter.post('/my-services', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const { platformServiceId, price, durationMins } = req.body;
+    
+    if (!platformServiceId || price === undefined) {
+      return error(res, 'Missing required fields', 'BAD_REQUEST', 400);
+    }
+
+    // Check if it already exists
+    const existing = await query(
+      `SELECT id FROM services WHERE garage_id = $1 AND platform_service_id = $2`,
+      [garageId, platformServiceId]
+    );
+
+    if (existing.rows.length > 0) {
+      return error(res, 'Service already added to your garage', 'ALREADY_EXISTS', 400);
+    }
+
+    const result = await query(
+      `INSERT INTO services (garage_id, platform_service_id, price, duration_mins, is_active)
+       VALUES ($1, $2, $3, $4, true)
+       RETURNING *`,
+      [garageId, platformServiceId, price, durationMins || 60]
+    );
+
+    return success(res, result.rows[0], 201);
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Failed to add service', 'DATABASE_ERROR', 500);
   }
 });
 

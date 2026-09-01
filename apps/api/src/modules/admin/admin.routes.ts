@@ -322,10 +322,18 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     // Insert Services
     if (services && Array.isArray(services)) {
       for (const serviceName of services) {
-        await client.query(
-          `INSERT INTO services (garage_id, name, description, price, duration_mins) VALUES ($1, $2, $3, $4, $5)`,
-          [garageId, serviceName, 'General service', 0, 60]
+        // Find matching platform service
+        const platformServiceRes = await client.query(
+          `SELECT id, base_price FROM platform_services WHERE name = $1 LIMIT 1`,
+          [serviceName]
         );
+        if (platformServiceRes.rows.length > 0) {
+          const ps = platformServiceRes.rows[0];
+          await client.query(
+            `INSERT INTO services (garage_id, platform_service_id, price, duration_mins, is_active) VALUES ($1, $2, $3, $4, true)`,
+            [garageId, ps.id, ps.base_price || 0, 60]
+          );
+        }
       }
     }
 
