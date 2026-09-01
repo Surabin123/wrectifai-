@@ -154,6 +154,12 @@ export function AdminSidebar({
                 <Link
                   href={item.href || '#'}
                   title={collapsed ? item.label : undefined}
+                  onClick={(e) => {
+                    if (pathname === item.href && window.location.search) {
+                      e.preventDefault();
+                      window.location.href = item.href;
+                    }
+                  }}
                   className={cn(
                     'flex h-[32px] shrink-0 items-center gap-2 rounded-[8px] px-2 text-left text-[12px] font-semibold transition-colors',
                     collapsed &&

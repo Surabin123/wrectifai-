@@ -134,6 +134,12 @@ export function Sidebar({
               <Link
                 href={href}
                 title={collapsed ? label : undefined}
+                onClick={(e) => {
+                  if (pathname === href && window.location.search) {
+                    e.preventDefault();
+                    window.location.href = href;
+                  }
+                }}
                 className={cn(
                   'flex h-[32px] shrink-0 items-center gap-2 rounded-[8px] px-2 text-left text-[12px] font-semibold transition-colors',
                   collapsed &&
