@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { getDbPool } from '../../config/database';
 import { success, error } from '../../utils/response';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, requireRole } from '../../middleware/auth';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 
