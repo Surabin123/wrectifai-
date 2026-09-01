@@ -118,10 +118,9 @@ export function ServicesPage() {
 
   const handleGarageSelect = (garageOffer: any) => {
     setIsGarageModalOpen(false);
-    localStorage.setItem('selectedGarageId', garageOffer.garageId);
     setTimeout(() => {
-      router.push('/bookings');
-    }, 300);
+      router.push(`/book-now?garageId=${garageOffer.garageId}&serviceId=${garageOffer.id}`);
+    }, 150);
   };
 
   return (

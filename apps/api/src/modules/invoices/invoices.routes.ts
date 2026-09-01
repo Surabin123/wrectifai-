@@ -59,7 +59,7 @@ invoicesRouter.get('/by-booking/:bookingId', authenticate, async (req, res) => {
         v.model as "vehicleModel",
         v.year as "vehicleYear",
         v.vin as "vehicleVin",
-        q.details as "quoteDetails"
+        COALESCE(q.details, b.service_details) as "quoteDetails"
        FROM invoices i
        JOIN bookings b ON i.booking_id = b.id
        JOIN garages g ON b.garage_id = g.id
@@ -76,7 +76,11 @@ invoicesRouter.get('/by-booking/:bookingId', authenticate, async (req, res) => {
       return error(res, 'Invoice not found or unauthorized', 'NOT_FOUND', 404);
     }
 
-    return success(res, result.rows[0], 200);
+    const invoiceData = result.rows[0];
+    if (invoiceData.quoteDetails?.breakdown?.labor) {
+      invoiceData.items = invoiceData.quoteDetails.breakdown.labor;
+    }
+    return success(res, invoiceData, 200);
   } catch (err) {
     return error(
       res,

@@ -101,10 +101,12 @@ async function createBookingInternal(req: any, res: any, data: {
   offerCode?: string;
   walletAmountToUse?: number;
   paymentMethod?: string;
+  serviceIds?: string[];
 }) {
   const customerId = req.user?.userId;
   let { garageId } = data;
-  const { vehicleId, scheduledAt, totalAmount, bookingType, quoteId, currency, serviceType, offerCode, walletAmountToUse, paymentMethod } = data;
+  const { vehicleId, scheduledAt, bookingType, quoteId, currency, serviceType, offerCode, walletAmountToUse, paymentMethod, serviceIds } = data;
+  let totalAmount = data.totalAmount;
 
   if (!vehicleId || !scheduledAt || totalAmount === undefined || !bookingType) {
     return error(res, 'Missing required booking fields', 'BAD_REQUEST', 400);
@@ -148,7 +150,35 @@ async function createBookingInternal(req: any, res: any, data: {
       return error(res, 'This garage is not available for new bookings.', 'FORBIDDEN', 403);
     }
 
-    const finalServiceType = serviceType || 'General Service';
+    let finalServiceType = serviceType || 'General Service';
+    let serviceDetailsJSON: any = null;
+
+    if (serviceIds && serviceIds.length > 0) {
+      const servicesCheck = await query(
+        `SELECT id, name, price FROM services WHERE id = ANY($1) AND garage_id = $2 AND is_active = true`,
+        [serviceIds, garageId]
+      );
+      if (servicesCheck.rows.length !== serviceIds.length) {
+         return error(res, 'One or more selected services are invalid or not offered by this garage.', 'BAD_REQUEST', 400);
+      }
+      
+      let computedTotal = 0;
+      const laborItems = servicesCheck.rows.map(s => {
+        const p = Number(s.price) || 0;
+        computedTotal += p;
+        return { name: s.name, price: p, quantity: 1, total: p };
+      });
+      
+      totalAmount = computedTotal;
+      finalServiceType = laborItems.map(l => l.name).join(', ');
+      serviceDetailsJSON = {
+        breakdown: { labor: laborItems, parts: [] },
+        parts_cost: 0,
+        labor_cost: computedTotal,
+        total_cost: computedTotal
+      };
+    }
+
     let finalAmount = Number(totalAmount);
     let offerId: string | null = null;
     let discountApplied = 0;
@@ -173,8 +203,8 @@ async function createBookingInternal(req: any, res: any, data: {
     const paymentStatus = 'UNPAID';
 
     const result = await query(
-      `INSERT INTO bookings (customer_id, garage_id, vehicle_id, quote_id, booking_type, scheduled_at, status, payment_status, total_amount, currency, customer_note, offer_id, discount_applied, wallet_used)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      `INSERT INTO bookings (customer_id, garage_id, vehicle_id, quote_id, booking_type, scheduled_at, status, payment_status, total_amount, currency, customer_note, offer_id, discount_applied, wallet_used, service_details)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
        RETURNING id, customer_id as "customerId", garage_id as "garageId", vehicle_id as "vehicleId", quote_id as "quoteId", booking_type as "bookingType", scheduled_at as "scheduledAt", status, payment_status as "paymentStatus", total_amount as "totalAmount", currency, created_at as "createdAt"`,
       [
         customerId,
@@ -190,7 +220,8 @@ async function createBookingInternal(req: any, res: any, data: {
         finalServiceType,
         offerId,
         discountApplied,
-        heldWalletAmount
+        heldWalletAmount,
+        serviceDetailsJSON
       ]
     );
 
