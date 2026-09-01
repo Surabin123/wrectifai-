@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { useRouter } from 'next/navigation';
-import { Search, ChevronDown, Filter, ShoppingBag, Heart, ArrowLeft, Star } from 'lucide-react';
+import { Search, ChevronDown, Filter, ShoppingBag, Heart, ArrowLeft, Star, CheckCircle } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
 import { apiClient } from '@/lib/api-client';
@@ -24,6 +24,20 @@ export function ShopAllPage() {
   
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
+
+  const [userVehicle, setUserVehicle] = useState<any | null>(null);
+
+  useEffect(() => {
+    // Fetch user's vehicle for compatibility
+    apiClient.get<any[]>('/vehicles')
+      .then(data => {
+        if (data && data.length > 0) {
+          const defaultVehicle = data.find(v => v.is_default) || data[0];
+          setUserVehicle(defaultVehicle);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   useEffect(() => {
     const savedCart = localStorage.getItem('shopCart');
@@ -47,16 +61,28 @@ export function ShopAllPage() {
       })
       .then(invData => {
         if (invData) {
-          const mapped = invData.map(item => ({
-            id: item.product_id,
-            inventory_id: item.inventory_id,
-            name: item.name,
-            category: item.category,
-            numericPrice: Number(item.price),
-            formattedPrice: formatCurrencyForCity(Number(item.price), city),
-            qty_available: item.qty_available,
-            img: item.image || '/assets/engine_oil_bottle.png',
-          }));
+          const mapped = invData.map(item => {
+            let isCompatible = true;
+            if (item.compatibleVehicleRules && userVehicle) {
+              const rules = item.compatibleVehicleRules;
+              if (rules.makes && Array.isArray(rules.makes)) {
+                isCompatible = rules.makes.includes(userVehicle.make);
+              }
+            }
+
+            return {
+              id: item.product_id,
+              inventory_id: item.inventory_id,
+              name: item.name,
+              category: item.category,
+              numericPrice: Number(item.price),
+              formattedPrice: formatCurrencyForCity(Number(item.price), city),
+              qty_available: item.qty_available,
+              img: item.image || '/assets/engine_oil_bottle.png',
+              isCompatible,
+              hasCompatibilityRules: !!item.compatibleVehicleRules
+            };
+          });
           setProducts(mapped);
         }
       })
@@ -68,7 +94,7 @@ export function ShopAllPage() {
 
     window.addEventListener('dashboard-search', handleSearch as EventListener);
     return () => window.removeEventListener('dashboard-search', handleSearch as EventListener);
-  }, []);
+  }, [userVehicle]);
 
   const toggleWishlist = (product: any) => {
     const exists = wishlistItems.find(i => i.id === product.id);
@@ -200,6 +226,20 @@ export function ShopAllPage() {
                   <div className="text-xs font-semibold text-blue-600 mb-2">{product.category}</div>
                   <h4 className="font-bold text-sm text-slate-900 line-clamp-2 h-10 mb-2">{product.name}</h4>
                   
+                  {userVehicle && product.hasCompatibilityRules && (
+                    <div className="mb-2">
+                      {product.isCompatible ? (
+                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1 w-max">
+                          <CheckCircle className="w-3 h-3" /> Fits {userVehicle.make}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded flex items-center gap-1 w-max">
+                          Does not fit {userVehicle.make}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex items-center justify-between gap-2 mb-2">
                     <span className="font-bold text-slate-900">{product.formattedPrice}</span>
                     <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">{product.qty_available} in stock</span>
@@ -207,7 +247,7 @@ export function ShopAllPage() {
                   
                   <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-100">
                     <div className="font-bold text-lg text-slate-900">{product.formattedPrice}</div>
-                    <Button size="sm" className="rounded-full px-4" onClick={() => addToCart(product)}>
+                    <Button size="sm" disabled={product.hasCompatibilityRules && !product.isCompatible} className="rounded-full px-4" onClick={() => addToCart(product)}>
                       Add
                     </Button>
                   </div>

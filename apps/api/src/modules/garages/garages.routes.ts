@@ -130,6 +130,7 @@ garagesRouter.get('/:id/inventory', async (req, res) => {
   try {
     const result = await query(
       `SELECT gi.id as inventory_id, p.id as product_id, p.name, p.category, p.description, p.is_diy_kit, p.image,
+              p.compatible_vehicle_rules as "compatibleVehicleRules",
               gi.qty_available, COALESCE(gi.price, p.price) as price, gi.is_active
        FROM garage_inventory gi
        JOIN products p ON gi.product_id = p.id

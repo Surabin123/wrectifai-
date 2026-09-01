@@ -30,10 +30,24 @@ export function ShopPage() {
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
+  const [userVehicle, setUserVehicle] = useState<any | null>(null);
+
   const showToast = (message: string) => {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  useEffect(() => {
+    // Fetch user's vehicle for compatibility
+    apiClient.get<any[]>('/vehicles')
+      .then(data => {
+        if (data && data.length > 0) {
+          const defaultVehicle = data.find(v => v.is_default) || data[0];
+          setUserVehicle(defaultVehicle);
+        }
+      })
+      .catch(console.error);
+  }, []);
 
   // Fetch Garages for the current city
   const fetchLocationGarages = (city: string) => {
@@ -76,17 +90,29 @@ export function ShopPage() {
       setIsLoading(true);
       apiClient.get<any[]>(`/garages/${selectedGarageId}/inventory`)
         .then(data => {
-          const mapped = data.map(item => ({
-            id: item.product_id,
-            inventory_id: item.inventory_id,
-            name: item.name,
-            category: item.category,
-            formattedPrice: formatCurrencyForCity(Number(item.price), userCity),
-            numericPrice: Number(item.price),
-            qty_available: item.qty_available,
-            img: item.image || '/assets/engine_oil_bottle.png',
-            status: item.is_active ? 'approved' : 'rejected'
-          }));
+          const mapped = data.map(item => {
+            let isCompatible = true; // Assume universal by default
+            if (item.compatibleVehicleRules && userVehicle) {
+              const rules = item.compatibleVehicleRules;
+              if (rules.makes && Array.isArray(rules.makes)) {
+                isCompatible = rules.makes.includes(userVehicle.make);
+              }
+            }
+
+            return {
+              id: item.product_id,
+              inventory_id: item.inventory_id,
+              name: item.name,
+              category: item.category,
+              formattedPrice: formatCurrencyForCity(Number(item.price), userCity),
+              numericPrice: Number(item.price),
+              qty_available: item.qty_available,
+              img: item.image || '/assets/engine_oil_bottle.png',
+              status: item.is_active ? 'approved' : 'rejected',
+              isCompatible,
+              hasCompatibilityRules: !!item.compatibleVehicleRules
+            };
+          });
           setProducts(mapped);
           setIsLoading(false);
         })
@@ -94,7 +120,7 @@ export function ShopPage() {
       
       localStorage.setItem('selectedGarageId', selectedGarageId);
     }
-  }, [selectedGarageId, userCity]);
+  }, [selectedGarageId, userCity, userVehicle]);
 
   useEffect(() => {
     const savedCart = localStorage.getItem('shopCart');
@@ -219,11 +245,26 @@ export function ShopPage() {
                     <Image src={product.img} alt={product.name} width={100} height={100} className="object-contain group-hover:scale-110 transition-transform" />
                   </div>
                   <h4 className="font-bold text-sm text-slate-900 line-clamp-2 h-10 mb-2">{product.name}</h4>
-                  <div className="flex items-center justify-between gap-2 mb-2">
+                  
+                  {userVehicle && product.hasCompatibilityRules && (
+                    <div className="mb-2">
+                      {product.isCompatible ? (
+                        <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded flex items-center gap-1 w-max">
+                          <CheckCircle className="w-3 h-3" /> Fits {userVehicle.make}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-semibold text-red-700 bg-red-50 px-2 py-0.5 rounded flex items-center gap-1 w-max">
+                          Does not fit {userVehicle.make}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center justify-between gap-2 mb-2 mt-auto">
                     <span className="font-bold text-slate-900">{product.formattedPrice || formatCurrencyForCity(product.numericPrice, userCity)}</span>
                     <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">{product.qty_available} in stock</span>
                   </div>
-                  <Button variant="outline" className="w-full mt-auto text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => addToCart(product)}>
+                  <Button variant="outline" disabled={product.hasCompatibilityRules && !product.isCompatible} className="w-full mt-2 text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => addToCart(product)}>
                     <ShoppingCart className="w-4 h-4 mr-2" /> Add to Cart
                   </Button>
                 </Card>
