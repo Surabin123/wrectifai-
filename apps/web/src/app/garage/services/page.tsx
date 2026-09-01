@@ -29,8 +29,8 @@ export default function ServicesPage() {
     try {
       setLoading(true);
       const response = await apiClient.get<any>('/garages/my-services');
-      if (response?.data) {
-        setServices(response.data);
+      if (Array.isArray(response)) {
+        setServices(response);
       }
     } catch (err) {
       console.error('Failed to fetch services:', err);
@@ -47,8 +47,8 @@ export default function ServicesPage() {
     try {
       // Fetch platform services to let them choose
       const response = await apiClient.get<any>('/services'); 
-      if (response?.data?.data) {
-        setPlatformServices(response.data.data);
+      if (Array.isArray(response)) {
+        setPlatformServices(response);
       }
       setFormData({ platformServiceId: '', price: 0, durationMins: 60, isActive: true });
       setShowAddModal(true);

@@ -144,6 +144,94 @@ garagesRouter.get('/:id/inventory', async (req, res) => {
   }
 });
 
+garagesRouter.get('/my-profile', authenticate, async (req, res) => {
+  try {
+    const garageUserId = req.user?.userId;
+    if (!garageUserId || !req.user?.roles?.includes('garage')) {
+      return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    }
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
+
+    const result = await query(
+      `SELECT g.id, g.name as "garageName", g.address, g.location, g.specializations, 
+              g.pickup_drop_supported as "pickupDropSupported", g.approval_status as "approvalStatus", 
+              g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", 
+              g.image, g.description, g.business_hours as "businessHours",
+              u.name as "ownerName", u.email as "ownerEmail", u.mobile_number as "ownerPhone"
+       FROM garages g
+       JOIN users u ON g.owner_user_id = u.id
+       WHERE g.id = $1 AND g.owner_user_id = $2`,
+      [garageId, garageUserId]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Garage profile not found', 'NOT_FOUND', 404);
+    }
+
+    const documentsResult = await query(
+      `SELECT doc_type, verification_status FROM garage_documents WHERE garage_id = $1`,
+      [garageId]
+    );
+
+    return success(res, {
+      ...result.rows[0],
+      documents: documentsResult.rows
+    });
+  } catch (err) {
+    console.error('Failed to fetch garage profile:', err);
+    return error(res, 'Failed to fetch garage profile', 'DATABASE_ERROR', 500);
+  }
+});
+
+garagesRouter.put('/my-profile', authenticate, async (req, res) => {
+  try {
+    const garageUserId = req.user?.userId;
+    if (!garageUserId || !req.user?.roles?.includes('garage')) {
+      return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    }
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
+
+    const { 
+      garageName, address, location, specializations, 
+      pickupDropSupported, image, description, businessHours 
+    } = req.body;
+
+    const result = await query(
+      `UPDATE garages 
+       SET name = COALESCE($1, name), 
+           address = COALESCE($2, address), 
+           location = COALESCE($3, location), 
+           specializations = COALESCE($4, specializations), 
+           pickup_drop_supported = COALESCE($5, pickup_drop_supported), 
+           image = COALESCE($6, image), 
+           description = COALESCE($7, description), 
+           business_hours = COALESCE($8, business_hours), 
+           updated_at = NOW()
+       WHERE id = $9 AND owner_user_id = $10
+       RETURNING id, name as "garageName", address, location, specializations, 
+                 pickup_drop_supported as "pickupDropSupported", approval_status as "approvalStatus", 
+                 image, description, business_hours as "businessHours"`,
+      [
+        garageName, address, location ? JSON.stringify(location) : null, 
+        specializations, pickupDropSupported, image, description, 
+        businessHours ? JSON.stringify(businessHours) : null, 
+        garageId, garageUserId
+      ]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Garage profile not found or unauthorized', 'NOT_FOUND', 404);
+    }
+
+    return success(res, result.rows[0]);
+  } catch (err) {
+    console.error('Failed to update garage profile:', err);
+    return error(res, 'Failed to update garage profile', 'DATABASE_ERROR', 500);
+  }
+});
+
 garagesRouter.get('/my-customers', authenticate, async (req, res) => {
   try {
     const garageUserId = req.user?.userId;

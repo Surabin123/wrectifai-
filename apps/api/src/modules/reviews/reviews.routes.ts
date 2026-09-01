@@ -57,6 +57,32 @@ reviewsRouter.get('/garage/:garageId', async (req, res) => {
   }
 });
 
+// Get reviews written by the authenticated user
+reviewsRouter.get('/my-reviews', authenticate, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) {
+      return error(res, 'Authentication required', 'UNAUTHORIZED', 401);
+    }
+    
+    // Will implement logic in service if missing, but we can query directly to match pattern of stats
+    const { query } = require('../../config/database');
+    const result = await query(
+      `SELECT r.id, r.rating, r.comment as text, r.created_at as date, g.name as "garageName"
+       FROM garage_reviews r
+       JOIN garages g ON r.garage_id = g.id
+       WHERE r.customer_id = $1
+       ORDER BY r.created_at DESC`,
+      [userId]
+    );
+
+    return success(res, result.rows);
+  } catch (err: any) {
+    console.error('Error fetching my reviews:', err);
+    return error(res, 'Failed to fetch your reviews', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
 // Vote on a review (like/unlike/none)
 reviewsRouter.post('/:reviewId/vote', authenticate, async (req, res) => {
   try {

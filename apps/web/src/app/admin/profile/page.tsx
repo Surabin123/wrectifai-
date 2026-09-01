@@ -1,5 +1,5 @@
 'use client';
-import { ProfileContent } from '@/pages/profile/profile-content';
+import { AdminProfileContent } from '@/pages/admin/admin-profile-content';
 
 export default function ProfilePage() {
   return (
@@ -7,7 +7,7 @@ export default function ProfilePage() {
       <div className="mb-6 flex justify-between items-center">
         <h1 className="text-2xl font-bold text-slate-900">Admin Profile</h1>
       </div>
-      <ProfileContent />
+      <AdminProfileContent />
     </div>
   );
 }

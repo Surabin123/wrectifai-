@@ -31,8 +31,8 @@ export default function InventoryPage() {
     try {
       setLoading(true);
       const response = await apiClient.get<any>('/garages/my-inventory');
-      if (response?.data) {
-        setInventory(response.data);
+      if (Array.isArray(response)) {
+        setInventory(response);
       }
     } catch (err) {
       console.error('Failed to fetch inventory:', err);
@@ -49,8 +49,8 @@ export default function InventoryPage() {
     try {
       // Fetch products to let them choose
       const response = await apiClient.get<any>('/products'); 
-      if (response?.data?.data) {
-        setProducts(response.data.data);
+      if (Array.isArray(response)) {
+        setProducts(response);
       }
       setFormData({ productId: '', price: 0, qtyAvailable: 1, isActive: true });
       setShowAddModal(true);
