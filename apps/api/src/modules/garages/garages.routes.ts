@@ -228,6 +228,82 @@ garagesRouter.get('/my-customers', authenticate, async (req, res) => {
   }
 });
 
+garagesRouter.get('/my-customers/:id', authenticate, async (req, res) => {
+  try {
+    const garageUserId = req.user?.userId;
+    if (!garageUserId || !req.user?.roles?.includes('garage')) {
+      return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    }
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
+
+    const customerId = req.params.id;
+
+    // Verify customer actually belongs to this garage
+    const verifyResult = await query(
+      `SELECT 1 FROM (
+         SELECT customer_id FROM bookings WHERE garage_id = $1 AND customer_id = $2
+         UNION
+         SELECT customer_id FROM orders WHERE garage_id = $1 AND customer_id = $2
+       ) as interactions`,
+      [garageId, customerId]
+    );
+
+    if (verifyResult.rows.length === 0) {
+      return error(res, 'Customer not found or access denied', 'NOT_FOUND', 404);
+    }
+
+    // Fetch user details
+    const userResult = await query(
+      `SELECT id, name, email, mobile_number as "phone", created_at as "joined", status
+       FROM users WHERE id = $1`,
+      [customerId]
+    );
+    const user = userResult.rows[0];
+
+    // Fetch vehicles
+    const vehiclesResult = await query(
+      `SELECT DISTINCT v.id, v.make, v.model, v.year, v.vin, v.plate_number as "plateNumber"
+       FROM vehicles v
+       JOIN bookings b ON b.vehicle_id = v.id
+       WHERE v.customer_id = $1 AND b.garage_id = $2`,
+      [customerId, garageId]
+    );
+
+    // Fetch bookings with this garage
+    const bookingsResult = await query(
+      `SELECT b.id, b.created_at as "createdAt", 'INR' as "currency", b.total_amount as "amount", b.status, g.name as "garageName"
+       FROM bookings b
+       JOIN garages g ON b.garage_id = g.id
+       WHERE b.customer_id = $1 AND b.garage_id = $2
+       ORDER BY b.created_at DESC`,
+      [customerId, garageId]
+    );
+
+    // Fetch orders with this garage
+    const ordersResult = await query(
+      `SELECT o.id, o.created_at as "createdAt", 'INR' as "currency", o.total as "amount", o.status, g.name as "garageName"
+       FROM orders o
+       JOIN garages g ON o.garage_id = g.id
+       WHERE o.customer_id = $1 AND o.garage_id = $2
+       ORDER BY o.created_at DESC`,
+      [customerId, garageId]
+    );
+
+    return success(res, {
+      ...user,
+      vehicles: vehiclesResult.rows,
+      bookings: bookingsResult.rows,
+      orders: ordersResult.rows,
+      quotes: [] // Optional: if garage quotes exist, can be fetched similarly
+    });
+
+  } catch (err) {
+    console.error('Failed to fetch garage customer details', err);
+    return error(res, 'Failed to fetch customer details', 'DATABASE_ERROR', 500);
+  }
+});
+
 garagesRouter.get('/my-inventory', authenticate, async (req, res) => {
   try {
     const garageUserId = req.user?.userId;
