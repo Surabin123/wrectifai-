@@ -7,27 +7,20 @@ import { useRouter } from 'next/navigation';
 import { Search, ChevronDown, Filter, ShoppingBag, Heart, ArrowLeft, Star } from 'lucide-react';
 import Image from 'next/image';
 import { cn } from '@/lib/utils';
+import { apiClient } from '@/lib/api-client';
+import { getSavedCity, formatCurrencyForCity } from '@/utils/location';
 import { TopNavbar } from '@/components/home/top-navbar';
-import { formatCurrency } from '@/lib/currency';
 
-const mockAllProducts = Array.from({ length: 32 }, (_, i) => ({
-  id: i + 1,
-  name: `Premium Auto Part ${i + 1}`,
-  category: i % 3 === 0 ? 'Engine Components' : i % 3 === 1 ? 'Accessories' : 'Maintenance',
-  price: `$${(Math.random() * 100 + 20).toFixed(2)}`,
-  rating: (Math.random() * 2 + 3).toFixed(1),
-  reviews: Math.floor(Math.random() * 100) + 10,
-  img: null,
-}));
-
-const CATEGORIES = ['All', 'Engine Components', 'Accessories', 'Maintenance', 'Fluids & Oils', 'Brakes'];
+const CATEGORIES = ['All', 'Engine Parts', 'Oils & Fluids', 'Batteries', 'Brakes', 'Electrical', 'Accessories'];
 
 export function ShopAllPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [sortBy, setSortBy] = useState('newest');
-  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
+  const [products, setProducts] = useState<any[]>([]);
+  const [userCity, setUserCity] = useState<string>('Bengaluru');
+  const [selectedGarageId, setSelectedGarageId] = useState<string>('');
   
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
@@ -35,23 +28,43 @@ export function ShopAllPage() {
   useEffect(() => {
     const savedCart = localStorage.getItem('shopCart');
     const savedWishlist = localStorage.getItem('shopWishlist');
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (savedCart) setCartItems(JSON.parse(savedCart));
-     
     if (savedWishlist) setWishlistItems(JSON.parse(savedWishlist));
+
+    const city = getSavedCity() || 'Bengaluru';
+    setUserCity(city);
+
+    // Fetch garages for current city then load inventory
+    apiClient.get<any[]>(`/garages?city=${encodeURIComponent(city)}`)
+      .then(garages => {
+        if (garages && garages.length > 0) {
+          const savedG = localStorage.getItem('selectedGarageId');
+          const validG = garages.some(g => g.id === savedG) ? savedG! : garages[0].id;
+          setSelectedGarageId(validG);
+          return apiClient.get<any[]>(`/garages/${validG}/inventory`);
+        }
+        return [];
+      })
+      .then(invData => {
+        if (invData) {
+          const mapped = invData.map(item => ({
+            id: item.product_id,
+            inventory_id: item.inventory_id,
+            name: item.name,
+            category: item.category,
+            numericPrice: Number(item.price),
+            formattedPrice: formatCurrencyForCity(Number(item.price), city),
+            qty_available: item.qty_available,
+            img: item.image || '/assets/engine_oil_bottle.png',
+          }));
+          setProducts(mapped);
+        }
+      })
+      .catch(console.error);
 
     const handleSearch = (e: CustomEvent) => {
       setSearchQuery(e.detail);
     };
-
-    try {
-      const userStr = localStorage.getItem('wrectifai-user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        if (user && user.mobile_number) setUserPhone(user.mobile_number);
-        else if (user && user.phone) setUserPhone(user.phone);
-      }
-    } catch(e) {}
 
     window.addEventListener('dashboard-search', handleSearch as EventListener);
     return () => window.removeEventListener('dashboard-search', handleSearch as EventListener);
@@ -71,20 +84,19 @@ export function ShopAllPage() {
     if (exists) {
       newItems = cartItems.map(i => i.id === product.id ? { ...i, quantity: (i.quantity || 1) + 1 } : i);
     } else {
-      newItems = [...cartItems, { ...product, quantity: 1 }];
+      newItems = [...cartItems, { ...product, garageId: selectedGarageId, quantity: 1 }];
     }
     setCartItems(newItems);
     localStorage.setItem('shopCart', JSON.stringify(newItems));
     window.dispatchEvent(new Event('cart-updated'));
   };
 
-  const filteredProducts = mockAllProducts
+  const filteredProducts = products
     .filter(p => selectedCategory === 'All' || p.category === selectedCategory)
     .filter(p => p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.category.toLowerCase().includes(searchQuery.toLowerCase()))
     .sort((a, b) => {
-      if (sortBy === 'price-low') return parseFloat(a.price.replace('$', '')) - parseFloat(b.price.replace('$', ''));
-      if (sortBy === 'price-high') return parseFloat(b.price.replace('$', '')) - parseFloat(a.price.replace('$', ''));
-      if (sortBy === 'rating') return parseFloat(b.rating) - parseFloat(a.rating);
+      if (sortBy === 'price-low') return a.numericPrice - b.numericPrice;
+      if (sortBy === 'price-high') return b.numericPrice - a.numericPrice;
       return 0; // newest default
     });
 
@@ -188,15 +200,13 @@ export function ShopAllPage() {
                   <div className="text-xs font-semibold text-blue-600 mb-2">{product.category}</div>
                   <h4 className="font-bold text-sm text-slate-900 line-clamp-2 h-10 mb-2">{product.name}</h4>
                   
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="font-bold text-slate-900">{formatCurrency(parseFloat(product.price.replace('$', '')), userPhone)}</span>
-                    <Star className="w-3.5 h-3.5 text-yellow-400 fill-current" />
-                    <span className="text-xs font-medium text-slate-700">{product.rating}</span>
-                    <span className="text-xs text-slate-400">({product.reviews})</span>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="font-bold text-slate-900">{product.formattedPrice}</span>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">{product.qty_available} in stock</span>
                   </div>
                   
                   <div className="mt-auto flex items-center justify-between pt-4 border-t border-slate-100">
-                    <div className="font-bold text-lg text-slate-900">{formatCurrency(parseFloat(product.price.replace('$', '')), userPhone)}</div>
+                    <div className="font-bold text-lg text-slate-900">{product.formattedPrice}</div>
                     <Button size="sm" className="rounded-full px-4" onClick={() => addToCart(product)}>
                       Add
                     </Button>

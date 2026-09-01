@@ -14,6 +14,8 @@ import { DashboardShell } from '@/components/home/dashboard-shell';
 import { formatCurrency } from '@/lib/currency';
 import { apiClient } from '@/lib/api-client';
 
+import { getSavedCity, formatCurrencyForCity } from '@/utils/location';
+
 export function ShopPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,7 +25,7 @@ export function ShopPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [garages, setGarages] = useState<any[]>([]);
   const [selectedGarageId, setSelectedGarageId] = useState<string>('');
-  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
+  const [userCity, setUserCity] = useState<string>('Bengaluru');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -33,17 +35,39 @@ export function ShopPage() {
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Fetch Garages on mount
-  useEffect(() => {
-    apiClient.get<any[]>('/garages')
+  // Fetch Garages for the current city
+  const fetchLocationGarages = (city: string) => {
+    const activeCity = city || getSavedCity() || 'Bengaluru';
+    setUserCity(activeCity);
+    apiClient.get<any[]>(`/garages?city=${encodeURIComponent(activeCity)}`)
       .then(data => {
-        setGarages(data);
+        setGarages(data || []);
         if (data && data.length > 0) {
-          const defaultGarage = localStorage.getItem('selectedGarageId') || data[0].id;
-          setSelectedGarageId(defaultGarage);
+          const savedGarage = localStorage.getItem('selectedGarageId');
+          const isValidSaved = data.some(g => g.id === savedGarage);
+          const nextGarageId = isValidSaved ? savedGarage! : data[0].id;
+          setSelectedGarageId(nextGarageId);
+          localStorage.setItem('selectedGarageId', nextGarageId);
+        } else {
+          setSelectedGarageId('');
+          setProducts([]);
         }
       })
       .catch(console.error);
+  };
+
+  useEffect(() => {
+    fetchLocationGarages(getSavedCity() || 'Bengaluru');
+
+    const handleCityChange = () => {
+      const newCity = getSavedCity() || 'Bengaluru';
+      fetchLocationGarages(newCity);
+    };
+
+    window.addEventListener('city-changed', handleCityChange);
+    return () => {
+      window.removeEventListener('city-changed', handleCityChange);
+    };
   }, []);
 
   // Fetch Inventory when garage changes
@@ -52,16 +76,15 @@ export function ShopPage() {
       setIsLoading(true);
       apiClient.get<any[]>(`/garages/${selectedGarageId}/inventory`)
         .then(data => {
-          // map to UI format
           const mapped = data.map(item => ({
             id: item.product_id,
             inventory_id: item.inventory_id,
             name: item.name,
             category: item.category,
-            price: `$${Number(item.price).toFixed(2)}`,
+            formattedPrice: formatCurrencyForCity(Number(item.price), userCity),
             numericPrice: Number(item.price),
             qty_available: item.qty_available,
-            img: '/assets/engine_oil_bottle.png', // fallback
+            img: item.image || '/assets/engine_oil_bottle.png',
             status: item.is_active ? 'approved' : 'rejected'
           }));
           setProducts(mapped);
@@ -71,7 +94,7 @@ export function ShopPage() {
       
       localStorage.setItem('selectedGarageId', selectedGarageId);
     }
-  }, [selectedGarageId]);
+  }, [selectedGarageId, userCity]);
 
   useEffect(() => {
     const savedCart = localStorage.getItem('shopCart');
@@ -80,15 +103,6 @@ export function ShopPage() {
     if (savedCart) setCartItems(JSON.parse(savedCart));
      
     if (savedWishlist) setWishlistItems(JSON.parse(savedWishlist));
-
-    try {
-      const userStr = localStorage.getItem('wrectifai-user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        if (user && user.mobile_number) setUserPhone(user.mobile_number);
-        else if (user && user.phone) setUserPhone(user.phone);
-      }
-    } catch(e) {}
 
     const handleSearch = (e: CustomEvent) => {
       setSearchQuery(e.detail);
@@ -205,12 +219,9 @@ export function ShopPage() {
                     <Image src={product.img} alt={product.name} width={100} height={100} className="object-contain group-hover:scale-110 transition-transform" />
                   </div>
                   <h4 className="font-bold text-sm text-slate-900 line-clamp-2 h-10 mb-2">{product.name}</h4>
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="font-bold text-slate-900">{formatCurrency(parseFloat(product.price.replace('$', '')), userPhone)}</span>
-                    <span className="text-[10px] font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">{product.discount}</span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs font-semibold text-amber-500 mb-4">
-                    <Star className="w-3.5 h-3.5 fill-current" /> {product.rating} <span className="text-slate-400 font-normal">({product.reviews})</span>
+                  <div className="flex items-center justify-between gap-2 mb-2">
+                    <span className="font-bold text-slate-900">{product.formattedPrice || formatCurrencyForCity(product.numericPrice, userCity)}</span>
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded">{product.qty_available} in stock</span>
                   </div>
                   <Button variant="outline" className="w-full mt-auto text-blue-600 border-blue-200 hover:bg-blue-50" onClick={() => addToCart(product)}>
                     <ShoppingCart className="w-4 h-4 mr-2" /> Add to Cart

@@ -84,7 +84,7 @@ garagesRouter.get('/', async (req, res) => {
 
     // Strict city filter — backend enforced, not frontend hidden
     if (city && city !== 'location') {
-      condition += ` AND (LOWER(g.location->>'city') = $${params.length + 1} OR LOWER(g.city) = $${params.length + 1})`;
+      condition += ` AND LOWER(COALESCE(g.location->>'city', g.city)) = $${params.length + 1}`;
       params.push(city);
     }
 
@@ -99,10 +99,10 @@ garagesRouter.get('/', async (req, res) => {
       };
       const isoCode = countryIsoMap[country.toLowerCase()] || country.toLowerCase();
       condition += ` AND (
-        LOWER(g.location->>'country') = $${params.length + 1}
-        OR LOWER(g.location->>'country') = $${params.length + 2}
+        LOWER(COALESCE(g.location->>'country', '')) = $${params.length + 1}
+        OR LOWER(COALESCE(g.location->>'country', '')) = $${params.length + 2}
       )`;
-      params.push(isoCode, country.toLowerCase());
+      params.push(country.toLowerCase(), isoCode);
     }
 
     const result = await query(`
@@ -129,11 +129,12 @@ garagesRouter.get('/', async (req, res) => {
 garagesRouter.get('/:id/inventory', async (req, res) => {
   try {
     const result = await query(
-      `SELECT gi.id as inventory_id, p.id as product_id, p.name, p.category, p.description, p.is_diy_kit, 
+      `SELECT gi.id as inventory_id, p.id as product_id, p.name, p.category, p.description, p.is_diy_kit, p.image,
               gi.qty_available, COALESCE(gi.price, p.price) as price, gi.is_active
        FROM garage_inventory gi
        JOIN products p ON gi.product_id = p.id
-       WHERE gi.garage_id = $1 AND gi.is_active = true AND p.is_active = true`,
+       WHERE gi.garage_id = $1 AND gi.is_active = true AND p.is_active = true
+       ORDER BY p.name ASC`,
       [req.params.id]
     );
     return success(res, result.rows);

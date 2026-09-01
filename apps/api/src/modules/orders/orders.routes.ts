@@ -70,11 +70,20 @@ ordersRouter.post('/', authenticate, async (req, res) => {
     const total = subtotal + tax + shippingCost;
     const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
+    // Fetch garage location to set correct currency
+    const garageRes = await client.query(`SELECT location->>'country' as country, city FROM garages WHERE id = $1`, [garageId]);
+    let currency = 'INR';
+    if (garageRes.rows.length > 0) {
+      const c = (garageRes.rows[0].country || '').toLowerCase();
+      if (c.includes('united states') || c === 'us') currency = 'USD';
+      else if (c.includes('united arab emirates') || c === 'ae') currency = 'AED';
+    }
+
     // 2. Create the Order
     const orderResult = await client.query(
-      `INSERT INTO orders (customer_id, garage_id, order_number, status, subtotal, shipping_cost, tax, total, fulfillment_mode, shipping_address)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id`,
-      [customerId, garageId, orderNumber, 'pendingPayment', subtotal, shippingCost, tax, total, 'inHouse', shippingAddress]
+      `INSERT INTO orders (customer_id, garage_id, order_number, status, subtotal, shipping_cost, tax, total, currency, fulfillment_mode, shipping_address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+      [customerId, garageId, orderNumber, 'pendingPayment', subtotal, shippingCost, tax, total, currency, 'inHouse', shippingAddress]
     );
     const orderId = orderResult.rows[0].id;
     

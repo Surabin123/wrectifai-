@@ -11,17 +11,27 @@ import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { apiClient } from '@/lib/api-client';
 
+import { getSavedCity, formatCurrencyForCity } from '@/utils/location';
+
 export function CartPage() {
   const router = useRouter();
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [userCity, setUserCity] = useState<string>('Bengaluru');
 
   useEffect(() => {
+    setUserCity(getSavedCity() || 'Bengaluru');
     const items = localStorage.getItem('shopCart');
     if (items) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setCartItems(JSON.parse(items));
     }
+
+    const handleCityChange = () => {
+      const newCity = getSavedCity() || 'Bengaluru';
+      setUserCity(newCity);
+    };
+    window.addEventListener('city-changed', handleCityChange);
+    return () => window.removeEventListener('city-changed', handleCityChange);
   }, []);
 
   const updateCart = (newItems: any[]) => {
@@ -30,7 +40,7 @@ export function CartPage() {
     window.dispatchEvent(new Event('cart-updated'));
   };
 
-  const updateQuantity = (id: number, delta: number) => {
+  const updateQuantity = (id: number | string, delta: number) => {
     const newItems = cartItems.map(item => {
       if (item.id === id) {
         return { ...item, quantity: Math.max(1, (item.quantity || 1) + delta) };
@@ -40,13 +50,13 @@ export function CartPage() {
     updateCart(newItems);
   };
 
-  const removeItem = (id: number) => {
+  const removeItem = (id: number | string) => {
     const newItems = cartItems.filter(item => item.id !== id);
     updateCart(newItems);
   };
 
   const subtotal = cartItems.reduce((acc, item) => {
-    const price = parseFloat(item.price.replace('$', ''));
+    const price = item.numericPrice || parseFloat(String(item.price || 0).replace(/[^0-9.]/g, '')) || 0;
     return acc + price * (item.quantity || 1);
   }, 0);
   const tax = subtotal * 0.1;
@@ -178,7 +188,7 @@ export function CartPage() {
                   <div className="flex-1">
                     <h4 className="font-bold text-slate-900">{item.name}</h4>
                     <p className="text-sm text-slate-500 mb-2">{item.category}</p>
-                    <div className="text-lg font-bold text-blue-600">{item.price}</div>
+                    <div className="text-lg font-bold text-blue-600">{item.formattedPrice || formatCurrencyForCity(item.numericPrice || 0, userCity)}</div>
                   </div>
                   <div className="flex items-center gap-4 mt-4 sm:mt-0">
                     <div className="flex items-center gap-3 border border-slate-200 rounded-full px-3 py-1">
@@ -201,19 +211,19 @@ export function CartPage() {
               <div className="space-y-4 text-sm">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Subtotal</span>
-                  <span className="font-medium">${subtotal.toFixed(2)}</span>
+                  <span className="font-medium">{formatCurrencyForCity(subtotal, userCity)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Tax (10%)</span>
-                  <span className="font-medium">${tax.toFixed(2)}</span>
+                  <span className="text-slate-500">Tax (18%)</span>
+                  <span className="font-medium">{formatCurrencyForCity(tax, userCity)}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Shipping</span>
-                  <span className="font-medium">${shipping.toFixed(2)}</span>
+                  <span className="font-medium">{formatCurrencyForCity(shipping, userCity)}</span>
                 </div>
                 <div className="border-t border-slate-100 pt-4 flex justify-between items-center">
                   <span className="font-bold text-slate-900">Total</span>
-                  <span className="font-bold text-xl text-blue-600">${total.toFixed(2)}</span>
+                  <span className="font-bold text-xl text-blue-600">{formatCurrencyForCity(total, userCity)}</span>
                 </div>
               </div>
               <Button onClick={handleCheckout} disabled={cartItems.length === 0 || isProcessing} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 flex items-center justify-center gap-2">
