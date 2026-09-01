@@ -3,6 +3,7 @@ import { Card } from '@/components/common/card';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/common/button';
 import { Edit2, Save, CameraIcon, Check, AlertCircle, MapPin, Clock, FileText, BadgeCheck, Phone, Mail, Store } from 'lucide-react';
+import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
 
@@ -130,15 +131,20 @@ export function GarageProfileContent() {
               
               <div className="flex items-center gap-2 mt-3">
                  <span className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 ${
-                   profile.approvalStatus === 'approved' ? 'bg-green-100 text-green-700' : 
-                   profile.approvalStatus === 'pending' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'
+                   (profile.approvalStatus === 'approved' || profile.approvalStatus === 'active') ? 'bg-green-100 text-green-700' : 
+                   profile.approvalStatus === 'pending' ? 'bg-amber-100 text-amber-700' : 
+                   profile.approvalStatus === 'suspended' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'
                  }`}>
                     <span className={`w-1.5 h-1.5 rounded-full ${
-                      profile.approvalStatus === 'approved' ? 'bg-green-600' : 
-                      profile.approvalStatus === 'pending' ? 'bg-amber-600' : 'bg-slate-600'
+                      (profile.approvalStatus === 'approved' || profile.approvalStatus === 'active') ? 'bg-green-600' : 
+                      profile.approvalStatus === 'pending' ? 'bg-amber-600' : 
+                      profile.approvalStatus === 'suspended' ? 'bg-red-600' : 'bg-slate-600'
                     }`}></span> 
-                    {profile.approvalStatus === 'approved' ? 'Active & Verified' : 
-                     profile.approvalStatus === 'pending' ? 'Verification Pending' : 'Inactive'}
+                    {(profile.approvalStatus === 'approved' || profile.approvalStatus === 'active') ? 'Active & Verified' : 
+                     profile.approvalStatus === 'pending' ? 'Verification Pending' : 
+                     profile.approvalStatus === 'suspended' ? 'Suspended' : 
+                     profile.approvalStatus === 'deleted' ? 'Deleted' : 
+                     profile.approvalStatus === 'rejected' ? 'Rejected' : 'Inactive'}
                  </span>
                  
                  {profile.ratingCount > 0 && (
@@ -218,6 +224,37 @@ export function GarageProfileContent() {
               </div>
             )}
           </Card>
+
+          {!isEditing && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              <Link href="/garage/services" className="block">
+                <Card className="p-6 shadow-sm border-slate-100 rounded-[24px] hover:border-blue-200 hover:shadow-md transition-all cursor-pointer">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                      <Store className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <BadgeCheck className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <h4 className="font-bold text-slate-900 mb-1">Services Offered</h4>
+                  <p className="text-2xl font-black text-[#17307a]">{profile.servicesCount || 0}</p>
+                  <p className="text-xs text-slate-500 mt-1">Manage your service catalogue</p>
+                </Card>
+              </Link>
+              <Link href="/garage/inventory" className="block">
+                <Card className="p-6 shadow-sm border-slate-100 rounded-[24px] hover:border-blue-200 hover:shadow-md transition-all cursor-pointer">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
+                      <Store className="w-5 h-5 text-blue-600" />
+                    </div>
+                    <BadgeCheck className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <h4 className="font-bold text-slate-900 mb-1">Inventory</h4>
+                  <p className="text-2xl font-black text-[#17307a]">{profile.inventoryCount || 0}</p>
+                  <p className="text-xs text-slate-500 mt-1">Manage products and stock</p>
+                </Card>
+              </Link>
+            </div>
+          )}
         </div>
         
         {/* Right Column (1/3) */}

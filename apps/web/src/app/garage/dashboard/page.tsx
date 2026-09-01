@@ -34,9 +34,9 @@ export default function GarageDashboard() {
           getGarageReviews(user.garageId, user.id, 1, 1, 'recent').catch(() => ({ stats: { averageRating: 0 } }))
         ]);
         setStats(statsData as any);
-        setActiveJobs(jobsData.slice(0, 4)); // Get up to 4 for the floor
-        setRecentRequests(requestsData.slice(0, 5));
-        setRecentQuotes(quotesData.slice(0, 5));
+        setActiveJobs(jobsData);
+        setRecentRequests(requestsData);
+        setRecentQuotes(quotesData);
         
         if (reviewsData?.stats) {
           const avg = Number(reviewsData.stats.averageRating || 0);

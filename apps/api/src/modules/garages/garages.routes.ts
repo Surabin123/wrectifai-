@@ -158,7 +158,9 @@ garagesRouter.get('/my-profile', authenticate, async (req, res) => {
               g.pickup_drop_supported as "pickupDropSupported", g.approval_status as "approvalStatus", 
               g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", 
               g.image, g.description, g.business_hours as "businessHours",
-              u.name as "ownerName", u.email as "ownerEmail", u.mobile_number as "ownerPhone"
+              u.name as "ownerName", u.email as "ownerEmail", u.mobile_number as "ownerPhone",
+              (SELECT COUNT(*) FROM services WHERE garage_id = g.id) as "servicesCount",
+              (SELECT COUNT(*) FROM garage_inventory WHERE garage_id = g.id) as "inventoryCount"
        FROM garages g
        JOIN users u ON g.owner_user_id = u.id
        WHERE g.id = $1 AND g.owner_user_id = $2`,
@@ -176,6 +178,8 @@ garagesRouter.get('/my-profile', authenticate, async (req, res) => {
 
     return success(res, {
       ...result.rows[0],
+      servicesCount: Number(result.rows[0].servicesCount),
+      inventoryCount: Number(result.rows[0].inventoryCount),
       documents: documentsResult.rows
     });
   } catch (err) {
@@ -198,6 +202,24 @@ garagesRouter.put('/my-profile', authenticate, async (req, res) => {
       pickupDropSupported, image, description, businessHours 
     } = req.body;
 
+    let processedImage = image;
+    
+    if (image && image.startsWith('data:image')) {
+      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+        try {
+          const { v2: cloudinary } = require('cloudinary');
+          const uploadResult = await cloudinary.uploader.upload(image, {
+            folder: `wrectifai/garages`,
+            public_id: `garage_${Date.now()}_${Math.random().toString(36).substring(7)}`
+          });
+          processedImage = uploadResult.secure_url;
+        } catch (err) {
+          console.error('Cloudinary Upload Error:', err);
+          // If cloudinary fails, keep the base64 or fallback (could be too large for DB)
+        }
+      }
+    }
+
     const result = await query(
       `UPDATE garages 
        SET name = COALESCE($1, name), 
@@ -215,7 +237,7 @@ garagesRouter.put('/my-profile', authenticate, async (req, res) => {
                  image, description, business_hours as "businessHours"`,
       [
         garageName, address, location ? JSON.stringify(location) : null, 
-        specializations, pickupDropSupported, image, description, 
+        specializations, pickupDropSupported, processedImage, description, 
         businessHours ? JSON.stringify(businessHours) : null, 
         garageId, garageUserId
       ]
