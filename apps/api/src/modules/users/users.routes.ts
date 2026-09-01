@@ -93,3 +93,20 @@ usersRouter.get('/customer/stats', authenticate, async (req, res) => {
     return error(res, 'Internal error', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
+
+usersRouter.get('/delivery-agents', authenticate, async (req, res) => {
+  try {
+    const agentsRes = await query(`
+      SELECT u.id, u.name, u.email, u.mobile_number, u.image 
+      FROM users u
+      JOIN user_roles ur ON u.id = ur.user_id
+      JOIN roles r ON ur.role_id = r.id
+      WHERE r.code = 'delivery_agent' AND u.status = 'active'
+    `);
+    
+    return success(res, agentsRes.rows);
+  } catch (err) {
+    console.error('Failed to fetch delivery agents', err);
+    return error(res, 'Internal error', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});

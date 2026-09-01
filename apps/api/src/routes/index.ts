@@ -17,6 +17,7 @@ import { offersRouter } from '../modules/offers/offers.routes';
 import { invoicesRouter } from '../modules/invoices/invoices.routes';
 import { ordersRouter } from '../modules/orders/orders.routes';
 import { servicesRouter } from '../modules/services/services.routes';
+import { deliveriesRouter } from '../modules/deliveries/deliveries.routes';
 import { getHealthStatus } from '../services/health.service';
 import { success, error } from '../utils/response';
 import { query } from '../config/database';
@@ -47,6 +48,7 @@ apiRouter.use('/offers', offersRouter);
 apiRouter.use('/notifications', notificationsRouter);
 apiRouter.use('/invoices', invoicesRouter);
 apiRouter.use('/orders', ordersRouter);
+apiRouter.use('/deliveries', deliveriesRouter);
 
 apiRouter.get('/debug-garages', async (req, res) => {
   const result = await query('SELECT id, name, approval_status, is_approved FROM garages');
