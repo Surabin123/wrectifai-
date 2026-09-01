@@ -12,17 +12,7 @@ import { cn } from '@/lib/utils';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { formatCurrency } from '@/lib/currency';
-
-export const initialMockProducts: any[] = [
-  { id: 1, name: 'Mobil 1 5W-30 Fully Synthetic Engine Oil', category: 'Oils & Fluids', price: '$12.99', oldPrice: 1599, discount: '19% OFF', rating: '4.6', reviews: 128, img: '/assets/engine_oil_bottle.png', status: 'approved' },
-  { id: 2, name: 'Bosch Car Air Filter', category: 'Engine Parts', price: '$5.99', oldPrice: 799, discount: '25% OFF', rating: '4.5', reviews: 96, img: '/assets/Parts and components.png', status: 'approved' },
-  { id: 3, name: 'Amaron Pro Rider Battery 42B20L', category: 'Batteries', price: '$42.99', oldPrice: 4999, discount: '14% OFF', rating: '4.7', reviews: 78, img: '/assets/car_battery.png', status: 'approved' },
-  { id: 4, name: 'Brembo Front Brake Pads', category: 'Brakes', price: '$18.99', oldPrice: 2299, discount: '17% OFF', rating: '4.6', reviews: 64, img: '/assets/brake_disc_1778070670609.png', status: 'approved' },
-  { id: 5, name: 'Philips H7 LED Headlight Bulb', category: 'Electrical', price: '$14.99', oldPrice: 1899, discount: '21% OFF', rating: '4.4', reviews: 54, img: '/assets/Electrical.png', status: 'approved' },
-  { id: 6, name: 'Bosch Aerotwin Wiper Blade Set', category: 'Accessories', price: '$8.99', oldPrice: 1199, discount: '25% OFF', rating: '4.5', reviews: 112, img: '/assets/wiper_blade_1778070781712.png', status: 'approved' },
-  { id: 7, name: 'Bosch Oil Filter', category: 'Engine Parts', price: '$2.99', oldPrice: 399, discount: '25% OFF', rating: '4.6', reviews: 88, img: '/assets/Accessories (2).png', status: 'approved' },
-  { id: 8, name: 'Liqui Moly Coolant Ready Mix 1L', category: 'Oils & Fluids', price: '$4.99', oldPrice: 649, discount: '23% OFF', rating: '4.3', reviews: 46, img: '/assets/oil_pour_1778070767058.png', status: 'approved' },
-];
+import { apiClient } from '@/lib/api-client';
 
 export function ShopPage() {
   const router = useRouter();
@@ -30,15 +20,58 @@ export function ShopPage() {
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
-  const [products, setProducts] = useState(initialMockProducts);
+  const [products, setProducts] = useState<any[]>([]);
+  const [garages, setGarages] = useState<any[]>([]);
+  const [selectedGarageId, setSelectedGarageId] = useState<string>('');
   const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
 
   const showToast = (message: string) => {
     setToastMessage(message);
     setTimeout(() => setToastMessage(null), 3000);
   };
+
+  // Fetch Garages on mount
+  useEffect(() => {
+    apiClient.get<any[]>('/garages')
+      .then(data => {
+        setGarages(data);
+        if (data && data.length > 0) {
+          const defaultGarage = localStorage.getItem('selectedGarageId') || data[0].id;
+          setSelectedGarageId(defaultGarage);
+        }
+      })
+      .catch(console.error);
+  }, []);
+
+  // Fetch Inventory when garage changes
+  useEffect(() => {
+    if (selectedGarageId) {
+      setIsLoading(true);
+      apiClient.get<any[]>(`/garages/${selectedGarageId}/inventory`)
+        .then(data => {
+          // map to UI format
+          const mapped = data.map(item => ({
+            id: item.product_id,
+            inventory_id: item.inventory_id,
+            name: item.name,
+            category: item.category,
+            price: `$${Number(item.price).toFixed(2)}`,
+            numericPrice: Number(item.price),
+            qty_available: item.qty_available,
+            img: '/assets/engine_oil_bottle.png', // fallback
+            status: item.is_active ? 'approved' : 'rejected'
+          }));
+          setProducts(mapped);
+          setIsLoading(false);
+        })
+        .catch(() => setIsLoading(false));
+      
+      localStorage.setItem('selectedGarageId', selectedGarageId);
+    }
+  }, [selectedGarageId]);
 
   useEffect(() => {
     const savedCart = localStorage.getItem('shopCart');
@@ -61,27 +94,10 @@ export function ShopPage() {
       setSearchQuery(e.detail);
     };
 
-    const loadProducts = () => {
-      const stored = localStorage.getItem('wrectifai_products');
-      if (stored) {
-        setProducts(JSON.parse(stored));
-      } else {
-        localStorage.setItem('wrectifai_products', JSON.stringify(initialMockProducts));
-        setProducts(initialMockProducts);
-      }
-    };
-
-    loadProducts();
-
     window.addEventListener('dashboard-search', handleSearch as EventListener);
-    window.addEventListener('products-updated', loadProducts);
-    window.addEventListener('storage', (e) => {
-      if (e.key === 'wrectifai_products') loadProducts();
-    });
 
     return () => {
       window.removeEventListener('dashboard-search', handleSearch as EventListener);
-      window.removeEventListener('products-updated', loadProducts);
     };
   }, []);
 
@@ -99,7 +115,7 @@ export function ShopPage() {
     if (exists) {
       newItems = cartItems.map(i => i.id === product.id ? { ...i, quantity: (i.quantity || 1) + 1 } : i);
     } else {
-      newItems = [...cartItems, { ...product, quantity: 1 }];
+      newItems = [...cartItems, { ...product, garageId: selectedGarageId, quantity: 1 }];
     }
     setCartItems(newItems);
     localStorage.setItem('shopCart', JSON.stringify(newItems));
@@ -118,9 +134,27 @@ export function ShopPage() {
       <div className="flex flex-col lg:flex-row gap-6 p-4">
         {/* Main Content */}
         <div className="flex-1 space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 mb-1">Auto Parts Shop</h1>
-            <p className="text-slate-500 text-sm">Find the best parts and accessories for your vehicle</p>
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 mb-1">Auto Parts Shop</h1>
+              <p className="text-slate-500 text-sm">Find the best parts and accessories for your vehicle</p>
+            </div>
+            
+            {/* Garage Selector */}
+            {garages.length > 0 && (
+              <div className="flex flex-col gap-1 w-full md:max-w-[280px]">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Browsing Inventory From:</label>
+                <select 
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={selectedGarageId}
+                  onChange={(e) => setSelectedGarageId(e.target.value)}
+                >
+                  {garages.map(g => (
+                    <option key={g.id} value={g.id}>{g.name || g.facade}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Filters */}

@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { useRouter } from 'next/navigation';
-import { Trash2, ShoppingBag, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { Trash2, ShoppingBag, ArrowLeft, CheckCircle2, Loader2 } from 'lucide-react';
 import Image from 'next/image';
 import { Modal } from '@/components/common/modal';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
+import { apiClient } from '@/lib/api-client';
 
 export function CartPage() {
   const router = useRouter();
@@ -52,11 +53,96 @@ export function CartPage() {
   const shipping = subtotal > 0 ? 15 : 0;
   const total = subtotal + tax + shipping;
 
-  const handleCheckout = () => {
-    setIsCheckoutModalOpen(true);
-    setTimeout(() => {
-      updateCart([]);
-    }, 500);
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [completedOrder, setCompletedOrder] = useState<any>(null);
+
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
+
+  const handleCheckout = async () => {
+    if (cartItems.length === 0) return;
+    
+    setIsProcessing(true);
+    
+    try {
+      const garageId = cartItems[0].garageId;
+      if (!garageId) throw new Error("Items are missing garage information");
+      
+      const payload = {
+        garageId,
+        shippingAddress: { city: 'Bengaluru', zip: '560001', country: 'India' },
+        items: cartItems.map(i => ({
+          productId: i.id,
+          quantity: i.quantity || 1
+        }))
+      };
+
+      // 1. Create Order
+      const orderRes = await apiClient.post<any>('/orders', payload);
+      
+      // 2. Init Payment
+      const payRes = await apiClient.post<any>(`/orders/${orderRes.orderId}/pay`, {});
+      
+      const loaded = await loadRazorpayScript();
+      if (!loaded) throw new Error("Razorpay script failed to load");
+      
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_mock123',
+        amount: payRes.amount,
+        currency: payRes.currency,
+        name: 'WrectifAI Shop',
+        description: 'Order Payment',
+        order_id: payRes.providerOrderId,
+        handler: async function (response: any) {
+          try {
+            await apiClient.post('/orders/verify-payment', {
+              orderId: orderRes.orderId,
+              providerOrderId: response.razorpay_order_id,
+              providerPaymentId: response.razorpay_payment_id,
+              providerSignature: response.razorpay_signature
+            });
+            setCompletedOrder(orderRes);
+            setIsCheckoutModalOpen(true);
+            updateCart([]);
+          } catch (err) {
+            console.error('Verification failed', err);
+            alert('Payment verification failed. Please contact support.');
+          }
+        },
+        prefill: {
+          name: 'Customer',
+          email: 'customer@example.com',
+          contact: '9999999999'
+        },
+        theme: {
+          color: '#1a56db'
+        }
+      };
+
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        console.error('Payment failed', response.error);
+        alert('Payment failed. Please try again.');
+      });
+      
+      rzp.open();
+    } catch (err: any) {
+      console.error('Checkout failed', err);
+      alert(err.message || 'Checkout failed. Please try again.');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
@@ -130,8 +216,8 @@ export function CartPage() {
                   <span className="font-bold text-xl text-blue-600">${total.toFixed(2)}</span>
                 </div>
               </div>
-              <Button onClick={handleCheckout} disabled={cartItems.length === 0} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3">
-                Proceed to Checkout
+              <Button onClick={handleCheckout} disabled={cartItems.length === 0 || isProcessing} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 flex items-center justify-center gap-2">
+                {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Proceed to Checkout'}
               </Button>
             </Card>
           </div>
@@ -145,8 +231,8 @@ export function CartPage() {
           </div>
           <h3 className="text-xl font-bold text-slate-900 mb-2">Checkout Successful!</h3>
           <p className="text-slate-500 mb-6">Your order has been placed successfully. You will receive an email confirmation shortly.</p>
-          <Button onClick={() => { setIsCheckoutModalOpen(false); router.push('/shop'); }} className="w-full">
-            Continue Shopping
+          <Button onClick={() => { setIsCheckoutModalOpen(false); if (completedOrder) { router.push(`/invoices/${completedOrder.orderId}?type=order`); } else { router.push('/shop'); } }} className="w-full">
+            View Invoice
           </Button>
         </div>
       </Modal>

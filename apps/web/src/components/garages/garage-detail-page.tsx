@@ -74,16 +74,16 @@ const timeSlots = [
   '08:00 PM',
 ];
 
-const servicesOffered = [
-  { name: 'General Service', icon: Wrench },
-  { name: 'Engine Repair', icon: Sparkles },
-  { name: 'AC Service', icon: Snowflake },
-  { name: 'Brakes & Suspension', icon: Gauge },
-  { name: 'Battery Service', icon: BatteryCharging },
-  { name: 'Tyres & Wheel Care', icon: Disc3 },
-  { name: 'Diagnostics', icon: ClipboardList },
-  { name: 'More Services', icon: SlidersHorizontal },
-];
+const iconMap: Record<string, any> = {
+  Wrench,
+  Sparkles,
+  Snowflake,
+  Gauge,
+  BatteryCharging,
+  Disc3,
+  ClipboardList,
+  SlidersHorizontal
+};
 
 export function GarageDetailPage({
   garage: initialGarage,
@@ -692,7 +692,9 @@ export function GarageDetailPage({
                     Services Offered
                   </h2>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-8">
-                    {servicesOffered.map((svc, index) => (
+                    {services.slice(0, 8).map((svc, index) => {
+                      const Icon = iconMap[svc.icon] || Wrench;
+                      return (
                       <div
                         key={index}
                         onClick={() => {
@@ -706,13 +708,13 @@ export function GarageDetailPage({
                         )}
                       >
                         <div className="mb-1.5 flex h-8 w-8 items-center justify-center rounded-full bg-[#f0f4ff] text-[#1a56db]">
-                          <svc.icon className="h-4 w-4" />
+                          <Icon className="h-4 w-4" />
                         </div>
-                        <span className="text-[11px] font-bold text-[#17307a] leading-tight">
+                        <div className="text-[10px] font-bold leading-tight text-[#42548a]">
                           {svc.name}
-                        </span>
+                        </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </section>
 

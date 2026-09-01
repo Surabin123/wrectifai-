@@ -125,6 +125,23 @@ garagesRouter.get('/', async (req, res) => {
   }
 });
 
+// GET /api/v1/garages/:id/inventory
+garagesRouter.get('/:id/inventory', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT gi.id as inventory_id, p.id as product_id, p.name, p.category, p.description, p.is_diy_kit, 
+              gi.qty_available, COALESCE(gi.price, p.price) as price, gi.is_active
+       FROM garage_inventory gi
+       JOIN products p ON gi.product_id = p.id
+       WHERE gi.garage_id = $1 AND gi.is_active = true AND p.is_active = true`,
+      [req.params.id]
+    );
+    return success(res, result.rows);
+  } catch (err) {
+    return error(res, 'Failed to fetch garage inventory', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
 garagesRouter.get('/my-customers', authenticate, async (req, res) => {
   try {
     const garageUserId = req.user?.userId;
@@ -244,7 +261,10 @@ garagesRouter.get('/:id', async (req, res) => {
         [req.params.id]
       ),
       query(
-        `SELECT * FROM services WHERE garage_id = $1`,
+        `SELECT s.id, ps.name, ps.category, ps.description, ps.icon, s.price, s.is_active 
+         FROM services s 
+         JOIN platform_services ps ON s.platform_service_id = ps.id 
+         WHERE s.garage_id = $1`,
         [req.params.id]
       )
     ]);
