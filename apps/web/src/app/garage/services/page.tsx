@@ -58,6 +58,7 @@ export default function ServicesPage() {
   const [imagePreview, setImagePreview] = useState('');
   
   const [validationError, setValidationError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const fetchServices = async () => {
     try {
@@ -142,7 +143,8 @@ export default function ServicesPage() {
         durationUnit: requestData.durationUnit || 'Minutes'
       });
       setShowAddModal(false);
-      alert('Service request submitted successfully! An admin will review it shortly.');
+      setSuccessMessage('Service request submitted! An admin will review it shortly.');
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
       console.error('Failed to request service:', err);
       setValidationError('Failed to submit service request.');
@@ -254,6 +256,16 @@ export default function ServicesPage() {
                  <button onClick={handleAddServiceClick} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><Plus className="w-4 h-4"/> Add Service</button>
                </div>
              </div>
+             {successMessage && (
+               <div className="mx-5 mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-medium">
+                 ✓ {successMessage}
+               </div>
+             )}
+             {validationError && !showAddModal && !showEditModal && (
+               <div className="mx-5 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 font-medium">
+                 {validationError}
+               </div>
+             )}
              
              <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white">
                <div className="relative w-80">
@@ -564,7 +576,8 @@ export default function ServicesPage() {
                     setDeleteModal({ isOpen: false, id: '', name: '' });
                     fetchServices();
                   } catch(e) {
-                    alert('Failed to remove service.');
+                    setDeleteModal({ isOpen: false, id: '', name: '' });
+                    setValidationError('Failed to remove service. Please try again.');
                   }
                 }} 
                 className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg"

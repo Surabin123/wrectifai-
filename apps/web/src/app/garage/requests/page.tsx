@@ -27,6 +27,7 @@ export default function GarageRequestsPage() {
   const [formData, setFormData] = useState<any>({});
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [successModal, setSuccessModal] = useState<{ isOpen: boolean; message: string }>({ isOpen: false, message: '' });
 
   const loadData = async () => {
     try {
@@ -85,8 +86,10 @@ export default function GarageRequestsPage() {
     setSubmitting(true);
     try {
       await apiClient.post(`/garages/my-requests/${addToCatalogModal.request.type}/${addToCatalogModal.request.id}/add-to-catalog`, formData);
+      // Close config modal first, then show success modal
       setAddToCatalogModal({ isOpen: false, request: null });
-      alert(`Successfully added to your ${addToCatalogModal.request.type === 'service' ? 'services' : 'inventory'}!`);
+      const itemType = addToCatalogModal.request.type === 'service' ? 'services' : 'inventory';
+      setSuccessModal({ isOpen: true, message: `Successfully added to your ${itemType}!` });
       loadData();
     } catch (err: any) {
       setError(err?.response?.data?.error?.message || err?.message || 'Failed to add item to catalog.');
@@ -161,13 +164,29 @@ export default function GarageRequestsPage() {
                               </button>
                             )}
                             {r.status === 'approved' && (
-                              <button 
-                                onClick={() => handleAddClick(r)}
-                                className="px-3 py-1 text-xs font-medium text-green-700 border border-green-600 hover:bg-green-50 rounded transition-colors flex items-center gap-1"
-                              >
-                                <ClipboardList className="w-3 h-3" /> 
-                                {r.type === 'service' ? 'Add to My Services' : 'Add to My Inventory'}
-                              </button>
+                              (() => {
+                                const alreadyAdded = r.type === 'service'
+                                  ? !!r.added_service_id
+                                  : !!r.added_inventory_id;
+                                const label = r.type === 'service' ? 'Services' : 'Inventory';
+                                if (alreadyAdded) {
+                                  return (
+                                    <span className="px-3 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-300 rounded flex items-center gap-1">
+                                      <ClipboardList className="w-3 h-3" />
+                                      Added to My {label}
+                                    </span>
+                                  );
+                                }
+                                return (
+                                  <button 
+                                    onClick={() => handleAddClick(r)}
+                                    className="px-3 py-1 text-xs font-medium text-green-700 border border-green-600 hover:bg-green-50 rounded transition-colors flex items-center gap-1"
+                                  >
+                                    <ClipboardList className="w-3 h-3" /> 
+                                    Add to My {label}
+                                  </button>
+                                );
+                              })()
                             )}
                           </td>
                         </tr>
@@ -350,6 +369,27 @@ export default function GarageRequestsPage() {
             </div>
           )}
         </Modal>
+
+        {/* Success Modal */}
+        {successModal.isOpen && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-8 flex flex-col items-center text-center">
+              <div className="w-16 h-16 rounded-full bg-green-100 flex items-center justify-center mb-4">
+                <svg className="w-9 h-9 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h2 className="text-xl font-bold text-slate-900 mb-2">Success!</h2>
+              <p className="text-sm text-slate-600 mb-6">{successModal.message}</p>
+              <button
+                onClick={() => setSuccessModal({ isOpen: false, message: '' })}
+                className="px-8 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg font-semibold text-sm transition-colors"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        )}
       </DashboardShell>
     </RoleGuard>
   );

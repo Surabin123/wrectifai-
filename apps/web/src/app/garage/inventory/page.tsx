@@ -53,6 +53,7 @@ export default function InventoryPage() {
   const [imagePreview, setImagePreview] = useState('');
   
   const [validationError, setValidationError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const fetchInventory = async () => {
     try {
@@ -135,7 +136,8 @@ export default function InventoryPage() {
         suggestedPrice: requestData.suggestedPrice ? parseFloat(requestData.suggestedPrice) : undefined
       });
       setShowAddModal(false);
-      alert('Product request submitted successfully! An admin will review it shortly.');
+      setSuccessMessage('Product request submitted! An admin will review it shortly.');
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
       console.error('Failed to request product:', err);
       setValidationError('Failed to submit product request.');
@@ -243,6 +245,16 @@ export default function InventoryPage() {
                  <button onClick={handleAddClick} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2"><Plus className="w-4 h-4"/> Add Product</button>
                </div>
              </div>
+             {successMessage && (
+               <div className="mx-5 mt-4 p-3 bg-green-50 border border-green-200 rounded-lg text-sm text-green-700 font-medium">
+                 ✓ {successMessage}
+               </div>
+             )}
+             {validationError && !showAddModal && !showEditModal && (
+               <div className="mx-5 mt-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600 font-medium">
+                 {validationError}
+               </div>
+             )}
              <div className="p-4 border-b border-slate-100 bg-slate-50 flex gap-4">
                 <div className="flex-1 bg-white border border-blue-100 rounded-lg p-4 flex justify-between items-center shadow-sm">
                   <div>
@@ -551,7 +563,8 @@ export default function InventoryPage() {
                     setDeleteModal({ isOpen: false, id: '', name: '' });
                     fetchInventory();
                   } catch(e) {
-                    alert('Failed to remove product.');
+                    setDeleteModal({ isOpen: false, id: '', name: '' });
+                    setValidationError('Failed to remove product. Please try again.');
                   }
                 }} 
                 className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg"

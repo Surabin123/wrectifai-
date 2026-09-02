@@ -586,7 +586,7 @@ garagesRouter.get('/my-services', authenticate, async (req, res) => {
 
     const result = await query(
       `SELECT s.id, ps.name, ps.category, ps.description, ps.icon, s.price, s.is_active, s.duration_mins,
-              ps.base_price as "basePrice"
+              s.duration_unit, ps.base_price as "basePrice"
        FROM services s 
        JOIN platform_services ps ON s.platform_service_id = ps.id 
        WHERE s.garage_id = $1
@@ -806,6 +806,7 @@ garagesRouter.get('/my-requests', authenticate, async (req, res) => {
       query(`SELECT *, 'service' as type FROM service_requests WHERE garage_id = $1 ORDER BY created_at DESC`, [garageId]),
       query(`SELECT *, 'product' as type FROM product_requests WHERE garage_id = $1 ORDER BY created_at DESC`, [garageId])
     ]);
+    // added_service_id / added_inventory_id are now included in SELECT * from migration 057
 
     const allRequests = [...servicesRes.rows, ...productsRes.rows].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
@@ -1100,11 +1101,49 @@ garagesRouter.post('/my-requests/:type/:id/add-to-catalog', authenticate, async 
         }
 
         const { price, durationMins, durationUnit, isActive } = req.body;
-        result = await client.query(
-          `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, duration_unit, is_active)
-           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-          [garageId, request.platform_service_id, request.name, request.category || 'General Service', request.description || '', price ?? request.suggested_price, durationMins ?? request.suggested_duration, durationUnit ?? request.duration_unit, isActive ?? true]
-        );
+
+        // IDEMPOTENT: if already added (added_service_id set), UPDATE the existing service row
+        if (request.added_service_id) {
+          result = await client.query(
+            `UPDATE services
+             SET price = $1, duration_mins = $2, duration_unit = $3, is_active = $4, updated_at = NOW()
+             WHERE id = $5 AND garage_id = $6
+             RETURNING *`,
+            [price ?? request.suggested_price, durationMins ?? request.suggested_duration, durationUnit ?? request.duration_unit ?? 'Minutes', isActive ?? true, request.added_service_id, garageId]
+          );
+          // If the service row was deleted externally, fall through to re-insert
+          if (result.rows.length === 0) request.added_service_id = null;
+        }
+
+        if (!request.added_service_id) {
+          // Check if a service already exists for this garage+platform_service pair (safety net)
+          const existingCheck = await client.query(
+            `SELECT id FROM services WHERE garage_id = $1 AND platform_service_id = $2 LIMIT 1`,
+            [garageId, request.platform_service_id]
+          );
+          if (existingCheck.rows.length > 0) {
+            // Reuse & update the existing row
+            const existingId = existingCheck.rows[0].id;
+            result = await client.query(
+              `UPDATE services
+               SET price = $1, duration_mins = $2, duration_unit = $3, is_active = $4, updated_at = NOW()
+               WHERE id = $5
+               RETURNING *`,
+              [price ?? request.suggested_price, durationMins ?? request.suggested_duration, durationUnit ?? request.duration_unit ?? 'Minutes', isActive ?? true, existingId]
+            );
+          } else {
+            result = await client.query(
+              `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, duration_unit, is_active)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+              [garageId, request.platform_service_id, request.name, request.category || 'General Service', request.description || '', price ?? request.suggested_price, durationMins ?? request.suggested_duration, durationUnit ?? request.duration_unit ?? 'Minutes', isActive ?? true]
+            );
+          }
+          // Write back the service id so subsequent calls know it was added
+          await client.query(
+            `UPDATE service_requests SET added_service_id = $1 WHERE id = $2`,
+            [result.rows[0].id, request.id]
+          );
+        }
       } else {
         // Auto-backfill product_id if missing (e.g. approved before migration 056)
         if (!request.product_id) {
@@ -1127,15 +1166,51 @@ garagesRouter.post('/my-requests/:type/:id/add-to-catalog', authenticate, async 
         }
 
         const { price, qtyAvailable, isActive } = req.body;
-        result = await client.query(
-          `INSERT INTO garage_inventory (garage_id, product_id, qty_available, price, is_active)
-           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-          [garageId, request.product_id, qtyAvailable ?? 0, price ?? request.suggested_price, isActive ?? true]
-        );
+
+        // IDEMPOTENT: if already added (added_inventory_id set), UPDATE the existing inventory row
+        if (request.added_inventory_id) {
+          result = await client.query(
+            `UPDATE garage_inventory
+             SET price = $1, qty_available = $2, is_active = $3, updated_at = NOW()
+             WHERE id = $4 AND garage_id = $5
+             RETURNING *`,
+            [price ?? request.suggested_price, qtyAvailable ?? 0, isActive ?? true, request.added_inventory_id, garageId]
+          );
+          if (result.rows.length === 0) request.added_inventory_id = null;
+        }
+
+        if (!request.added_inventory_id) {
+          // Check if inventory already exists for this garage+product (safety net)
+          const existingCheck = await client.query(
+            `SELECT id FROM garage_inventory WHERE garage_id = $1 AND product_id = $2 LIMIT 1`,
+            [garageId, request.product_id]
+          );
+          if (existingCheck.rows.length > 0) {
+            const existingId = existingCheck.rows[0].id;
+            result = await client.query(
+              `UPDATE garage_inventory
+               SET price = $1, qty_available = $2, is_active = $3, updated_at = NOW()
+               WHERE id = $4
+               RETURNING *`,
+              [price ?? request.suggested_price, qtyAvailable ?? 0, isActive ?? true, existingId]
+            );
+          } else {
+            result = await client.query(
+              `INSERT INTO garage_inventory (garage_id, product_id, qty_available, price, is_active)
+               VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+              [garageId, request.product_id, qtyAvailable ?? 0, price ?? request.suggested_price, isActive ?? true]
+            );
+          }
+          // Write back the inventory id so subsequent calls know it was added
+          await client.query(
+            `UPDATE product_requests SET added_inventory_id = $1 WHERE id = $2`,
+            [result.rows[0].id, request.id]
+          );
+        }
       }
 
       await client.query('COMMIT');
-      return success(res, { success: true, item: result.rows[0] });
+      return success(res, { success: true, item: result!.rows[0] });
     } catch (innerErr) {
       await client.query('ROLLBACK');
       throw innerErr;
