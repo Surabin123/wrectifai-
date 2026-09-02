@@ -868,20 +868,10 @@ adminRouter.post('/requests/:type/:id/approve', async (req, res) => {
         [request.name, request.category || 'General Service', request.description || '', request.icon || 'Wrench', request.suggested_price || 0]
       );
       
-      // Auto-assign to the requesting garage only
+      // Update request with platform_service_id
       await client.query(
-        `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, duration_unit, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)`,
-        [
-          request.garage_id, 
-          psRes.rows[0].id, 
-          request.name, 
-          request.category || 'General Service', 
-          request.description || '', 
-          request.suggested_price || 0, 
-          request.suggested_duration || 60, 
-          request.duration_unit || 'Minutes'
-        ]
+        `UPDATE service_requests SET platform_service_id = $1 WHERE id = $2`,
+        [psRes.rows[0].id, id]
       );
     } else {
       // Find the platform seller id
@@ -898,11 +888,10 @@ adminRouter.post('/requests/:type/:id/approve', async (req, res) => {
         [platformSellerId, request.name, request.description || '', request.category || 'Spares', request.suggested_price || 0, request.image]
       );
       
-      // Auto-assign to the requesting garage only
+      // Update request with product_id
       await client.query(
-        `INSERT INTO garage_inventory (garage_id, product_id, qty_available, price, is_active)
-         VALUES ($1, $2, 0, $3, true)`,
-        [request.garage_id, pRes.rows[0].id, request.suggested_price || 0]
+        `UPDATE product_requests SET product_id = $1 WHERE id = $2`,
+        [pRes.rows[0].id, id]
       );
     }
 

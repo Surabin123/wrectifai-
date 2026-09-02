@@ -269,7 +269,7 @@ export function GarageProfileContent() {
                   <div key={day} className="flex justify-between items-center py-1 border-b border-slate-50 last:border-0">
                     <span className="capitalize text-slate-500">{day}</span>
                     <span className="font-medium text-slate-900">
-                      {hours.isOpen ? `${hours.open} - ${hours.close}` : 'Closed'}
+                      {hours.open ? `${hours.start} - ${hours.end}` : 'Closed'}
                     </span>
                   </div>
                 ))}

@@ -1052,3 +1052,52 @@ garagesRouter.put('/my-requests/:type/:id/resubmit', authenticate, async (req, r
     return error(res, 'Failed to resubmit request', 'DATABASE_ERROR', 500);
   }
 });
+
+// POST /api/v1/garages/my-requests/:type/:id/add-to-catalog
+garagesRouter.post('/my-requests/:type/:id/add-to-catalog', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const { type, id } = req.params;
+    if (type !== 'service' && type !== 'product') return error(res, 'Invalid request type', 'INVALID_TYPE', 400);
+
+    const table = type === 'service' ? 'service_requests' : 'product_requests';
+    
+    // Check if the request is approved and belongs to this garage
+    const reqResult = await query(`SELECT * FROM ${table} WHERE id = $1 AND garage_id = $2 AND status = 'approved'`, [id, garageId]);
+    if (reqResult.rows.length === 0) {
+      return error(res, 'Approved request not found', 'NOT_FOUND', 404);
+    }
+    const request = reqResult.rows[0];
+
+    let result;
+    if (type === 'service') {
+      if (!request.platform_service_id) {
+        return error(res, 'Platform service ID missing from approved request', 'SYSTEM_ERROR', 500);
+      }
+      const { price, durationMins, durationUnit, isActive } = req.body;
+      result = await query(
+        `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, duration_unit, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+        [garageId, request.platform_service_id, request.name, request.category || 'General Service', request.description || '', price ?? request.suggested_price, durationMins ?? request.suggested_duration, durationUnit ?? request.duration_unit, isActive ?? true]
+      );
+    } else {
+      if (!request.product_id) {
+        return error(res, 'Platform product ID missing from approved request', 'SYSTEM_ERROR', 500);
+      }
+      const { price, qtyAvailable, isActive } = req.body;
+      result = await query(
+        `INSERT INTO garage_inventory (garage_id, product_id, qty_available, price, is_active)
+         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+        [garageId, request.product_id, qtyAvailable ?? 0, price ?? request.suggested_price, isActive ?? true]
+      );
+    }
+
+    return success(res, { success: true, item: result.rows[0] });
+  } catch (err) {
+    console.error('Add to catalog error:', err);
+    return error(res, 'Failed to add item to catalog', 'DATABASE_ERROR', 500);
+  }
+});
