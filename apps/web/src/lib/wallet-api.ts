@@ -14,8 +14,8 @@ export interface WalletTransaction {
   createdAt: string;
 }
 
-export async function fetchWalletBalance(): Promise<{ balance: number }> {
-  return apiClient.get<{ balance: number }>('/wallet/balance');
+export async function fetchWalletBalance(): Promise<{ balance: number; main: number; bonus: number; pendingRefunds: number }> {
+  return apiClient.get<{ balance: number; main: number; bonus: number; pendingRefunds: number }>('/wallet/balance');
 }
 
 export async function fetchWalletTransactions(): Promise<WalletTransaction[]> {

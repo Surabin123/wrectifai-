@@ -55,15 +55,18 @@ export function WalletPaymentsPage() {
   
   const [transactions, setTransactions] = useState<any[]>([]);
   const [balance, setBalance] = useState<number>(0);
+  const [balanceBreakdown, setBalanceBreakdown] = useState({ main: 0, bonus: 0, pendingRefunds: 0 });
+  const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const loadWalletData = async () => {
     try {
-      const [{ balance: fetchedBalance }, fetchedTxs] = await Promise.all([
+      const [{ balance: fetchedBalance, main, bonus, pendingRefunds }, fetchedTxs] = await Promise.all([
         fetchWalletBalance(),
         fetchWalletTransactions()
       ]);
       
       setBalance(fetchedBalance);
+      setBalanceBreakdown({ main: main || 0, bonus: bonus || 0, pendingRefunds: pendingRefunds || 0 });
       
       const mappedTxs = fetchedTxs.map(tx => {
         const dateObj = new Date(tx.createdAt);
@@ -122,21 +125,7 @@ export function WalletPaymentsPage() {
   const [newMethodType, setNewMethodType] = useState('Card');
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
-  const [paymentMethods, setPaymentMethods] = useState(() => {
-    if (typeof window !== 'undefined') {
-      const saved = localStorage.getItem('wallet_methods');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        return parsed.map((m: any) => ({
-          ...m,
-          icon: m.type === 'UPI' ? Smartphone : CreditCard
-        }));
-      }
-    }
-    return [
-      { id: 2, type: 'Card', details: 'Chase Bank **** 4242', expiry: '12/28', isDefault: true, icon: CreditCard },
-    ];
-  });
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]); // Saved cards will be supported later when Razorpay tokenization is enabled
 
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -158,11 +147,7 @@ export function WalletPaymentsPage() {
   // Not used anymore as we fetch from DB
 
 
-  useEffect(() => {
-    // Avoid serializing the React component icon
-    const toSave = paymentMethods.map(({ icon, ...rest }: any) => rest);
-    localStorage.setItem('wallet_methods', JSON.stringify(toSave));
-  }, [paymentMethods]);
+
 
   useEffect(() => {
     const handleSearch = (e: CustomEvent) => setSearchQuery(e.detail);
@@ -211,7 +196,7 @@ export function WalletPaymentsPage() {
       
       const loaded = await loadRazorpayScript();
       if (!loaded) {
-        alert('Razorpay SDK failed to load. Are you online?');
+        setPaymentError('Razorpay SDK failed to load. Are you online?');
         return;
       }
 
@@ -235,7 +220,7 @@ export function WalletPaymentsPage() {
             setAddMoneyAmount('');
           } catch (err) {
             console.error('Wallet verification failed', err);
-            alert('Payment verification failed.');
+            setPaymentError('Payment verification failed.');
           }
         },
         prefill: {
@@ -247,7 +232,7 @@ export function WalletPaymentsPage() {
       const rzp = new (window as any).Razorpay(options);
       rzp.on('payment.failed', function (response: any) {
         console.error('Payment failed', response.error);
-        alert('Payment failed: ' + response.error.description);
+        setPaymentError(response.error.description || 'Payment failed');
       });
       rzp.open();
     } catch (err) {
@@ -289,15 +274,15 @@ export function WalletPaymentsPage() {
                 <div className="space-y-3">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-600">Main Balance</span>
-                    <span className="font-bold text-slate-900">{formatCurrency(balance - 50, userPhone)}</span>
+                    <span className="font-bold text-slate-900">{formatCurrency(balanceBreakdown.main, userPhone)}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-600">Bonus Balance</span>
-                    <span className="font-bold text-green-600">{formatCurrency(50, userPhone)}</span>
+                    <span className="font-bold text-green-600">{formatCurrency(balanceBreakdown.bonus, userPhone)}</span>
                   </div>
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-slate-600">Pending Refunds</span>
-                    <span className="font-bold text-orange-500">{formatCurrency(0, userPhone)}</span>
+                    <span className="font-bold text-orange-500">{formatCurrency(balanceBreakdown.pendingRefunds, userPhone)}</span>
                   </div>
                 </div>
               </div>
@@ -562,6 +547,14 @@ export function WalletPaymentsPage() {
           </div>
         )}
       </Modal>
+
+      <Modal isOpen={!!paymentError} onClose={() => setPaymentError(null)} title="Payment Issue">
+        <div className="py-4 space-y-4 text-slate-700">
+          <p>{paymentError}</p>
+          <Button className="w-full bg-blue-600 text-white" onClick={() => setPaymentError(null)}>OK</Button>
+        </div>
+      </Modal>
+
       <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} />
     </DashboardShell>
   );

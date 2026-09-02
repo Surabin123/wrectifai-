@@ -13,13 +13,44 @@ walletRouter.get('/balance', authenticate, async (req, res) => {
       return error(res, 'User ID is required', 'UNAUTHORIZED', 401);
     }
 
-    const result = await query(
-      'SELECT balance FROM wallets WHERE user_id = $1',
+    const walletRes = await query(
+      'SELECT id, balance FROM wallets WHERE user_id = $1',
       [userId]
     );
 
-    const balance = result.rows.length > 0 ? Number(result.rows[0].balance) : 0;
-    return success(res, { balance }, 200);
+    let balance = 0;
+    let main = 0;
+    let bonus = 0;
+    let pendingRefunds = 0;
+
+    if (walletRes.rows.length > 0) {
+      balance = Number(walletRes.rows[0].balance);
+      const walletId = walletRes.rows[0].id;
+
+      // Bonus = Total REWARD credits ever given (simplification if we don't track bonus vs main debit)
+      // Actually, a better way: sum(amount) for REWARD
+      const txRes = await query(
+        `SELECT type, amount FROM wallet_transactions WHERE wallet_id = $1`,
+        [walletId]
+      );
+      
+      let totalRewards = 0;
+      txRes.rows.forEach((r: any) => {
+        if (r.type === 'REWARD') totalRewards += Number(r.amount);
+      });
+      
+      bonus = Math.min(totalRewards, balance); // Bonus can't exceed current balance
+      main = balance - bonus;
+    }
+
+    // Pending Refunds = payments with status 'refund_pending'
+    const pendingRes = await query(
+      `SELECT COALESCE(SUM(amount), 0) as total_pending FROM payments WHERE customer_user_id = $1 AND status = 'refund_pending'`,
+      [userId]
+    );
+    pendingRefunds = Number(pendingRes.rows[0].total_pending);
+
+    return success(res, { balance, main, bonus, pendingRefunds }, 200);
   } catch (err) {
     return error(
       res,
