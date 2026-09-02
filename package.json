@@ -108,5 +108,19 @@
     "tslib": "^2.3.0",
     "ws": "^8.21.3",
     "zod": "^4.4.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@firebase/util",
+      "protobufjs",
+      "esbuild",
+      "@swc/core",
+      "@parcel/watcher",
+      "unrs-resolver",
+      "dtrace-provider",
+      "sharp",
+      "detox",
+      "nx"
+    ]
   }
 }
