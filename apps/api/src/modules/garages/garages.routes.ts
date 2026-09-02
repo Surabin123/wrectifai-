@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
-import { query } from '../../config/database';
+import { query, getDbPool } from '../../config/database';
 
 export const garagesRouter = Router();
 
