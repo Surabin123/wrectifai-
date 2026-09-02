@@ -45,7 +45,7 @@ walletRouter.get('/balance', authenticate, async (req, res) => {
 
     // Pending Refunds = payments with status 'refund_pending'
     const pendingRes = await query(
-      `SELECT COALESCE(SUM(amount), 0) as total_pending FROM payments WHERE customer_user_id = $1 AND status = 'refund_pending'`,
+      `SELECT COALESCE(SUM(amount), 0) as total_pending FROM payments WHERE payer_user_id = $1 AND status = 'refund_pending'`,
       [userId]
     );
     pendingRefunds = Number(pendingRes.rows[0].total_pending);
@@ -138,7 +138,12 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
       return error(res, 'Missing payment verification details', 'BAD_REQUEST', 400);
     }
 
-    const secret = process.env.RAZORPAY_KEY_SECRET;
+    const secret = process.env.RAZORPAY_KEY_SECRET || '';
+    if (!secret) {
+      console.error('RAZORPAY_KEY_SECRET is not defined in backend');
+      return error(res, 'Razorpay secret not configured', 'INTERNAL_SERVER_ERROR', 500);
+    }
+    
     const crypto = require('crypto');
     const generated_signature = crypto
       .createHmac('sha256', secret)
@@ -146,6 +151,12 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
       .digest('hex');
 
     if (generated_signature !== razorpay_signature) {
+      console.error('Signature mismatch', {
+        expected: generated_signature,
+        received: razorpay_signature,
+        orderId: razorpay_order_id,
+        paymentId: razorpay_payment_id
+      });
       return error(res, 'Payment signature verification failed', 'BAD_REQUEST', 400);
     }
 
@@ -179,9 +190,9 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
 
       // Record in payments ledger too for source of truth
       await client.query(
-        `INSERT INTO payments (customer_user_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status, signature_status)
+        `INSERT INTO payments (payer_user_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, status, signature_status)
          VALUES ($1, 'razorpay', $2, $3, $4, $5, 'succeeded', 'valid')
-         ON CONFLICT (transaction_id) DO NOTHING`,
+         ON CONFLICT (provider_intent_id) DO NOTHING`,
         [userId, razorpay_payment_id, razorpay_order_id, razorpay_payment_id, amount]
       );
 
