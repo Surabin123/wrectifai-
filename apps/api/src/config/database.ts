@@ -1,4 +1,4 @@
-import { Pool } from 'pg';
+import { Pool, PoolClient } from 'pg';
 import { getEnv } from './env';
 
 let pool: Pool | null = null;
@@ -52,5 +52,22 @@ export async function query(text: string, params?: any[]) {
   } catch (error) {
     console.error(`[db] query execution error: ${text}`, error);
     throw error;
+  }
+}
+
+export async function withTransaction<T>(
+  callback: (client: PoolClient) => Promise<T>
+): Promise<T> {
+  const client = await getDbPool().connect();
+  try {
+    await client.query('BEGIN');
+    const result = await callback(client);
+    await client.query('COMMIT');
+    return result;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
   }
 }

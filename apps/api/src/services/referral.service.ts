@@ -11,6 +11,23 @@ export class ReferralService {
     try {
       await client.query('BEGIN');
 
+      // 0. Verify booking is BOTH completed and PAID
+      const bookingRes = await client.query(
+        'SELECT status, payment_status FROM bookings WHERE id = $1',
+        [bookingId]
+      );
+
+      if (bookingRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return;
+      }
+
+      const booking = bookingRes.rows[0];
+      if (booking.status !== 'completed' || booking.payment_status !== 'PAID') {
+        await client.query('ROLLBACK');
+        return;
+      }
+
       // 1. Get the referee and check if they were referred by someone
       const refereeRes = await client.query(
         'SELECT referred_by, country, preferred_currency FROM users WHERE id = $1',

@@ -3,6 +3,8 @@ import { query } from '../../config/database';
 import { authenticate } from '../../middleware/auth';
 import { success, error } from '../../utils/response';
 
+import crypto from 'crypto';
+
 export const referralsRouter = Router();
 
 // GET /api/v1/referrals/stats
@@ -15,7 +17,14 @@ referralsRouter.get('/stats', authenticate, async (req, res) => {
   try {
     // Get user's referral code
     const userRes = await query('SELECT referral_code, preferred_currency, country FROM users WHERE id = $1', [userId]);
-    const user = userRes.rows[0];
+    let user = userRes.rows[0];
+
+    // Auto-generate referral code if it's missing (e.g. users from OAuth or old records)
+    if (!user.referral_code) {
+      const newRefCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+      await query('UPDATE users SET referral_code = $1 WHERE id = $2', [newRefCode, userId]);
+      user.referral_code = newRefCode;
+    }
 
     // Determine earning potential based on currency
     const currency = user.preferred_currency || 'INR';

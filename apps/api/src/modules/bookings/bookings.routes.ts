@@ -626,6 +626,12 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
           [bookingId, invoiceNum, subtotal, discountAmount, totalAmount, currentBooking.currency || 'INR']
         );
       }
+      
+      // Attempt referral reward logic when service finishes.
+      // (The actual service logic will only credit if it is ALSO marked PAID)
+      ReferralService.processReferralReward(currentBooking.customer_id, bookingId).catch(err => {
+        console.error('Failed to process referral reward on status completion:', err);
+      });
     }
 
     if (status === 'inService' || status === 'completed' || status === 'readyForCollection' || status === 'collected') {
