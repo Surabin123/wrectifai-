@@ -19,6 +19,7 @@ export interface Booking {
   vehicleMake?: string;
   vehicleModel?: string;
   vehicleYear?: number;
+  discountApplied?: number;
 }
 
 export async function fetchBookings(): Promise<Booking[]> {
@@ -46,8 +47,12 @@ export async function updateBookingStatus(id: string, status: string, collection
   return apiClient.patch<Booking>(`/bookings/${id}/status`, { status, collectionTime });
 }
 
-export async function payForBooking(id: string): Promise<{ razorpayOrderId: string }> {
-  return apiClient.post<{ razorpayOrderId: string }>(`/bookings/${id}/pay`);
+export async function applyOfferToBooking(id: string, offerCode: string): Promise<{ discount: number; message: string }> {
+  return apiClient.post<{ discount: number; message: string }>(`/bookings/${id}/apply-offer`, { offerCode });
+}
+
+export async function payForBooking(id: string, walletAmountToUse?: number): Promise<{ razorpayOrderId?: string; fullyPaidViaWallet?: boolean }> {
+  return apiClient.post<{ razorpayOrderId?: string; fullyPaidViaWallet?: boolean }>(`/bookings/${id}/pay`, { walletAmountToUse });
 }
 
 export async function fetchInvoice(bookingId: string): Promise<any> {

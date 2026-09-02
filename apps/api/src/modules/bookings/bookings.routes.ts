@@ -310,7 +310,7 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
     const result = await query(
       `SELECT b.id, b.customer_id as "customerId", b.vehicle_id as "vehicleId", b.quote_id as "quoteId",
               b.scheduled_at as "scheduledAt", b.status, b.total_amount as "totalAmount", b.currency as "currency", b.created_at as "createdAt",
-              v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vin",
+              v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin",
               u.name as "customerName", u.mobile_number as "customerPhone", p.avatar_url as "customerAvatar",
               q.details as "quoteDetails", q.amount as "quoteAmount", q.eta_days as "estimatedDays",
               b.customer_note as "customerNote",
@@ -718,9 +718,9 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
 bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
   try {
     const { bookingId } = req.params;
-    const userId = req.user?.userId;
-    
-    // 1. Verify booking ownership and status
+    const { walletAmountToUse } = req.body;
+    const userId = req.user?.userId as string;
+
     const bookingRes = await query(
       `SELECT b.id, b.payment_status, b.status, COALESCE(i.total_amount, b.total_amount) as total_amount, b.discount_applied, b.wallet_used
        FROM bookings b 
@@ -743,7 +743,34 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
       return error(res, 'Service must be completed before payment', 'BAD_REQUEST', 400);
     }
 
-    const finalAmountToPay = Number(booking.total_amount) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
+    let currentWalletUsed = Number(booking.wallet_used || 0);
+    let finalAmount = Number(booking.total_amount) - Number(booking.discount_applied || 0);
+
+    if (walletAmountToUse !== undefined && walletAmountToUse > currentWalletUsed) {
+       const additionalWallet = walletAmountToUse - currentWalletUsed;
+       const maxAllowed = finalAmount - currentWalletUsed;
+       const toHold = Math.min(additionalWallet, maxAllowed);
+       
+       if (toHold > 0) {
+         try {
+           await holdWalletBalance(userId, toHold, 'BOOKING', bookingId);
+           currentWalletUsed += toHold;
+           await query(`UPDATE bookings SET wallet_used = $1, updated_at = NOW() WHERE id = $2`, [currentWalletUsed, bookingId]);
+         } catch (e) {
+           return error(res, 'Insufficient wallet balance or failed to apply wallet', 'BAD_REQUEST', 400);
+         }
+       }
+    }
+
+    const finalAmountToPay = finalAmount - currentWalletUsed;
+
+    if (finalAmountToPay <= 0) {
+       // Fully paid by wallet
+       await query(`UPDATE bookings SET payment_status = 'PAID', updated_at = NOW() WHERE id = $1`, [bookingId]);
+       await query(`UPDATE wallet_transactions SET status = 'COMPLETED' WHERE reference_id = $1 AND status = 'PENDING'`, [bookingId]);
+       return success(res, { fullyPaidViaWallet: true }, 200);
+    }
+
     const amountInPaise = Math.round(finalAmountToPay * 100);
 
     // 2. Create Razorpay order
@@ -765,6 +792,40 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
   } catch (err) {
     console.error('Error generating payment intent for existing booking:', err);
     return error(res, 'Payment initialization failed', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// POST /bookings/:bookingId/apply-offer — apply offer before payment
+bookingsRouter.post('/:bookingId/apply-offer', authenticate, async (req, res) => {
+  try {
+    const { bookingId } = req.params;
+    const { offerCode } = req.body;
+    const userId = req.user?.userId as string;
+
+    const bookingRes = await query(
+      `SELECT id, garage_id, total_amount, discount_applied FROM bookings WHERE id = $1 AND customer_id = $2 AND payment_status = 'UNPAID'`,
+      [bookingId, userId]
+    );
+
+    if (bookingRes.rows.length === 0) {
+      return error(res, 'Booking not found or already paid', 'NOT_FOUND', 404);
+    }
+
+    const booking = bookingRes.rows[0];
+    if (Number(booking.discount_applied) > 0) {
+      return error(res, 'An offer is already applied to this booking', 'BAD_REQUEST', 400);
+    }
+
+    const offerValidation = await validateOffer(offerCode, userId, Number(booking.total_amount), booking.garage_id);
+    
+    await query(
+      `UPDATE bookings SET offer_id = $1, discount_applied = $2, updated_at = NOW() WHERE id = $3`,
+      [offerValidation.offerId, offerValidation.discount, bookingId]
+    );
+
+    return success(res, { message: 'Offer applied', discount: offerValidation.discount }, 200);
+  } catch (err: any) {
+    return error(res, err.message || 'Failed to apply offer', 'BAD_REQUEST', 400);
   }
 });
 
@@ -799,7 +860,7 @@ bookingsRouter.post('/:bookingId/select-cash', authenticate, async (req, res) =>
 
     // Check for existing pending cash payment
     const existingPaymentRes = await query(
-      `SELECT id FROM payments WHERE booking_id = $1 AND provider = 'cash' AND status = 'pending'`,
+      `SELECT id FROM payments WHERE booking_id = $1 AND method = 'cash' AND status = 'pending'`,
       [bookingId]
     );
 
@@ -807,9 +868,9 @@ bookingsRouter.post('/:bookingId/select-cash', authenticate, async (req, res) =>
       // transaction_id is NOT NULL and unique — use a deterministic cash reference
       const cashRef = `cash_pending_${bookingId}`;
       await query(
-        `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, amount, status)
+        `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, amount, status)
          VALUES ($1, $2, 'cash', $3, $4, 'pending')
-         ON CONFLICT (provider_intent_id) DO NOTHING`,
+         ON CONFLICT (transaction_id) DO NOTHING`,
         [userId, bookingId, cashRef, booking.total_amount]
       );
     }
@@ -882,14 +943,14 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
     if (existingPayment.rows.length > 0) {
       // Update the existing pending record to succeeded
       await query(
-        `UPDATE payments SET status = 'succeeded', provider_intent_id = $1, updated_at = NOW() WHERE id = $2`,
+        `UPDATE payments SET status = 'succeeded', transaction_id = $1, updated_at = NOW() WHERE id = $2`,
         [cashTransactionId, existingPayment.rows[0].id]
       );
     } else {
       await query(
-        `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, amount, status)
+        `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, amount, status)
          VALUES ($1, $2, 'cash', $3, $4, 'succeeded')
-         ON CONFLICT (provider_intent_id) DO NOTHING`,
+         ON CONFLICT (transaction_id) DO NOTHING`,
         [booking.customer_id, bookingId, cashTransactionId, booking.total_amount]
       );
     }

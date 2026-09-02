@@ -9,7 +9,7 @@ interface PaymentSuccessModalProps {
   isOpen: boolean;
   onClose: () => void;
   amount: number | string;
-  paymentMethod: 'online' | 'cash';
+  paymentMethod: 'online' | 'cash' | 'wallet';
   transactionId?: string;
   title?: string;
   description?: string;
@@ -55,7 +55,7 @@ export function PaymentSuccessModal({
           <div className="flex items-center justify-between">
             <span className="text-sm font-medium text-slate-500">Payment Method</span>
             <span className="text-sm font-semibold text-slate-700 capitalize">
-              {paymentMethod === 'online' ? 'Online Payment' : 'Cash on Delivery'}
+              {paymentMethod === 'online' ? 'Online Payment' : paymentMethod === 'wallet' ? 'Wallet Payment' : 'Cash on Delivery'}
             </span>
           </div>
           {transactionId && (

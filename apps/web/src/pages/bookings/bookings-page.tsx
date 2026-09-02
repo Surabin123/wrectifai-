@@ -10,6 +10,7 @@ import { fetchBookings, updateBookingStatus, fetchInvoice } from '@/lib/bookings
 import type { Booking } from '@/lib/bookings-api';
 import { cn } from '@/utils/cn';
 import { Calendar, Clock, Wrench, XCircle, AlertTriangle, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Input } from '@/components/common/input';
 import { formatCurrency } from '@/lib/currency';
 import { useUserPhone } from '@/lib/user-phone';
 import { PaymentSuccessModal } from '@/components/common/payment-success-modal';
@@ -35,7 +36,7 @@ export function BookingsPage() {
   const [paymentSelectionModalOpen, setPaymentSelectionModalOpen] = useState(false);
   const [isProcessingCash, setIsProcessingCash] = useState(false);
   
-  const [paymentSuccessData, setPaymentSuccessData] = useState<{isOpen: boolean, method: 'online'|'cash', amount: number, transactionId?: string, title?: string, desc?: string} | null>(null);
+  const [paymentSuccessData, setPaymentSuccessData] = useState<{isOpen: boolean, method: 'online'|'cash'|'wallet', amount: number, transactionId?: string, title?: string, desc?: string} | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
 
   const handleViewInvoice = async (bookingId: string) => {
@@ -138,9 +139,43 @@ export function BookingsPage() {
 
   const [paymentProcessingId, setPaymentProcessingId] = useState<string | null>(null);
 
-  const handlePayNow = (booking: Booking) => {
+  const [walletBalance, setWalletBalance] = useState(0);
+  const [useWallet, setUseWallet] = useState(false);
+  const [offerCode, setOfferCode] = useState('');
+  const [offerDiscount, setOfferDiscount] = useState(0);
+  const [offerError, setOfferError] = useState('');
+  const [offerSuccess, setOfferSuccess] = useState('');
+
+  const handlePayNow = async (booking: Booking) => {
     setPaymentSelectionBooking(booking);
+    setUseWallet(false);
+    setOfferCode('');
+    setOfferDiscount(booking.discountApplied || 0);
+    setOfferError('');
+    setOfferSuccess('');
+    try {
+      const { fetchWalletBalance } = await import('@/lib/wallet-api');
+      const bal = await fetchWalletBalance();
+      setWalletBalance(bal.balance);
+    } catch (err) {
+      console.error(err);
+    }
     setPaymentSelectionModalOpen(true);
+  };
+
+  const handleApplyOffer = async () => {
+    if (!paymentSelectionBooking) return;
+    try {
+      setOfferError('');
+      setOfferSuccess('');
+      const { applyOfferToBooking } = await import('@/lib/bookings-api');
+      const res = await applyOfferToBooking(paymentSelectionBooking.id, offerCode);
+      setOfferDiscount(res.discount);
+      setOfferSuccess(`Offer applied! You saved ₹${res.discount}`);
+      setBookings(prev => prev.map(b => b.id === paymentSelectionBooking.id ? {...b, discountApplied: res.discount} : b));
+    } catch(err: any) {
+      setOfferError(err.message || 'Failed to apply offer');
+    }
   };
 
   const handlePayOnline = async () => {
@@ -149,8 +184,27 @@ export function BookingsPage() {
     setPaymentSelectionModalOpen(false);
     try {
       setPaymentProcessingId(booking.id);
+      const finalAmountAfterDiscount = Number(booking.totalAmount) - Number(offerDiscount || 0);
+      const walletAmountToUse = useWallet ? Math.min(walletBalance, finalAmountAfterDiscount) : 0;
+      const finalAmountToPay = finalAmountAfterDiscount - walletAmountToUse;
+
       const { payForBooking } = await import('@/lib/bookings-api');
-      const { razorpayOrderId } = await payForBooking(booking.id);
+      const { razorpayOrderId, fullyPaidViaWallet } = await payForBooking(booking.id, walletAmountToUse);
+      
+      if (fullyPaidViaWallet) {
+          setBookings((prev) => prev.map((b) => (b.id === booking.id ? { ...b, paymentStatus: 'PAID' } : b)));
+          setPaymentSuccessData({
+            isOpen: true,
+            method: 'wallet',
+            amount: walletAmountToUse,
+            transactionId: 'wallet_' + booking.id,
+            title: 'Payment Successful',
+            desc: 'Your booking has been paid using your wallet balance.'
+          });
+          loadBookings();
+          setPaymentProcessingId(null);
+          return;
+      }
       
       const loaded = await loadRazorpayScript();
       if (!loaded) {
@@ -161,7 +215,7 @@ export function BookingsPage() {
 
       const options = {
         key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_mock123',
-        amount: Math.round(booking.totalAmount * 100),
+        amount: Math.round(finalAmountToPay * 100),
         currency: 'INR',
         name: 'WrectifAI Services',
         description: 'Payment for Booking',
@@ -555,12 +609,7 @@ export function BookingsPage() {
                 {viewDetailsBooking.issueDescription || 'N/A'}
               </p>
             </div>
-            <div>
-              <span className="block font-bold text-slate-500 mb-1">Estimated Days</span>
-              <p className="font-semibold">
-                {viewDetailsBooking.estimatedDays ? (/^\d+$/.test(String(viewDetailsBooking.estimatedDays).trim()) ? `${String(viewDetailsBooking.estimatedDays).trim()} Days` : viewDetailsBooking.estimatedDays) : 'N/A'}
-              </p>
-            </div>
+
             <div>
               <span className="block font-bold text-slate-500 mb-1">Preferred Date</span>
               <p className="font-semibold">
@@ -814,13 +863,75 @@ export function BookingsPage() {
         <Modal 
           isOpen={paymentSelectionModalOpen} 
           onClose={() => { setPaymentSelectionModalOpen(false); setPaymentSelectionBooking(null); }}
-          title="Select Payment Method"
+          title="Checkout"
         >
-          <div className="py-4 flex flex-col items-center text-center">
-            <h3 className="text-xl font-bold text-[#17307a] mb-2">How would you like to pay?</h3>
-            <p className="text-slate-600 mb-8 max-w-sm">
-              Please choose whether to pay online right now or pay with cash directly at the garage.
-            </p>
+          <div className="py-4 flex flex-col">
+            <h3 className="text-xl font-bold text-[#17307a] mb-6 text-center">Complete your payment</h3>
+            
+            <div className="bg-slate-50 p-4 rounded-lg border border-slate-200 mb-6 space-y-3">
+              <div className="flex justify-between text-slate-700">
+                <span>Subtotal</span>
+                <span className="font-semibold">₹{paymentSelectionBooking.totalAmount}</span>
+              </div>
+              
+              {/* Offer Section */}
+              <div className="pt-2">
+                <p className="text-sm font-semibold text-slate-700 mb-2">Apply Promo Code</p>
+                <div className="flex gap-2">
+                  <Input 
+                    placeholder="Enter code" 
+                    value={offerCode} 
+                    onChange={(e) => setOfferCode(e.target.value)} 
+                    disabled={offerDiscount > 0}
+                  />
+                  <Button variant="outline" onClick={handleApplyOffer} disabled={offerDiscount > 0}>Apply</Button>
+                </div>
+                {offerError && <p className="text-red-500 text-xs mt-1">{offerError}</p>}
+                {offerSuccess && <p className="text-green-600 text-xs mt-1">{offerSuccess}</p>}
+                {offerDiscount > 0 && !offerSuccess && <p className="text-green-600 text-xs mt-1">Offer applied. Saved ₹{offerDiscount}</p>}
+              </div>
+
+              {offerDiscount > 0 && (
+                <div className="flex justify-between text-green-600 font-medium pt-2 border-t border-slate-200">
+                  <span>Discount</span>
+                  <span>-₹{offerDiscount}</span>
+                </div>
+              )}
+
+              {/* Wallet Section */}
+              {walletBalance > 0 && (
+                <div className="pt-3 pb-1 border-t border-slate-200">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">Wallet Balance: ₹{walletBalance}</p>
+                      <p className="text-xs text-slate-500">Available to spend</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        className="sr-only peer" 
+                        checked={useWallet} 
+                        onChange={(e) => setUseWallet(e.target.checked)} 
+                      />
+                      <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-[#1a56db]"></div>
+                    </label>
+                  </div>
+                </div>
+              )}
+
+              {useWallet && walletBalance > 0 && (
+                <div className="flex justify-between text-[#1a56db] font-medium pt-2 border-t border-slate-200">
+                  <span>Wallet Applied</span>
+                  <span>-₹{Math.min(walletBalance, Number(paymentSelectionBooking.totalAmount) - Number(offerDiscount || 0))}</span>
+                </div>
+              )}
+              
+              <div className="flex justify-between text-lg font-bold pt-3 border-t border-slate-300">
+                <span>Amount to Pay</span>
+                <span>₹{Math.max(0, Number(paymentSelectionBooking.totalAmount) - Number(offerDiscount || 0) - (useWallet ? Math.min(walletBalance, Number(paymentSelectionBooking.totalAmount) - Number(offerDiscount || 0)) : 0))}</span>
+              </div>
+            </div>
+
             <div className="flex gap-3 w-full">
               <Button 
                 variant="outline" 

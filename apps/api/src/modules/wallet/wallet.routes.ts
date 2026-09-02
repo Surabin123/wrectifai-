@@ -269,10 +269,10 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
       try {
         await client.query(
           `INSERT INTO payments
-             (customer_user_id, method, transaction_id, amount, currency, status)
-           VALUES ($1, 'razorpay', $2, $3, 'INR', 'succeeded')
+             (customer_user_id, method, transaction_id, provider_order_id, provider_payment_id, amount, currency, status, signature_status)
+           VALUES ($1, 'razorpay', $2, $3, $2, $4, 'INR', 'succeeded', 'valid')
            ON CONFLICT (transaction_id) DO NOTHING`,
-          [userId, razorpay_order_id, amount]
+          [userId, razorpay_payment_id, razorpay_order_id, amount]
         );
       } catch (paymentInsertErr) {
         // Payments table schema mismatch — log but do NOT roll back the wallet credit.
