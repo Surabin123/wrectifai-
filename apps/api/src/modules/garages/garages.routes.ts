@@ -453,6 +453,12 @@ garagesRouter.post('/my-inventory', authenticate, async (req, res) => {
       return error(res, 'Missing required fields', 'BAD_REQUEST', 400);
     }
 
+    const parsedPrice = Number(price);
+    const parsedQty = parseInt(qtyAvailable, 10);
+    if (isNaN(parsedPrice) || parsedPrice < 0 || isNaN(parsedQty) || parsedQty < 0) {
+      return error(res, 'Invalid price or quantity', 'BAD_REQUEST', 400);
+    }
+
     // Check if it already exists
     const existing = await query(
       `SELECT id FROM garage_inventory WHERE garage_id = $1 AND product_id = $2`,
@@ -467,7 +473,7 @@ garagesRouter.post('/my-inventory', authenticate, async (req, res) => {
       `INSERT INTO garage_inventory (garage_id, product_id, price, qty_available, is_active)
        VALUES ($1, $2, $3, $4, true)
        RETURNING *`,
-      [garageId, productId, price, qtyAvailable]
+      [garageId, productId, parsedPrice, parsedQty]
     );
 
     return success(res, result.rows[0], 201);
@@ -485,13 +491,20 @@ garagesRouter.put('/my-inventory/:inventoryId', authenticate, async (req, res) =
 
     const { price, qty_available, is_active } = req.body;
     
+    const parsedPrice = price !== undefined ? Number(price) : undefined;
+    const parsedQty = qty_available !== undefined ? parseInt(qty_available, 10) : undefined;
+    if ((parsedPrice !== undefined && (isNaN(parsedPrice) || parsedPrice < 0)) || 
+        (parsedQty !== undefined && (isNaN(parsedQty) || parsedQty < 0))) {
+      return error(res, 'Invalid price or quantity', 'BAD_REQUEST', 400);
+    }
+
     // Ensure we only update if it belongs to this garage
     const result = await query(
       `UPDATE garage_inventory 
-       SET price = $1, qty_available = $2, is_active = COALESCE($3, is_active), updated_at = NOW()
+       SET price = COALESCE($1, price), qty_available = COALESCE($2, qty_available), is_active = COALESCE($3, is_active), updated_at = NOW()
        WHERE id = $4 AND garage_id = $5
        RETURNING *`,
-      [price, qty_available, is_active, req.params.inventoryId, garageId]
+      [parsedPrice, parsedQty, is_active, req.params.inventoryId, garageId]
     );
 
     if (result.rows.length === 0) {
@@ -539,6 +552,23 @@ garagesRouter.post('/my-services', authenticate, async (req, res) => {
       return error(res, 'Missing required fields', 'BAD_REQUEST', 400);
     }
 
+    const parsedPrice = Number(price);
+    const parsedDuration = Number(durationMins || 60);
+    if (isNaN(parsedPrice) || parsedPrice < 0 || isNaN(parsedDuration) || parsedDuration < 0) {
+      return error(res, 'Invalid price or duration', 'BAD_REQUEST', 400);
+    }
+
+    // Fetch the platform service details to copy into the garage service
+    const psResult = await query(
+      `SELECT name, category, description FROM platform_services WHERE id = $1`,
+      [platformServiceId]
+    );
+    
+    if (psResult.rows.length === 0) {
+      return error(res, 'Platform service not found', 'NOT_FOUND', 404);
+    }
+    const ps = psResult.rows[0];
+
     // Check if it already exists
     const existing = await query(
       `SELECT id FROM services WHERE garage_id = $1 AND platform_service_id = $2`,
@@ -550,10 +580,10 @@ garagesRouter.post('/my-services', authenticate, async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO services (garage_id, platform_service_id, price, duration_mins, is_active)
-       VALUES ($1, $2, $3, $4, true)
+      `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true)
        RETURNING *`,
-      [garageId, platformServiceId, price, durationMins || 60]
+      [garageId, platformServiceId, ps.name, ps.category, ps.description, parsedPrice, parsedDuration]
     );
 
     return success(res, result.rows[0], 201);
@@ -569,14 +599,21 @@ garagesRouter.put('/my-services/:serviceId', authenticate, async (req, res) => {
     const garageId = req.user?.garageId;
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
-    const { price, is_active, duration_mins } = req.body;
+    const { price, is_active, duration_mins, description } = req.body;
     
+    const parsedPrice = price !== undefined ? Number(price) : undefined;
+    const parsedDuration = duration_mins !== undefined ? Number(duration_mins) : undefined;
+    if ((parsedPrice !== undefined && (isNaN(parsedPrice) || parsedPrice < 0)) || 
+        (parsedDuration !== undefined && (isNaN(parsedDuration) || parsedDuration < 0))) {
+      return error(res, 'Invalid price or duration', 'BAD_REQUEST', 400);
+    }
+
     const result = await query(
       `UPDATE services 
-       SET price = $1, is_active = COALESCE($2, is_active), duration_mins = COALESCE($3, duration_mins), updated_at = NOW()
-       WHERE id = $4 AND garage_id = $5
+       SET price = COALESCE($1, price), is_active = COALESCE($2, is_active), duration_mins = COALESCE($3, duration_mins), description = COALESCE($4, description), updated_at = NOW()
+       WHERE id = $5 AND garage_id = $6
        RETURNING *`,
-      [price, is_active, duration_mins, req.params.serviceId, garageId]
+      [parsedPrice, is_active, parsedDuration, description, req.params.serviceId, garageId]
     );
 
     if (result.rows.length === 0) {
