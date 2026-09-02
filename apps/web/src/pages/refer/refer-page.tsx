@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/lib/auth-context';
-import { apiClient } from '@/lib/api-client';
-import DashboardLayout from '@/components/layout/dashboard-layout';
+import { TopNavbar } from '@/components/home/top-navbar';
+import { DashboardShell } from '@/components/home/dashboard-shell';
 import { Button } from '@/components/ui/button';
-import { formatCurrency } from '@/utils/currency';
+import { apiClient } from '@/lib/api-client';
+import { formatCurrency } from '@/lib/currency';
 import { Copy, CheckCircle2, Share2, Users, Gift, TrendingUp, Info } from 'lucide-react';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -65,8 +66,10 @@ export default function ReferPageClient() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="max-w-4xl mx-auto space-y-6 pb-20 pt-4">
+    <>
+      <TopNavbar />
+      <DashboardShell>
+        <div className="max-w-4xl mx-auto space-y-6 pb-20 pt-4">
         {/* Header Section */}
         <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#1a56db] to-[#1e40af] p-8 sm:p-10 text-white shadow-lg">
           {/* Background decorations */}
@@ -225,6 +228,7 @@ export default function ReferPageClient() {
           </div>
         )}
       </div>
-    </DashboardLayout>
+      </DashboardShell>
+    </>
   );
 }

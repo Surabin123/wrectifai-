@@ -1,16 +1,18 @@
+'use client';
 import { GarageOffersContent } from '@/pages/garage/garage-offers-content';
-import { AuthGuard } from '@/components/common/auth-guard';
 import { RoleGuard } from '@/components/common/role-guard';
-import { GarageLayout } from '@/components/layout/garage-layout';
+import { DashboardShell } from '@/components/home/dashboard-shell';
+import { DashboardHeader } from '@/components/common/dashboard-header';
+import { garageNavItems } from '@/lib/garage-config';
 
 export default function GarageOffersPage() {
   return (
-    <AuthGuard>
-      <RoleGuard allowedRoles={['garage', 'admin']}>
-        <GarageLayout>
+    <RoleGuard allowedRoles={['garage']}>
+      <DashboardShell customNavItems={garageNavItems} hideBottomWidget={true} header={<DashboardHeader />}>
+        <div className="p-6">
           <GarageOffersContent />
-        </GarageLayout>
-      </RoleGuard>
-    </AuthGuard>
+        </div>
+      </DashboardShell>
+    </RoleGuard>
   );
 }
