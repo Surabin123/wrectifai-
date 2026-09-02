@@ -187,7 +187,7 @@ export function Sidebar({
         <div className="mt-1 shrink-0">
           {collapsed ? (
             <Link
-              href="/offers"
+              href="/refer"
               className="mx-auto mt-2 flex h-[48px] w-[48px] items-center justify-center rounded-[12px] bg-[#f3f7ff] shadow-none hover:bg-[#ebf2fd] transition-colors"
               title="Refer & Earn"
             >
@@ -216,7 +216,7 @@ export function Sidebar({
                     className="h-[25px] w-fit rounded-[6px] bg-[#1a56db] font-semibold hover:bg-[#1a56db]/90 text-[10.5px] px-3.5 shadow-none"
                     size="sm"
                   >
-                    <Link href="/offers">Refer Now</Link>
+                    <Link href="/refer">Refer Now</Link>
                   </Button>
                 </div>
                 <div className="shrink-0 flex items-center justify-center pl-1">

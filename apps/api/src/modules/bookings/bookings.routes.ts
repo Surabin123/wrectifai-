@@ -6,6 +6,7 @@ import { validateOffer, recordOfferRedemption } from '../offers/offers.service';
 import { holdWalletBalance } from '../wallet/wallet.service';
 import { createRazorpayOrder } from '../payments/razorpay.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ReferralService } from '../../services/referral.service';
 
 export const bookingsRouter = Router();
 
@@ -855,6 +856,11 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
     
     await query(`UPDATE bookings SET payment_status = 'PAID', updated_at = NOW() WHERE id = $1`, [bookingId]);
     
+    // Process referral reward asynchronously
+    ReferralService.processReferralReward(booking.customer_id, bookingId).catch(err => {
+      console.error('Referral reward failed for cash booking', bookingId, err);
+    });
+
     // Create or update payment record for cash
     const cashTransactionId = `cash_confirmed_${bookingId}`;
     const existingPayment = await query(

@@ -11,6 +11,7 @@ import {
 import { verifyGoogleIdToken } from '../../services/google-auth.service';
 import { query } from '../../config/database';
 import * as bcrypt from 'bcryptjs';
+import crypto from 'crypto';
 import { authenticate, requireRole } from '../../middleware/auth';
 import { CookieOptions, Response } from 'express';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -156,7 +157,7 @@ authRouter.post('/check-user', async (req, res, next) => {
 });
 
 authRouter.post('/register', async (req, res, next) => {
-  let { mobileNumber, name, otp, email, password, role = 'customer', country } = req.body;
+  let { mobileNumber, name, otp, email, password, role = 'customer', country, referralCode } = req.body;
   if (email) email = email.toLowerCase();
   
   if (!name) {
@@ -182,9 +183,20 @@ authRouter.post('/register', async (req, res, next) => {
       }
       
       const hashedPassword = await bcrypt.hash(password, 10);
+      
+      // Referral Logic
+      const newRefCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+      let referredById = null;
+      if (referralCode) {
+        const referrerRes = await query('SELECT id FROM users WHERE referral_code = $1', [referralCode.toUpperCase()]);
+        if (referrerRes.rows.length > 0) {
+          referredById = referrerRes.rows[0].id;
+        }
+      }
+      
       const userResult = await query(
-        "INSERT INTO users (email, name, password_hash, mobile_number, status) VALUES ($1, $2, $3, $4, 'active') RETURNING id, email, name, mobile_number, status",
-        [email, name, hashedPassword, mobileNumber || null]
+        "INSERT INTO users (email, name, password_hash, mobile_number, status, referral_code, referred_by) VALUES ($1, $2, $3, $4, 'active', $5, $6) RETURNING id, email, name, mobile_number, status, referral_code",
+        [email, name, hashedPassword, mobileNumber || null, newRefCode, referredById]
       );
       user = userResult.rows[0];
       isNew = true;
@@ -203,9 +215,19 @@ authRouter.post('/register', async (req, res, next) => {
         return error(res, 'Account already exists with this phone number. Please sign in.', 'CONFLICT', 409);
       }
       
+      // Referral Logic
+      const newRefCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+      let referredById = null;
+      if (referralCode) {
+        const referrerRes = await query('SELECT id FROM users WHERE referral_code = $1', [referralCode.toUpperCase()]);
+        if (referrerRes.rows.length > 0) {
+          referredById = referrerRes.rows[0].id;
+        }
+      }
+      
       const userResult = await query(
-        "INSERT INTO users (mobile_number, name, status) VALUES ($1, $2, 'active') RETURNING id, email, name, mobile_number, status",
-        [mobileNumber, name]
+        "INSERT INTO users (mobile_number, name, status, referral_code, referred_by) VALUES ($1, $2, 'active', $3, $4) RETURNING id, email, name, mobile_number, status, referral_code",
+        [mobileNumber, name, newRefCode, referredById]
       );
       user = userResult.rows[0];
       isNew = true;

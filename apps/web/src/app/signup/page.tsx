@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth, type User } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
@@ -20,8 +20,18 @@ interface AuthResponse {
 }
 
 export default function SignupPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-[#f6f8fe] via-[#edf2fc] to-[#e4ecff]" />}>
+      <SignupContent />
+    </Suspense>
+  );
+}
+
+function SignupContent() {
   const { isAuthenticated, login, user } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const referralCode = searchParams?.get('ref') || '';
 
   // Redirect authenticated users to their role-based dashboard
   useEffect(() => {
@@ -116,7 +126,8 @@ export default function SignupPage() {
         password,
         mobileNumber: sanitizedPhone,
         role: 'customer',
-        country: getCountryByCallingCode(countryCode)?.isoCode || 'IN'
+        country: getCountryByCallingCode(countryCode)?.isoCode || 'IN',
+        referralCode: referralCode || undefined
       });
       
       setLocationCookie('wrectifai_country_code', countryCode);

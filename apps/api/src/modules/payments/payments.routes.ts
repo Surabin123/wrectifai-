@@ -5,6 +5,8 @@ import { getDbPool } from '../../config/database';
 import { createRazorpayOrder, verifyWebhookSignature, fetchRazorpayPayment } from './razorpay.service';
 import { getEnv } from '../../config/env';
 import Razorpay from 'razorpay';
+import crypto from 'crypto';
+import { ReferralService } from '../../services/referral.service';
 
 export const paymentsRouter = Router();
 const env = getEnv();
@@ -117,6 +119,11 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
       'UPDATE bookings SET payment_status = $1 WHERE id = $2',
       ['PAID', booking.id]
     );
+    
+    // Process referral reward asynchronously
+    ReferralService.processReferralReward(booking.customer_id, booking.id).catch(err => {
+      console.error('Referral reward failed for online booking', booking.id, err);
+    });
     
     // Complete wallet hold if any
     await client.query(
