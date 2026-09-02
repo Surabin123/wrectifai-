@@ -214,12 +214,7 @@ export default function BookingsPage() {
                   {selectedBooking.issueDescription || 'N/A'}
                 </p>
               </div>
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Estimated Days</span>
-                <p className="font-semibold">
-                  {selectedBooking.estimatedDays ? (/^\d+$/.test(String(selectedBooking.estimatedDays).trim()) ? `${String(selectedBooking.estimatedDays).trim()} Days` : selectedBooking.estimatedDays) : 'N/A'}
-                </p>
-              </div>
+
               <div>
                 <span className="block font-bold text-slate-500 mb-1">Quote Amount</span>
                 <p className="font-semibold text-blue-700">

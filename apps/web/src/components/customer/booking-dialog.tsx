@@ -78,8 +78,6 @@ export function BookingDialog({ quote, onClose, onSuccess }: { quote: QuoteItem,
   const todayStr = new Date().toISOString().split('T')[0];
   const quoteAmount = formatCurrency(quote.price || (quote as any).amount || (quote as any).totalCost || 0);
   const garageName = (quote as any).garageName || quote.garage;
-  const rawTime = quote.time || (quote as any).eta_note;
-  const estimatedDays = rawTime ? (/^\d+$/.test(String(rawTime).trim()) ? `${String(rawTime).trim()} Days` : rawTime) : 'N/A';
 
   return (
     <>
@@ -95,10 +93,6 @@ export function BookingDialog({ quote, onClose, onSuccess }: { quote: QuoteItem,
           <div className="flex justify-between">
             <span className="font-bold text-slate-600">Quote Amount:</span>
             <span className="font-bold text-blue-700">{quoteAmount}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="font-bold text-slate-600">Estimated Days:</span>
-            <span className="font-bold text-slate-800">{estimatedDays}</span>
           </div>
         </div>
 

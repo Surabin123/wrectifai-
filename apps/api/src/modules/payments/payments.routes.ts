@@ -200,6 +200,11 @@ paymentsRouter.post('/fail', authenticate, async (req, res) => {
 // POST /api/v1/payments/booking/:id/refund - Process a refund by booking ID
 paymentsRouter.post('/booking/:id/refund', authenticate, async (req, res) => {
   const bookingId = req.params.id;
+  const { reason } = req.body;
+  if (!reason || reason.trim() === '') {
+    return error(res, 'Refund reason is required', 'BAD_REQUEST', 400);
+  }
+
   const pool = getDbPool();
   const client = await pool.connect();
   
@@ -213,7 +218,7 @@ paymentsRouter.post('/booking/:id/refund', authenticate, async (req, res) => {
 
     if (paymentRes.rows.length === 0) {
       await client.query('ROLLBACK');
-      return error(res, 'Payment not found or not in a refundable state', 'BAD_REQUEST', 400);
+      return error(res, 'Payment not found, already refunded, or not in a refundable state', 'BAD_REQUEST', 400);
     }
 
     const payment = paymentRes.rows[0];
@@ -228,7 +233,10 @@ paymentsRouter.post('/booking/:id/refund', authenticate, async (req, res) => {
     try {
       refund = await rzp.payments.refund(payment.provider_payment_id, {
         amount: Math.round(Number(payment.amount) * 100),
-        speed: 'normal' // Standard routing
+        speed: 'normal',
+        notes: {
+          reason: reason
+        }
       });
     } catch (rzpErr: any) {
       await client.query('ROLLBACK');
@@ -238,8 +246,8 @@ paymentsRouter.post('/booking/:id/refund', authenticate, async (req, res) => {
     const refundStatus = refund.status === 'processed' ? 'refunded' : 'refund_pending';
     
     await client.query(
-      'UPDATE payments SET status = $1, provider_refund_id = $2, updated_at = NOW() WHERE id = $3',
-      [refundStatus, refund.id, payment.id]
+      'UPDATE payments SET status = $1, provider_refund_id = $2, refund_reason = $3, updated_at = NOW() WHERE id = $4',
+      [refundStatus, refund.id, reason, payment.id]
     );
 
     await client.query(

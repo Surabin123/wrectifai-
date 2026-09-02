@@ -1,0 +1,3 @@
+﻿BEGIN;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS refund_reason TEXT;
+COMMIT;

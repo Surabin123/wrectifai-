@@ -172,10 +172,7 @@ export default function AdminBookingsPage() {
                      {selectedBooking.scheduledAt ? new Date(selectedBooking.scheduledAt).toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}) : ''}
                    </p>
                  </div>
-                 <div className="space-y-1 col-span-2">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Estimated Days</p>
-                   <p className="font-semibold text-slate-900">{selectedBooking.estimatedDays || 'N/A'}</p>
-                 </div>
+
                  <div className="space-y-1 col-span-2">
                    <p className="text-[10px] uppercase font-bold text-slate-500">Issue Description</p>
                    <p className="font-semibold text-slate-900">{selectedBooking.issueDescription || 'No description provided.'}</p>

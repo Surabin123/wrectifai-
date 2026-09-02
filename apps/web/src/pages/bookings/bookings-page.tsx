@@ -330,16 +330,23 @@ export function BookingsPage() {
     }
   };
 
+  const [refundReason, setRefundReason] = useState('');
+
   const handleRefund = (bookingId: string) => {
     setRefundConfirmBookingId(bookingId);
+    setRefundReason('');
   };
 
   const executeRefund = async () => {
     if (!refundConfirmBookingId) return;
+    if (!refundReason.trim()) {
+      setPaymentError('Refund reason is required.');
+      return;
+    }
     setPaymentProcessingId(refundConfirmBookingId);
     try {
       const { apiClient } = await import('@/lib/api-client');
-      await apiClient.post(`/payments/booking/${refundConfirmBookingId}/refund`, {});
+      await apiClient.post(`/payments/booking/${refundConfirmBookingId}/refund`, { reason: refundReason });
       setBookings((prev) => prev.map((b) => (b.id === refundConfirmBookingId ? { ...b, paymentStatus: 'REFUNDED' } : b)));
       setPaymentSuccessData({
         isOpen: true,
@@ -849,7 +856,40 @@ export function BookingsPage() {
                   variant="outline"
                   className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
                 >
-                  Print / Save PDF
+                  Print
+                </Button>
+                <Button 
+                  onClick={async () => {
+                    const jsPDF = (await import('jspdf')).default;
+                    const autoTable = (await import('jspdf-autotable')).default;
+                    const doc = new jsPDF();
+                    doc.setFontSize(16);
+                    doc.text('Invoice', 14, 20);
+                    doc.setFontSize(10);
+                    doc.text(`Booking ID: ${invoiceData.bookingId}`, 14, 28);
+                    
+                    const tableData = [];
+                    if (invoiceData.quoteDetails) {
+                      if (invoiceData.quoteDetails.laborCost) tableData.push(['Labour Cost', invoiceData.quoteDetails.laborCost]);
+                      if (invoiceData.quoteDetails.partsCost) tableData.push(['Parts Cost', invoiceData.quoteDetails.partsCost]);
+                      if (invoiceData.quoteDetails.consumablesCost) tableData.push(['Consumables', invoiceData.quoteDetails.consumablesCost]);
+                    }
+                    if (Number(invoiceData.discountAmount) > 0) tableData.push(['Discount Applied', `- ${invoiceData.discountAmount}`]);
+                    tableData.push(['Subtotal', invoiceData.subtotal]);
+                    if (Number(invoiceData.taxAmount) > 0) tableData.push(['Tax', invoiceData.taxAmount]);
+                    tableData.push(['Total', invoiceData.totalAmount]);
+
+                    autoTable(doc, {
+                      startY: 35,
+                      head: [['Description', 'Amount']],
+                      body: tableData,
+                    });
+                    doc.save(`invoice_${invoiceData.bookingId}.pdf`);
+                  }}
+                  variant="outline"
+                  className="bg-[#1a56db] text-white hover:bg-blue-700 hover:text-white"
+                >
+                  Save PDF
                 </Button>
                 <Button 
                   onClick={() => setInvoiceModalOpen(false)}
@@ -995,8 +1035,15 @@ export function BookingsPage() {
             <AlertCircle className="h-12 w-12 text-[#1a56db] mx-auto mb-4" />
             <h3 className="text-xl font-bold text-[#17307a] mb-2">Are you sure?</h3>
             <p className="text-slate-600 mb-6">
-              Are you sure you want to request a refund for this booking?
+              Are you sure you want to request a refund for this booking? Please provide a reason below:
             </p>
+            <textarea
+              className="w-full p-3 border border-slate-300 rounded mb-6 text-sm"
+              placeholder="Why are you requesting a refund?"
+              rows={3}
+              value={refundReason}
+              onChange={(e) => setRefundReason(e.target.value)}
+            />
             <div className="flex gap-3 justify-center">
               <Button
                 variant="outline"

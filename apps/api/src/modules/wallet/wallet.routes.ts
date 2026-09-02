@@ -326,6 +326,15 @@ walletRouter.post('/saved-methods', authenticate, async (req, res) => {
        return error(res, 'Missing card details', 'BAD_REQUEST', 400);
     }
 
+    // Check for duplicate card
+    const duplicateCheck = await query(
+      'SELECT id FROM saved_payment_methods WHERE user_id = $1 AND (token_id = $2 OR (card_last4 = $3 AND card_network = $4))',
+      [userId, tokenId, cardLast4, cardNetwork || 'Unknown']
+    );
+    if (duplicateCheck.rows.length > 0) {
+      return error(res, 'This card is already saved to your account.', 'BAD_REQUEST', 400);
+    }
+
     // Check if this is the first card, make it default
     const existing = await query('SELECT id FROM saved_payment_methods WHERE user_id = $1', [userId]);
     const isDefault = existing.rows.length === 0;
