@@ -184,7 +184,7 @@ export function SettingsContent() {
 
           <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
             <Button variant="outline" onClick={() => setIsNotifModalOpen(false)}>Cancel</Button>
-            <Button className="bg-blue-600 text-white" onClick={handleSaveNotifPrefs} isLoading={isSavingPrefs}>Save Preferences</Button>
+            <Button className="bg-blue-600 hover:bg-blue-700 text-white" onClick={handleSaveNotifPrefs} disabled={isSavingPrefs}>Save Preferences</Button>
           </div>
         </div>
       </Modal>
