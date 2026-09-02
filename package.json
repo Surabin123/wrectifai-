@@ -19,7 +19,7 @@
     "db:test-reset": "docker compose down test-postgres -v && docker compose up -d test-postgres",
     "db:test-psql": "docker exec -it wrectifai_test_db psql -U postgres -d wrectifai_test",
     "db:migrate": "node db/migrate.js",
-    "build": "nx run-many -t build",
+    "build": "nx run-many -t build --projects=web,api",
     "test": "nx run-many -t test",
     "test:api": "nx test api",
     "test:api:unit": "nx test api unit",
