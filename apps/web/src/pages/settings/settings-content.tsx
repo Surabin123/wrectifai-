@@ -7,6 +7,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
 import { useState, useEffect } from 'react';
 import { Modal } from '@/components/common/modal';
+import { apiClient } from '@/lib/api-client';
 
 
 export function SettingsContent() {
@@ -17,6 +18,9 @@ export function SettingsContent() {
 
   const [isAboutModalOpen, setIsAboutModalOpen] = useState(false);
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
+  const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
+  const [notifPrefs, setNotifPrefs] = useState({ enabled: true, inApp: true, email: true, sms: false });
+  const [isSavingPrefs, setIsSavingPrefs] = useState(false);
   const roleKey = basePath === '/admin' ? 'admin' : basePath === '/garage' ? 'garage' : 'customer';
   const [theme, setTheme] = useState('light');
   const [mounted, setMounted] = useState(false);
@@ -37,17 +41,46 @@ export function SettingsContent() {
       setTheme(next);
       localStorage.setItem(`theme-${roleKey}`, next);
       window.dispatchEvent(new CustomEvent('theme-change', { detail: { role: roleKey, theme: next }}));
-    } else if (item.title === 'About WrectifAI') {
+    } else if (item.targetModal === 'about') {
       setIsAboutModalOpen(true);
+    } else if (item.targetModal === 'notif') {
+      setIsNotifModalOpen(true);
+    }
+  };
+
+  useEffect(() => {
+    if (isNotifModalOpen) {
+      apiClient.get<any>('/users/preferences/notifications')
+        .then(res => {
+          if (!res.error) setNotifPrefs(res);
+        })
+        .catch(console.error);
+    }
+  }, [isNotifModalOpen]);
+
+  const handleSaveNotifPrefs = async () => {
+    setIsSavingPrefs(true);
+    try {
+      const res = await apiClient.put<any>('/users/preferences/notifications', notifPrefs);
+      if (!res.error) {
+        alert('Notification preferences saved');
+        setIsNotifModalOpen(false);
+      } else {
+        alert('Failed to save preferences');
+      }
+    } catch (err) {
+      alert('Failed to save preferences');
+    } finally {
+      setIsSavingPrefs(false);
     }
   };
 
   const settingItems = [
     { icon: User, title: 'Profile Settings', desc: 'Update your personal information.', action: 'Edit Profile', link: '/profile' },
-    { icon: Bell, title: 'Notification Preferences', desc: 'Choose how you want to receive updates and alerts.', action: 'Manage', link: '/notifications' },
-    { icon: Globe, title: 'Language', desc: 'Choose your preferred language.', actionText: 'English', hasDropdown: true },
+    { icon: Bell, title: 'Notification Preferences', desc: 'Choose how you want to receive updates and alerts.', action: 'Manage', actionType: 'modal', targetModal: 'notif' },
+    { icon: Globe, title: 'Language', desc: 'Choose your preferred language.', actionText: 'English', hasDropdown: false },
     { icon: displayTheme === 'Light Mode' ? Sun : Moon, title: 'Appearance', desc: 'Customize the look and feel of the application.', actionText: displayTheme, hasDropdown: true },
-    { icon: Info, title: 'About WrectifAI', desc: 'App version, terms of service and privacy policy.', action: 'View Details' },
+    { icon: Info, title: 'About WrectifAI', desc: 'App version, terms of service and privacy policy.', action: 'View Details', actionType: 'modal', targetModal: 'about' },
   ];
 
   return (
@@ -115,6 +148,44 @@ export function SettingsContent() {
           </div>
           
           <Button className="w-full mt-4 bg-blue-600 text-white" onClick={() => setIsAboutModalOpen(false)}>Close</Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={isNotifModalOpen} onClose={() => setIsNotifModalOpen(false)} title="Notification Preferences">
+        <div className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h4 className="font-bold text-slate-900">Enable Notifications</h4>
+              <p className="text-xs text-slate-500">Receive alerts and updates.</p>
+            </div>
+            <label className="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" className="sr-only peer" checked={notifPrefs.enabled} onChange={(e) => setNotifPrefs(prev => ({...prev, enabled: e.target.checked}))} />
+              <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+
+          <div className={`space-y-4 pt-4 border-t border-slate-100 ${!notifPrefs.enabled ? 'opacity-50 pointer-events-none' : ''}`}>
+            <h4 className="font-bold text-slate-900 text-sm">Notification Channels</h4>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-700">In-App Notifications</span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer" checked={notifPrefs.inApp} onChange={(e) => setNotifPrefs(prev => ({...prev, inApp: e.target.checked}))} />
+                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-sm text-slate-700">Email Notifications</span>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" className="sr-only peer" checked={notifPrefs.email} onChange={(e) => setNotifPrefs(prev => ({...prev, email: e.target.checked}))} />
+                <div className="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+              </label>
+            </div>
+          </div>
+
+          <div className="pt-4 flex justify-end gap-3 border-t border-slate-100">
+            <Button variant="outline" onClick={() => setIsNotifModalOpen(false)}>Cancel</Button>
+            <Button className="bg-blue-600 text-white" onClick={handleSaveNotifPrefs} isLoading={isSavingPrefs}>Save Preferences</Button>
+          </div>
         </div>
       </Modal>
       <SupportModal isOpen={isSupportModalOpen} onClose={() => setIsSupportModalOpen(false)} />

@@ -795,6 +795,29 @@ garagesRouter.get('/search', async (req, res) => {
   }
 });
 
+// GET /api/v1/garages/my-requests
+garagesRouter.get('/my-requests', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const [servicesRes, productsRes] = await Promise.all([
+      query(`SELECT *, 'service' as type FROM service_requests WHERE garage_id = $1 ORDER BY created_at DESC`, [garageId]),
+      query(`SELECT *, 'product' as type FROM product_requests WHERE garage_id = $1 ORDER BY created_at DESC`, [garageId])
+    ]);
+
+    const allRequests = [...servicesRes.rows, ...productsRes.rows].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    return success(res, allRequests);
+  } catch (err) {
+    console.error('Fetch my-requests error:', err);
+    return error(res, 'Failed to fetch requests', 'DATABASE_ERROR', 500);
+  }
+});
+
 garagesRouter.get('/:id', async (req, res) => {
   try {
     const [result, servicesResult] = await Promise.all([
@@ -959,28 +982,7 @@ garagesRouter.post('/onboarding', authenticate, (req, res) => {
   );
 });
 
-// GET /api/v1/garages/my-requests
-garagesRouter.get('/my-requests', authenticate, async (req, res) => {
-  try {
-    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
-    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
-    const [servicesRes, productsRes] = await Promise.all([
-      query(`SELECT *, 'service' as type FROM service_requests WHERE garage_id = $1 ORDER BY created_at DESC`, [garageId]),
-      query(`SELECT *, 'product' as type FROM product_requests WHERE garage_id = $1 ORDER BY created_at DESC`, [garageId])
-    ]);
-
-    const allRequests = [...servicesRes.rows, ...productsRes.rows].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-
-    return success(res, allRequests);
-  } catch (err) {
-    console.error('Fetch my-requests error:', err);
-    return error(res, 'Failed to fetch requests', 'DATABASE_ERROR', 500);
-  }
-});
 
 // PUT /api/v1/garages/my-requests/:type/:id/resubmit
 garagesRouter.put('/my-requests/:type/:id/resubmit', authenticate, async (req, res) => {

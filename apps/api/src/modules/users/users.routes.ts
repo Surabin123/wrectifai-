@@ -53,10 +53,59 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
   }
 });
 
+usersRouter.get('/preferences/notifications', authenticate, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
+
+    const result = await query(
+      'SELECT notification_preferences as "notificationPreferences" FROM profiles WHERE user_id = $1',
+      [userId]
+    );
+
+    const prefs = result.rows[0]?.notificationPreferences || {
+      enabled: true,
+      inApp: true,
+      email: true,
+      sms: false
+    };
+
+    return success(res, prefs);
+  } catch (err) {
+    console.error('Failed to fetch notification preferences', err);
+    return error(res, 'Internal error', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+usersRouter.put('/preferences/notifications', authenticate, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
+
+    const prefs = req.body;
+
+    // Insert profile if not exists, otherwise update
+    const result = await query(
+      `INSERT INTO profiles (id, user_id, notification_preferences)
+       VALUES (uuid_generate_v4(), $1, $2)
+       ON CONFLICT (user_id) 
+       DO UPDATE SET notification_preferences = EXCLUDED.notification_preferences
+       RETURNING notification_preferences as "notificationPreferences"`,
+      [userId, JSON.stringify(prefs)]
+    );
+
+    return success(res, result.rows[0]?.notificationPreferences);
+  } catch (err) {
+    console.error('Failed to update notification preferences', err);
+    return error(res, 'Internal error', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
 usersRouter.get('/customer/stats', authenticate, async (req, res) => {
   try {
     const customerId = req.user?.userId;
     if (!customerId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
+
 
     // Active Bookings Count
     const bookingsRes = await query(`

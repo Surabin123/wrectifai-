@@ -104,7 +104,7 @@ export default function GarageRequestsPage() {
 
   return (
     <RoleGuard allowedRoles={['garage']}>
-      <DashboardShell customNavItems={garageNavItems}>
+      <DashboardShell customNavItems={garageNavItems} hideBottomWidget={true}>
         <div className="flex-1 overflow-y-auto">
           <DashboardHeader title="Catalog Requests" />
           

@@ -66,7 +66,7 @@ export default function ServiceHistoryPage() {
   });
 
   const totalServices = filteredHistory.length;
-  const completedServices = filteredHistory.filter(h => h.bookingStatus === 'completed').length;
+  const completedServices = filteredHistory.filter(h => ['completed', 'readyForCollection', 'collected'].includes(h.bookingStatus?.toLowerCase() || 'completed')).length;
   
   const formatTime = (isoString: string) => {
     if (!isoString) return { date: '', time: '' };
