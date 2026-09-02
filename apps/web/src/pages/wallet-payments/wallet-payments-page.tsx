@@ -134,10 +134,23 @@ export function WalletPaymentsPage() {
       }
     }
     return [
-      { id: 1, type: 'UPI', details: 'surabi@okaxis', isDefault: true, icon: Smartphone },
-      { id: 2, type: 'Card', details: 'Chase Bank **** 4242', expiry: '12/28', isDefault: false, icon: CreditCard },
+      { id: 2, type: 'Card', details: 'Chase Bank **** 4242', expiry: '12/28', isDefault: true, icon: CreditCard },
     ];
   });
+
+  const loadRazorpayScript = () => {
+    return new Promise((resolve) => {
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+      const script = document.createElement('script');
+      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
+      script.onload = () => resolve(true);
+      script.onerror = () => resolve(false);
+      document.body.appendChild(script);
+    });
+  };
 
   // Hydration fallback removed since states are lazily initialized
 
@@ -194,16 +207,52 @@ export function WalletPaymentsPage() {
     
     const method = paymentMethods.find((m: any) => m.isDefault)?.details || 'Card';
     try {
-      await addWalletFunds(amount, `via ${method}`);
-      await loadWalletData();
+      const { razorpayOrderId, amount: orderAmount, currency } = await addWalletFunds(amount, `via ${method}`);
+      
+      const loaded = await loadRazorpayScript();
+      if (!loaded) {
+        alert('Razorpay SDK failed to load. Are you online?');
+        return;
+      }
+
+      const options = {
+        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_mock123',
+        amount: orderAmount,
+        currency: currency,
+        name: 'WrectifAI Wallet',
+        description: 'Add Money to Wallet',
+        order_id: razorpayOrderId,
+        handler: async function (response: any) {
+          try {
+            await import('@/lib/wallet-api').then(m => m.verifyWalletTopup({
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              amount: amount
+            }));
+            await loadWalletData();
+            setIsAddMoneyOpen(false);
+            setAddMoneyAmount('');
+          } catch (err) {
+            console.error('Wallet verification failed', err);
+            alert('Payment verification failed.');
+          }
+        },
+        prefill: {
+          contact: userPhone || '',
+        },
+        theme: { color: '#2563EB' }
+      };
+      
+      const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.failed', function (response: any) {
+        console.error('Payment failed', response.error);
+        alert('Payment failed: ' + response.error.description);
+      });
+      rzp.open();
     } catch (err) {
       console.error('Failed to add money:', err);
-      // To strictly enforce backend persistence, we do not fall back to local state.
-      // If you see an error here, the backend API server needs to be restarted to pick up the new endpoint.
     }
-    
-    setIsAddMoneyOpen(false);
-    setAddMoneyAmount('');
   };
 
   const setAsDefault = (id: number) => {

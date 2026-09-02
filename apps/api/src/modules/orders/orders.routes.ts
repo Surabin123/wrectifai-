@@ -133,7 +133,7 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
     
     // Record payment intent
     await pool.query(
-      `INSERT INTO payments (payer_user_id, order_id, provider, provider_intent_id, provider_order_id, amount, currency, status)
+      `INSERT INTO payments (customer_user_id, order_id, method, transaction_id, provider_order_id, amount, currency, status)
        VALUES ($1, $2, 'razorpay', $3, $3, $4, 'INR', 'created')`,
       [customerId, orderId, rzpOrder.id, parseFloat(order.total)]
     );
@@ -175,7 +175,7 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
       // Update Payment
       await client.query(
         `UPDATE payments SET status = 'succeeded', provider_payment_id = $1, updated_at = NOW()
-         WHERE provider_intent_id = $2`,
+         WHERE transaction_id = $2`,
         [providerPaymentId, providerOrderId]
       );
       

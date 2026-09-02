@@ -7,6 +7,7 @@ import { getEnv } from '../../config/env';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { ReferralService } from '../../services/referral.service';
+import { processCashback } from '../offers/offers.service';
 
 export const paymentsRouter = Router();
 const env = getEnv();
@@ -101,14 +102,14 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
     
     // Check for duplicate payment record (idempotency on retries)
     const paymentCheck = await client.query(
-      'SELECT id FROM payments WHERE provider_payment_id = $1 OR provider_intent_id = $1',
+      'SELECT id FROM payments WHERE provider_payment_id = $1 OR transaction_id = $1',
       [razorpay_payment_id]
     );
 
     if (paymentCheck.rows.length === 0) {
-      // provider_intent_id is the unique key; use razorpay_payment_id as the canonical transaction ID
+      // transaction_id is the unique key; use razorpay_payment_id as the canonical transaction ID
       await client.query(
-        `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, status, signature_status)
+        `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status, signature_status)
          VALUES ($1, $2, 'razorpay', $3, $4, $5, $6, 'succeeded', 'valid')`,
         [booking.customer_id, booking.id, razorpay_payment_id, razorpay_order_id, razorpay_payment_id, paymentAmount]
       );
@@ -119,6 +120,8 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
       'UPDATE bookings SET payment_status = $1 WHERE id = $2',
       ['PAID', booking.id]
     );
+
+    await processCashback(booking.id);
     
     // Process referral reward asynchronously
     ReferralService.processReferralReward(booking.customer_id, booking.id).catch(err => {
@@ -166,15 +169,15 @@ paymentsRouter.post('/fail', authenticate, async (req, res) => {
     const paymentAmount = Number(booking.total_amount || 0) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
 
     const paymentCheck = await pool.query(
-      'SELECT id FROM payments WHERE provider_order_id = $1 AND (provider_payment_id = $2 OR provider_intent_id = $2)',
+      'SELECT id FROM payments WHERE provider_order_id = $1 AND (provider_payment_id = $2 OR transaction_id = $2)',
       [razorpay_order_id, razorpay_payment_id || 'unknown']
     );
     if (paymentCheck.rows.length === 0) {
       const failTxId = razorpay_payment_id || `fail_${razorpay_order_id}`;
       await pool.query(
-        `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, status)
+        `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status)
          VALUES ($1, $2, 'razorpay', $3, $4, $5, $6, 'failed')
-         ON CONFLICT (provider_intent_id) DO NOTHING`,
+         ON CONFLICT (transaction_id) DO NOTHING`,
         [booking.customer_id, booking.id, failTxId, razorpay_order_id, razorpay_payment_id || 'unknown', paymentAmount]
       );
     }
@@ -310,15 +313,17 @@ paymentsRouter.post('/webhook', async (req, res) => {
             ['PAID', booking.id]
           );
 
+          await processCashback(booking.id);
+
           const paymentCheck = await client.query(
-            'SELECT id FROM payments WHERE provider_payment_id = $1 OR provider_intent_id = $1',
+            'SELECT id FROM payments WHERE provider_payment_id = $1 OR transaction_id = $1',
             [paymentEntity.id]
           );
           if (paymentCheck.rows.length === 0) {
             await client.query(
-              `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, status)
+              `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status)
                VALUES ($1, $2, 'razorpay', $3, $4, $5, $6, 'succeeded')
-               ON CONFLICT (provider_intent_id) DO NOTHING`,
+               ON CONFLICT (transaction_id) DO NOTHING`,
               [booking.customer_id, booking.id, paymentEntity.id, providerIntentId, paymentEntity.id, amount]
             );
           }
@@ -342,14 +347,14 @@ paymentsRouter.post('/webhook', async (req, res) => {
            // Already handled
         } else {
           const failedPaymentCheck = await client.query(
-            'SELECT id FROM payments WHERE provider_payment_id = $1 OR provider_intent_id = $1',
+            'SELECT id FROM payments WHERE provider_payment_id = $1 OR transaction_id = $1',
             [paymentEntity.id]
           );
           if (failedPaymentCheck.rows.length === 0) {
             await client.query(
-              `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, status)
+              `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status)
                VALUES ($1, $2, 'razorpay', $3, $4, $5, $6, 'failed')
-               ON CONFLICT (provider_intent_id) DO NOTHING`,
+               ON CONFLICT (transaction_id) DO NOTHING`,
               [booking.customer_id, booking.id, paymentEntity.id, providerIntentId, paymentEntity.id, paymentEntity.amount / 100]
             );
           }

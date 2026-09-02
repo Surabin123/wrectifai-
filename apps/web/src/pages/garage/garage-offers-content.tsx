@@ -80,7 +80,7 @@ export default function GarageOffersContent() {
 
   const handleAddClick = () => {
     setFormData({
-      code: '', title: '', description: '', discount_type: 'PERCENTAGE', 
+      code: '', title: '', description: '', discount_type: 'PERCENTAGE',
       discount_value: '' as any, offer_type: 'SERVICE', active: true
     });
     setErrorMsg('');
@@ -122,19 +122,19 @@ export default function GarageOffersContent() {
             <p className="text-sm text-slate-500">Manage discounts and promotions for your customers.</p>
           </div>
           <button onClick={handleAddClick} className="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2">
-            <Plus className="w-4 h-4"/> Create Offer
+            <Plus className="w-4 h-4" /> Create Offer
           </button>
         </div>
 
         <div className="p-4 border-b border-slate-100 bg-white">
           <div className="relative w-80">
             <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-            <input 
-              type="text" 
-              placeholder="Search offers by title or code..." 
+            <input
+              type="text"
+              placeholder="Search offers by title or code..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500" 
+              className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
         </div>
@@ -179,8 +179,8 @@ export default function GarageOffersContent() {
                   </td>
                   <td className="p-4 text-center">
                     <div className="flex items-center justify-center gap-2">
-                      <button onClick={() => { setSelectedOffer(o); setFormData(o); setErrorMsg(''); setShowEditModal(true); }} className="p-1.5 rounded-md hover:bg-blue-50 text-blue-600"><Edit2 className="w-4 h-4"/></button>
-                      <button onClick={() => setDeleteModal({ isOpen: true, id: o.id, title: o.title })} className="p-1.5 rounded-md hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4"/></button>
+                      <button onClick={() => { setSelectedOffer(o); setFormData(o); setErrorMsg(''); setShowEditModal(true); }} className="p-1.5 rounded-md hover:bg-blue-50 text-blue-600"><Edit2 className="w-4 h-4" /></button>
+                      <button onClick={() => setDeleteModal({ isOpen: true, id: o.id, title: o.title })} className="p-1.5 rounded-md hover:bg-red-50 text-red-600"><Trash2 className="w-4 h-4" /></button>
                     </div>
                   </td>
                 </tr>
@@ -191,22 +191,22 @@ export default function GarageOffersContent() {
       </div>
 
       {/* Add / Edit Modal */}
-      <Modal 
-        isOpen={showAddModal || showEditModal} 
-        onClose={() => { setShowAddModal(false); setShowEditModal(false); }} 
+      <Modal
+        isOpen={showAddModal || showEditModal}
+        onClose={() => { setShowAddModal(false); setShowEditModal(false); }}
         title={showAddModal ? "Create Offer" : "Edit Offer"}
       >
         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
           {errorMsg && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg">{errorMsg}</div>}
-          
+
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Offer Code</label>
-              <input type="text" value={formData.code} onChange={e => setFormData({...formData, code: e.target.value.toUpperCase()})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. SUMMER20" />
+              <input type="text" value={formData.code} onChange={e => setFormData({ ...formData, code: e.target.value.toUpperCase() })} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. SUMMER20" />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Offer Type</label>
-              <select value={formData.offer_type} onChange={e => setFormData({...formData, offer_type: e.target.value as any})} className="w-full border rounded-lg px-3 py-2 text-sm">
+              <select value={formData.offer_type} onChange={e => setFormData({ ...formData, offer_type: e.target.value as any })} className="w-full border rounded-lg px-3 py-2 text-sm">
                 <option value="SERVICE">Service Offer</option>
                 <option value="PARTS">Parts Offer</option>
                 <option value="COMBO">Combo Offer</option>
@@ -216,31 +216,31 @@ export default function GarageOffersContent() {
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Offer Title</label>
-            <input type="text" value={formData.title} onChange={e => setFormData({...formData, title: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 20% Off AC Service" />
+            <input type="text" value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 20% Off AC Service" />
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Description</label>
-            <textarea value={formData.description || ''} onChange={e => setFormData({...formData, description: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm min-h-[60px]" placeholder="Explain the offer..." />
+            <textarea value={formData.description || ''} onChange={e => setFormData({ ...formData, description: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm min-h-[60px]" placeholder="Explain the offer..." />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Discount Type</label>
-              <select value={formData.discount_type} onChange={e => setFormData({...formData, discount_type: e.target.value as any})} className="w-full border rounded-lg px-3 py-2 text-sm">
+              <select value={formData.discount_type} onChange={e => setFormData({ ...formData, discount_type: e.target.value as any })} className="w-full border rounded-lg px-3 py-2 text-sm">
                 <option value="PERCENTAGE">Percentage (%)</option>
                 <option value="FIXED">Fixed Amount (₹)</option>
               </select>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Discount Value</label>
-              <input type="number" value={formData.discount_value === undefined || formData.discount_value === '' as any ? '' : formData.discount_value} onChange={e => setFormData({...formData, discount_value: e.target.value === '' ? '' as any : Number(e.target.value)})} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <input type="number" value={formData.discount_value === undefined || formData.discount_value === '' as any ? '' : formData.discount_value} onChange={e => setFormData({ ...formData, discount_value: e.target.value === '' ? '' as any : Number(e.target.value) })} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-1">Applicable Item (Optional)</label>
-            <select value={formData.applicable_item_id || ''} onChange={e => setFormData({...formData, applicable_item_id: e.target.value || undefined})} className="w-full border rounded-lg px-3 py-2 text-sm">
+            <select value={formData.applicable_item_id || ''} onChange={e => setFormData({ ...formData, applicable_item_id: e.target.value || undefined })} className="w-full border rounded-lg px-3 py-2 text-sm">
               <option value="">-- Apply to any --</option>
               {formData.offer_type === 'SERVICE' || formData.offer_type === 'COMBO' ? (
                 <optgroup label="Services">
@@ -256,7 +256,7 @@ export default function GarageOffersContent() {
           </div>
 
           <div className="flex items-center gap-2 mt-4">
-            <input type="checkbox" id="activeOffer" checked={formData.active} onChange={e => setFormData({...formData, active: e.target.checked})} className="w-4 h-4 rounded text-blue-600" />
+            <input type="checkbox" id="activeOffer" checked={formData.active} onChange={e => setFormData({ ...formData, active: e.target.checked })} className="w-4 h-4 rounded text-blue-600" />
             <label htmlFor="activeOffer" className="text-sm font-bold text-slate-700">Offer is Active</label>
           </div>
 
@@ -268,25 +268,25 @@ export default function GarageOffersContent() {
       </Modal>
 
       {/* Delete Confirmation Modal */}
-      <Modal 
-        isOpen={deleteModal.isOpen} 
-        onClose={() => setDeleteModal({ isOpen: false, id: '', title: '' })} 
+      <Modal
+        isOpen={deleteModal.isOpen}
+        onClose={() => setDeleteModal({ isOpen: false, id: '', title: '' })}
         title="Remove Offer"
       >
         <div className="space-y-4">
           <p className="text-sm text-slate-600">Are you sure you want to remove <strong>{deleteModal.title}</strong>? Historical data will be preserved, but customers will no longer see this offer.</p>
           <div className="flex justify-end gap-3 pt-4 border-t">
             <button onClick={() => setDeleteModal({ isOpen: false, id: '', title: '' })} className="px-4 py-2 text-slate-600 border rounded-lg text-sm">Cancel</button>
-            <button 
+            <button
               onClick={async () => {
                 try {
                   await apiClient.delete(`/garages/my-offers/${deleteModal.id}`);
                   setDeleteModal({ isOpen: false, id: '', title: '' });
                   fetchOffers();
-                } catch(e) {
+                } catch (e) {
                   console.error(e);
                 }
-              }} 
+              }}
               className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold"
             >
               Remove
