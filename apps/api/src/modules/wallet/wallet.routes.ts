@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
-import { query } from '../../config/database';
+import { query, withTransaction } from '../../config/database';
 
 export const walletRouter = Router();
 
@@ -70,41 +70,33 @@ walletRouter.post('/add-funds', authenticate, async (req, res) => {
     if (!amount || amount <= 0) {
       return error(res, 'Valid amount is required', 'BAD_REQUEST', 400);
     }
+    const result = await withTransaction(async (client) => {
+      // Ensure wallet exists first to prevent insert race condition
+      await client.query('INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING', [userId]);
 
-    // Begin transaction
-    await query('BEGIN');
+      // Get current wallet with a lock
+      const walletRes = await client.query('SELECT id, balance FROM wallets WHERE user_id = $1 FOR UPDATE', [userId]);
+      
+      const walletId = walletRes.rows[0].id;
+      const balanceBefore = Number(walletRes.rows[0].balance);
 
-    // Get current wallet
-    const walletRes = await query('SELECT id, balance FROM wallets WHERE user_id = $1 FOR UPDATE', [userId]);
-    let walletId, balanceBefore;
-    
-    if (walletRes.rows.length === 0) {
-      // Create wallet if it doesn't exist
-      const newWallet = await query('INSERT INTO wallets (user_id, balance) VALUES ($1, 0) RETURNING id', [userId]);
-      walletId = newWallet.rows[0].id;
-      balanceBefore = 0;
-    } else {
-      walletId = walletRes.rows[0].id;
-      balanceBefore = Number(walletRes.rows[0].balance);
-    }
+      const balanceAfter = balanceBefore + Number(amount);
 
-    const balanceAfter = balanceBefore + Number(amount);
+      // Update wallet balance
+      await client.query('UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2', [balanceAfter, walletId]);
 
-    // Update wallet balance
-    await query('UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2', [balanceAfter, walletId]);
+      // Insert transaction
+      await client.query(
+        `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_before, balance_after, reference_type, status, description)
+         VALUES ($1, 'CREDIT', $2, $3, $4, 'Wallet', 'COMPLETED', $5)`,
+        [walletId, amount, balanceBefore, balanceAfter, method || 'Added Money']
+      );
 
-    // Insert transaction
-    await query(
-      `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_before, balance_after, reference_type, status, description)
-       VALUES ($1, 'CREDIT', $2, $3, $4, 'Wallet', 'COMPLETED', $5)`,
-      [walletId, amount, balanceBefore, balanceAfter, method || 'Added Money']
-    );
+      return balanceAfter;
+    });
 
-    await query('COMMIT');
-
-    return success(res, { balance: balanceAfter }, 200);
+    return success(res, { balance: result }, 200);
   } catch (err) {
-    await query('ROLLBACK');
     return error(
       res,
       err instanceof Error ? err.message : 'Failed to add funds',
