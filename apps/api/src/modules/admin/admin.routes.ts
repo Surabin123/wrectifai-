@@ -865,20 +865,37 @@ adminRouter.post('/requests/:type/:id/approve', async (req, res) => {
       const psRes = await client.query(
         `INSERT INTO platform_services (name, category, description, icon, base_price)
          VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-        [request.name, request.category || 'General Service', request.description, request.icon || 'Wrench', request.suggested_price || 0]
+        [request.name, request.category || 'General Service', request.description || '', request.icon || 'Wrench', request.suggested_price || 0]
       );
       
       // Auto-assign to the requesting garage only
       await client.query(
-        `INSERT INTO services (garage_id, platform_service_id, price, duration_mins, duration_unit, is_active)
-         VALUES ($1, $2, $3, $4, $5, true)`,
-        [request.garage_id, psRes.rows[0].id, request.suggested_price || 0, request.suggested_duration || 60, request.duration_unit || 'Minutes']
+        `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, duration_unit, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)`,
+        [
+          request.garage_id, 
+          psRes.rows[0].id, 
+          request.name, 
+          request.category || 'General Service', 
+          request.description || '', 
+          request.suggested_price || 0, 
+          request.suggested_duration || 60, 
+          request.duration_unit || 'Minutes'
+        ]
       );
     } else {
+      // Find the platform seller id
+      const sellerRes = await client.query(`SELECT id FROM sellers WHERE seller_type = 'platform' LIMIT 1`);
+      if (sellerRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'Platform seller not found for product creation', 'SYSTEM_ERROR', 500);
+      }
+      const platformSellerId = sellerRes.rows[0].id;
+
       const pRes = await client.query(
         `INSERT INTO products (seller_id, name, description, category, price, is_active, image)
          VALUES ($1, $2, $3, $4, $5, true, $6) RETURNING id`,
-        [adminId, request.name, request.description, request.category || 'Spares', request.suggested_price || 0, request.image]
+        [platformSellerId, request.name, request.description || '', request.category || 'Spares', request.suggested_price || 0, request.image]
       );
       
       // Auto-assign to the requesting garage only
@@ -916,14 +933,37 @@ adminRouter.post('/requests/:type/:id/reject', async (req, res) => {
 
     const table = type === 'service' ? 'service_requests' : 'product_requests';
     
+    const rejectionObj = {
+      reason: reason.trim(),
+      rejected_at: new Date().toISOString(),
+      rejected_by: adminId
+    };
+
     const result = await query(
-      `UPDATE ${table} SET status = 'rejected', admin_notes = $1, updated_at = NOW() WHERE id = $2 AND status = 'pending' RETURNING id`,
-      [`Rejected: ${reason}`, id]
+      `UPDATE ${table} 
+       SET status = 'rejected', 
+           rejection_history = rejection_history || $1::jsonb,
+           updated_at = NOW() 
+       WHERE id = $2 AND status = 'pending' 
+       RETURNING id, garage_id, name`,
+      [JSON.stringify([rejectionObj]), id]
     );
 
     if (result.rows.length === 0) {
       return error(res, 'Request not found or not pending', 'NOT_FOUND', 404);
     }
+
+    // Insert Notification for Garage
+    await query(
+      `INSERT INTO notifications (user_id, garage_id, channel, template_key, status, payload, title, description, is_admin)
+       VALUES (NULL, $1, 'inApp', 'request_rejected', 'sent', $2, $3, $4, false)`,
+      [
+        result.rows[0].garage_id,
+        JSON.stringify({ requestId: id, type, reason: reason.trim() }),
+        `${type === 'service' ? 'Service' : 'Product'} Request Rejected`,
+        `Your request for "${result.rows[0].name}" was rejected. Please review feedback.`
+      ]
+    );
 
     return success(res, { success: true, message: 'Request rejected' });
   } catch (err) {

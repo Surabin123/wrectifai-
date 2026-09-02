@@ -958,3 +958,97 @@ garagesRouter.post('/onboarding', authenticate, (req, res) => {
     201
   );
 });
+
+// GET /api/v1/garages/my-requests
+garagesRouter.get('/my-requests', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const [servicesRes, productsRes] = await Promise.all([
+      query(`SELECT *, 'service' as type FROM service_requests WHERE garage_id = $1 ORDER BY created_at DESC`, [garageId]),
+      query(`SELECT *, 'product' as type FROM product_requests WHERE garage_id = $1 ORDER BY created_at DESC`, [garageId])
+    ]);
+
+    const allRequests = [...servicesRes.rows, ...productsRes.rows].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    return success(res, allRequests);
+  } catch (err) {
+    console.error('Fetch my-requests error:', err);
+    return error(res, 'Failed to fetch requests', 'DATABASE_ERROR', 500);
+  }
+});
+
+// PUT /api/v1/garages/my-requests/:type/:id/resubmit
+garagesRouter.put('/my-requests/:type/:id/resubmit', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const { type, id } = req.params;
+    const { name, category, description, suggestedPrice, suggestedDuration, durationUnit, image, brand } = req.body;
+
+    if (type !== 'service' && type !== 'product') return error(res, 'Invalid request type', 'INVALID_TYPE', 400);
+
+    const table = type === 'service' ? 'service_requests' : 'product_requests';
+    
+    // Process image if provided
+    let processedImage = image;
+    if (image && image.startsWith('data:image')) {
+      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+        try {
+          const { v2: cloudinary } = require('cloudinary');
+          const uploadResult = await cloudinary.uploader.upload(image, { folder: `wrectifai/requests` });
+          processedImage = uploadResult.secure_url;
+        } catch (err) {}
+      }
+    }
+
+    let result;
+    if (type === 'service') {
+      result = await query(
+        `UPDATE service_requests 
+         SET name = COALESCE($1, name), 
+             category = COALESCE($2, category), 
+             description = COALESCE($3, description), 
+             suggested_price = COALESCE($4, suggested_price),
+             suggested_duration = COALESCE($5, suggested_duration),
+             duration_unit = COALESCE($6, duration_unit),
+             image = COALESCE($7, image),
+             status = 'pending',
+             updated_at = NOW()
+         WHERE id = $8 AND garage_id = $9 AND status = 'rejected'
+         RETURNING *`,
+        [name, category, description, suggestedPrice, suggestedDuration, durationUnit, processedImage, id, garageId]
+      );
+    } else {
+      result = await query(
+        `UPDATE product_requests 
+         SET name = COALESCE($1, name), 
+             category = COALESCE($2, category), 
+             description = COALESCE($3, description), 
+             suggested_price = COALESCE($4, suggested_price),
+             brand = COALESCE($5, brand),
+             image = COALESCE($6, image),
+             status = 'pending',
+             updated_at = NOW()
+         WHERE id = $7 AND garage_id = $8 AND status = 'rejected'
+         RETURNING *`,
+        [name, category, description, suggestedPrice, brand, processedImage, id, garageId]
+      );
+    }
+
+    if (result.rows.length === 0) {
+      return error(res, 'Request not found, not owned by this garage, or not rejected', 'BAD_REQUEST', 400);
+    }
+
+    return success(res, { success: true, request: result.rows[0] });
+  } catch (err) {
+    console.error('Resubmit request error:', err);
+    return error(res, 'Failed to resubmit request', 'DATABASE_ERROR', 500);
+  }
+});

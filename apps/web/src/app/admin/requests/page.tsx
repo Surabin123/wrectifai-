@@ -138,17 +138,15 @@ export default function RequestsPage() {
                         <div className="flex gap-2">
                           <button 
                             onClick={() => setActionModal({ isOpen: true, id: r.id, type: r.type, action: 'approve' })}
-                            className="p-1.5 text-green-600 hover:bg-green-50 rounded"
-                            title="Approve"
+                            className="px-3 py-1 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded transition-colors"
                           >
-                            <CheckCircle className="w-5 h-5" />
+                            Approve
                           </button>
                           <button 
                             onClick={() => setActionModal({ isOpen: true, id: r.id, type: r.type, action: 'reject' })}
-                            className="p-1.5 text-red-600 hover:bg-red-50 rounded"
-                            title="Reject"
+                            className="px-3 py-1 text-sm font-medium text-white bg-red-600 hover:bg-red-700 rounded transition-colors"
                           >
-                            <XCircle className="w-5 h-5" />
+                            Reject
                           </button>
                         </div>
                       )}

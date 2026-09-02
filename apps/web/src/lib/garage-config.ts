@@ -1,4 +1,4 @@
-import { LayoutDashboard, Inbox, CheckCircle, XCircle, FileText, Users, CheckSquare, UserRound, Settings, CalendarDays, History, Star, Package, HelpCircle } from 'lucide-react';
+import { LayoutDashboard, Inbox, CheckCircle, XCircle, FileText, Users, CheckSquare, UserRound, Settings, CalendarDays, History, Star, Package, HelpCircle, ClipboardList } from 'lucide-react';
 import type { NavItem } from '@/components/home/data';
 
 export const garageNavItems: NavItem[] = [
@@ -7,6 +7,7 @@ export const garageNavItems: NavItem[] = [
   { label: 'Bookings', icon: CalendarDays, href: '/garage/bookings', slug: 'bookings' },
   { label: 'Quotes', icon: FileText, href: '/garage/quotes', slug: 'quotes' },
   { label: 'Orders', icon: Package, href: '/garage/orders', slug: 'orders' },
+  { label: 'Catalog Requests', icon: ClipboardList, href: '/garage/requests', slug: 'requests' },
   { label: 'Service History', icon: History, href: '/garage/service-history', slug: 'service-history' },
   { label: 'Customers', icon: Users, href: '/garage/customers', slug: 'customers' },
   { label: 'Reviews', icon: Star, href: '/garage/reviews', slug: 'reviews' },
