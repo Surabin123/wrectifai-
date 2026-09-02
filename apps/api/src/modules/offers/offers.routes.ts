@@ -10,11 +10,17 @@ export const offersRouter = Router();
 offersRouter.get('/', async (req, res) => {
   try {
     const result = await query(
-      `SELECT id, code, title, description, discount_type, discount_value, max_discount, min_order_amount 
-       FROM offers 
-       WHERE active = true 
-       AND (valid_until IS NULL OR valid_until > NOW())
-       AND (valid_from <= NOW())`
+      `SELECT o.id, o.code, o.title, o.description, o.discount_type, o.discount_value, 
+              o.max_discount, o.min_order_amount, o.valid_from, o.valid_until, 
+              o.offer_type, o.applicable_item_id, o.terms_conditions,
+              g.name as "garageName"
+       FROM offers o
+       LEFT JOIN garages g ON o.garage_id = g.id
+       WHERE o.active = true 
+       AND o.is_deleted = false
+       AND (o.valid_until IS NULL OR o.valid_until > NOW())
+       AND (o.valid_from IS NULL OR o.valid_from <= NOW())
+       ORDER BY o.created_at DESC`
     );
     return success(res, result.rows, 200);
   } catch (err) {
@@ -30,7 +36,7 @@ offersRouter.get('/', async (req, res) => {
 // POST /offers/validate
 offersRouter.post('/validate', authenticate, async (req, res) => {
   try {
-    const { code, subtotal } = req.body;
+    const { code, subtotal, garageId } = req.body;
     const userId = req.user?.userId;
 
     if (!code || subtotal === undefined) {
@@ -40,7 +46,7 @@ offersRouter.post('/validate', authenticate, async (req, res) => {
       return error(res, 'User ID is required', 'UNAUTHORIZED', 401);
     }
 
-    const validation = await validateOffer(code, userId, Number(subtotal));
+    const validation = await validateOffer(code, userId, Number(subtotal), garageId);
     return success(res, validation, 200);
   } catch (err) {
     return error(

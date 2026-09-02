@@ -1,15 +1,15 @@
 import { getDbPool } from '../../config/database';
 
-export async function validateOffer(code: string, userId: string, subtotal: number) {
+export async function validateOffer(code: string, userId: string, subtotal: number, garageId?: string) {
   const pool = getDbPool();
   const client = await pool.connect();
   
   try {
     const res = await client.query(
       `SELECT * FROM offers 
-       WHERE code = $1 AND active = true 
+       WHERE code = $1 AND active = true AND is_deleted = false
        AND (valid_until IS NULL OR valid_until > NOW())
-       AND (valid_from <= NOW())`,
+       AND (valid_from IS NULL OR valid_from <= NOW())`,
       [code]
     );
 
@@ -18,6 +18,12 @@ export async function validateOffer(code: string, userId: string, subtotal: numb
     }
 
     const offer = res.rows[0];
+
+    if (offer.offer_type !== 'GLOBAL' && offer.garage_id) {
+      if (garageId && offer.garage_id !== garageId) {
+        throw new Error('This offer is not applicable for this garage.');
+      }
+    }
 
     if (subtotal < Number(offer.min_order_amount)) {
       throw new Error(`Order subtotal must be at least ${offer.min_order_amount} to use this offer.`);

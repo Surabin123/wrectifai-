@@ -191,7 +191,7 @@ async function createBookingInternal(req: any, res: any, data: {
 
     // 1. Offer Validation
     if (offerCode) {
-      const offerValidation = await validateOffer(offerCode, customerId, finalAmount);
+      const offerValidation = await validateOffer(offerCode, customerId, finalAmount, garageId);
       offerId = offerValidation.offerId;
       discountApplied = offerValidation.discount;
       finalAmount -= discountApplied;

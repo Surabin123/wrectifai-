@@ -1,161 +1,175 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState, useMemo } from 'react';
+import { ShieldCheck, Tag, Percent, SlidersHorizontal, Package, Wrench } from 'lucide-react';
 import { Card } from '@/components/common/card';
-import { Button } from '@/components/common/button';
-import { useRouter } from 'next/navigation';
-import { Flame, Star, Package, CheckCircle, Percent, Clock, ChevronDown, Filter } from 'lucide-react';
-import Image from 'next/image';
-import { cn } from '@/lib/utils';
-import { Modal } from '@/components/common/modal';
-
-import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
-
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency } from '@/lib/currency';
+import { cn } from '@/utils/cn';
+
+type OfferFilter = 'All' | 'SERVICE' | 'PARTS' | 'COMBO';
+
+interface Offer {
+  id: string;
+  code: string;
+  title: string;
+  description: string;
+  discount_type: 'PERCENTAGE' | 'FIXED';
+  discount_value: number;
+  max_discount?: number;
+  min_order_amount?: number;
+  valid_from?: string;
+  valid_until?: string;
+  offer_type: 'SERVICE' | 'PARTS' | 'COMBO' | 'GLOBAL';
+  applicable_item_id?: string;
+  terms_conditions?: string;
+  garageName?: string;
+}
+
+const filters: { label: OfferFilter; displayLabel: string; icon?: any }[] = [
+  { label: 'All', displayLabel: 'All Offers', icon: Tag },
+  { label: 'SERVICE', displayLabel: 'Service Offers', icon: Wrench },
+  { label: 'PARTS', displayLabel: 'Parts & Accessories', icon: Package },
+  { label: 'COMBO', displayLabel: 'Combo Offers', icon: Percent },
+];
 
 export function OffersPage() {
-  const router = useRouter();
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedOffer, setSelectedOffer] = useState<any>(null);
-  const [offers, setOffers] = useState<any[]>([]);
+  const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
-
+  const [activeFilter, setActiveFilter] = useState<OfferFilter>('All');
+  
   useEffect(() => {
-    const handleSearch = (e: CustomEvent) => setSearchQuery(e.detail);
-    
-    const loadOffers = async () => {
+    const fetchOffers = async () => {
       try {
-        setLoading(true);
-        const res = await apiClient.get<any>('/offers');
-        if (Array.isArray(res)) setOffers(res);
+        const data = await apiClient.get<Offer[]>('/offers');
+        setOffers(data || []);
       } catch (err) {
-        console.error(err);
+        console.error('Failed to load offers', err);
       } finally {
         setLoading(false);
       }
     };
-    
-    loadOffers();
-    window.addEventListener('dashboard-search', handleSearch as EventListener);
-    return () => {
-      window.removeEventListener('dashboard-search', handleSearch as EventListener);
-    };
+    fetchOffers();
   }, []);
 
-  const filterOffer = (offer: any) => {
-    const matchesSearch = offer.title.toLowerCase().includes(searchQuery.toLowerCase()) || offer.description.toLowerCase().includes(searchQuery.toLowerCase()) || offer.code.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesSearch;
-  };
-
-  const filteredOffers = offers.filter(filterOffer);
+  const filteredOffers = useMemo(() => {
+    if (activeFilter === 'All') return offers;
+    return offers.filter(o => o.offer_type === activeFilter);
+  }, [offers, activeFilter]);
 
   return (
-    <DashboardShell header={<TopNavbar />}>
-      <div className="p-4 space-y-6">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 mb-1">Offers</h1>
-          <p className="text-slate-500 text-sm">Exclusive deals and discounts just for you!</p>
+    <div className="min-h-screen bg-[#f8fafd] flex flex-col font-sans pb-24">
+      <TopNavbar transparent={false} />
+      
+      <main className="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-6 mt-28">
+        
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl sm:text-4xl font-black text-[#17307a] tracking-tight">Active Offers & Promos</h1>
+          <p className="text-slate-500 mt-2 text-sm sm:text-base font-medium max-w-2xl">
+            Save big on your next garage visit. Discover exclusive discounts on services, parts, and combos from top-rated garages.
+          </p>
         </div>
-
-        {searchQuery && (
-          <div className="text-sm font-medium text-slate-600">
-            Searching offers for: <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded">"{searchQuery}"</span>
-          </div>
-        )}
-
-        {/* Hero Banner Placeholder */}
-        {!searchQuery && selectedCategory === 'All' && (
-          <Card className="h-48 rounded-[24px] bg-gradient-to-r from-blue-50 to-blue-100 flex items-center p-8 relative overflow-hidden border-blue-200 shadow-sm">
-            <div className="relative z-10 w-2/3">
-              <h2 className="text-2xl font-bold text-blue-900 mb-2">Save More. Drive Better.</h2>
-              <p className="text-blue-700 text-sm mb-4">Grab the best offers from top garages near you.</p>
-            </div>
-            <div className="absolute right-0 bottom-0 h-full w-1/2 flex items-end justify-end">
-               <Image src="/assets/summner_car.png" alt="Hero" width={300} height={200} className="object-contain" />
-            </div>
-          </Card>
-        )}
 
         {/* Filters */}
-        <div className="flex flex-wrap gap-2">
-          {['All', 'Service', 'Parts', 'Combo'].map(cat => (
-            <button 
-              key={cat} 
-              onClick={() => setSelectedCategory(cat)}
-              className={cn("px-5 py-2.5 rounded-full text-sm font-semibold shadow-sm flex items-center gap-2 transition-colors", selectedCategory === cat ? "bg-blue-600 text-white" : "bg-white text-slate-600 border border-slate-200 hover:bg-slate-50")}
-            >
-              {cat === 'All' ? 'All Offers' : `${cat} Offers`}
-            </button>
-          ))}
+        <div className="flex overflow-x-auto pb-4 mb-6 gap-3 hide-scrollbar">
+          {filters.map((f) => {
+            const Icon = f.icon;
+            const active = activeFilter === f.label;
+            return (
+              <button
+                key={f.label}
+                onClick={() => setActiveFilter(f.label)}
+                className={cn(
+                  'inline-flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-bold transition-all shadow-sm whitespace-nowrap',
+                  active
+                    ? 'border-blue-600 bg-blue-600 text-white shadow-md'
+                    : 'border-slate-200 bg-white text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                )}
+              >
+                {Icon && <Icon className="h-4 w-4" />}
+                {f.displayLabel}
+              </button>
+            );
+          })}
         </div>
 
-        {/* Regular Offers List */}
-        {!loading && filteredOffers.length > 0 && (
-          <div>
-            <h3 className="font-bold text-slate-900 mb-4">Available Offers</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-               {filteredOffers.map((offer) => (
-                 <Card key={offer.id} className="p-4 flex gap-4 border-slate-100 shadow-sm hover:border-blue-200 transition-colors cursor-pointer group rounded-[20px]" onClick={() => setSelectedOffer(offer)}>
-                    <div className="w-24 h-24 rounded-xl flex items-center justify-center shrink-0 border border-slate-100 bg-blue-50 text-blue-600 relative overflow-hidden">
-                       <Percent className="w-8 h-8" />
+        {/* Offers Grid */}
+        {loading ? (
+          <div className="flex justify-center items-center py-20">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+          </div>
+        ) : filteredOffers.length === 0 ? (
+          <div className="text-center py-20 bg-white rounded-2xl border border-dashed border-slate-300">
+            <Tag className="w-12 h-12 text-slate-300 mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-slate-700">No offers found</h3>
+            <p className="text-sm text-slate-500 mt-1">Check back later for new promotions and discounts.</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {filteredOffers.map(offer => (
+              <Card 
+                key={offer.id} 
+                className="overflow-hidden bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md transition-shadow group flex flex-col"
+              >
+                <div className="p-5 flex-1">
+                  <div className="flex justify-between items-start mb-4">
+                    <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700 ring-1 ring-inset ring-blue-700/10 uppercase">
+                      {offer.offer_type}
+                    </span>
+                    {offer.garageName && (
+                      <span className="text-xs font-bold text-slate-500 flex items-center gap-1 bg-slate-50 px-2 py-1 rounded-md">
+                        <ShieldCheck className="w-3.5 h-3.5 text-green-500" />
+                        {offer.garageName}
+                      </span>
+                    )}
+                  </div>
+                  
+                  <h3 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">
+                    {offer.title}
+                  </h3>
+                  
+                  <p className="text-sm text-slate-600 mb-4 line-clamp-2">
+                    {offer.description}
+                  </p>
+
+                  <div className="flex items-end gap-2 mb-2">
+                    <span className="text-2xl font-black text-green-600">
+                      {offer.discount_type === 'PERCENTAGE' ? `${offer.discount_value}%` : `₹${offer.discount_value}`}
+                    </span>
+                    <span className="text-sm font-bold text-green-700 pb-1">OFF</span>
+                  </div>
+                  
+                  {(offer.min_order_amount ?? 0) > 0 && (
+                    <p className="text-xs text-slate-500 font-medium">
+                      On minimum order of ₹{offer.min_order_amount}
+                    </p>
+                  )}
+                </div>
+
+                <div className="bg-slate-50 px-5 py-4 border-t border-slate-100 flex items-center justify-between">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Use Code</span>
+                    <span className="font-mono font-bold text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm inline-block mt-1">
+                      {offer.code}
+                    </span>
+                  </div>
+                  {offer.valid_until && (
+                    <div className="text-right">
+                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Valid Until</span>
+                      <span className="text-xs font-semibold text-slate-700 mt-1 block">
+                        {new Date(offer.valid_until).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </span>
                     </div>
-                    <div className="flex flex-col flex-1">
-                      <div className="flex justify-between items-start mb-1">
-                        <h4 className="font-bold text-slate-900 group-hover:text-blue-600 transition-colors text-sm">{offer.title}</h4>
-                      </div>
-                      <p className="text-xs text-slate-500 line-clamp-2 mb-2">{offer.description}</p>
-                      <div className="mt-auto flex items-center justify-between">
-                         <div className="flex items-center gap-1 text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded">
-                           Code: {offer.code}
-                         </div>
-                      </div>
-                    </div>
-                 </Card>
-               ))}
-            </div>
+                  )}
+                </div>
+              </Card>
+            ))}
           </div>
         )}
-
-        {loading && <div className="p-8 text-center text-slate-500">Loading offers...</div>}
-
-        {!loading && filteredOffers.length === 0 && (
-          <div className="text-center py-12 bg-white rounded-[20px] border border-slate-100 shadow-sm">
-             <Percent className="w-12 h-12 text-slate-200 mx-auto mb-3" />
-             <p className="text-slate-500 font-medium">No offers found matching your criteria</p>
-             <button onClick={() => { setSearchQuery(''); setSelectedCategory('All'); }} className="text-blue-600 text-sm mt-2 hover:underline font-semibold">Clear filters</button>
-          </div>
-        )}
-      </div>
-
-      <Modal isOpen={!!selectedOffer} onClose={() => setSelectedOffer(null)} title="Offer Details">
-        {selectedOffer && (
-          <div className="space-y-4">
-             <div className="w-10 h-10 rounded-full flex items-center justify-center mb-3 bg-blue-50 text-blue-600">
-                <Percent className="w-5 h-5" />
-             </div>
-             <div>
-               <div className="flex justify-between items-center mb-2">
-                 <span className="px-2 py-1 text-xs font-bold rounded bg-blue-50 text-blue-700">Code: {selectedOffer.code}</span>
-               </div>
-               
-               <h3 className="text-xl font-bold text-slate-900">{selectedOffer.title}</h3>
-               <p className="text-sm text-slate-600 my-4">{selectedOffer.description}</p>
-               
-               <div className="bg-slate-50 rounded-lg p-3 flex flex-col gap-1 border border-slate-100 mb-6 text-sm text-slate-700">
-                 <p>Discount: {selectedOffer.discount_type === 'percentage' ? `${selectedOffer.discount_value}%` : formatCurrency(selectedOffer.discount_value)}</p>
-                 {selectedOffer.max_discount && <p>Max Discount: {formatCurrency(selectedOffer.max_discount)}</p>}
-                 {selectedOffer.min_order_amount > 0 && <p>Min Order: {formatCurrency(selectedOffer.min_order_amount)}</p>}
-               </div>
-               
-               <Button className="w-full bg-blue-600 text-white" onClick={() => setSelectedOffer(null)}>Close</Button>
-             </div>
-          </div>
-        )}
-      </Modal>
-    </DashboardShell>
+      </main>
+    </div>
   );
 }
 
