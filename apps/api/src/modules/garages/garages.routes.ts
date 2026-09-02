@@ -1074,30 +1074,71 @@ garagesRouter.post('/my-requests/:type/:id/add-to-catalog', authenticate, async 
     }
     const request = reqResult.rows[0];
 
-    let result;
-    if (type === 'service') {
-      if (!request.platform_service_id) {
-        return error(res, 'Platform service ID missing from approved request', 'SYSTEM_ERROR', 500);
+    const client = await getDbPool().connect();
+    try {
+      await client.query('BEGIN');
+
+      let result;
+      if (type === 'service') {
+        // Auto-backfill platform_service_id if missing (e.g. approved before migration 056)
+        if (!request.platform_service_id) {
+          const psRes = await client.query(
+            `INSERT INTO platform_services (name, category, description, icon, base_price)
+             VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+            [request.name, request.category || 'General Service', request.description || '', request.icon || 'Wrench', request.suggested_price || 0]
+          );
+          const newPlatformServiceId = psRes.rows[0].id;
+          await client.query(
+            `UPDATE service_requests SET platform_service_id = $1 WHERE id = $2`,
+            [newPlatformServiceId, request.id]
+          );
+          request.platform_service_id = newPlatformServiceId;
+        }
+
+        const { price, durationMins, durationUnit, isActive } = req.body;
+        result = await client.query(
+          `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, duration_unit, is_active)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
+          [garageId, request.platform_service_id, request.name, request.category || 'General Service', request.description || '', price ?? request.suggested_price, durationMins ?? request.suggested_duration, durationUnit ?? request.duration_unit, isActive ?? true]
+        );
+      } else {
+        // Auto-backfill product_id if missing (e.g. approved before migration 056)
+        if (!request.product_id) {
+          const sellerRes = await client.query(`SELECT id FROM sellers WHERE seller_type = 'platform' LIMIT 1`);
+          if (sellerRes.rows.length === 0) {
+            await client.query('ROLLBACK');
+            return error(res, 'Platform seller not found', 'SYSTEM_ERROR', 500);
+          }
+          const pRes = await client.query(
+            `INSERT INTO products (seller_id, name, description, category, price, is_active, image)
+             VALUES ($1, $2, $3, $4, $5, true, $6) RETURNING id`,
+            [sellerRes.rows[0].id, request.name, request.description || '', request.category || 'Spares', request.suggested_price || 0, request.image || null]
+          );
+          const newProductId = pRes.rows[0].id;
+          await client.query(
+            `UPDATE product_requests SET product_id = $1 WHERE id = $2`,
+            [newProductId, request.id]
+          );
+          request.product_id = newProductId;
+        }
+
+        const { price, qtyAvailable, isActive } = req.body;
+        result = await client.query(
+          `INSERT INTO garage_inventory (garage_id, product_id, qty_available, price, is_active)
+           VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+          [garageId, request.product_id, qtyAvailable ?? 0, price ?? request.suggested_price, isActive ?? true]
+        );
       }
-      const { price, durationMins, durationUnit, isActive } = req.body;
-      result = await query(
-        `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, duration_unit, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-        [garageId, request.platform_service_id, request.name, request.category || 'General Service', request.description || '', price ?? request.suggested_price, durationMins ?? request.suggested_duration, durationUnit ?? request.duration_unit, isActive ?? true]
-      );
-    } else {
-      if (!request.product_id) {
-        return error(res, 'Platform product ID missing from approved request', 'SYSTEM_ERROR', 500);
-      }
-      const { price, qtyAvailable, isActive } = req.body;
-      result = await query(
-        `INSERT INTO garage_inventory (garage_id, product_id, qty_available, price, is_active)
-         VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-        [garageId, request.product_id, qtyAvailable ?? 0, price ?? request.suggested_price, isActive ?? true]
-      );
+
+      await client.query('COMMIT');
+      return success(res, { success: true, item: result.rows[0] });
+    } catch (innerErr) {
+      await client.query('ROLLBACK');
+      throw innerErr;
+    } finally {
+      client.release();
     }
 
-    return success(res, { success: true, item: result.rows[0] });
   } catch (err) {
     console.error('Add to catalog error:', err);
     return error(res, 'Failed to add item to catalog', 'DATABASE_ERROR', 500);
