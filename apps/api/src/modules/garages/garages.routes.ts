@@ -518,6 +518,66 @@ garagesRouter.put('/my-inventory/:inventoryId', authenticate, async (req, res) =
   }
 });
 
+garagesRouter.delete('/my-inventory/:inventoryId', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const result = await query(
+      `DELETE FROM garage_inventory WHERE id = $1 AND garage_id = $2 RETURNING id`,
+      [req.params.inventoryId, garageId]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Inventory item not found or unauthorized', 'NOT_FOUND', 404);
+    }
+
+    return success(res, { message: 'Inventory item removed successfully' });
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Failed to remove inventory item', 'DATABASE_ERROR', 500);
+  }
+});
+
+garagesRouter.post('/my-inventory/request', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const { name, category, description, brand, suggestedPrice, image } = req.body;
+    
+    if (!name || !category) {
+      return error(res, 'Name and category are required', 'BAD_REQUEST', 400);
+    }
+    
+    let processedImage = image;
+    if (image && image.startsWith('data:image')) {
+      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+        try {
+          const { v2: cloudinary } = require('cloudinary');
+          const uploadResult = await cloudinary.uploader.upload(image, {
+            folder: `wrectifai/requests`,
+          });
+          processedImage = uploadResult.secure_url;
+        } catch (err) {}
+      }
+    }
+
+    const result = await query(
+      `INSERT INTO product_requests (garage_id, name, category, description, brand, image, suggested_price)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [garageId, name, category, description, brand || null, processedImage, suggestedPrice || null]
+    );
+
+    return success(res, result.rows[0], 201);
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Failed to submit product request', 'DATABASE_ERROR', 500);
+  }
+});
+
 garagesRouter.get('/my-services', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
@@ -624,6 +684,66 @@ garagesRouter.put('/my-services/:serviceId', authenticate, async (req, res) => {
   } catch (err) {
     console.error(err);
     return error(res, 'Failed to update service', 'DATABASE_ERROR', 500);
+  }
+});
+
+garagesRouter.delete('/my-services/:serviceId', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const result = await query(
+      `DELETE FROM services WHERE id = $1 AND garage_id = $2 RETURNING id`,
+      [req.params.serviceId, garageId]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Service not found or unauthorized', 'NOT_FOUND', 404);
+    }
+
+    return success(res, { message: 'Service removed successfully' });
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Failed to remove service', 'DATABASE_ERROR', 500);
+  }
+});
+
+garagesRouter.post('/my-services/request', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = req.user?.garageId;
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const { name, category, description, suggestedDuration, suggestedPrice, image } = req.body;
+    
+    if (!name || !category) {
+      return error(res, 'Name and category are required', 'BAD_REQUEST', 400);
+    }
+    
+    let processedImage = image;
+    if (image && image.startsWith('data:image')) {
+      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+        try {
+          const { v2: cloudinary } = require('cloudinary');
+          const uploadResult = await cloudinary.uploader.upload(image, {
+            folder: `wrectifai/requests`,
+          });
+          processedImage = uploadResult.secure_url;
+        } catch (err) {}
+      }
+    }
+
+    const result = await query(
+      `INSERT INTO service_requests (garage_id, name, category, description, image, suggested_duration, suggested_price)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [garageId, name, category, description, processedImage, suggestedDuration || null, suggestedPrice || null]
+    );
+
+    return success(res, result.rows[0], 201);
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Failed to submit service request', 'DATABASE_ERROR', 500);
   }
 });
 

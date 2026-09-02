@@ -51,3 +51,18 @@ servicesRouter.get('/', async (req, res) => {
     return error(res, 'Failed to fetch services', 'DATABASE_ERROR', 500);
   }
 });
+
+// GET /api/v1/services/platform - Fetch all active platform services
+servicesRouter.get('/platform', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT id, name, category, description, icon, base_price as "base_price"
+       FROM platform_services
+       ORDER BY name ASC`
+    );
+    return success(res, result.rows);
+  } catch (err) {
+    console.error('Error fetching platform services:', err);
+    return error(res, 'Failed to fetch platform services', 'DATABASE_ERROR', 500);
+  }
+});
