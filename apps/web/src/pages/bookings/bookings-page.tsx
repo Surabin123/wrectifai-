@@ -38,6 +38,7 @@ export function BookingsPage() {
   
   const [paymentSuccessData, setPaymentSuccessData] = useState<{isOpen: boolean, method: 'online'|'cash'|'wallet', amount: number, transactionId?: string, title?: string, desc?: string} | null>(null);
   const [paymentError, setPaymentError] = useState<string | null>(null);
+  const [refundConfirmBookingId, setRefundConfirmBookingId] = useState<string | null>(null);
 
   const handleViewInvoice = async (bookingId: string) => {
     setLoadingInvoice(true);
@@ -329,19 +330,21 @@ export function BookingsPage() {
     }
   };
 
-  const handleRefund = async (bookingId: string) => {
-    if (!confirm('Are you sure you want to request a refund for this booking?')) return;
-    setPaymentProcessingId(bookingId);
+  const handleRefund = (bookingId: string) => {
+    setRefundConfirmBookingId(bookingId);
+  };
+
+  const executeRefund = async () => {
+    if (!refundConfirmBookingId) return;
+    setPaymentProcessingId(refundConfirmBookingId);
     try {
       const { apiClient } = await import('@/lib/api-client');
-      await apiClient.post(`/payments/booking/${bookingId}/refund`, {});
-      setBookings((prev) => prev.map((b) => (b.id === bookingId ? { ...b, paymentStatus: 'REFUNDED' } : b)));
-      // Instead of alert, we could use a custom modal, but simple error modal works for success too with a tweak, or just a small notification.
-      // Let's use a standard Modal for simplicity or just repurpose PaymentSuccessModal.
+      await apiClient.post(`/payments/booking/${refundConfirmBookingId}/refund`, {});
+      setBookings((prev) => prev.map((b) => (b.id === refundConfirmBookingId ? { ...b, paymentStatus: 'REFUNDED' } : b)));
       setPaymentSuccessData({
         isOpen: true,
         method: 'online',
-        amount: bookings.find(b => b.id === bookingId)?.totalAmount || 0,
+        amount: bookings.find(b => b.id === refundConfirmBookingId)?.totalAmount || 0,
         title: 'Refund Processed',
         desc: 'Refund requested successfully. It may take a few days to reflect.'
       });
@@ -349,6 +352,7 @@ export function BookingsPage() {
       setPaymentError(err.message || 'Failed to request refund.');
     } finally {
       setPaymentProcessingId(null);
+      setRefundConfirmBookingId(null);
     }
   };
 
@@ -968,20 +972,52 @@ export function BookingsPage() {
         />
       )}
 
-      <Modal isOpen={!!paymentError} onClose={() => setPaymentError(null)} title="Payment Issue">
-        <div className="py-4 flex flex-col items-center text-center">
-          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4">
-            <AlertCircle className="w-8 h-8" />
+      {paymentError && (
+        <Modal isOpen={true} onClose={() => setPaymentError(null)} title="Payment Error">
+          <div className="py-4 text-center">
+            <AlertCircle className="h-12 w-12 text-red-500 mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-red-600 mb-2">Transaction Failed</h3>
+            <p className="text-slate-600 mb-6">{paymentError}</p>
+            <Button variant="default" className="w-full bg-red-600 hover:bg-red-700" onClick={() => setPaymentError(null)}>
+              Close
+            </Button>
           </div>
-          <h3 className="text-xl font-bold text-[#17307a] mb-2">Something went wrong</h3>
-          <p className="text-slate-600 mb-6 max-w-sm">
-            {paymentError}
-          </p>
-          <Button className="w-full bg-slate-100 text-slate-700 hover:bg-slate-200" onClick={() => setPaymentError(null)}>
-            Close
-          </Button>
-        </div>
-      </Modal>
+        </Modal>
+      )}
+
+      {refundConfirmBookingId && (
+        <Modal
+          isOpen={true}
+          onClose={() => setRefundConfirmBookingId(null)}
+          title="Request Refund"
+        >
+          <div className="py-4 text-center">
+            <AlertCircle className="h-12 w-12 text-[#1a56db] mx-auto mb-4" />
+            <h3 className="text-xl font-bold text-[#17307a] mb-2">Are you sure?</h3>
+            <p className="text-slate-600 mb-6">
+              Are you sure you want to request a refund for this booking?
+            </p>
+            <div className="flex gap-3 justify-center">
+              <Button
+                variant="outline"
+                className="bg-white border-slate-300"
+                onClick={() => setRefundConfirmBookingId(null)}
+                disabled={paymentProcessingId !== null}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="default"
+                className="bg-[#1a56db] hover:bg-blue-700 text-white"
+                onClick={executeRefund}
+                disabled={paymentProcessingId !== null}
+              >
+                {paymentProcessingId ? 'Processing...' : 'Request Refund'}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
     </DashboardShell>
   );
