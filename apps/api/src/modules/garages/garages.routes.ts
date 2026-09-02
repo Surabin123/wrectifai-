@@ -1082,9 +1082,13 @@ garagesRouter.post('/my-requests/:type/:id/add-to-catalog', authenticate, async 
       if (type === 'service') {
         // Auto-backfill platform_service_id if missing (e.g. approved before migration 056)
         if (!request.platform_service_id) {
+          // ON CONFLICT handles the UNIQUE(name) constraint on platform_services —
+          // if the name already exists (e.g. a prior approval created it), reuse that row.
           const psRes = await client.query(
             `INSERT INTO platform_services (name, category, description, icon, base_price)
-             VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+             RETURNING id`,
             [request.name, request.category || 'General Service', request.description || '', request.icon || 'Wrench', request.suggested_price || 0]
           );
           const newPlatformServiceId = psRes.rows[0].id;
@@ -1139,8 +1143,9 @@ garagesRouter.post('/my-requests/:type/:id/add-to-catalog', authenticate, async 
       client.release();
     }
 
-  } catch (err) {
+  } catch (err: any) {
     console.error('Add to catalog error:', err);
-    return error(res, 'Failed to add item to catalog', 'DATABASE_ERROR', 500);
+    const detail = err?.message || 'Unknown database error';
+    return error(res, `Failed to add item to catalog: ${detail}`, 'DATABASE_ERROR', 500);
   }
 });
