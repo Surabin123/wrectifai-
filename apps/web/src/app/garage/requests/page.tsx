@@ -74,7 +74,7 @@ export default function GarageRequestsPage() {
     <RoleGuard allowedRoles={['garage']}>
       <DashboardShell customNavItems={garageNavItems}>
         <div className="flex-1 overflow-y-auto">
-          <DashboardHeader title="Catalog Requests" subtitle="Track your requested services and products" />
+          <DashboardHeader title="Catalog Requests" />
           
           <div className="p-4 md:p-8 space-y-6 max-w-7xl mx-auto">
             <Card className="p-4">
