@@ -43,7 +43,7 @@ export default function GarageOffersContent() {
     title: '',
     description: '',
     discount_type: 'PERCENTAGE',
-    discount_value: 0,
+    discount_value: '' as any,
     offer_type: 'SERVICE',
     active: true,
   });
@@ -81,7 +81,7 @@ export default function GarageOffersContent() {
   const handleAddClick = () => {
     setFormData({
       code: '', title: '', description: '', discount_type: 'PERCENTAGE', 
-      discount_value: 0, offer_type: 'SERVICE', active: true
+      discount_value: '' as any, offer_type: 'SERVICE', active: true
     });
     setErrorMsg('');
     setShowAddModal(true);
@@ -89,7 +89,7 @@ export default function GarageOffersContent() {
 
   const submitOffer = async (isEdit: boolean) => {
     setErrorMsg('');
-    if (!formData.code || !formData.title || formData.discount_value === undefined) {
+    if (!formData.code || !formData.title || formData.discount_value === undefined || formData.discount_value === '' as any) {
       setErrorMsg('Code, title, and discount value are required.');
       return;
     }
@@ -234,7 +234,7 @@ export default function GarageOffersContent() {
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Discount Value</label>
-              <input type="number" value={formData.discount_value} onChange={e => setFormData({...formData, discount_value: Number(e.target.value)})} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <input type="number" value={formData.discount_value === undefined || formData.discount_value === '' as any ? '' : formData.discount_value} onChange={e => setFormData({...formData, discount_value: e.target.value === '' ? '' as any : Number(e.target.value)})} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
 
