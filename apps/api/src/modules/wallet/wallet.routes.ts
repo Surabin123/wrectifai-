@@ -199,3 +199,93 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
     );
   }
 });
+
+// GET /wallet/saved-methods
+walletRouter.get('/saved-methods', authenticate, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return error(res, 'User ID is required', 'UNAUTHORIZED', 401);
+
+    const result = await query(
+      'SELECT id, token_id as "tokenId", card_network as "cardNetwork", card_last4 as "cardLast4", card_issuer as "cardIssuer", is_default as "isDefault", provider FROM saved_payment_methods WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+
+    return success(res, result.rows, 200);
+  } catch (err) {
+    return error(res, err instanceof Error ? err.message : 'Failed to retrieve saved methods', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// POST /wallet/saved-methods
+walletRouter.post('/saved-methods', authenticate, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return error(res, 'User ID is required', 'UNAUTHORIZED', 401);
+
+    // In a real Razorpay TokenHQ integration, we would receive a razorpay_payment_id or token here
+    // and fetch the card details from Razorpay SDK to save securely.
+    // For now, we accept minimal card details strictly for database persistence per requirements.
+    const { tokenId, cardNetwork, cardLast4, cardIssuer } = req.body;
+    if (!tokenId || !cardLast4) {
+       return error(res, 'Missing card details', 'BAD_REQUEST', 400);
+    }
+
+    // Check if this is the first card, make it default
+    const existing = await query('SELECT id FROM saved_payment_methods WHERE user_id = $1', [userId]);
+    const isDefault = existing.rows.length === 0;
+
+    const result = await query(
+      `INSERT INTO saved_payment_methods (user_id, token_id, card_network, card_last4, card_issuer, is_default)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, token_id as "tokenId", card_network as "cardNetwork", card_last4 as "cardLast4", is_default as "isDefault"`,
+      [userId, tokenId, cardNetwork || 'Unknown', cardLast4, cardIssuer || 'Bank', isDefault]
+    );
+
+    return success(res, result.rows[0], 200);
+  } catch (err) {
+    return error(res, err instanceof Error ? err.message : 'Failed to save payment method', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// DELETE /wallet/saved-methods/:id
+walletRouter.delete('/saved-methods/:id', authenticate, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return error(res, 'User ID is required', 'UNAUTHORIZED', 401);
+
+    const { id } = req.params;
+
+    // Remove from DB (in real flow, we would also call rzp.customers.deleteToken)
+    await query('DELETE FROM saved_payment_methods WHERE id = $1 AND user_id = $2', [id, userId]);
+
+    // If we deleted the default, set another one as default
+    const checkDefault = await query('SELECT id FROM saved_payment_methods WHERE user_id = $1 AND is_default = true', [userId]);
+    if (checkDefault.rows.length === 0) {
+       await query(`UPDATE saved_payment_methods SET is_default = true WHERE id = (
+           SELECT id FROM saved_payment_methods WHERE user_id = $1 ORDER BY created_at DESC LIMIT 1
+       )`, [userId]);
+    }
+
+    return success(res, { deleted: true }, 200);
+  } catch (err) {
+    return error(res, err instanceof Error ? err.message : 'Failed to delete payment method', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// PUT /wallet/saved-methods/:id/default
+walletRouter.put('/saved-methods/:id/default', authenticate, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return error(res, 'User ID is required', 'UNAUTHORIZED', 401);
+    const { id } = req.params;
+
+    await withTransaction(async (client) => {
+       await client.query('UPDATE saved_payment_methods SET is_default = false WHERE user_id = $1', [userId]);
+       await client.query('UPDATE saved_payment_methods SET is_default = true WHERE id = $1 AND user_id = $2', [id, userId]);
+    });
+
+    return success(res, { success: true }, 200);
+  } catch (err) {
+    return error(res, err instanceof Error ? err.message : 'Failed to set default method', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});

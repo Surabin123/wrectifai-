@@ -17,8 +17,7 @@ import autoTable from 'jspdf-autotable';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { formatCurrency } from '@/lib/currency';
-import { fetchWalletBalance, fetchWalletTransactions, addWalletFunds } from '@/lib/wallet-api';
-
+import { fetchWalletBalance, fetchWalletTransactions, addWalletFunds, fetchSavedPaymentMethods, addSavedPaymentMethod, removeSavedPaymentMethod, setSavedPaymentMethodDefault } from '@/lib/wallet-api';
 const mockInitialTransactions = [
   { id: 1, date: '04 Aug 2026', time: '2:19 PM', desc: 'Added Money', subdesc: 'via UPI', type: 'Credit', amount: 1000.00, status: 'Completed', icon: ArrowDownToLine, color: 'text-green-600', bg: 'bg-green-50', customer: 'Surabi N', garage: 'N/A', vehicle: 'N/A', invoice: 'INV-1001', method: 'UPI (surabi@okaxis)' },
   { id: 2, date: '03 Aug 2026', time: '11:45 AM', desc: 'Payment for Booking', subdesc: 'Job-48EAEB9D', type: 'Debit', amount: 550.00, status: 'Completed', icon: ArrowUpRight, color: 'text-red-600', bg: 'bg-red-50', customer: 'Surabi N', garage: 'Speed Car Garage', vehicle: 'Toyota Camry', invoice: 'INV-1002', method: 'Wallet Balance' },
@@ -104,6 +103,17 @@ export function WalletPaymentsPage() {
       });
       
       setTransactions(mappedTxs);
+
+      const savedMethods = await fetchSavedPaymentMethods();
+      setPaymentMethods(savedMethods.map((sm: any) => ({
+        id: sm.id,
+        type: 'Card',
+        details: `${sm.cardIssuer} **** ${sm.cardLast4}`,
+        expiry: 'N/A',
+        isDefault: sm.isDefault,
+        icon: CreditCard,
+        raw: sm
+      })));
     } catch (err) {
       console.error('Failed to load wallet data:', err);
     }
@@ -125,7 +135,15 @@ export function WalletPaymentsPage() {
   const [newMethodType, setNewMethodType] = useState('Card');
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false);
 
-  const [paymentMethods, setPaymentMethods] = useState<any[]>([]); // Saved cards will be supported later when Razorpay tokenization is enabled
+  const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
+  const [selectedMethod, setSelectedMethod] = useState<any>(null);
+
+  // Card input states
+  const [cardNumber, setCardNumber] = useState('');
+  const [cardExpiry, setCardExpiry] = useState('');
+  const [cardCVV, setCardCVV] = useState('');
+  
+  const [isConfirmRemoveOpen, setIsConfirmRemoveOpen] = useState(false);
 
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -240,8 +258,44 @@ export function WalletPaymentsPage() {
     }
   };
 
-  const setAsDefault = (id: number) => {
-    setPaymentMethods((methods: any[]) => methods.map((m: any) => ({ ...m, isDefault: m.id === id })));
+  const setAsDefault = async (id: string) => {
+    try {
+      await setSavedPaymentMethodDefault(id);
+      await loadWalletData();
+      if (selectedMethod) setSelectedMethod({ ...selectedMethod, isDefault: true });
+    } catch (err) {
+      setPaymentError('Failed to set default method');
+    }
+  };
+
+  const handleAddCard = async () => {
+    if (!cardNumber || cardNumber.length < 15) {
+      setPaymentError('Invalid card number');
+      return;
+    }
+    try {
+      await addSavedPaymentMethod({
+        tokenId: 'token_' + Date.now(), // Mock token until Razorpay is active
+        cardNetwork: cardNumber.startsWith('4') ? 'Visa' : 'Mastercard',
+        cardLast4: cardNumber.slice(-4),
+        cardIssuer: cardNumber.startsWith('4') ? 'Visa' : cardNumber.startsWith('5') ? 'Mastercard' : 'Card'
+      });
+      await loadWalletData();
+      setIsAddMethodOpen(false);
+      setCardNumber(''); setCardExpiry(''); setCardCVV('');
+    } catch (err) {
+      setPaymentError('Failed to add card');
+    }
+  };
+
+  const handleRemoveCard = async (id: string) => {
+    try {
+      await removeSavedPaymentMethod(id);
+      await loadWalletData();
+      setSelectedMethod(null);
+    } catch (err) {
+      setPaymentError('Failed to remove card');
+    }
   };
 
   return (
@@ -387,20 +441,19 @@ export function WalletPaymentsPage() {
             <h3 className="font-bold text-slate-900 mb-4">Saved Payment Methods</h3>
             <div className="space-y-4">
                {paymentMethods.map((method: any) => (
-                 <div key={method.id} onClick={() => setAsDefault(method.id)} className={cn("flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-colors", method.isDefault ? "border-blue-500 bg-blue-50/30" : "border-slate-100 hover:border-blue-200 bg-white")}>
+                 <div key={method.id} onClick={() => setSelectedMethod(method)} className={cn("flex items-center gap-3 p-3 border rounded-xl cursor-pointer transition-colors", method.isDefault ? "border-blue-500 bg-blue-50/30" : "border-slate-100 hover:border-blue-200 bg-white")}>
                     <div className="w-10 h-10 bg-slate-50 rounded flex items-center justify-center">
                       <method.icon className={cn("w-5 h-5", method.isDefault ? "text-blue-600" : "text-slate-500")} />
                     </div>
                     <div className="flex-1">
                       <p className="text-sm font-bold text-slate-900">{method.type === 'Card' ? method.details : 'UPI ID'}</p>
-                      <p className="text-xs text-slate-500">{method.type === 'Card' ? `Expires ${method.expiry}` : method.details}</p>
                     </div>
                     {method.isDefault && <span className="px-2 py-1 bg-green-50 text-green-700 text-[10px] font-bold rounded">Default</span>}
                  </div>
                ))}
                
                <Button variant="outline" className="w-full text-blue-600 border-dashed border-slate-300 hover:bg-slate-50" onClick={() => setIsAddMethodOpen(true)}>
-                 <Plus className="w-4 h-4 mr-2" /> Add New Card / UPI
+                 <Plus className="w-4 h-4 mr-2" /> Add New Card
                </Button>
             </div>
           </Card>
@@ -439,65 +492,82 @@ export function WalletPaymentsPage() {
       <Modal isOpen={isAddMethodOpen} onClose={() => setIsAddMethodOpen(false)} title="Add Payment Method">
         <div className="space-y-4 py-2">
           <div className="flex border-b border-slate-200 mb-4">
-            <button className={cn("flex-1 py-2 text-sm font-bold border-b-2", newMethodType === 'Card' ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500")} onClick={() => setNewMethodType('Card')}>Credit/Debit Card</button>
-            <button className={cn("flex-1 py-2 text-sm font-bold border-b-2", newMethodType === 'UPI' ? "border-blue-600 text-blue-600" : "border-transparent text-slate-500")} onClick={() => setNewMethodType('UPI')}>UPI</button>
+            <button className={cn("flex-1 py-2 text-sm font-bold border-b-2 border-blue-600 text-blue-600")}>Credit/Debit Card</button>
           </div>
           
-          {newMethodType === 'Card' ? (
-            <div className="space-y-3">
+          <div className="space-y-3">
+            <input 
+              type="text" 
+              placeholder="Card Number" 
+              maxLength={16}
+              value={cardNumber}
+              onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, ''))}
+              className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" 
+            />
+            <div className="flex gap-3">
               <input 
                 type="text" 
-                placeholder="Card Number" 
-                maxLength={16}
-                onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '') }}
-                className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" 
+                placeholder="MM/YY" 
+                maxLength={5}
+                value={cardExpiry}
+                onChange={(e) => {
+                  let val = e.currentTarget.value.replace(/\D/g, '');
+                  if (val.length >= 2) {
+                    val = val.substring(0, 2) + '/' + val.substring(2, 4);
+                  }
+                  setCardExpiry(val);
+                }}
+                className="w-1/2 border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" 
               />
-              <div className="flex gap-3">
-                <input 
-                  type="text" 
-                  placeholder="MM/YY" 
-                  maxLength={5}
-                  onInput={(e) => {
-                    let val = e.currentTarget.value.replace(/\D/g, '');
-                    if (val.length >= 2) {
-                      val = val.substring(0, 2) + '/' + val.substring(2, 4);
-                    }
-                    e.currentTarget.value = val;
-                  }}
-                  onBlur={(e) => {
-                    const val = e.currentTarget.value;
-                    if (val.length === 5) {
-                      const [m, y] = val.split('/');
-                      const month = parseInt(m, 10);
-                      const year = parseInt(y, 10);
-                      if (year < 26 || (year === 26 && month < 8) || month < 1 || month > 12) {
-                        e.currentTarget.value = '';
-                      }
-                    } else {
-                      e.currentTarget.value = '';
-                    }
-                  }}
-                  className="w-1/2 border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" 
-                />
-                <input 
-                  type="text" 
-                  placeholder="CVV" 
-                  maxLength={3}
-                  onInput={(e) => { e.currentTarget.value = e.currentTarget.value.replace(/\D/g, '') }}
-                  className="w-1/2 border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" 
-                />
-              </div>
+              <input 
+                type="text" 
+                placeholder="CVV" 
+                maxLength={4}
+                value={cardCVV}
+                onChange={(e) => setCardCVV(e.currentTarget.value.replace(/\D/g, ''))}
+                className="w-1/2 border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" 
+              />
             </div>
-          ) : (
-            <div className="space-y-3">
-              <input type="text" placeholder="UPI ID (e.g. name@bank)" className="w-full border border-slate-200 rounded-lg p-3 text-sm focus:outline-none focus:border-blue-500" />
-            </div>
-          )}
+          </div>
           
-          <Button className="w-full mt-4 bg-blue-600 text-white" onClick={() => {
-            setPaymentMethods([...paymentMethods, { id: Date.now(), type: newMethodType, details: newMethodType === 'Card' ? 'New Bank **** 1234' : 'new@upi', expiry: '11/29', isDefault: false, icon: newMethodType === 'Card' ? CreditCard : Smartphone }]);
-            setIsAddMethodOpen(false);
-          }}>Save Method</Button>
+          <Button className="w-full mt-4 bg-blue-600 text-white" onClick={handleAddCard}>Save Card</Button>
+        </div>
+      </Modal>
+
+      <Modal isOpen={!!selectedMethod} onClose={() => setSelectedMethod(null)} title="Card Details">
+        {selectedMethod && (
+          <div className="py-4 space-y-4 text-slate-700">
+            <div className="p-4 border rounded-xl border-blue-200 bg-blue-50/30">
+               <p className="font-bold text-slate-900">{selectedMethod.details}</p>
+               <p className="text-sm text-slate-500">{selectedMethod.isDefault ? 'Default Payment Method' : 'Saved Payment Method'}</p>
+            </div>
+            
+            <div className="flex gap-3">
+              {!selectedMethod.isDefault && (
+                 <Button className="flex-1 border-blue-600 text-blue-600" variant="outline" onClick={() => setAsDefault(selectedMethod.id)}>
+                   Set as Default
+                 </Button>
+              )}
+              <Button className="flex-1 bg-red-600 text-white hover:bg-red-700" onClick={() => setIsConfirmRemoveOpen(true)}>
+                Remove Card
+              </Button>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal isOpen={isConfirmRemoveOpen} onClose={() => setIsConfirmRemoveOpen(false)} title="Confirm Removal">
+        <div className="py-4 space-y-4 text-slate-700">
+          <p>Are you sure you want to remove this saved card?</p>
+          <div className="flex gap-3">
+             <Button className="flex-1" variant="outline" onClick={() => setIsConfirmRemoveOpen(false)}>Cancel</Button>
+             <Button className="flex-1 bg-red-600 text-white hover:bg-red-700" onClick={() => {
+                if (selectedMethod) {
+                  handleRemoveCard(selectedMethod.id);
+                }
+                setIsConfirmRemoveOpen(false);
+             }}>Remove</Button>
+          </div>
         </div>
       </Modal>
 
