@@ -4,6 +4,9 @@ import { useEffect, useState, useMemo } from 'react';
 import { ShieldCheck, Tag, Percent, SlidersHorizontal, Package, Wrench } from 'lucide-react';
 import { Card } from '@/components/common/card';
 import { TopNavbar } from '@/components/home/top-navbar';
+import { DashboardShell } from '@/components/home/dashboard-shell';
+import { RoleGuard } from '@/components/common/role-guard';
+import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/utils/cn';
@@ -59,10 +62,9 @@ export function OffersPage() {
   }, [offers, activeFilter]);
 
   return (
-    <div className="min-h-screen bg-[#f8fafd] flex flex-col font-sans pb-24">
-      <TopNavbar />
-      
-      <main className="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-6 mt-28">
+    <RoleGuard allowedRoles={['customer']}>
+      <DashboardShell hideBottomWidget={true} header={<TopNavbar />}>
+        <div className="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-6 mt-8 pb-24 font-sans">
         
         {/* Header */}
         <div className="mb-8">
@@ -167,9 +169,10 @@ export function OffersPage() {
               </Card>
             ))}
           </div>
-        )}
-      </main>
-    </div>
+          )}
+        </div>
+      </DashboardShell>
+    </RoleGuard>
   );
 }
 
