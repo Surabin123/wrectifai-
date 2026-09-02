@@ -5,6 +5,16 @@ import { query, getDbPool } from '../../config/database';
 
 export const garagesRouter = Router();
 
+// Helper: resolve garageId from token or DB (handles stale tokens without garageId)
+async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<string | null> {
+  if (tokenGarageId) return tokenGarageId;
+  const result = await query(
+    'SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at ASC LIMIT 1',
+    [userId]
+  );
+  return result.rows.length > 0 ? result.rows[0].id : null;
+}
+
 // Badges removed per product requirement — no promotional badge fields returned
 function mapGarageDbRow(g: any) {
   // Extract coordinates from JSONB location column
@@ -150,7 +160,7 @@ garagesRouter.get('/my-profile', authenticate, async (req, res) => {
     if (!garageUserId || !req.user?.roles?.includes('garage')) {
       return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     }
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(
@@ -194,7 +204,7 @@ garagesRouter.put('/my-profile', authenticate, async (req, res) => {
     if (!garageUserId || !req.user?.roles?.includes('garage')) {
       return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     }
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const { 
@@ -260,7 +270,7 @@ garagesRouter.get('/my-customers', authenticate, async (req, res) => {
     if (!garageUserId || !req.user?.roles?.includes('garage')) {
       return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     }
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(
@@ -344,7 +354,7 @@ garagesRouter.get('/my-customers/:id', authenticate, async (req, res) => {
     if (!garageUserId || !req.user?.roles?.includes('garage')) {
       return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     }
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const customerId = req.params.id;
@@ -420,7 +430,7 @@ garagesRouter.get('/my-inventory', authenticate, async (req, res) => {
     if (!garageUserId || !req.user?.roles?.includes('garage')) {
       return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     }
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(
@@ -444,7 +454,7 @@ garagesRouter.get('/my-inventory', authenticate, async (req, res) => {
 garagesRouter.post('/my-inventory', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const { productId, price, qtyAvailable } = req.body;
@@ -486,7 +496,7 @@ garagesRouter.post('/my-inventory', authenticate, async (req, res) => {
 garagesRouter.put('/my-inventory/:inventoryId', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const { price, qty_available, is_active } = req.body;
@@ -521,7 +531,7 @@ garagesRouter.put('/my-inventory/:inventoryId', authenticate, async (req, res) =
 garagesRouter.delete('/my-inventory/:inventoryId', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const result = await query(
@@ -543,7 +553,7 @@ garagesRouter.delete('/my-inventory/:inventoryId', authenticate, async (req, res
 garagesRouter.post('/my-inventory/request', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const { name, category, description, brand, suggestedPrice, image } = req.body;
@@ -581,7 +591,7 @@ garagesRouter.post('/my-inventory/request', authenticate, async (req, res) => {
 garagesRouter.get('/my-services', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const result = await query(
@@ -603,7 +613,7 @@ garagesRouter.get('/my-services', authenticate, async (req, res) => {
 garagesRouter.post('/my-services', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const { platformServiceId, price, durationMins } = req.body;
@@ -656,7 +666,7 @@ garagesRouter.post('/my-services', authenticate, async (req, res) => {
 garagesRouter.put('/my-services/:serviceId', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const { price, is_active, duration_mins, description } = req.body;
@@ -690,7 +700,7 @@ garagesRouter.put('/my-services/:serviceId', authenticate, async (req, res) => {
 garagesRouter.delete('/my-services/:serviceId', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const result = await query(
@@ -712,7 +722,7 @@ garagesRouter.delete('/my-services/:serviceId', authenticate, async (req, res) =
 garagesRouter.post('/my-services/request', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const { name, category, description, suggestedDuration, suggestedPrice, image } = req.body;
@@ -799,7 +809,7 @@ garagesRouter.get('/search', async (req, res) => {
 garagesRouter.get('/my-requests', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const [servicesRes, productsRes] = await Promise.all([
@@ -989,7 +999,7 @@ garagesRouter.post('/onboarding', authenticate, (req, res) => {
 garagesRouter.put('/my-requests/:type/:id/resubmit', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const { type, id } = req.params;
@@ -1060,7 +1070,7 @@ garagesRouter.put('/my-requests/:type/:id/resubmit', authenticate, async (req, r
 garagesRouter.post('/my-requests/:type/:id/add-to-catalog', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const { type, id } = req.params;

@@ -1,16 +1,27 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
-import { authenticate, requireRole } from '../../middleware/auth';
+import { authenticate } from '../../middleware/auth';
 import { query } from '../../config/database';
 
 export const garageOffersRouter = Router({ mergeParams: true });
+
+// Helper: resolve garageId from token or DB (handles stale tokens without garageId)
+async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<string | null> {
+  if (tokenGarageId) return tokenGarageId;
+  // Fallback: look up from DB (stale token case)
+  const result = await query(
+    'SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at ASC LIMIT 1',
+    [userId]
+  );
+  return result.rows.length > 0 ? result.rows[0].id : null;
+}
 
 // GET /garages/my-offers
 garageOffersRouter.get('/my-offers', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
-    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+    const garageId = await resolveGarageId(req.user.userId, req.user?.garageId);
+    if (!garageId) return error(res, 'Garage not found for this account', 'BAD_REQUEST', 400);
 
     const result = await query(
       `SELECT id, code, title, description, discount_type, discount_value, max_discount, min_order_amount,
@@ -32,8 +43,8 @@ garageOffersRouter.get('/my-offers', authenticate, async (req, res) => {
 garageOffersRouter.post('/my-offers', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
-    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+    const garageId = await resolveGarageId(req.user.userId, req.user?.garageId);
+    if (!garageId) return error(res, 'Garage not found for this account', 'BAD_REQUEST', 400);
 
     const { 
       code, title, description, discount_type, discount_value, max_discount, 
@@ -94,8 +105,8 @@ garageOffersRouter.post('/my-offers', authenticate, async (req, res) => {
 garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
-    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+    const garageId = await resolveGarageId(req.user.userId, req.user?.garageId);
+    if (!garageId) return error(res, 'Garage not found for this account', 'BAD_REQUEST', 400);
 
     const { 
       code, title, description, discount_type, discount_value, max_discount, 
@@ -167,8 +178,8 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
 garageOffersRouter.delete('/my-offers/:id', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = req.user?.garageId;
-    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+    const garageId = await resolveGarageId(req.user.userId, req.user?.garageId);
+    if (!garageId) return error(res, 'Garage not found for this account', 'BAD_REQUEST', 400);
 
     const result = await query(
       `UPDATE offers SET is_deleted = true, active = false, updated_at = NOW() WHERE id = $1 AND garage_id = $2 RETURNING id`,
