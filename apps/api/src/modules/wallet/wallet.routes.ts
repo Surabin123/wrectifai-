@@ -161,11 +161,11 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
     }
 
     const result = await withTransaction(async (client) => {
-      // Idempotency check: see if this Razorpay payment_id was already processed.
-      // Use the payments table (VARCHAR columns) — never query UUID columns with a Razorpay ID.
+      // Idempotency check: has this Razorpay order already been credited?
+      // Use payments.transaction_id (VARCHAR, UNIQUE) — the actual live column name.
       const idempCheck = await client.query(
-        'SELECT id FROM payments WHERE provider_payment_id = $1 AND status = $2',
-        [razorpay_payment_id, 'succeeded']
+        "SELECT id FROM payments WHERE transaction_id = $1 AND status = 'succeeded'",
+        [razorpay_order_id]
       );
       if (idempCheck.rows.length > 0) {
         // Already processed — return existing wallet balance
@@ -173,37 +173,38 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
         return walletRes.rows[0] ? Number(walletRes.rows[0].balance) : 0;
       }
 
-      // Ensure wallet exists first
+      // Ensure wallet exists
       await client.query('INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING', [userId]);
 
-      // Get current wallet with a lock
+      // Lock wallet row for atomic update
       const walletRes = await client.query('SELECT id, balance FROM wallets WHERE user_id = $1 FOR UPDATE', [userId]);
-      
       const walletId = walletRes.rows[0].id;
       const balanceBefore = Number(walletRes.rows[0].balance);
       const balanceAfter = balanceBefore + Number(amount);
 
-      // Update wallet balance
+      // Credit wallet
       await client.query('UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2', [balanceAfter, walletId]);
 
       // Insert wallet transaction.
-      // reference_id is UUID — do NOT pass a Razorpay pay_... string into it.
-      // Store the Razorpay payment ID in the description for traceability.
+      // reference_id in migration 020 is TEXT — safe to store Razorpay pay_... IDs.
       await client.query(
         `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
-         VALUES ($1, 'CREDIT', $2, $3, $4, 'TOPUP', NULL, 'COMPLETED', $5)`,
-        [walletId, amount, balanceBefore, balanceAfter, `Wallet Top-up | rzp:${razorpay_payment_id}`]
+         VALUES ($1, 'CREDIT', $2, $3, $4, 'TOPUP', $5, 'COMPLETED', 'Wallet Top-up via Razorpay')`,
+        [walletId, amount, balanceBefore, balanceAfter, razorpay_payment_id]
       );
 
-      // Record in payments ledger for source of truth.
-      // provider_intent_id = razorpay_order_id (the unique order; VARCHAR — safe)
-      // provider_payment_id = razorpay_payment_id (the actual capture ID; VARCHAR — safe)
-      // Never pass either into a UUID column.
+      // Insert payments ledger record using the ACTUAL live DB column names:
+      //   customer_user_id  = internal UUID  (NOT a Razorpay ID)
+      //   transaction_id    = razorpay_order_id (VARCHAR UNIQUE — idempotency key)
+      //   method            = 'razorpay' (VARCHAR)
+      //   provider_order_id = razorpay_order_id (added by migration 020)
+      //   provider_payment_id = razorpay_payment_id (added by migration 020)
+      //   signature_status  = 'valid' (added by migration 020)
       await client.query(
-        `INSERT INTO payments (payer_user_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, currency, status, signature_status)
+        `INSERT INTO payments (customer_user_id, method, transaction_id, provider_order_id, provider_payment_id, amount, currency, status, signature_status)
          VALUES ($1, 'razorpay', $2, $3, $4, $5, 'INR', 'succeeded', 'valid')
-         ON CONFLICT (provider_intent_id) DO NOTHING`,
-        [userId, razorpay_order_id, razorpay_order_id, razorpay_order_id, razorpay_payment_id, amount]
+         ON CONFLICT (transaction_id) DO NOTHING`,
+        [userId, razorpay_order_id, razorpay_order_id, razorpay_payment_id, amount]
       );
 
       return balanceAfter;
