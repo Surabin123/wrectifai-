@@ -571,7 +571,6 @@ authRouter.post('/change-password', authenticate, async (req, res) => {
   }
 });
 
-import * as crypto from 'crypto';
 import { Resend } from 'resend';
 import { getDbPool } from '../../config/database';
 

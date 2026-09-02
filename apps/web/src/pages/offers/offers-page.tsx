@@ -60,7 +60,7 @@ export function OffersPage() {
 
   return (
     <div className="min-h-screen bg-[#f8fafd] flex flex-col font-sans pb-24">
-      <TopNavbar transparent={false} />
+      <TopNavbar />
       
       <main className="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-6 mt-28">
         

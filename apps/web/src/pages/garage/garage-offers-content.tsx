@@ -23,7 +23,7 @@ interface Offer {
   terms_conditions?: string;
 }
 
-export function GarageOffersContent() {
+export default function GarageOffersContent() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');

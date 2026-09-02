@@ -7,7 +7,7 @@ export const referralsRouter = Router();
 
 // GET /api/v1/referrals/stats
 referralsRouter.get('/stats', authenticate, async (req, res) => {
-  const userId = req.user?.id;
+  const userId = req.user?.userId;
   if (!userId) {
     return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
   }
