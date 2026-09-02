@@ -549,4 +549,124 @@ authRouter.post('/change-password', authenticate, async (req, res) => {
   }
 });
 
+import * as crypto from 'crypto';
+import { Resend } from 'resend';
+import { getDbPool } from '../../config/database';
+
+const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
+
+// Forgot Password - Send Reset Link
+authRouter.post('/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return error(res, 'Email is required', 'VALIDATION_ERROR', 400);
+    }
+    const emailClean = email.trim().toLowerCase();
+
+    // Generic anti-enumeration response
+    const genericSuccess = () => success(res, { message: 'If an account with that email exists, a password reset link has been sent.' });
+
+    const userRes = await query('SELECT id FROM users WHERE email = $1', [emailClean]);
+    if (userRes.rows.length === 0) {
+      return genericSuccess();
+    }
+    const userId = userRes.rows[0].id;
+
+    // Rate limiting logic: Max 3 requests per hour
+    const recentResets = await query(
+      `SELECT COUNT(*) as count FROM password_resets WHERE user_id = $1 AND created_at > NOW() - INTERVAL '1 hour'`,
+      [userId]
+    );
+    if (parseInt(recentResets.rows[0].count) >= 3) {
+      return error(res, 'Too many password reset requests. Please try again later.', 'RATE_LIMIT_EXCEEDED', 429);
+    }
+
+    // Secure one-time token
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await query(
+      `INSERT INTO password_resets (user_id, token_hash, expires_at) VALUES ($1, $2, $3)`,
+      [userId, tokenHash, expiresAt]
+    );
+
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const resetUrl = `${appUrl}/login/reset-password?token=${rawToken}`;
+
+    if (process.env.RESEND_API_KEY) {
+      await resend.emails.send({
+        from: 'WrectifAI <noreply@wrectifai.com>',
+        to: emailClean,
+        subject: 'WrectifAI - Password Reset',
+        html: `
+          <p>Hello,</p>
+          <p>You requested to reset your password on WrectifAI.</p>
+          <p>Click the link below to set a new password. This link expires in 1 hour.</p>
+          <a href="${resetUrl}">Reset Password</a>
+          <p>If you did not request this, you can safely ignore this email.</p>
+        `
+      });
+    } else {
+      console.log(`[Dev] Forgot Password link for ${emailClean}: ${resetUrl}`);
+    }
+
+    return genericSuccess();
+  } catch (err) {
+    console.error('Forgot password error:', err);
+    return error(res, 'Failed to process forgot password request', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// Reset Password
+authRouter.post('/reset-password', async (req, res) => {
+  const client = await getDbPool().connect();
+  try {
+    const { token, newPassword } = req.body;
+    
+    if (!token || !newPassword) {
+      return error(res, 'Token and new password are required', 'VALIDATION_ERROR', 400);
+    }
+
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+    if (!passwordRegex.test(newPassword)) {
+      return error(res, 'Password must be at least 8 characters with uppercase, lowercase, and a special character', 'BAD_REQUEST', 400);
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    await client.query('BEGIN');
+
+    const tokenRes = await client.query(
+      `SELECT * FROM password_resets 
+       WHERE token_hash = $1 AND used = false AND expires_at > NOW() FOR UPDATE`,
+      [tokenHash]
+    );
+
+    if (tokenRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return error(res, 'Invalid or expired password reset token', 'INVALID_TOKEN', 400);
+    }
+
+    const resetRecord = tokenRes.rows[0];
+    const userId = resetRecord.user_id;
+
+    const salt = bcrypt.genSaltSync(10);
+    const newHash = bcrypt.hashSync(newPassword, salt);
+
+    await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
+    await client.query('UPDATE password_resets SET used = true WHERE user_id = $1', [userId]);
+
+    await client.query('COMMIT');
+    return success(res, { message: 'Password has been successfully reset. You can now login.' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Reset password error:', err);
+    return error(res, 'Failed to reset password', 'INTERNAL_SERVER_ERROR', 500);
+  } finally {
+    client.release();
+  }
+});
+
 

@@ -8,6 +8,7 @@ import { Search, Plus, Edit2, X, Package, DollarSign, AlertCircle, AlertTriangle
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency } from '@/lib/currency';
+import { Modal } from '@/components/common/modal';
 
 interface FormData {
   productId: string;
@@ -27,6 +28,9 @@ export default function InventoryPage() {
   const [products, setProducts] = useState<any[]>([]);
   
   const [selectedItem, setSelectedItem] = useState<any>(null);
+  
+  // Delete Modal State
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: '', name: '' });
   
   const [formData, setFormData] = useState<FormData>({
     productId: '',
@@ -336,16 +340,11 @@ export default function InventoryPage() {
                        <td className="p-4 text-center">
                          <div className="flex items-center justify-center gap-1.5">
                            <button onClick={() => handleEditClick(item)} className="p-1.5 rounded-md hover:bg-slate-200 text-blue-500 bg-blue-50 border border-blue-100" title="Edit Inventory Item"><Edit2 className="w-3.5 h-3.5"/></button>
-                           <button onClick={async () => {
-                             if(confirm('Are you sure you want to remove this product from your inventory?')) {
-                               try {
-                                 await apiClient.delete('/garages/my-inventory/' + item.inventory_id);
-                                 fetchInventory();
-                               } catch(e) {
-                                 alert('Failed to remove product.');
-                               }
-                             }
-                           }} className="p-1.5 rounded-md hover:bg-slate-200 text-red-500 bg-red-50 border border-red-100" title="Remove from Inventory"><Trash2 className="w-3.5 h-3.5"/></button>
+                           <button 
+                             onClick={() => setDeleteModal({ isOpen: true, id: item.inventory_id, name: item.name })}
+                             className="p-1.5 rounded-md hover:bg-slate-200 text-red-500 bg-red-50 border border-red-100" title="Remove from Inventory">
+                             <Trash2 className="w-3.5 h-3.5"/>
+                           </button>
                          </div>
                        </td>
                      </tr>
@@ -487,7 +486,7 @@ export default function InventoryPage() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl w-full max-w-md p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-lg text-[#17307a]">Edit Product</h3>
+                <h3 className="font-bold text-lg text-[#17307a]">Edit Inventory Item</h3>
                 <button onClick={() => setShowEditModal(false)}><X className="w-5 h-5 text-slate-400"/></button>
               </div>
               
@@ -497,24 +496,29 @@ export default function InventoryPage() {
                 </div>
               )}
               
-              <div className="mb-6 p-3 bg-slate-50 rounded-lg border border-slate-100">
-                <p className="font-bold text-slate-800">{selectedItem.name}</p>
-                <p className="text-xs text-slate-600 mb-2">Category: {selectedItem.category}</p>
-                <p className="text-[10px] text-slate-500">Base Price: {formatCurrency(selectedItem.basePrice || selectedItem.price)}</p>
+              <div className="mb-6 p-3 bg-slate-50 rounded-lg border border-slate-100 flex gap-3">
+                <div className="w-12 h-12 rounded bg-white border flex items-center justify-center overflow-hidden shrink-0">
+                  {selectedItem.image ? <img src={selectedItem.image} className="object-cover w-full h-full"/> : <Package className="w-6 h-6 text-slate-300" />}
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800 text-sm truncate">{selectedItem.name}</p>
+                  <p className="text-xs text-slate-600 mb-0.5">Category: {selectedItem.category}</p>
+                  <p className="text-[10px] text-slate-500 font-mono">ID: {selectedItem.product_id}</p>
+                </div>
               </div>
               
               <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Your Price</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Your Unit Price</label>
                   <input type="text" inputMode="decimal" value={formData.price} onChange={(e) => handleNumericChange(e, 'price')} className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Stock Quantity</label>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Quantity Available</label>
                   <input type="text" inputMode="numeric" value={formData.qtyAvailable} onChange={(e) => handleNumericChange(e, 'qtyAvailable')} className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
                 <div className="flex items-center gap-2 mt-4">
                   <input type="checkbox" id="isActive" checked={formData.isActive} onChange={(e) => setFormData({...formData, isActive: e.target.checked})} className="w-4 h-4 text-blue-600 rounded" />
-                  <label htmlFor="isActive" className="text-sm font-bold text-slate-700">Product is Active</label>
+                  <label htmlFor="isActive" className="text-sm font-bold text-slate-700">Item is currently Active</label>
                 </div>
               </div>
               <div className="mt-8 flex justify-end gap-3">
@@ -524,6 +528,40 @@ export default function InventoryPage() {
             </div>
           </div>
         )}
+
+        {/* Delete Modal */}
+        <Modal 
+          isOpen={deleteModal.isOpen} 
+          onClose={() => setDeleteModal({ isOpen: false, id: '', name: '' })} 
+          title="Remove Product"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">Are you sure you want to remove <strong>{deleteModal.name}</strong> from your inventory?</p>
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <button 
+                onClick={() => setDeleteModal({ isOpen: false, id: '', name: '' })} 
+                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={async () => {
+                  try {
+                    await apiClient.delete('/garages/my-inventory/' + deleteModal.id);
+                    setDeleteModal({ isOpen: false, id: '', name: '' });
+                    fetchInventory();
+                  } catch(e) {
+                    alert('Failed to remove product.');
+                  }
+                }} 
+                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg"
+              >
+                Remove Product
+              </button>
+            </div>
+          </div>
+        </Modal>
+
       </DashboardShell>
     </RoleGuard>
   );

@@ -1,16 +1,26 @@
 import { query } from './apps/api/src/config/database';
 
-async function test() {
-  const qr = await query('SELECT COUNT(*), garage_id, status FROM quote_requests GROUP BY garage_id, status');
-  console.log('quote_requests:', qr.rows);
-  
-  const b = await query('SELECT COUNT(*), garage_id, status FROM bookings GROUP BY garage_id, status');
-  console.log('bookings:', b.rows);
-  
-  const q = await query('SELECT COUNT(*), garage_id, status FROM quotes GROUP BY garage_id, status');
-  console.log('quotes:', q.rows);
-  
-  process.exit(0);
+async function main() {
+  try {
+    console.log('Querying garages...');
+    const result = await query('SELECT * FROM garages LIMIT 2');
+    console.log(result.rows);
+    
+    if (result.rows.length > 0) {
+       const garageId = result.rows[0].id;
+       console.log('Fetching services for garage:', garageId);
+       const services = await query('SELECT * FROM services WHERE garage_id = ', [garageId]);
+       console.log('Services:', services.rows);
+       
+       console.log('Fetching inventory for garage:', garageId);
+       const inventory = await query('SELECT * FROM garage_inventory WHERE garage_id = ', [garageId]);
+       console.log('Inventory:', inventory.rows);
+    }
+  } catch (err) {
+    console.error(err);
+  } finally {
+    process.exit(0);
+  }
 }
 
-test();
+main();

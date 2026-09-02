@@ -8,6 +8,7 @@ import * as LucideIcons from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency } from '@/lib/currency';
+import { Modal } from '@/components/common/modal';
 
 interface FormData {
   platformServiceId: string;
@@ -15,6 +16,7 @@ interface FormData {
   durationMins: string | number;
   description: string;
   isActive: boolean;
+  durationUnit?: string;
 }
 
 export default function ServicesPage() {
@@ -34,8 +36,12 @@ export default function ServicesPage() {
     price: '',
     durationMins: 60,
     description: '',
-    isActive: true
+    isActive: true,
+    durationUnit: 'Minutes'
   });
+  
+  // Delete Modal State
+  const [deleteModal, setDeleteModal] = useState({ isOpen: false, id: '', name: '' });
   
   // Request Modal State
   const [addTab, setAddTab] = useState<'select' | 'request'>('select');
@@ -45,6 +51,7 @@ export default function ServicesPage() {
     category: '',
     description: '',
     suggestedDuration: '',
+    durationUnit: 'Minutes',
     suggestedPrice: '',
     image: ''
   });
@@ -77,8 +84,8 @@ export default function ServicesPage() {
       if (Array.isArray(response)) {
         setPlatformServices(response);
       }
-      setFormData({ platformServiceId: '', price: '', durationMins: 60, description: '', isActive: true });
-      setRequestData({ name: '', category: '', description: '', suggestedDuration: '', suggestedPrice: '', image: '' });
+      setFormData({ platformServiceId: '', price: '', durationMins: '', description: '', isActive: true, durationUnit: 'Minutes' });
+      setRequestData({ name: '', category: '', description: '', suggestedDuration: '', durationUnit: 'Minutes', suggestedPrice: '', image: '' });
       setImagePreview('');
       setPlatformSearch('');
       setAddTab('select');
@@ -111,7 +118,8 @@ export default function ServicesPage() {
       await apiClient.post('/garages/my-services', {
         platformServiceId: formData.platformServiceId,
         price: parsedPrice,
-        durationMins: parsedDuration
+        durationMins: parsedDuration,
+        durationUnit: formData.durationUnit || 'Minutes'
       });
       setShowAddModal(false);
       fetchServices();
@@ -126,12 +134,12 @@ export default function ServicesPage() {
       setValidationError('Name and category are required.');
       return;
     }
-    
     try {
       await apiClient.post('/garages/my-services/request', {
         ...requestData,
         suggestedPrice: requestData.suggestedPrice ? parseFloat(requestData.suggestedPrice) : undefined,
-        suggestedDuration: requestData.suggestedDuration ? parseInt(requestData.suggestedDuration, 10) : undefined
+        suggestedDuration: requestData.suggestedDuration ? parseInt(requestData.suggestedDuration, 10) : undefined,
+        durationUnit: requestData.durationUnit || 'Minutes'
       });
       setShowAddModal(false);
       alert('Service request submitted successfully! An admin will review it shortly.');
@@ -166,9 +174,10 @@ export default function ServicesPage() {
     setFormData({
       platformServiceId: '',
       price: service.price,
-      durationMins: service.duration_mins || 60,
+      durationMins: service.duration_mins || '',
       description: service.description || '',
-      isActive: service.is_active
+      isActive: service.is_active,
+      durationUnit: service.duration_unit || 'Minutes'
     });
     setValidationError('');
     setShowEditModal(true);
@@ -191,6 +200,7 @@ export default function ServicesPage() {
       await apiClient.put(`/garages/my-services/` + selectedService.id, {
         price: parsedPrice,
         duration_mins: parsedDuration,
+        duration_unit: formData.durationUnit,
         description: formData.description,
         is_active: formData.isActive
       });
@@ -297,7 +307,7 @@ export default function ServicesPage() {
                          </div>
                        </td>
                        <td className="p-4"><p className="text-xs font-medium text-slate-600 truncate">{item.category}</p></td>
-                       <td className="p-4"><p className="text-xs font-medium text-slate-600">{item.duration_mins ? item.duration_mins + ' mins' : 'N/A'}</p></td>
+                       <td className="p-4"><p className="text-xs font-medium text-slate-600">{item.duration_mins ? `${item.duration_mins} ${item.duration_unit || 'Mins'}` : 'N/A'}</p></td>
                        <td className="p-4"><p className="text-xs font-bold text-[#17307a]">{formatCurrency(price)}</p></td>
                        <td className="p-4"><p className="text-xs font-medium text-slate-400 line-through">{formatCurrency(basePrice)}</p></td>
                        <td className="p-4">
@@ -306,16 +316,11 @@ export default function ServicesPage() {
                        <td className="p-4 text-center">
                          <div className="flex items-center justify-center gap-1.5">
                            <button onClick={() => handleEditClick(item)} className="p-1.5 rounded-md hover:bg-slate-200 text-blue-500 bg-blue-50 border border-blue-100" title="Edit Service"><Edit2 className="w-3.5 h-3.5"/></button>
-                           <button onClick={async () => {
-                             if(confirm('Are you sure you want to remove this service from your garage? This will not delete historical bookings, but it will no longer be offered.')) {
-                               try {
-                                 await apiClient.delete('/garages/my-services/' + item.id);
-                                 fetchServices();
-                               } catch(e) {
-                                 alert('Failed to remove service.');
-                               }
-                             }
-                           }} className="p-1.5 rounded-md hover:bg-slate-200 text-red-500 bg-red-50 border border-red-100" title="Remove from Garage"><Trash2 className="w-3.5 h-3.5"/></button>
+                           <button 
+                             onClick={() => setDeleteModal({ isOpen: true, id: item.id, name: item.name })}
+                             className="p-1.5 rounded-md hover:bg-slate-200 text-red-500 bg-red-50 border border-red-100" title="Remove from Garage">
+                             <Trash2 className="w-3.5 h-3.5"/>
+                           </button>
                          </div>
                        </td>
                      </tr>
@@ -396,9 +401,19 @@ export default function ServicesPage() {
                     <label className="block text-xs font-bold text-slate-700 mb-1">Your Price</label>
                     <input type="text" inputMode="decimal" value={formData.price} onChange={(e) => handleNumericChange(e, 'price')} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 1500" />
                   </div>
-                  <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Estimated Duration (Mins)</label>
-                    <input type="text" inputMode="numeric" value={formData.durationMins} onChange={(e) => handleNumericChange(e, 'durationMins')} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 60" />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Duration Value</label>
+                      <input type="text" inputMode="numeric" value={formData.durationMins} onChange={(e) => handleNumericChange(e, 'durationMins')} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 60" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Unit</label>
+                      <select value={formData.durationUnit} onChange={(e) => setFormData({...formData, durationUnit: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">
+                        <option value="Minutes">Minutes</option>
+                        <option value="Hours">Hours</option>
+                        <option value="Days">Days</option>
+                      </select>
+                    </div>
                   </div>
                   
                   <div className="mt-8 flex justify-end gap-3">
@@ -440,11 +455,19 @@ export default function ServicesPage() {
                       }} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Optional" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Suggested Duration</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Suggested Duration Value</label>
                       <input type="text" inputMode="numeric" value={requestData.suggestedDuration} onChange={(e) => {
                          const val = e.target.value.replace(/[^0-9]/g, '');
                          setRequestData({...requestData, suggestedDuration: val});
-                      }} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Mins" />
+                      }} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 60" />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Unit</label>
+                      <select value={requestData.durationUnit} onChange={(e) => setRequestData({...requestData, durationUnit: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">
+                        <option value="Minutes">Minutes</option>
+                        <option value="Hours">Hours</option>
+                        <option value="Days">Days</option>
+                      </select>
                     </div>
                   </div>
                   <div className="mt-8 flex justify-end gap-3">
@@ -483,9 +506,19 @@ export default function ServicesPage() {
                   <label className="block text-xs font-bold text-slate-700 mb-1">Your Price</label>
                   <input type="text" inputMode="decimal" value={formData.price} onChange={(e) => handleNumericChange(e, 'price')} className="w-full border rounded-lg px-3 py-2 text-sm" />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-700 mb-1">Estimated Duration (Mins)</label>
-                  <input type="text" inputMode="numeric" value={formData.durationMins} onChange={(e) => handleNumericChange(e, 'durationMins')} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Duration Value</label>
+                    <input type="text" inputMode="numeric" value={formData.durationMins} onChange={(e) => handleNumericChange(e, 'durationMins')} className="w-full border rounded-lg px-3 py-2 text-sm" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Unit</label>
+                    <select value={formData.durationUnit} onChange={(e) => setFormData({...formData, durationUnit: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">
+                      <option value="Minutes">Minutes</option>
+                      <option value="Hours">Hours</option>
+                      <option value="Days">Days</option>
+                    </select>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Service Description</label>
@@ -508,6 +541,40 @@ export default function ServicesPage() {
             </div>
           </div>
         )}
+        {/* Delete Modal */}
+        <Modal 
+          isOpen={deleteModal.isOpen} 
+          onClose={() => setDeleteModal({ isOpen: false, id: '', name: '' })} 
+          title="Remove Service"
+        >
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600">Are you sure you want to remove <strong>{deleteModal.name}</strong> from your garage?</p>
+            <p className="text-xs text-slate-500">This will not delete historical bookings. The service will no longer be available for new bookings.</p>
+            <div className="flex justify-end gap-3 pt-4 border-t">
+              <button 
+                onClick={() => setDeleteModal({ isOpen: false, id: '', name: '' })} 
+                className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={async () => {
+                  try {
+                    await apiClient.delete('/garages/my-services/' + deleteModal.id);
+                    setDeleteModal({ isOpen: false, id: '', name: '' });
+                    fetchServices();
+                  } catch(e) {
+                    alert('Failed to remove service.');
+                  }
+                }} 
+                className="px-4 py-2 bg-red-600 text-white hover:bg-red-700 rounded-lg"
+              >
+                Remove Service
+              </button>
+            </div>
+          </div>
+        </Modal>
+
       </DashboardShell>
     </RoleGuard>
   );

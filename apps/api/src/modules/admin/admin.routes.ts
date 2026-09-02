@@ -798,3 +798,137 @@ adminRouter.put('/garages/:id', async (req, res) => {
   }
 });
 
+// GET /requests
+adminRouter.get('/requests', async (req, res) => {
+  try {
+    const serviceRequests = await query(`
+      SELECT sr.*, g.name as "garageName", g.city as "garageCity", 'service' as type
+      FROM service_requests sr
+      JOIN garages g ON sr.garage_id = g.id
+      ORDER BY sr.created_at DESC
+    `);
+    
+    const productRequests = await query(`
+      SELECT pr.*, g.name as "garageName", g.city as "garageCity", 'product' as type
+      FROM product_requests pr
+      JOIN garages g ON pr.garage_id = g.id
+      ORDER BY pr.created_at DESC
+    `);
+
+    // Combine and sort by created_at desc
+    const allRequests = [...serviceRequests.rows, ...productRequests.rows].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+
+    return success(res, allRequests);
+  } catch (err) {
+    console.error('Fetch requests error:', err);
+    return error(res, 'Failed to fetch requests', 'DATABASE_ERROR', 500);
+  }
+});
+
+// POST /requests/:type/:id/approve
+adminRouter.post('/requests/:type/:id/approve', async (req, res) => {
+  const { type, id } = req.params;
+  const adminId = req.user?.userId;
+  const client = await getDbPool().connect();
+
+  try {
+    if (type !== 'service' && type !== 'product') {
+      return error(res, 'Invalid request type', 'INVALID_TYPE', 400);
+    }
+
+    await client.query('BEGIN');
+
+    const table = type === 'service' ? 'service_requests' : 'product_requests';
+    const requestRes = await client.query(`SELECT * FROM ${table} WHERE id = $1 FOR UPDATE`, [id]);
+    
+    if (requestRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return error(res, 'Request not found', 'NOT_FOUND', 404);
+    }
+
+    const request = requestRes.rows[0];
+    if (request.status !== 'pending') {
+      await client.query('ROLLBACK');
+      return error(res, 'Request is not pending', 'INVALID_STATUS', 400);
+    }
+
+    // Approve the request
+    await client.query(
+      `UPDATE ${table} SET status = 'approved', admin_notes = $1, updated_at = NOW() WHERE id = $2`,
+      [`Approved by Admin ${adminId}`, id]
+    );
+
+    // Create the platform catalog item
+    if (type === 'service') {
+      const psRes = await client.query(
+        `INSERT INTO platform_services (name, category, description, icon, base_price)
+         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+        [request.name, request.category || 'General Service', request.description, request.icon || 'Wrench', request.suggested_price || 0]
+      );
+      
+      // Auto-assign to the requesting garage only
+      await client.query(
+        `INSERT INTO services (garage_id, platform_service_id, price, duration_mins, duration_unit, is_active)
+         VALUES ($1, $2, $3, $4, $5, true)`,
+        [request.garage_id, psRes.rows[0].id, request.suggested_price || 0, request.suggested_duration || 60, request.duration_unit || 'Minutes']
+      );
+    } else {
+      const pRes = await client.query(
+        `INSERT INTO products (seller_id, name, description, category, price, is_active, image)
+         VALUES ($1, $2, $3, $4, $5, true, $6) RETURNING id`,
+        [adminId, request.name, request.description, request.category || 'Spares', request.suggested_price || 0, request.image]
+      );
+      
+      // Auto-assign to the requesting garage only
+      await client.query(
+        `INSERT INTO garage_inventory (garage_id, product_id, qty_available, price, is_active)
+         VALUES ($1, $2, 0, $3, true)`,
+        [request.garage_id, pRes.rows[0].id, request.suggested_price || 0]
+      );
+    }
+
+    await client.query('COMMIT');
+    return success(res, { success: true, message: 'Request approved successfully' });
+  } catch (err) {
+    await client.query('ROLLBACK');
+    console.error('Approve request error:', err);
+    return error(res, 'Failed to approve request', 'DATABASE_ERROR', 500);
+  } finally {
+    client.release();
+  }
+});
+
+// POST /requests/:type/:id/reject
+adminRouter.post('/requests/:type/:id/reject', async (req, res) => {
+  const { type, id } = req.params;
+  const { reason } = req.body;
+  const adminId = req.user?.userId;
+
+  try {
+    if (type !== 'service' && type !== 'product') {
+      return error(res, 'Invalid request type', 'INVALID_TYPE', 400);
+    }
+    if (!reason || !reason.trim()) {
+      return error(res, 'Rejection reason is required', 'VALIDATION_ERROR', 400);
+    }
+
+    const table = type === 'service' ? 'service_requests' : 'product_requests';
+    
+    const result = await query(
+      `UPDATE ${table} SET status = 'rejected', admin_notes = $1, updated_at = NOW() WHERE id = $2 AND status = 'pending' RETURNING id`,
+      [`Rejected: ${reason}`, id]
+    );
+
+    if (result.rows.length === 0) {
+      return error(res, 'Request not found or not pending', 'NOT_FOUND', 404);
+    }
+
+    return success(res, { success: true, message: 'Request rejected' });
+  } catch (err) {
+    console.error('Reject request error:', err);
+    return error(res, 'Failed to reject request', 'DATABASE_ERROR', 500);
+  }
+});
+

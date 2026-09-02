@@ -29,6 +29,7 @@ export const adminNavItems: AdminNavItem[] = [
     slug: 'service-history'
   },
   { label: 'Bookings', icon: FileSpreadsheet, href: '/admin/bookings', slug: 'bookings' },
+  { label: 'Requests', icon: FileSpreadsheet, href: '/admin/requests', slug: 'requests' },
   { label: 'Quotes', icon: FileSpreadsheet, href: '/admin/quotes', slug: 'quotes' },
   { label: 'Reviews', icon: FileSpreadsheet, href: '/admin/reviews', slug: 'reviews' },
   { label: 'Notifications', icon: Bell, href: '/admin/notifications', slug: 'notifications' },
