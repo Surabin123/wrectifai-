@@ -32,14 +32,9 @@ export async function verifyWalletTopup(data: {
   razorpay_signature: string;
   amount: number;
 }): Promise<{ verified: boolean; balance: number }> {
-  try {
-    const response = await apiClient.post<{ verified: boolean; balance: number }>('/wallet/verify-topup', data);
-    const result = await (response as any).json();
-    return result.data;
-  } catch (error) {
-    console.error('Failed to verify topup:', error);
-    throw error;
-  }
+  // apiClient.post already parses the JSON envelope and returns the `data` field directly.
+  // Do NOT call .json() again on the result — doing so caused the HTTP 500 cascade.
+  return apiClient.post<{ verified: boolean; balance: number }>('/wallet/verify-topup', data);
 }
 
 export async function fetchSavedPaymentMethods() {

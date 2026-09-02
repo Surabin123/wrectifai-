@@ -161,11 +161,16 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
     }
 
     const result = await withTransaction(async (client) => {
-      // Idempotency check: see if this payment_id already resulted in a wallet top-up
-      const idempCheck = await client.query('SELECT id FROM wallet_transactions WHERE reference_id = $1', [razorpay_payment_id]);
+      // Idempotency check: see if this Razorpay payment_id was already processed.
+      // Use the payments table (VARCHAR columns) — never query UUID columns with a Razorpay ID.
+      const idempCheck = await client.query(
+        'SELECT id FROM payments WHERE provider_payment_id = $1 AND status = $2',
+        [razorpay_payment_id, 'succeeded']
+      );
       if (idempCheck.rows.length > 0) {
-        // Already processed
-        return;
+        // Already processed — return existing wallet balance
+        const walletRes = await client.query('SELECT balance FROM wallets WHERE user_id = $1', [userId]);
+        return walletRes.rows[0] ? Number(walletRes.rows[0].balance) : 0;
       }
 
       // Ensure wallet exists first
@@ -181,19 +186,24 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
       // Update wallet balance
       await client.query('UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2', [balanceAfter, walletId]);
 
-      // Insert transaction
+      // Insert wallet transaction.
+      // reference_id is UUID — do NOT pass a Razorpay pay_... string into it.
+      // Store the Razorpay payment ID in the description for traceability.
       await client.query(
         `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
-         VALUES ($1, 'CREDIT', $2, $3, $4, 'Wallet', $5, 'COMPLETED', 'Wallet Top-up')`,
-        [walletId, amount, balanceBefore, balanceAfter, razorpay_payment_id]
+         VALUES ($1, 'CREDIT', $2, $3, $4, 'TOPUP', NULL, 'COMPLETED', $5)`,
+        [walletId, amount, balanceBefore, balanceAfter, `Wallet Top-up | rzp:${razorpay_payment_id}`]
       );
 
-      // Record in payments ledger too for source of truth
+      // Record in payments ledger for source of truth.
+      // provider_intent_id = razorpay_order_id (the unique order; VARCHAR — safe)
+      // provider_payment_id = razorpay_payment_id (the actual capture ID; VARCHAR — safe)
+      // Never pass either into a UUID column.
       await client.query(
-        `INSERT INTO payments (payer_user_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, status, signature_status)
-         VALUES ($1, 'razorpay', $2, $3, $4, $5, 'succeeded', 'valid')
+        `INSERT INTO payments (payer_user_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, currency, status, signature_status)
+         VALUES ($1, 'razorpay', $2, $3, $4, $5, 'INR', 'succeeded', 'valid')
          ON CONFLICT (provider_intent_id) DO NOTHING`,
-        [userId, razorpay_payment_id, razorpay_order_id, razorpay_payment_id, amount]
+        [userId, razorpay_order_id, razorpay_order_id, razorpay_order_id, razorpay_payment_id, amount]
       );
 
       return balanceAfter;

@@ -196,8 +196,14 @@ export function WalletPaymentsPage() {
         return;
       }
 
+      const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+      if (!razorpayKey) {
+        setPaymentError('Razorpay is not configured. Please contact support.');
+        return;
+      }
+
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_mock123',
+        key: razorpayKey,
         amount: orderAmount,
         currency: currency,
         name: 'WrectifAI Wallet',
