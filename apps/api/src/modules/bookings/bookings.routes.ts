@@ -719,7 +719,7 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
     
     // 1. Verify booking ownership and status
     const bookingRes = await query(
-      `SELECT b.id, b.payment_status, b.status, COALESCE(i.total_amount, b.total_amount) as total_amount 
+      `SELECT b.id, b.payment_status, b.status, COALESCE(i.total_amount, b.total_amount) as total_amount, b.discount_applied, b.wallet_used
        FROM bookings b 
        LEFT JOIN invoices i ON i.booking_id = b.id
        WHERE b.id = $1 AND b.customer_id = $2`,
@@ -740,7 +740,8 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
       return error(res, 'Service must be completed before payment', 'BAD_REQUEST', 400);
     }
 
-    const amountInPaise = Math.round(Number(booking.total_amount) * 100);
+    const finalAmountToPay = Number(booking.total_amount) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
+    const amountInPaise = Math.round(finalAmountToPay * 100);
 
     // 2. Create Razorpay order
     const razorpayOrder = await createRazorpayOrder(amountInPaise, bookingId.substring(0, 40), {

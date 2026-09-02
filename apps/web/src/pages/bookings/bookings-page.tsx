@@ -166,6 +166,26 @@ export function BookingsPage() {
         name: 'WrectifAI Services',
         description: 'Payment for Booking',
         order_id: razorpayOrderId,
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: 'Pay using UPI',
+                instruments: [
+                  { method: 'upi' }
+                ]
+              },
+              card: {
+                name: 'Pay using Card',
+                instruments: [
+                  { method: 'card' }
+                ]
+              }
+            },
+            sequence: ['block.upi', 'block.card'],
+            preferences: { show_default_blocks: false }
+          }
+        },
         handler: async function (response: any) {
           try {
             const { apiClient } = await import('@/lib/api-client');

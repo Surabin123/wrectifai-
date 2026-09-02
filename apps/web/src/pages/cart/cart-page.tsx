@@ -117,6 +117,26 @@ export function CartPage() {
         name: 'WrectifAI Shop',
         description: 'Order Payment',
         order_id: payRes.providerOrderId,
+        config: {
+          display: {
+            blocks: {
+              upi: {
+                name: 'Pay using UPI',
+                instruments: [
+                  { method: 'upi' }
+                ]
+              },
+              card: {
+                name: 'Pay using Card',
+                instruments: [
+                  { method: 'card' }
+                ]
+              }
+            },
+            sequence: ['block.upi', 'block.card'],
+            preferences: { show_default_blocks: false }
+          }
+        },
         handler: async function (response: any) {
           try {
             await apiClient.post('/orders/verify-payment', {
