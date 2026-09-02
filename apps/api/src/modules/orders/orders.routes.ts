@@ -139,9 +139,9 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
     );
     
     return success(res, { providerOrderId: rzpOrder.id, amount: amountInPaise, currency: 'INR' });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Razorpay order creation error:', err);
-    return error(res, 'Failed to initialize payment', 'PAYMENT_INIT_ERROR', 500);
+    return error(res, err?.error?.description || err?.message || 'Failed to initialize payment', 'PAYMENT_INIT_ERROR', 500);
   }
 });
 
