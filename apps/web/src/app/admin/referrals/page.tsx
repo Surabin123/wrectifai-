@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency } from '@/lib/currency';
 import { RefreshCcw, Save } from 'lucide-react';
+import { toast } from 'sonner';
 
 interface ReferralConfig {
   id: number;
@@ -48,11 +49,11 @@ export default function AdminReferralsPage() {
     setSaving(true);
     try {
       await apiClient.post('/admin/referrals/config', { configs });
-      alert('Configurations saved successfully');
+      toast.success('Configurations saved successfully');
       fetchConfigs();
     } catch (err) {
       console.error(err);
-      alert('Failed to save configurations');
+      toast.error('Failed to save configurations');
     } finally {
       setSaving(false);
     }
