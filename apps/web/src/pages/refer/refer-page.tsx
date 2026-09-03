@@ -14,6 +14,7 @@ import Link from 'next/link';
 interface ReferralStats {
   referralCode: string;
   totalReferrals: number;
+  totalEarned: number;
   currency: string;
   earningPotential: number;
   isEnabled: boolean;
