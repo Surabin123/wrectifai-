@@ -150,16 +150,31 @@ export class ReviewsService {
     try {
       await client.query('BEGIN');
       
-      const res = await client.query(
-        `INSERT INTO garage_reviews (garage_id, customer_id, customer_name, rating, text, created_at)
-         VALUES ($1, $2, $3, $4, $5, NOW())
-         ON CONFLICT (garage_id, customer_id) 
-         DO UPDATE SET rating = EXCLUDED.rating, 
-                       text = CASE WHEN EXCLUDED.text <> '' THEN EXCLUDED.text ELSE garage_reviews.text END,
-                       created_at = NOW()
-         RETURNING *`,
-        [garageId, customerId, customerName, rating, text]
+      // Check if review exists
+      const existingRes = await client.query(
+        `SELECT id, text FROM garage_reviews WHERE garage_id = $1 AND customer_id = $2 LIMIT 1`,
+        [garageId, customerId]
       );
+
+      let res;
+      if (existingRes.rows.length > 0) {
+        // Update existing review
+        const existingText = existingRes.rows[0].text;
+        const newText = text ? text : existingText;
+        res = await client.query(
+          `UPDATE garage_reviews 
+           SET rating = $1, text = $2, created_at = NOW() 
+           WHERE id = $3 RETURNING *`,
+          [rating, newText, existingRes.rows[0].id]
+        );
+      } else {
+        // Insert new review
+        res = await client.query(
+          `INSERT INTO garage_reviews (garage_id, customer_id, customer_name, rating, text, created_at)
+           VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *`,
+          [garageId, customerId, customerName, rating, text]
+        );
+      }
       
       await ReviewsService.updateGarageRating(garageId, client);
       await client.query('COMMIT');
