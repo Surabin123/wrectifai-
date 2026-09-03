@@ -33,13 +33,19 @@ export default function ReferPageClient() {
         setStats(data);
       } catch (err) {
         console.error('Failed to fetch referral stats', err);
+        setStats({
+          referralCode: (user as any)?.referral_code || 'SIGNUP',
+          totalReferrals: 0,
+          totalEarned: 0,
+          currency: 'INR',
+          earningPotential: 500,
+          isEnabled: true
+        });
       } finally {
         setLoading(false);
       }
     };
-    if (user) {
-      fetchStats();
-    }
+    fetchStats();
   }, [user]);
 
   const referralLink = typeof window !== 'undefined' && stats?.referralCode 

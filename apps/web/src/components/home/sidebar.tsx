@@ -32,15 +32,22 @@ export function Sidebar({
   hideBottomWidget?: boolean;
 }) {
   const pathname = usePathname();
-  // null = not loaded yet; avoid flashing ₹500 for UAE users
-  const [referralReward, setReferralReward] = useState<{ amount: number; currency: string, isEnabled: boolean } | null>(null);
+  const [referralReward, setReferralReward] = useState<{ amount: number; currency: string; isEnabled: boolean }>({
+    amount: 500,
+    currency: 'INR',
+    isEnabled: true,
+  });
 
   useEffect(() => {
     let active = true;
     apiClient.get<any>('/referrals/stats')
       .then((data) => {
         if (active && data && data.earningPotential) {
-          setReferralReward({ amount: data.earningPotential, currency: data.currency || 'INR', isEnabled: data.isEnabled ?? true });
+          setReferralReward({
+            amount: data.earningPotential,
+            currency: data.currency || 'INR',
+            isEnabled: data.isEnabled ?? true,
+          });
         }
       })
       .catch(() => {});
@@ -117,7 +124,9 @@ export function Sidebar({
       </div>
 
       <nav className="mt-0.5 flex flex-col gap-[3px] overflow-x-hidden overflow-y-auto pr-0.5 pb-0.5 [scrollbar-width:thin] [scrollbar-color:#e4ecff_transparent] [&::-webkit-scrollbar]:w-[4px] [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-[#e4ecff] hover:[&::-webkit-scrollbar-thumb]:bg-[#cbd5e1] [&::-webkit-scrollbar-track]:bg-transparent">
-        {(customNavItems || navItems).map(({ label, icon: Icon, href, chevron }) => {
+        {(customNavItems || navItems)
+          .filter((item) => !(item.slug === 'refer' && referralReward.isEnabled === false))
+          .map(({ label, icon: Icon, href, chevron }) => {
           const active = pathname
             ? href === '/'
               ? pathname === '/' || pathname.startsWith('/deals')
@@ -186,7 +195,7 @@ export function Sidebar({
         })}
       </nav>
 
-      {!hideBottomWidget && referralReward?.isEnabled !== false && (
+      {!hideBottomWidget && referralReward.isEnabled && (
         <div className="mt-1 shrink-0">
           {collapsed ? (
             <Link

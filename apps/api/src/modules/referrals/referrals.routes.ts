@@ -7,6 +7,14 @@ import crypto from 'crypto';
 
 export const referralsRouter = Router();
 
+function normalizeRegion(country?: string, currency?: string): string {
+  const c = (country || '').toUpperCase();
+  const curr = (currency || '').toUpperCase();
+  if (c === 'UAE' || c === 'AE' || c.includes('EMIRATES') || curr === 'AED') return 'UAE';
+  if (c === 'USA' || c === 'US' || c.includes('STATES') || curr === 'USD') return 'USA';
+  return 'India';
+}
+
 // GET /api/v1/referrals/stats
 referralsRouter.get('/stats', authenticate, async (req, res) => {
   const userId = req.user?.userId;
@@ -26,21 +34,25 @@ referralsRouter.get('/stats', authenticate, async (req, res) => {
       user.referral_code = newRefCode;
     }
 
-    // Fetch configuration for the user's country
-    const userCountry = user.country || 'India';
-    const configRes = await query(
-      'SELECT is_enabled, reward_amount, currency FROM referral_configs WHERE region = $1',
-      [userCountry]
-    );
+    // Determine region and defaults
+    const region = normalizeRegion(user.country, user.preferred_currency);
+    let isEnabled = true;
+    let earningPotential = region === 'UAE' ? 50 : region === 'USA' ? 20 : 500;
+    let currency = region === 'UAE' ? 'AED' : region === 'USA' ? 'USD' : 'INR';
 
-    let isEnabled = false;
-    let earningPotential = 500;
-    let currency = user.preferred_currency || 'INR';
+    try {
+      const configRes = await query(
+        'SELECT is_enabled, reward_amount, currency FROM referral_configs WHERE region = $1',
+        [region]
+      );
 
-    if (configRes.rows.length > 0) {
-      isEnabled = configRes.rows[0].is_enabled;
-      earningPotential = parseFloat(configRes.rows[0].reward_amount);
-      currency = configRes.rows[0].currency;
+      if (configRes.rows.length > 0) {
+        isEnabled = configRes.rows[0].is_enabled;
+        earningPotential = parseFloat(configRes.rows[0].reward_amount);
+        currency = configRes.rows[0].currency;
+      }
+    } catch (dbErr) {
+      console.warn('[Referrals] Config fetch fallback:', dbErr);
     }
 
     // Get stats

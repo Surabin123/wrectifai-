@@ -66,26 +66,47 @@ export class ReferralService {
         return;
       }
 
-      // 3. Determine the reward amount based on the referrer's currency and region configuration
+      // 3. Determine the reward amount based on the referrer's location/currency & region configuration
       const referrerRes = await client.query(
         'SELECT country, preferred_currency FROM users WHERE id = $1',
         [referrerId]
       );
       
-      const userCountry = referrerRes.rows.length > 0 ? referrerRes.rows[0].country : 'India';
-      
-      const configRes = await client.query(
-        'SELECT is_enabled, reward_amount, currency FROM referral_configs WHERE region = $1',
-        [userCountry]
-      );
+      const referrerUser = referrerRes.rows[0] || {};
+      const countryStr = (referrerUser.country || '').toUpperCase();
+      const currStr = (referrerUser.preferred_currency || '').toUpperCase();
 
-      if (configRes.rows.length === 0 || !configRes.rows[0].is_enabled) {
-        await client.query('ROLLBACK');
-        return; // Refer & Earn disabled or not configured for this region
+      let region = 'India';
+      let rewardAmount = 500;
+      let currency = 'INR';
+
+      if (countryStr === 'UAE' || countryStr === 'AE' || countryStr.includes('EMIRATES') || currStr === 'AED') {
+        region = 'UAE';
+        rewardAmount = 50;
+        currency = 'AED';
+      } else if (countryStr === 'USA' || countryStr === 'US' || countryStr.includes('STATES') || currStr === 'USD') {
+        region = 'USA';
+        rewardAmount = 20;
+        currency = 'USD';
       }
 
-      const rewardAmount = parseFloat(configRes.rows[0].reward_amount);
-      const currency = configRes.rows[0].currency;
+      try {
+        const configRes = await client.query(
+          'SELECT is_enabled, reward_amount, currency FROM referral_configs WHERE region = $1',
+          [region]
+        );
+
+        if (configRes.rows.length > 0) {
+          if (!configRes.rows[0].is_enabled) {
+            await client.query('ROLLBACK');
+            return; // Explicitly disabled by Admin for this region
+          }
+          rewardAmount = parseFloat(configRes.rows[0].reward_amount);
+          currency = configRes.rows[0].currency;
+        }
+      } catch (configErr) {
+        console.warn('[ReferralService] Could not fetch referral_configs, using regional defaults:', configErr);
+      }
 
       if (rewardAmount <= 0) {
         await client.query('ROLLBACK');
