@@ -1234,6 +1234,7 @@ garagesRouter.post('/my-requests/:type/:id/add-to-catalog', authenticate, async 
     const detail = err?.message || 'Unknown database error';
     return error(res, `Failed to add item to catalog: ${detail}`, 'DATABASE_ERROR', 500);
   }
+});
 
 // GET /api/v1/garages/refund-requests
 garagesRouter.get('/refund-requests', authenticate, async (req, res) => {
