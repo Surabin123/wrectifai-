@@ -152,7 +152,12 @@ export class ReviewsService {
       
       const res = await client.query(
         `INSERT INTO garage_reviews (garage_id, customer_id, customer_name, rating, text, created_at)
-         VALUES ($1, $2, $3, $4, $5, NOW()) RETURNING *`,
+         VALUES ($1, $2, $3, $4, $5, NOW())
+         ON CONFLICT (garage_id, customer_id) 
+         DO UPDATE SET rating = EXCLUDED.rating, 
+                       text = CASE WHEN EXCLUDED.text <> '' THEN EXCLUDED.text ELSE garage_reviews.text END,
+                       created_at = NOW()
+         RETURNING *`,
         [garageId, customerId, customerName, rating, text]
       );
       

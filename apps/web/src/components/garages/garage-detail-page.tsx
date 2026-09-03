@@ -300,23 +300,30 @@ export function GarageDetailPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialGarage.id, user?.id]);
 
-  const handleSubmitReview = async () => {
-    if (!newReviewText.trim()) return;
+  const handleSubmitReview = async (overrideRating?: number) => {
+    const finalRating = overrideRating || newReviewRating;
+    if (finalRating === 0) return;
     setIsSubmittingReview(true);
     try {
       await apiClient.post('/reviews', {
         garageId: initialGarage.id,
-        rating: newReviewRating,
+        rating: finalRating,
         comment: newReviewText,
       });
-      setNewReviewText('');
-      setNewReviewRating(0);
+      if (overrideRating === undefined) {
+        setNewReviewText('');
+      }
       await fetchReviews();
     } catch (err) {
       console.error('Failed to submit review', err);
     } finally {
       setIsSubmittingReview(false);
     }
+  };
+
+  const handleStarClick = (starValue: number) => {
+    setNewReviewRating(starValue);
+    handleSubmitReview(starValue);
   };
 
   const handleVote = async (reviewId: string, currentVote: 'like' | 'unlike' | 'none') => {
