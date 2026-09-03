@@ -243,23 +243,24 @@ paymentsRouter.post('/booking/:id/refund', authenticate, async (req, res) => {
       return error(res, 'Razorpay refund API failed: ' + rzpErr?.message, 'BAD_REQUEST', 400);
     }
 
-    const refundStatus = refund.status === 'processed' ? 'refunded' : 'refund_pending';
+    const paymentRefundStatus = refund.status === 'processed' ? 'refunded' : 'refund_pending';
+    const bookingRefundStatus = refund.status === 'processed' ? 'REFUNDED' : 'REFUND_PENDING';
     
     await client.query(
       'UPDATE payments SET status = $1, provider_refund_id = $2, refund_reason = $3, updated_at = NOW() WHERE id = $4',
-      [refundStatus, refund.id, reason, payment.id]
+      [paymentRefundStatus, refund.id, reason, payment.id]
     );
 
     await client.query(
       'UPDATE bookings SET payment_status = $1, updated_at = NOW() WHERE id = $2',
-      [refundStatus, payment.booking_id]
+      [bookingRefundStatus, payment.booking_id]
     );
 
     await client.query('COMMIT');
     return success(res, { refund }, 200);
-  } catch (err) {
+  } catch (err: any) {
     await client.query('ROLLBACK');
-    console.error('Refund error:', err);
+    console.error(`[payments/refund] Failed for bookingId=${bookingId}:`, err?.message, err?.code);
     return error(res, 'Failed to process refund', 'INTERNAL_SERVER_ERROR', 500);
   } finally {
     client.release();
@@ -405,7 +406,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
           [refundId, paymentId]
         );
         if (updateRes.rows.length > 0) {
-          await client.query("UPDATE bookings SET payment_status = 'refunded', updated_at = NOW() WHERE id = $1", [updateRes.rows[0].booking_id]);
+          await client.query("UPDATE bookings SET payment_status = 'REFUNDED', updated_at = NOW() WHERE id = $1", [updateRes.rows[0].booking_id]);
         }
       }
     } else if (webhookBody.event === 'refund.failed') {
@@ -419,7 +420,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
           [refundId, paymentId]
         );
         if (updateRes.rows.length > 0) {
-          await client.query("UPDATE bookings SET payment_status = 'refund_failed', updated_at = NOW() WHERE id = $1", [updateRes.rows[0].booking_id]);
+          await client.query("UPDATE bookings SET payment_status = 'REFUND_FAILED', updated_at = NOW() WHERE id = $1", [updateRes.rows[0].booking_id]);
         }
       }
     }
