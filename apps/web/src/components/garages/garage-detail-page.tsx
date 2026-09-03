@@ -287,8 +287,27 @@ export function GarageDetailPage({
     try {
       const url = user?.id ? `/garages/${initialGarage.id}/reviews?userId=${user.id}` : `/garages/${initialGarage.id}/reviews`;
       const res: any = await apiClient.get(url);
-      if (res && res.reviews) setReviews(res.reviews);
-      if (res && res.stats) setReviewStats(res.stats);
+      if (res) {
+        const reviewList = res.data || res.reviews || [];
+        setReviews(reviewList);
+        
+        const totalCount = res.total !== undefined ? res.total : (res.stats?.totalReviews || reviewList.length);
+        const avgRatingStr = res.stats?.averageRating !== undefined ? String(res.stats.averageRating) : '0.0';
+        const avgRating = parseFloat(avgRatingStr) || 0;
+
+        setReviewStats({
+          ...res.stats,
+          totalReviews: totalCount,
+          averageRating: avgRatingStr,
+        });
+
+        // Update garage state so top header near garage name reflects authoritative rating and count
+        setGarage(prev => ({
+          ...prev,
+          rating: avgRating > 0 ? avgRating : prev.rating,
+          reviews: totalCount,
+        }));
+      }
     } catch (err) {
       console.error('Failed to fetch reviews', err);
     }
@@ -300,30 +319,28 @@ export function GarageDetailPage({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialGarage.id, user?.id]);
 
-  const handleSubmitReview = async (overrideRating?: number) => {
-    const finalRating = overrideRating || newReviewRating;
-    if (finalRating === 0) return;
+  const handleSubmitReview = async () => {
+    if (newReviewRating === 0) return;
+    if (!user) {
+      alert('Please log in to submit a review.');
+      return;
+    }
     setIsSubmittingReview(true);
     try {
       await apiClient.post('/reviews', {
         garageId: initialGarage.id,
-        rating: finalRating,
-        comment: newReviewText,
+        rating: newReviewRating,
+        comment: newReviewText.trim(),
       });
-      if (overrideRating === undefined) {
-        setNewReviewText('');
-      }
+      setNewReviewText('');
+      setNewReviewRating(0);
       await fetchReviews();
-    } catch (err) {
+    } catch (err: any) {
       console.error('Failed to submit review', err);
+      alert(err.message || 'Failed to submit review');
     } finally {
       setIsSubmittingReview(false);
     }
-  };
-
-  const handleStarClick = (starValue: number) => {
-    setNewReviewRating(starValue);
-    handleSubmitReview(starValue);
   };
 
   const handleVote = async (reviewId: string, currentVote: 'like' | 'unlike' | 'none') => {
@@ -857,7 +874,7 @@ export function GarageDetailPage({
                       <span className="text-[38px] font-extrabold tracking-tight text-[#17307a]">
                         {newReviewRating > 0 
                           ? newReviewRating 
-                          : (reviewStats?.totalReviews > 0 ? Math.round(reviewStats.averageRating) : 0)}
+                          : (reviewStats?.totalReviews > 0 ? (reviewStats.averageRating || '0.0') : '0.0')}
                       </span>
                       <div className="my-1.5 flex items-center gap-0.5">
                         {Array.from({ length: 5 }).map((_, i) => {
@@ -941,7 +958,7 @@ export function GarageDetailPage({
                           <Button 
                             className="w-full"
                             onClick={() => handleSubmitReview()}
-                            disabled={!newReviewText.trim() || isSubmittingReview || newReviewRating === 0}
+                            disabled={isSubmittingReview || newReviewRating === 0}
                           >
                             Submit Review
                           </Button>
