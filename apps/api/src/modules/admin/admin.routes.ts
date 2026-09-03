@@ -964,3 +964,28 @@ adminRouter.post('/requests/:type/:id/reject', async (req, res) => {
   }
 });
 
+
+// --- Admin Referrals ---
+adminRouter.get('/referrals/config', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    const result = await query('SELECT * FROM referral_configs ORDER BY region');
+    return success(res, result.rows);
+  } catch (err) {
+    return error(res, 'Failed to fetch referral configs', 'DATABASE_ERROR', 500);
+  }
+});
+
+adminRouter.post('/referrals/config', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    const { configs } = req.body;
+    for (const config of configs) {
+      await query(
+        'UPDATE referral_configs SET is_enabled = $1, reward_amount = $2 WHERE id = $3',
+        [config.is_enabled, config.reward_amount, config.id]
+      );
+    }
+    return success(res, { success: true });
+  } catch (err) {
+    return error(res, 'Failed to save configs', 'DATABASE_ERROR', 500);
+  }
+});

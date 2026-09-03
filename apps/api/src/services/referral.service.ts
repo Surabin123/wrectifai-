@@ -66,31 +66,26 @@ export class ReferralService {
         return;
       }
 
-      // 3. Determine the reward amount based on the referrer's currency (or referee's)
+      // 3. Determine the reward amount based on the referrer's currency and region configuration
       const referrerRes = await client.query(
-        'SELECT preferred_currency FROM users WHERE id = $1',
+        'SELECT country, preferred_currency FROM users WHERE id = $1',
         [referrerId]
       );
       
-      const currency = (referrerRes.rows.length > 0 ? referrerRes.rows[0].preferred_currency : 'INR') || 'INR';
-      let rewardAmount = 0;
+      const userCountry = referrerRes.rows.length > 0 ? referrerRes.rows[0].country : 'India';
+      
+      const configRes = await client.query(
+        'SELECT is_enabled, reward_amount, currency FROM referral_configs WHERE region = $1',
+        [userCountry]
+      );
 
-      // Define standard reward tiers based on currency
-      switch (currency.toUpperCase()) {
-        case 'INR':
-          rewardAmount = 500;
-          break;
-        case 'USD':
-          rewardAmount = 20;
-          break;
-        case 'AED':
-          rewardAmount = 50;
-          break;
-        default:
-          // Fallback or unsupported currency mapping
-          rewardAmount = 500; // If they use a custom unsupported one, fallback to 500 units
-          break;
+      if (configRes.rows.length === 0 || !configRes.rows[0].is_enabled) {
+        await client.query('ROLLBACK');
+        return; // Refer & Earn disabled or not configured for this region
       }
+
+      const rewardAmount = parseFloat(configRes.rows[0].reward_amount);
+      const currency = configRes.rows[0].currency;
 
       if (rewardAmount <= 0) {
         await client.query('ROLLBACK');

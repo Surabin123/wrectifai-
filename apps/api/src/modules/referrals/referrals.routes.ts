@@ -26,11 +26,22 @@ referralsRouter.get('/stats', authenticate, async (req, res) => {
       user.referral_code = newRefCode;
     }
 
-    // Determine earning potential based on currency
-    const currency = user.preferred_currency || 'INR';
+    // Fetch configuration for the user's country
+    const userCountry = user.country || 'India';
+    const configRes = await query(
+      'SELECT is_enabled, reward_amount, currency FROM referral_configs WHERE region = $1',
+      [userCountry]
+    );
+
+    let isEnabled = false;
     let earningPotential = 500;
-    if (currency === 'USD') earningPotential = 20;
-    if (currency === 'AED') earningPotential = 50;
+    let currency = user.preferred_currency || 'INR';
+
+    if (configRes.rows.length > 0) {
+      isEnabled = configRes.rows[0].is_enabled;
+      earningPotential = parseFloat(configRes.rows[0].reward_amount);
+      currency = configRes.rows[0].currency;
+    }
 
     // Get stats
     const statsRes = await query(
@@ -49,7 +60,8 @@ referralsRouter.get('/stats', authenticate, async (req, res) => {
       totalReferrals: parseInt(stats.total_referrals, 10),
       totalEarned: parseFloat(stats.total_earned),
       currency: currency,
-      earningPotential: earningPotential
+      earningPotential: earningPotential,
+      isEnabled: isEnabled
     });
   } catch (err) {
     console.error('Error fetching referral stats:', err);

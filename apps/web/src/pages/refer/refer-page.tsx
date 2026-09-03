@@ -14,9 +14,9 @@ import Link from 'next/link';
 interface ReferralStats {
   referralCode: string;
   totalReferrals: number;
-  totalEarned: number;
   currency: string;
   earningPotential: number;
+  isEnabled: boolean;
 }
 
 export default function ReferPageClient() {
@@ -107,7 +107,7 @@ export default function ReferPageClient() {
             <div className="flex-1 h-48 bg-gray-100 rounded-3xl" />
             <div className="flex-1 h-48 bg-gray-100 rounded-3xl hidden sm:block" />
           </div>
-        ) : stats ? (
+        ) : stats && stats.isEnabled ? (
           <>
             {/* Stats Overview */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -222,6 +222,10 @@ export default function ReferPageClient() {
               </div>
             </div>
           </>
+        ) : stats && !stats.isEnabled ? (
+          <div className="text-center p-8 bg-gray-50 rounded-3xl border border-gray-100">
+            <p className="text-gray-500">The Refer & Earn program is currently unavailable in your region.</p>
+          </div>
         ) : (
           <div className="text-center p-8 bg-gray-50 rounded-3xl border border-gray-100">
             <p className="text-gray-500">Unable to load referral information. Please try again later.</p>

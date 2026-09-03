@@ -33,14 +33,14 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   // null = not loaded yet; avoid flashing ₹500 for UAE users
-  const [referralReward, setReferralReward] = useState<{ amount: number; currency: string } | null>(null);
+  const [referralReward, setReferralReward] = useState<{ amount: number; currency: string, isEnabled: boolean } | null>(null);
 
   useEffect(() => {
     let active = true;
     apiClient.get<any>('/referrals/stats')
       .then((data) => {
         if (active && data && data.earningPotential) {
-          setReferralReward({ amount: data.earningPotential, currency: data.currency || 'INR' });
+          setReferralReward({ amount: data.earningPotential, currency: data.currency || 'INR', isEnabled: data.isEnabled ?? true });
         }
       })
       .catch(() => {});
@@ -186,7 +186,7 @@ export function Sidebar({
         })}
       </nav>
 
-      {!hideBottomWidget && (
+      {!hideBottomWidget && referralReward?.isEnabled !== false && (
         <div className="mt-1 shrink-0">
           {collapsed ? (
             <Link
