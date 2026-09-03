@@ -45,6 +45,7 @@ import { Modal } from '@/components/common/modal';
 import { formatCurrency } from '@/lib/currency';
 import { useAuth } from '@/lib/auth-context';
 import { resolveImageUrl } from '@/lib/utils';
+import { getDaySchedule } from '@/utils/working-hours';
 
 interface GarageDetailPageProps {
   garage: Garage;
@@ -166,17 +167,20 @@ export function GarageDetailPage({
   useEffect(() => {
     setGarage(initialGarage);
     
-    if (initialGarage.services && initialGarage.services.length > 0) {
-      setServices(initialGarage.services);
-      return;
-    }
-
     let active = true;
     if (initialGarage.id) {
-      apiClient.get<Garage>(`/garages/${initialGarage.id}`)
+      apiClient.get<any>(`/garages/${initialGarage.id}`)
         .then((data) => {
-          if (active && data && data.services) {
-            setServices(data.services);
+          if (active && data) {
+            if (data.services) {
+              setServices(data.services);
+            }
+            setGarage(prev => ({
+              ...prev,
+              ...data,
+              description: data.description !== undefined ? data.description : prev.description,
+              businessHours: data.businessHours || data.business_hours || prev.businessHours,
+            }));
           }
         })
         .catch(console.error);
@@ -185,7 +189,7 @@ export function GarageDetailPage({
     return () => { 
       active = false; 
     };
-  }, [initialGarage.id, initialGarage.services]);
+  }, [initialGarage.id]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -206,9 +210,14 @@ export function GarageDetailPage({
     for (let i = 0; i < 5; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
+      const year = d.getFullYear();
+      const monthStr = String(d.getMonth() + 1).padStart(2, '0');
+      const dateStr = String(d.getDate()).padStart(2, '0');
+      const fullDate = `${year}-${monthStr}-${dateStr}`;
       list.push({
         day: daysOfWeek[d.getDay()],
         date: String(d.getDate()),
+        fullDate,
         month: months[d.getMonth()],
         year: d.getFullYear(),
         monthIndex: d.getMonth(),
@@ -217,8 +226,35 @@ export function GarageDetailPage({
     return list;
   }, []);
 
-  const [selectedDate, setSelectedDate] = useState(appointmentDates[0]?.date || '9');
-  const [selectedSlot, setSelectedSlot] = useState('04:00 PM');
+  const [selectedDate, setSelectedDate] = useState(appointmentDates[0]?.date || '');
+
+  const selectedDateObj = useMemo(() => {
+    return appointmentDates.find((d) => d.date === selectedDate) || appointmentDates[0];
+  }, [appointmentDates, selectedDate]);
+
+  const currentSchedule = useMemo(() => {
+    return getDaySchedule(garage.businessHours, selectedDateObj?.fullDate || '');
+  }, [garage.businessHours, selectedDateObj]);
+
+  const activeTimeSlots = useMemo(() => {
+    if (!currentSchedule.isOpen || currentSchedule.availableTimeSlots.length === 0) {
+      return [];
+    }
+    return currentSchedule.availableTimeSlots.map(s => s.label);
+  }, [currentSchedule]);
+
+  const [selectedSlot, setSelectedSlot] = useState('');
+
+  useEffect(() => {
+    if (activeTimeSlots.length > 0) {
+      if (!selectedSlot || !activeTimeSlots.includes(selectedSlot)) {
+        setSelectedSlot(activeTimeSlots[0]);
+      }
+    } else {
+      setSelectedSlot('');
+    }
+  }, [activeTimeSlots, selectedSlot]);
+
   const [bookingConfirmed, setBookingConfirmed] = useState(false);
   const [confirmedBookingId, setConfirmedBookingId] = useState<string | null>(null);
   const [reviewPage, setReviewPage] = useState(0);
@@ -361,6 +397,8 @@ export function GarageDetailPage({
         isOpen={isBookingModalOpen} 
         onClose={() => setIsBookingModalOpen(false)} 
         garageId={garage.id || ''} 
+        businessHours={garage.businessHours}
+        garageName={garage.name}
         onSubmitSuccess={() => {
           setRequestStatus('booking_success');
         }} 
@@ -1033,15 +1071,20 @@ export function GarageDetailPage({
 
               {/* Appointment Dates Carousel */}
               <div className="flex items-center gap-1.5 justify-between">
-                {appointmentDates.map((d) => (
+                {appointmentDates.map((d) => {
+                  const dSchedule = getDaySchedule(garage.businessHours, d.fullDate);
+                  const isDayClosed = !dSchedule.isOpen;
+                  return (
                   <button
                     key={d.date}
                     onClick={() => setSelectedDate(d.date)}
                     className={cn(
-                      'flex flex-col items-center justify-center rounded-[14px] border p-1.5 flex-1 h-[64px] transition-all',
+                      'flex flex-col items-center justify-center rounded-[14px] border p-1.5 flex-1 h-[64px] transition-all relative',
                       selectedDate === d.date
                         ? 'border-[#1a56db] bg-[#1a56db] text-white shadow-[0_8px_18px_rgba(26,86,219,0.18)]'
-                        : 'border-[#e2eefc] bg-white text-[#17307a] hover:bg-[#f8fbff]'
+                        : isDayClosed
+                          ? 'border-red-100 bg-red-50/50 text-[#17307a] hover:bg-red-50'
+                          : 'border-[#e2eefc] bg-white text-[#17307a] hover:bg-[#f8fbff]'
                     )}
                   >
                     <span
@@ -1049,7 +1092,9 @@ export function GarageDetailPage({
                         'text-[9px] font-bold',
                         selectedDate === d.date
                           ? 'text-white/80'
-                          : 'text-[#8a99ad]'
+                          : isDayClosed
+                            ? 'text-red-500'
+                            : 'text-[#8a99ad]'
                       )}
                     >
                       {d.day}
@@ -1062,13 +1107,15 @@ export function GarageDetailPage({
                         'text-[8px] font-bold mt-1 uppercase tracking-wider',
                         selectedDate === d.date
                           ? 'text-white/80'
-                          : 'text-[#8a99ad]'
+                          : isDayClosed
+                            ? 'text-red-500 font-extrabold'
+                            : 'text-[#8a99ad]'
                       )}
                     >
-                      {d.month.slice(0, 3)}
+                      {isDayClosed ? 'Closed' : d.month.slice(0, 3)}
                     </span>
                   </button>
-                ))}
+                );})}
               </div>
 
               {/* Available Slots */}
@@ -1076,31 +1123,52 @@ export function GarageDetailPage({
                 <span className="text-[11px] font-bold text-[#17307a]">
                   Available Slots
                 </span>
-                <div className="grid grid-cols-3 gap-2">
-                  {timeSlots.map((slot) => (
-                    <button
-                      key={slot}
-                      onClick={() => setSelectedSlot(slot)}
-                      className={cn(
-                        'flex items-center justify-center h-10 rounded-[10px] border text-[10px] font-bold tracking-tight transition-all',
-                        selectedSlot === slot
-                          ? 'border-[#1a56db] bg-[#1a56db] text-white shadow-md'
-                          : 'border-[#e2eefc] bg-white text-[#17307a] hover:bg-[#f8fbff]'
-                      )}
-                    >
-                      {slot}
-                    </button>
-                  ))}
-                </div>
+                {!currentSchedule.isOpen ? (
+                  <div className="rounded-[12px] border border-red-200 bg-red-50 p-3.5 text-center">
+                    <p className="text-[11px] font-bold text-red-700">
+                      Closed on {currentSchedule.dayDisplay}
+                    </p>
+                    <p className="text-[10px] text-red-600 mt-0.5">
+                      The garage is not operating on this day. Please select another date.
+                    </p>
+                  </div>
+                ) : activeTimeSlots.length > 0 ? (
+                  <div className="grid grid-cols-3 gap-2">
+                    {activeTimeSlots.map((slot) => (
+                      <button
+                        key={slot}
+                        onClick={() => setSelectedSlot(slot)}
+                        className={cn(
+                          'flex items-center justify-center h-10 rounded-[10px] border text-[10px] font-bold tracking-tight transition-all',
+                          selectedSlot === slot
+                            ? 'border-[#1a56db] bg-[#1a56db] text-white shadow-md'
+                            : 'border-[#e2eefc] bg-white text-[#17307a] hover:bg-[#f8fbff]'
+                        )}
+                      >
+                        {slot}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-[12px] border border-slate-200 bg-slate-50 p-3 text-center text-[11px] text-slate-500 font-medium">
+                    No time slots available for this day.
+                  </div>
+                )}
               </div>
 
               {/* Action Button */}
               <div className="space-y-3 pt-2">
                 <Button
                   onClick={handleBookAppointment}
-                  className="w-full h-12 rounded-[14px] text-[12px] font-bold bg-[#1a56db] text-white hover:bg-[#0b43c4] shadow-lg transition-transform hover:scale-[1.01]"
+                  disabled={!currentSchedule.isOpen}
+                  className={cn(
+                    "w-full h-12 rounded-[14px] text-[12px] font-bold text-white shadow-lg transition-transform",
+                    !currentSchedule.isOpen 
+                      ? "bg-slate-400 cursor-not-allowed opacity-70" 
+                      : "bg-[#1a56db] hover:bg-[#0b43c4] hover:scale-[1.01]"
+                  )}
                 >
-                  Book Now
+                  {!currentSchedule.isOpen ? `Closed on ${currentSchedule.dayDisplay}` : 'Book Now'}
                 </Button>
                 <div className="flex flex-col gap-1.5 text-[10px] font-bold text-[#8a99ad] items-center justify-center pt-1 border-t border-[#eef3ff]">
                   <div className="flex items-center gap-1.5">

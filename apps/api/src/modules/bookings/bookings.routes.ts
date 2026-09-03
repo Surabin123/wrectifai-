@@ -109,9 +109,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
   if (isAM && hours === 12) hours = 0;
 
   return hours * 60 + minutes;
-}
-
-async function createBookingInternal(req: any, res: any, data: {
+}async function createBookingInternal(req: any, res: any, data: {
   garageId?: string;
   vehicleId: string;
   scheduledAt: string;
@@ -183,7 +181,32 @@ async function createBookingInternal(req: any, res: any, data: {
       const scheduledDate = new Date(scheduledAt);
       if (!isNaN(scheduledDate.getTime())) {
         const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const dayName = dayNames[scheduledDate.getDay()];
+        let dayName: string;
+        let bookingMinutes: number | null = null;
+        
+        if (typeof scheduledAt === 'string' && scheduledAt.includes('T')) {
+          const [datePart, timePart] = scheduledAt.split('T');
+          const [year, month, day] = datePart.split('-').map(Number);
+          if (year && month && day) {
+            const d = new Date(year, month - 1, day);
+            dayName = dayNames[d.getDay()];
+          } else {
+            dayName = dayNames[scheduledDate.getDay()];
+          }
+          if (timePart) {
+            const cleanTime = timePart.replace(/Z|[+-]\d{2}:\d{2}$/, '');
+            const [hStr, mStr] = cleanTime.split(':');
+            const h = parseInt(hStr, 10);
+            const m = parseInt(mStr, 10);
+            if (!isNaN(h) && !isNaN(m)) {
+              bookingMinutes = h * 60 + m;
+            }
+          }
+        } else {
+          dayName = dayNames[scheduledDate.getDay()];
+          bookingMinutes = scheduledDate.getHours() * 60 + scheduledDate.getMinutes();
+        }
+
         const dayDisplay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
         const dayConfig = businessHours[dayName];
 
@@ -197,11 +220,10 @@ async function createBookingInternal(req: any, res: any, data: {
             );
           }
 
-          const bookingMinutes = scheduledDate.getHours() * 60 + scheduledDate.getMinutes();
           const startMinutes = parseTimeToMinutes(dayConfig.start);
           const endMinutes = parseTimeToMinutes(dayConfig.end);
 
-          if (startMinutes !== null && endMinutes !== null) {
+          if (bookingMinutes !== null && startMinutes !== null && endMinutes !== null) {
             if (bookingMinutes < startMinutes || bookingMinutes > endMinutes) {
               return error(
                 res,
@@ -355,7 +377,6 @@ async function createBookingInternal(req: any, res: any, data: {
   }
 }
 
-// GET /bookings/garage-incoming — fetch pending bookings for a garage
 bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
   try {
     const garageUserId = req.user?.userId;

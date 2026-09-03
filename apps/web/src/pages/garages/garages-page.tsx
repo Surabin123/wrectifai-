@@ -442,6 +442,8 @@ function mapBackendGarageToFrontend(g: any): Garage {
     image,
     coordinates: g.coordinates,
     approvalStatus: g.approvalStatus,
+    description: g.description || undefined,
+    businessHours: g.businessHours || g.business_hours || undefined,
   };
 }
 
