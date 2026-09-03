@@ -940,7 +940,7 @@ export function GarageDetailPage({
                           />
                           <Button 
                             className="w-full"
-                            onClick={handleSubmitReview}
+                            onClick={() => handleSubmitReview()}
                             disabled={!newReviewText.trim() || isSubmittingReview || newReviewRating === 0}
                           >
                             Submit Review
