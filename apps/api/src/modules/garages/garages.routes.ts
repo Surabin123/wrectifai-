@@ -725,35 +725,36 @@ garagesRouter.post('/my-services/request', authenticate, async (req, res) => {
     const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
-    const { name, category, description, suggestedDuration, suggestedPrice, image } = req.body;
+    const { name, category, description, suggestedDuration, suggestedPrice, durationUnit } = req.body;
     
     if (!name || !category) {
       return error(res, 'Name and category are required', 'BAD_REQUEST', 400);
     }
     
-    let processedImage = image;
-    if (image && image.startsWith('data:image')) {
-      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
-        try {
-          const { v2: cloudinary } = require('cloudinary');
-          const uploadResult = await cloudinary.uploader.upload(image, {
-            folder: `wrectifai/requests`,
-          });
-          processedImage = uploadResult.secure_url;
-        } catch (err) {}
+    const parsedPrice = suggestedPrice !== undefined && suggestedPrice !== '' ? Number(suggestedPrice) : 0;
+    const parsedDuration = suggestedDuration !== undefined && suggestedDuration !== '' ? Number(suggestedDuration) : 60;
+    
+    // We optionally use durationUnit if the schema supports it. It was passed by the frontend.
+    // If not, it will just insert the default columns safely.
+    const result = await query(
+      `INSERT INTO services (garage_id, name, category, description, price, duration_mins, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING *`,
+      [garageId, name, category, description, parsedPrice, parsedDuration]
+    );
+
+    // Also update the duration_unit if the column exists (safe update)
+    if (durationUnit) {
+      try {
+        await query(`UPDATE services SET duration_unit = $1 WHERE id = $2`, [durationUnit, result.rows[0].id]);
+      } catch (e) {
+        // Ignore if duration_unit column does not exist
       }
     }
-
-    const result = await query(
-      `INSERT INTO service_requests (garage_id, name, category, description, image, suggested_duration, suggested_price)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [garageId, name, category, description, processedImage, suggestedDuration || null, suggestedPrice || null]
-    );
 
     return success(res, result.rows[0], 201);
   } catch (err) {
     console.error(err);
-    return error(res, 'Failed to submit service request', 'DATABASE_ERROR', 500);
+    return error(res, 'Failed to add service', 'DATABASE_ERROR', 500);
   }
 });
 
@@ -1457,3 +1458,5 @@ garagesRouter.post('/refund-requests/:id/request-info', authenticate, async (req
     return error(res, 'Failed to request info', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
+
+export default garagesRouter;

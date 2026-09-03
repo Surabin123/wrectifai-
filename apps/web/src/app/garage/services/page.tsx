@@ -143,11 +143,12 @@ export default function ServicesPage() {
         durationUnit: requestData.durationUnit || 'Minutes'
       });
       setShowAddModal(false);
-      setSuccessMessage('Service request submitted! An admin will review it shortly.');
+      fetchServices();
+      setSuccessMessage('Custom service added successfully!');
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
-      console.error('Failed to request service:', err);
-      setValidationError('Failed to submit service request.');
+      console.error('Failed to add custom service:', err);
+      setValidationError('Failed to add custom service.');
     }
   };
 
@@ -364,7 +365,7 @@ export default function ServicesPage() {
                   className={`px-4 py-2 text-sm font-bold border-b-2 ${addTab === 'request' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
                   onClick={() => setAddTab('request')}
                 >
-                  Request New Service
+                  Create Custom Service
                 </button>
               </div>
               
@@ -484,7 +485,7 @@ export default function ServicesPage() {
                   </div>
                   <div className="mt-8 flex justify-end gap-3">
                     <button onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded-lg text-sm font-bold text-slate-600">Cancel</button>
-                    <button onClick={submitRequestService} disabled={!requestData.name || !requestData.category} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Submit Request</button>
+                    <button onClick={submitRequestService} disabled={!requestData.name || !requestData.category} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Add Custom Service</button>
                   </div>
                 </div>
               )}
