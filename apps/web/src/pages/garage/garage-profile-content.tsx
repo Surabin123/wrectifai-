@@ -265,7 +265,12 @@ export function GarageProfileContent() {
             </h3>
             {profile.businessHours ? (
               <div className="space-y-2 text-sm">
-                {Object.entries(profile.businessHours).map(([day, hours]: [string, any]) => (
+                {Object.entries(profile.businessHours)
+                  .sort(([dayA], [dayB]) => {
+                    const order = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                    return order.indexOf(dayA.toLowerCase()) - order.indexOf(dayB.toLowerCase());
+                  })
+                  .map(([day, hours]: [string, any]) => (
                   <div key={day} className="flex justify-between items-center py-1 border-b border-slate-50 last:border-0">
                     <span className="capitalize text-slate-500">{day}</span>
                     <span className="font-medium text-slate-900">

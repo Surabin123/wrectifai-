@@ -16,8 +16,8 @@ offersRouter.get('/', async (req, res) => {
               g.name as "garageName"
        FROM offers o
        LEFT JOIN garages g ON o.garage_id = g.id
-       WHERE o.active = true 
-       AND o.is_deleted = false
+       WHERE (o.active = true OR o.active IS NULL)
+       AND (o.is_deleted = false OR o.is_deleted IS NULL)
        AND (o.valid_until IS NULL OR o.valid_until > NOW())
        AND (o.valid_from IS NULL OR o.valid_from <= NOW())
        ORDER BY o.created_at DESC`

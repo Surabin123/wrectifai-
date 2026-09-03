@@ -364,7 +364,10 @@ adminRouter.post('/onboarding/garages/:id/verify-status', async (req, res) => {
     );
     
     // Also update document status if applicable
-    await query(`UPDATE garage_documents SET verification_status = $1 WHERE garage_id = $2`, [status, req.params.id]);
+    let docStatus = 'pending';
+    if (status === 'active') docStatus = 'approved';
+    else if (status === 'rejected' || status === 'suspended') docStatus = 'rejected';
+    await query(`UPDATE garage_documents SET verification_status = $1 WHERE garage_id = $2`, [docStatus, req.params.id]);
 
     if (result.rows.length === 0) return error(res, 'Garage not found', 'NOT_FOUND', 404);
     

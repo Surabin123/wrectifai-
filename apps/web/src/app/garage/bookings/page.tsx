@@ -8,7 +8,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Card } from '@/components/common/card';
 import { Modal } from '@/components/common/modal';
-import { updateBookingStatus } from '@/lib/bookings-api';
+import { updateBookingStatus, confirmCashPayment } from '@/lib/bookings-api';
 
 export default function BookingsPage() {
   const router = useRouter();
@@ -82,7 +82,16 @@ export default function BookingsPage() {
     }
   };
 
-
+  const handleConfirmCash = async (id: string) => {
+    try {
+      await confirmCashPayment(id);
+      setBookings(prev => prev.map(b => b.id === id ? { ...b, paymentStatus: 'PAID' } : b));
+      alert('Cash payment confirmed successfully!');
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to confirm cash payment: ' + (err.message || 'Unknown error'));
+    }
+  };
 
   return (
     <RoleGuard allowedRoles={['garage']}>
@@ -142,7 +151,12 @@ export default function BookingsPage() {
                               Complete Job
                             </button>
                           )}
-                          {b.status === 'completed' && (
+                          {b.status === 'completed' && b.paymentStatus === 'PENDING_CASH' && (
+                            <button onClick={() => handleConfirmCash(b.id)} className="text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded font-semibold hover:bg-emerald-200 ml-2">
+                              Confirm Cash
+                            </button>
+                          )}
+                          {b.status === 'completed' && (b.paymentStatus !== 'PENDING_CASH' || !b.paymentStatus) && (
                             <button onClick={() => { setBookingForCollection(b.id); setCollectionTime(''); setCollectionModalOpen(true); }} className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded font-semibold hover:bg-yellow-200 ml-2">
                               Ready for Collection
                             </button>

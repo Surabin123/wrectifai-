@@ -317,7 +317,12 @@ export default function AllGaragesPage() {
                  <h3 className="text-sm font-bold text-slate-400 uppercase tracking-wider mb-2 border-b pb-2">Working Hours</h3>
                  {selectedGarage.businessHours ? (
                    <div className="grid grid-cols-1 gap-2 text-sm text-slate-700 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                     {Object.entries(selectedGarage.businessHours).map(([day, data]: [string, any]) => (
+                     {Object.entries(selectedGarage.businessHours)
+                        .sort(([dayA], [dayB]) => {
+                          const order = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+                          return order.indexOf(dayA.toLowerCase()) - order.indexOf(dayB.toLowerCase());
+                        })
+                        .map(([day, data]: [string, any]) => (
                         data.open ? (
                           <div key={day} className="flex justify-between items-center py-1 border-b border-slate-100 last:border-0">
                             <span className="capitalize font-medium text-slate-600">{day}</span>

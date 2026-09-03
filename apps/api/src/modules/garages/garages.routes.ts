@@ -277,7 +277,7 @@ garagesRouter.get('/my-customers', authenticate, async (req, res) => {
       `WITH customer_bookings AS (
          SELECT customer_id, 
                 COUNT(*) as total_bookings,
-                COUNT(CASE WHEN status IN ('pendingPayment', 'confirmed', 'inService') THEN 1 END) as pending_bookings,
+                COUNT(CASE WHEN status IN ('requested', 'confirmed', 'in_progress', 'readyForCollection') THEN 1 END) as pending_bookings,
                 SUM(total_amount) as total_booking_spend,
                 MIN(created_at) as first_booking_date,
                 MAX(updated_at) as last_booking_date

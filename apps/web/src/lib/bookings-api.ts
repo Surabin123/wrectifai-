@@ -47,6 +47,10 @@ export async function updateBookingStatus(id: string, status: string, collection
   return apiClient.patch<Booking>(`/bookings/${id}/status`, { status, collectionTime });
 }
 
+export async function confirmCashPayment(id: string): Promise<{message: string}> {
+  return apiClient.post<{message: string}>(`/bookings/${id}/confirm-cash`, {});
+}
+
 export async function applyOfferToBooking(id: string, offerCode: string): Promise<{ discount: number; message: string }> {
   return apiClient.post<{ discount: number; message: string }>(`/bookings/${id}/apply-offer`, { offerCode });
 }

@@ -27,7 +27,7 @@ garageOffersRouter.get('/my-offers', authenticate, async (req, res) => {
       `SELECT id, code, title, description, discount_type, discount_value, max_discount, min_order_amount,
               valid_from, valid_until, usage_limit, per_user_limit, active, offer_type, applicable_item_id, terms_conditions
        FROM offers 
-       WHERE garage_id = $1 AND is_deleted = false
+       WHERE garage_id = $1 AND (is_deleted = false OR is_deleted IS NULL)
        ORDER BY created_at DESC`,
       [garageId]
     );

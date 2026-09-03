@@ -42,6 +42,7 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
         b.scheduled_at as "scheduledAt",
         b.status,
         b.payment_status as "paymentStatus",
+        (SELECT p.status FROM payments p WHERE p.booking_id = b.id AND p.method = 'cash' ORDER BY p.created_at DESC LIMIT 1) as "cashPaymentStatus",
         b.total_amount as "totalAmount",
         b.currency,
         b.created_at as "createdAt",
@@ -75,6 +76,7 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
     const formatted = result.rows.map((row) => ({
       ...row,
       status: row.status === 'inService' ? 'in_progress' : row.status,
+      paymentStatus: row.cashPaymentStatus === 'pending' ? 'PENDING_CASH' : row.paymentStatus,
       totalAmount: Number(row.totalAmount),
     }));
 
@@ -586,8 +588,8 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       }
     }
 
-    if (status === 'collected' && currentBooking.payment_status !== 'PAID') {
-      return error(res, 'Vehicle cannot be marked collected until payment is completed.', 'FORBIDDEN', 403);
+    if ((status === 'collected' || status === 'readyForCollection') && currentBooking.payment_status !== 'PAID') {
+      return error(res, 'Vehicle cannot be marked ready for collection or collected until payment is completed.', 'FORBIDDEN', 403);
     }
 
     let updateQuery = `UPDATE bookings SET status = $${params.length + 1}, updated_at = NOW()`;
