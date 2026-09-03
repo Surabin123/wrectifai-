@@ -1129,7 +1129,10 @@ export function MainContent() {
 
   useEffect(() => {
     let active = true;
-    fetchPromos()
+    const country = userCity && userCity !== 'Location' ? getCountryForCity(userCity).name : undefined;
+    const city = userCity === 'Location' ? undefined : userCity;
+    
+    fetchPromos(city, country)
       .then((data) => {
         if (active && data && data.length > 0) {
           const getIconComponent = (iconName: string) => {

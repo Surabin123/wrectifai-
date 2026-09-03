@@ -316,34 +316,64 @@ function OffersPanel() {
 
   useEffect(() => {
     let active = true;
-    apiClient.get<any[]>('/promos')
-      .then((data) => {
-        if (active && data) {
-          // Filter to only display non-combo/home promos (or just take the first 3)
-          const homePromos = data
-            .filter((p: any) => !p.isCombo)
-            .map((p: any) => ({
-              eyebrow: p.badge,
-              title: p.title,
-              price: formatCurrency(Number(p.numericPrice), userPhone),
-              strikePrice: p.strikePrice ? formatCurrency(Number(p.strikePrice), userPhone) : undefined,
-              discount: p.discountPercent ? `${p.discountPercent}% OFF` : '',
-              themePreset: p.themePreset,
-              icon: p.icon,
-              image: p.image,
-            }));
-          if (homePromos.length > 0) {
-            setPromos(homePromos);
+
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift();
+      return null;
+    };
+    
+    const fetchPromosWithLocation = async () => {
+      const cityCookie = getCookie('wrectifai_city') || 'Location';
+      const userCity = decodeURIComponent(cityCookie);
+      
+      let url = '/promos';
+      const params = new URLSearchParams();
+      if (userCity && userCity !== 'Location') {
+        params.append('city', userCity);
+        const { getCountryForCity } = await import('@/utils/location');
+        const country = getCountryForCity(userCity).name;
+        if (country) params.append('country', country);
+      }
+      
+      if (params.toString()) {
+        url += '?' + params.toString();
+      }
+
+      apiClient.get<any[]>(url)
+        .then((data) => {
+          if (active && data) {
+            // Filter to only display non-combo/home promos (or just take the first 3)
+            const homePromos = data
+              .filter((p: any) => !p.isCombo)
+              .map((p: any) => ({
+                eyebrow: p.badge,
+                title: p.title,
+                price: formatCurrency(Number(p.numericPrice), userPhone),
+                strikePrice: p.strikePrice ? formatCurrency(Number(p.strikePrice), userPhone) : undefined,
+                discount: p.discountPercent ? `${p.discountPercent}% OFF` : '',
+                themePreset: p.themePreset,
+                icon: p.icon,
+                image: p.image,
+              }));
+            if (homePromos.length > 0) {
+              setPromos(homePromos);
+            }
           }
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to fetch promos:', err);
-      });
+        })
+        .catch((err) => {
+          console.error('Failed to fetch promos:', err);
+        });
+    };
+
+    fetchPromosWithLocation();
+
     return () => {
       active = false;
     };
   }, [userPhone]);
+
 
   return (
     <Card id="offers" className="p-4 border-[#f0f4ff] bg-white">

@@ -64,6 +64,15 @@ export async function fetchGarage(id: string): Promise<Garage> {
   return apiClient.get(`/garages/${id}`);
 }
 
-export async function fetchPromos(): Promise<Promo[]> {
-  return apiClient.get('/promos');
+export async function fetchPromos(city?: string, country?: string): Promise<Promo[]> {
+  let url = '/promos';
+  const params = new URLSearchParams();
+  if (city) params.append('city', city);
+  if (country) params.append('country', country);
+  
+  if (params.toString()) {
+    url += '?' + params.toString();
+  }
+  
+  return apiClient.get(url);
 }

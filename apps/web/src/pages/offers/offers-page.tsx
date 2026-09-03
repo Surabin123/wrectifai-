@@ -43,9 +43,32 @@ export function OffersPage() {
   const [activeFilter, setActiveFilter] = useState<OfferFilter>('All');
   
   useEffect(() => {
+    const getCookie = (name: string) => {
+      const value = `; ${document.cookie}`;
+      const parts = value.split(`; ${name}=`);
+      if (parts.length === 2) return parts.pop()?.split(';').shift();
+      return null;
+    };
+
     const fetchOffers = async () => {
       try {
-        const data = await apiClient.get<Offer[]>('/offers');
+        const cityCookie = getCookie('wrectifai_city') || 'Location';
+        const userCity = decodeURIComponent(cityCookie);
+        
+        let url = '/offers';
+        const params = new URLSearchParams();
+        if (userCity && userCity !== 'Location') {
+          params.append('city', userCity);
+          const { getCountryForCity } = await import('@/utils/location');
+          const country = getCountryForCity(userCity).name;
+          if (country) params.append('country', country);
+        }
+        
+        if (params.toString()) {
+          url += '?' + params.toString();
+        }
+
+        const data = await apiClient.get<Offer[]>(url);
         setOffers(data || []);
       } catch (err) {
         console.error('Failed to load offers', err);

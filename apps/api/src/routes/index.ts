@@ -78,7 +78,43 @@ apiRouter.get('/debug-schema', async (req, res) => {
 
 apiRouter.get('/promos', async (req, res) => {
   try {
-    const result = await query('SELECT * FROM promos ORDER BY relevance DESC');
+    const city = req.query.city ? (req.query.city as string).toLowerCase() : null;
+    const country = req.query.country ? (req.query.country as string) : null;
+    
+    let condition = "p.active = true AND p.is_deleted = false AND (p.valid_till IS NULL OR p.valid_till > NOW())";
+    const params: any[] = [];
+    
+    // Strict city filter — backend enforced
+    if (city && city !== 'location') {
+      condition += ` AND (p.garage_id IS NULL OR LOWER(COALESCE(g.location->>'city', g.city)) = $${params.length + 1})`;
+      params.push(city);
+    }
+    
+    // Country filter — region-scopes the query so India/USA/UAE garages never mix.
+    if (country) {
+      const countryIsoMap: Record<string, string> = {
+        'india': 'in',
+        'united states': 'us',
+        'usa': 'us',
+        'united arab emirates': 'ae',
+        'uae': 'ae',
+      };
+      const isoCode = countryIsoMap[country.toLowerCase()] || country.toLowerCase();
+      condition += ` AND (p.garage_id IS NULL OR (
+        LOWER(COALESCE(g.location->>'country', '')) = $${params.length + 1}
+        OR LOWER(COALESCE(g.location->>'country', '')) = $${params.length + 2}
+      ))`;
+      params.push(country.toLowerCase(), isoCode);
+    }
+
+    const result = await query(`
+      SELECT p.*, g.name as "garageName" 
+      FROM promos p 
+      LEFT JOIN garages g ON p.garage_id = g.id
+      WHERE ${condition} 
+      ORDER BY p.relevance DESC
+    `, params);
+
     const mapped = result.rows.map((p: any) => ({
       id: p.id,
       badge: p.badge,
@@ -95,6 +131,8 @@ apiRouter.get('/promos', async (req, res) => {
       isCombo: p.is_combo,
       relevance: p.relevance,
       themePreset: p.theme_preset,
+      garageId: p.garage_id,
+      garageName: p.garageName,
     }));
     return success(res, mapped);
   } catch (err) {

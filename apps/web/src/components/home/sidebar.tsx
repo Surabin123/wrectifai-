@@ -32,6 +32,7 @@ export function Sidebar({
 }) {
   const pathname = usePathname();
   const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
+  const [earningPotential, setEarningPotential] = useState<number>(500);
 
   useEffect(() => {
     try {
@@ -42,6 +43,22 @@ export function Sidebar({
         else if (user && user.phone) setUserPhone(user.phone);
       }
     } catch(e) {}
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    if (typeof window !== 'undefined') {
+      import('@/lib/api-client').then(({ apiClient }) => {
+        apiClient.get('/referrals/stats')
+          .then((data: any) => {
+            if (active && data && data.earningPotential) {
+              setEarningPotential(data.earningPotential);
+            }
+          })
+          .catch(() => {});
+      });
+    }
+    return () => { active = false; };
   }, []);
 
   return (
@@ -209,7 +226,7 @@ export function Sidebar({
                     Refer &amp; Earn
                   </h2>
                   <p className="max-w-[130px] text-[10.5px] font-normal leading-snug text-[#17307a] mb-2.5">
-                    Invite your friends and earn up to {formatCurrency(500, userPhone)}
+                    Invite your friends and earn up to {formatCurrency(earningPotential, userPhone)}
                   </p>
                   <Button
                     asChild

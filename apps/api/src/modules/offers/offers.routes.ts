@@ -9,6 +9,33 @@ export const offersRouter = Router();
 // GET /offers
 offersRouter.get('/', async (req, res) => {
   try {
+    const city = req.query.city ? (req.query.city as string).toLowerCase() : null;
+    const country = req.query.country ? (req.query.country as string) : null;
+    
+    let condition = "(o.active = true OR o.active IS NULL) AND (o.is_deleted = false OR o.is_deleted IS NULL) AND (o.valid_until IS NULL OR o.valid_until > NOW()) AND (o.valid_from IS NULL OR o.valid_from <= NOW())";
+    const params: any[] = [];
+    
+    if (city && city !== 'location') {
+      condition += ` AND (o.garage_id IS NULL OR LOWER(COALESCE(g.location->>'city', g.city)) = $${params.length + 1})`;
+      params.push(city);
+    }
+    
+    if (country) {
+      const countryIsoMap: Record<string, string> = {
+        'india': 'in',
+        'united states': 'us',
+        'usa': 'us',
+        'united arab emirates': 'ae',
+        'uae': 'ae',
+      };
+      const isoCode = countryIsoMap[country.toLowerCase()] || country.toLowerCase();
+      condition += ` AND (o.garage_id IS NULL OR (
+        LOWER(COALESCE(g.location->>'country', '')) = $${params.length + 1}
+        OR LOWER(COALESCE(g.location->>'country', '')) = $${params.length + 2}
+      ))`;
+      params.push(country.toLowerCase(), isoCode);
+    }
+
     const result = await query(
       `SELECT o.id, o.code, o.title, o.description, o.discount_type, o.discount_value, 
               o.max_discount, o.min_order_amount, o.valid_from, o.valid_until, 
@@ -16,11 +43,8 @@ offersRouter.get('/', async (req, res) => {
               g.name as "garageName"
        FROM offers o
        LEFT JOIN garages g ON o.garage_id = g.id
-       WHERE (o.active = true OR o.active IS NULL)
-       AND (o.is_deleted = false OR o.is_deleted IS NULL)
-       AND (o.valid_until IS NULL OR o.valid_until > NOW())
-       AND (o.valid_from IS NULL OR o.valid_from <= NOW())
-       ORDER BY o.created_at DESC`
+       WHERE ${condition}
+       ORDER BY o.created_at DESC`, params
     );
     return success(res, result.rows, 200);
   } catch (err) {
