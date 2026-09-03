@@ -41,6 +41,14 @@ export function OffersPage() {
   const [offers, setOffers] = useState<Offer[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<OfferFilter>('All');
+  const [currencyCode, setCurrencyCode] = useState('INR');
+
+  useEffect(() => {
+    import('@/utils/location').then(({ getSavedCity, getCurrencyCodeForCity }) => {
+      const city = getSavedCity();
+      if (city) setCurrencyCode(getCurrencyCodeForCity(city));
+    });
+  }, []);
   
   useEffect(() => {
     const getCookie = (name: string) => {
@@ -161,14 +169,15 @@ export function OffersPage() {
 
                   <div className="flex items-end gap-2 mb-2">
                     <span className="text-2xl font-black text-green-600">
-                      {offer.discount_type === 'PERCENTAGE' ? `${offer.discount_value}%` : `₹${offer.discount_value}`}
+                      {offer.discount_type === 'PERCENTAGE'
+                        ? `${offer.discount_value}% OFF`
+                        : `${formatCurrency(offer.discount_value, currencyCode)} OFF`}
                     </span>
-                    <span className="text-sm font-bold text-green-700 pb-1">OFF</span>
                   </div>
                   
                   {(offer.min_order_amount ?? 0) > 0 && (
                     <p className="text-xs text-slate-500 font-medium">
-                      On minimum order of ₹{offer.min_order_amount}
+                      On minimum order of {formatCurrency(offer.min_order_amount!, currencyCode)}
                     </p>
                   )}
                 </div>

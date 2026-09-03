@@ -4,6 +4,8 @@ import { apiClient } from '@/lib/api-client';
 import { Search, Plus, Edit2, Trash2, Tag, Percent, Image as ImageIcon, MoreVertical, CheckCircle2, XCircle } from 'lucide-react';
 import { Modal } from '@/components/common/modal';
 import { Card } from '@/components/common/card';
+import { formatCurrency } from '@/lib/currency';
+import { getSavedCity, getCurrencyCodeForCity } from '@/utils/location';
 
 interface Offer {
   id: string;
@@ -74,6 +76,13 @@ export default function GarageOffersContent() {
   const [imagePreview, setImagePreview] = useState('');
 
   const [errorMsg, setErrorMsg] = useState('');
+
+  // Derive the garage's canonical currency code from the saved city cookie
+  const [currencyCode, setCurrencyCode] = useState<string>('INR');
+  useEffect(() => {
+    const city = getSavedCity();
+    if (city) setCurrencyCode(getCurrencyCodeForCity(city));
+  }, []);
 
   const fetchData = async () => {
     try {
@@ -226,7 +235,11 @@ export default function GarageOffersContent() {
                   </div>
                   <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 mb-3 flex justify-between items-center">
                     <span className="font-mono text-sm font-bold text-blue-700">{o.code}</span>
-                    <span className="text-sm font-black text-green-600">{o.discount_type === 'PERCENTAGE' ? `${o.discount_value}%` : `₹${o.discount_value}`} OFF</span>
+                    <span className="text-sm font-black text-green-600">
+                      {o.discount_type === 'PERCENTAGE'
+                        ? `${o.discount_value}% OFF`
+                        : `${formatCurrency(o.discount_value, currencyCode)} OFF`}
+                    </span>
                   </div>
                   <p className="text-xs text-slate-500 line-clamp-2">{o.description}</p>
                 </div>
@@ -262,8 +275,8 @@ export default function GarageOffersContent() {
                     <h3 className="font-bold text-slate-800 pr-16 leading-tight">{d.title}</h3>
                   </div>
                   <div className="flex items-end gap-2 mb-3">
-                    <span className="text-lg font-black text-[#17307a]">₹{d.numericPrice}</span>
-                    {d.strikePrice && <span className="text-xs text-slate-400 line-through mb-1">₹{d.strikePrice}</span>}
+                    <span className="text-lg font-black text-[#17307a]">{formatCurrency(d.numericPrice, currencyCode)}</span>
+                    {d.strikePrice && <span className="text-xs text-slate-400 line-through mb-1">{formatCurrency(d.strikePrice, currencyCode)}</span>}
                   </div>
                   <p className="text-xs text-slate-500 line-clamp-2">{d.description}</p>
                 </div>
@@ -300,7 +313,8 @@ export default function GarageOffersContent() {
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Discount Type</label>
               <select value={offerForm.discount_type} onChange={e => setOfferForm({ ...offerForm, discount_type: e.target.value as any })} className="w-full border rounded-lg px-3 py-2 text-sm">
-                <option value="PERCENTAGE">Percentage (%)</option><option value="FIXED">Flat Off (₹)</option>
+                <option value="PERCENTAGE">Percentage (%)</option>
+                <option value="FIXED">Flat Off ({currencyCode})</option>
               </select>
             </div>
             <div>
@@ -358,11 +372,11 @@ export default function GarageOffersContent() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Final Deal Price (₹)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Final Deal Price ({currencyCode})</label>
               <input type="number" value={dealForm.numericPrice === undefined ? '' : dealForm.numericPrice} onChange={e => setDealForm({ ...dealForm, numericPrice: e.target.value ? Number(e.target.value) : '' as any })} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Original Strike Price (₹)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Original Strike Price ({currencyCode}, Optional)</label>
               <input type="number" value={dealForm.strikePrice === undefined ? '' : dealForm.strikePrice} onChange={e => setDealForm({ ...dealForm, strikePrice: e.target.value ? Number(e.target.value) : undefined })} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Optional" />
             </div>
           </div>

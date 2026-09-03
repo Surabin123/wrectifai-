@@ -810,7 +810,8 @@ function DealsPageContent() {
   const sortRef = useRef<HTMLDivElement>(null);
   const moreFiltersRef = useRef<HTMLDivElement>(null);
 
-  const [dealsList, setDealsList] = useState<DealItem[]>(deals);
+  // Start with empty list — real data loads from API below
+  const [dealsList, setDealsList] = useState<DealItem[]>([]);
 
   useEffect(() => {
     try {
@@ -825,63 +826,62 @@ function DealsPageContent() {
 
   useEffect(() => {
     let active = true;
-    fetchPromos()
-      .then((data) => {
-        if (active && data && data.length > 0) {
-          const mapped: DealItem[] = data.map((p: any) => {
-            const theme = getPromoTheme(p.themePreset);
-            const displayPrice = `$${Number(p.numericPrice).toLocaleString('en-US')}`;
-            const strikePrice = p.strikePrice ? `$${Number(p.strikePrice).toLocaleString('en-US')}` : undefined;
-            const discountLabel = p.discountPercent ? `${p.discountPercent}% OFF` : undefined;
-            const usedCount = p.usedCountValue >= 1000 ? `${(p.usedCountValue / 1000).toFixed(1)}K times` : `${p.usedCountValue} times`;
-            const imageClassName = p.isCombo ? 'h-[148px] w-[178px] object-contain' : 'h-12 w-12';
+    // Read canonical city from cookie (same source used everywhere in the app)
+    const city = typeof document !== 'undefined'
+      ? (document.cookie.match(/(?:^|; )wrectifai_city=([^;]*)/) || [])[1] || ''
+      : '';
+    const decodedCity = decodeURIComponent(city);
 
-            return {
-              id: p.id,
-              badge: p.badge,
-              badgeColor: theme.badgeColorClass,
-              icon: p.icon === 'Sun' ? Sun : p.icon === 'CloudRain' ? CloudRain : p.icon === 'Snowflake' ? Snowflake : p.icon === 'Sparkles' ? Sparkles : p.icon === 'Settings' ? Settings : p.icon === 'CarFront' ? CarFront : p.icon === 'Disc3' ? Disc3 : Tag,
-              title: p.title,
-              bullets: p.bullets || [],
-              displayPrice,
-              numericPrice: Number(p.numericPrice),
-              strikePrice,
-              strikePriceLineThrough: !!strikePrice,
-              discountLabel,
-              discountPercent: Number(p.discountPercent),
-              validTill: new Date(p.validTill).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-              usedCount,
-              usedCountValue: Number(p.usedCountValue),
-              image: p.image,
-              imageClassName,
-              cardTint: theme.cardTintClass,
-              bgColor: theme.bgColor,
-              imageGlow: theme.imageGlowClass,
-              accent: theme.accentClass,
-              categories: p.categories || [],
-              isCombo: p.isCombo,
-              relevance: Number(p.relevance)
-            };
-          });
-          const combined = [
-            ...mapped,
-            ...mapped.map((d, i) => ({
-              ...d,
-              id: `${d.id}-page2-${i}`,
-              relevance: d.relevance - 20,
-            })),
-            ...mapped.map((d, i) => ({
-              ...d,
-              id: `${d.id}-page3-${i}`,
-              relevance: d.relevance - 40,
-            })),
-          ];
-          setDealsList(combined);
-        }
-      })
-      .catch((err) => {
-        console.error('Failed to fetch promos:', err);
-      });
+    import('@/utils/location').then(({ getCountryForCity, getCurrencyCodeForCity }) => {
+      const country = decodedCity ? getCountryForCity(decodedCity).name : undefined;
+      const currencyCodeForCity = decodedCity ? getCurrencyCodeForCity(decodedCity) : 'INR';
+
+      fetchPromos(decodedCity || undefined, country)
+        .then((data) => {
+          if (active && data && data.length > 0) {
+            const mapped: DealItem[] = data.map((p: any) => {
+              const theme = getPromoTheme(p.themePreset);
+              // Use formatCurrency with the city-derived currency — never hardcode $
+              const displayPrice = formatCurrency(Number(p.numericPrice), currencyCodeForCity);
+              const strikePrice = p.strikePrice ? formatCurrency(Number(p.strikePrice), currencyCodeForCity) : undefined;
+              const discountLabel = p.discountPercent ? `${p.discountPercent}% OFF` : undefined;
+              const usedCount = p.usedCountValue >= 1000 ? `${(p.usedCountValue / 1000).toFixed(1)}K times` : `${p.usedCountValue || 0} times`;
+              const imageClassName = p.isCombo ? 'h-[148px] w-[178px] object-contain' : 'h-12 w-12';
+
+              return {
+                id: p.id,
+                badge: p.badge,
+                badgeColor: theme.badgeColorClass,
+                icon: p.icon === 'Sun' ? Sun : p.icon === 'CloudRain' ? CloudRain : p.icon === 'Snowflake' ? Snowflake : p.icon === 'Sparkles' ? Sparkles : p.icon === 'Settings' ? Settings : p.icon === 'CarFront' ? CarFront : p.icon === 'Disc3' ? Disc3 : Tag,
+                title: p.title,
+                bullets: p.bullets || [],
+                displayPrice,
+                numericPrice: Number(p.numericPrice),
+                strikePrice,
+                strikePriceLineThrough: !!strikePrice,
+                discountLabel,
+                discountPercent: Number(p.discountPercent || 0),
+                validTill: p.validTill ? new Date(p.validTill).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Ongoing',
+                usedCount,
+                usedCountValue: Number(p.usedCountValue || 0),
+                image: p.image,
+                imageClassName,
+                cardTint: theme.cardTintClass,
+                bgColor: theme.bgColor,
+                imageGlow: theme.imageGlowClass,
+                accent: theme.accentClass,
+                categories: p.categories || [],
+                isCombo: p.isCombo,
+                relevance: Number(p.relevance || 0)
+              };
+            });
+            if (active) setDealsList(mapped);
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to fetch promos:', err);
+        });
+    });
     return () => {
       active = false;
     };

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/common/button';
 import { formatCurrency } from '@/lib/currency';
+import { apiClient } from '@/lib/api-client';
 
 import { navItems } from '@/components/home/data';
 import { cn } from '@/utils/cn';
@@ -31,33 +32,18 @@ export function Sidebar({
   hideBottomWidget?: boolean;
 }) {
   const pathname = usePathname();
-  const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
-  const [earningPotential, setEarningPotential] = useState<number>(500);
-
-  useEffect(() => {
-    try {
-      const userStr = localStorage.getItem('wrectifai-user');
-      if (userStr) {
-        const user = JSON.parse(userStr);
-        if (user && user.mobile_number) setUserPhone(user.mobile_number);
-        else if (user && user.phone) setUserPhone(user.phone);
-      }
-    } catch(e) {}
-  }, []);
+  // null = not loaded yet; avoid flashing ₹500 for UAE users
+  const [referralReward, setReferralReward] = useState<{ amount: number; currency: string } | null>(null);
 
   useEffect(() => {
     let active = true;
-    if (typeof window !== 'undefined') {
-      import('@/lib/api-client').then(({ apiClient }) => {
-        apiClient.get('/referrals/stats')
-          .then((data: any) => {
-            if (active && data && data.earningPotential) {
-              setEarningPotential(data.earningPotential);
-            }
-          })
-          .catch(() => {});
-      });
-    }
+    apiClient.get<any>('/referrals/stats')
+      .then((data) => {
+        if (active && data && data.earningPotential) {
+          setReferralReward({ amount: data.earningPotential, currency: data.currency || 'INR' });
+        }
+      })
+      .catch(() => {});
     return () => { active = false; };
   }, []);
 
@@ -226,7 +212,8 @@ export function Sidebar({
                     Refer &amp; Earn
                   </h2>
                   <p className="max-w-[130px] text-[10.5px] font-normal leading-snug text-[#17307a] mb-2.5">
-                    Invite your friends and earn up to {formatCurrency(earningPotential, userPhone)}
+                    Invite your friends and earn up to{' '}
+                    {referralReward ? formatCurrency(referralReward.amount, referralReward.currency) : '...'}
                   </p>
                   <Button
                     asChild

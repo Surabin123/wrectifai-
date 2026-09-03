@@ -1200,7 +1200,7 @@ export function MainContent() {
     return () => {
       active = false;
     };
-  }, [userPhone]);
+  }, [userCity, userPhone]);
 
   const normalizedSearch = searchTerm.trim().toLowerCase();
 
