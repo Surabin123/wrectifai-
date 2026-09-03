@@ -98,10 +98,10 @@ async function seedGarageUsers(client) {
   for (let i = 0; i < garagesRes.rows.length; i++) {
     const garage = garagesRes.rows[i];
     
-    // We want the phone numbers to be exactly 9999999901 to 9999999912 (up to 12 garages)
-    const mobile = `99999999${(i + 1).toString().padStart(2, '0')}`;
+    // Make sure mobile and email are uniquely tied
+    const mobile = `999${i.toString().padStart(7, '0')}`;
     const prefix = garage.name.split(' ')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
-    const email = `${prefix}@wrectifai.com`;
+    const email = `${prefix}_${garage.id.substring(0,8)}@wrectifai.com`;
 
     // 1. Check if user already exists for this mobile number or email
     let userRes = await client.query('SELECT id FROM users WHERE mobile_number = $1 OR email = $2', [mobile, email]);
