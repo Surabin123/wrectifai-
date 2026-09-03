@@ -399,7 +399,6 @@ export function RightPanel() {
     <aside className="space-y-4">
       <OverviewPanel />
       <EmergencyHelp />
-      <OffersPanel />
     </aside>
   );
 }

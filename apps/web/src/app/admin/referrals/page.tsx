@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { AdminDashboardShell } from '@/components/admin/admin-dashboard-shell';
+import { RoleGuard } from '@/components/common/role-guard';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency } from '@/lib/currency';
@@ -59,8 +59,8 @@ export default function AdminReferralsPage() {
   };
 
   return (
-    <AdminDashboardShell>
-      <div className="p-6">
+    <RoleGuard allowedRoles={['admin']}>
+      <div className="p-6 bg-slate-50 min-h-screen">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Refer & Earn Management</h1>
           <Button onClick={handleSave} disabled={saving || loading}>
@@ -118,6 +118,6 @@ export default function AdminReferralsPage() {
           </div>
         )}
       </div>
-    </AdminDashboardShell>
+    </RoleGuard>
   );
 }
