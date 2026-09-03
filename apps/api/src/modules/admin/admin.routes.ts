@@ -968,7 +968,15 @@ adminRouter.post('/requests/:type/:id/reject', async (req, res) => {
 // --- Admin Referrals ---
 adminRouter.get('/referrals/config', authenticate, requireRole(['admin']), async (req, res) => {
   try {
-    const result = await query('SELECT * FROM referral_configs ORDER BY region');
+    const result = await query(`
+      SELECT 
+          rc.*,
+          (SELECT COUNT(*) FROM users u WHERE u.country = rc.region AND u.referred_by IS NOT NULL) AS total_referrals,
+          (SELECT COUNT(*) FROM referral_rewards rr JOIN users u ON u.id = rr.referrer_id WHERE u.country = rc.region AND rr.status = 'completed') AS successful_referrals,
+          (SELECT COALESCE(SUM(rr.amount), 0) FROM referral_rewards rr JOIN users u ON u.id = rr.referrer_id WHERE u.country = rc.region AND rr.status = 'completed') AS total_promotional_liability
+      FROM referral_configs rc
+      ORDER BY rc.region;
+    `);
     return success(res, result.rows);
   } catch (err) {
     return error(res, 'Failed to fetch referral configs', 'DATABASE_ERROR', 500);

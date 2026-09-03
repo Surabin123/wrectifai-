@@ -13,6 +13,9 @@ interface ReferralConfig {
   is_enabled: boolean;
   reward_amount: string;
   currency: string;
+  total_referrals?: string;
+  successful_referrals?: string;
+  total_promotional_liability?: string;
 }
 
 export default function AdminReferralsPage() {
@@ -77,6 +80,9 @@ export default function AdminReferralsPage() {
                   <th className="p-3">Status</th>
                   <th className="p-3">Reward Amount</th>
                   <th className="p-3">Currency</th>
+                  <th className="p-3">Total Referrals</th>
+                  <th className="p-3">Successful Referrals</th>
+                  <th className="p-3">Promotional Liability</th>
                 </tr>
               </thead>
               <tbody>
@@ -102,6 +108,9 @@ export default function AdminReferralsPage() {
                       />
                     </td>
                     <td className="p-3">{config.currency}</td>
+                    <td className="p-3 font-semibold">{config.total_referrals || '0'}</td>
+                    <td className="p-3 font-semibold text-green-600">{config.successful_referrals || '0'}</td>
+                    <td className="p-3 font-bold text-blue-600">{formatCurrency(parseFloat(config.total_promotional_liability || '0'), config.currency)}</td>
                   </tr>
                 ))}
               </tbody>

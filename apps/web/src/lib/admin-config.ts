@@ -1,4 +1,4 @@
-import { LayoutDashboard, Users, Wrench, FileText, FileSpreadsheet, Settings, UserRound, Shield, Bell, HelpCircle, Activity, Package } from 'lucide-react';
+import { LayoutDashboard, Users, Wrench, FileText, FileSpreadsheet, Settings, UserRound, Shield, Bell, HelpCircle, Activity, Package, Gift } from 'lucide-react';
 
 export type AdminNavItem = {
   label: string;
@@ -35,4 +35,5 @@ export const adminNavItems: AdminNavItem[] = [
   { label: 'Notifications', icon: Bell, href: '/admin/notifications', slug: 'notifications' },
   { label: 'Profile', icon: UserRound, href: '/admin/profile', slug: 'profile' },
   { label: 'Settings', icon: Settings, href: '/admin/settings', slug: 'settings' },
+  { label: 'Referrals', icon: Gift, href: '/admin/referrals', slug: 'referrals' },
 ];
