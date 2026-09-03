@@ -990,9 +990,11 @@ export function GarageDetailPage({
                           ))}
                         </div>
 
-                        <p className="mt-2.5 text-[11px] font-medium leading-[1.5] text-[#536891]">
-                          &quot;{review.text || review.comment}&quot;
-                        </p>
+                        {(review.text || review.comment) ? (
+                          <p className="mt-2.5 text-[11px] font-medium leading-[1.5] text-[#536891]">
+                            &quot;{review.text || review.comment}&quot;
+                          </p>
+                        ) : null}
 
                         <div className="mt-3 flex flex-col gap-3">
                           {/* Replies */}

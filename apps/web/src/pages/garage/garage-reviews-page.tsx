@@ -250,9 +250,11 @@ export function GarageReviewsPage() {
                   </div>
 
                   {/* Review Content */}
-                  <p className="mt-4 text-[14px] font-medium leading-relaxed text-[#536891]">
-                    &quot;{review.comment}&quot;
-                  </p>
+                  {review.comment ? (
+                    <p className="mt-4 text-[14px] font-medium leading-relaxed text-[#536891]">
+                      &quot;{review.comment}&quot;
+                    </p>
+                  ) : null}
 
                   {/* Interactions */}
                   <div className="mt-4 flex items-center gap-5 text-[12px] font-semibold text-[#8a99ad]">

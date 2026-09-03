@@ -84,7 +84,11 @@ export function AdminReviewsPage() {
                   </div>
                 </td>
                 <td className="px-6 py-4">
-                  <p className="text-slate-700 line-clamp-2">{review.comment}</p>
+                  {review.comment ? (
+                    <p className="text-slate-700 line-clamp-2">{review.comment}</p>
+                  ) : (
+                    <span className="text-slate-400 italic text-sm">Rating only</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-right">
                   {review.isHidden ? (
