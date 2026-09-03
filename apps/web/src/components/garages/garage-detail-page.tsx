@@ -521,22 +521,47 @@ export function GarageDetailPage({
                   </div>
                 </div>
 
-                {/* Highlights Subcard */}
-                <div className="flex-1 rounded-[18px] border border-[#e2eefc] bg-[#f8fbff] p-5 md:max-w-[32%]">
-                  <h3 className="text-[12.5px] font-bold text-[#17307a] mb-4">
-                    Garage Highlights
-                  </h3>
-                  <ul className="space-y-3">
-                    {garage.chips.map((chip, index) => (
-                      <li
-                        key={index}
-                        className="flex items-center gap-3 text-[11px] font-bold text-[#42548a]"
-                      >
-                        <CheckCircle2 className="h-4 w-4 shrink-0 text-[#1a56db]" />
-                        <span className="truncate">{chip}</span>
-                      </li>
-                    ))}
-                  </ul>
+                {/* Highlights & Working Hours Subcard */}
+                <div className="flex-1 space-y-4 md:max-w-[32%]">
+                  <div className="rounded-[18px] border border-[#e2eefc] bg-[#f8fbff] p-5">
+                    <h3 className="text-[12.5px] font-bold text-[#17307a] mb-4">
+                      Garage Highlights
+                    </h3>
+                    <ul className="space-y-3">
+                      {garage.chips.map((chip, index) => (
+                        <li
+                          key={index}
+                          className="flex items-center gap-3 text-[11px] font-bold text-[#42548a]"
+                        >
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-[#1a56db]" />
+                          <span className="truncate">{chip}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  <div className="rounded-[18px] border border-[#e2eefc] bg-white p-5">
+                    <h3 className="text-[12.5px] font-bold text-[#17307a] mb-3 flex items-center gap-2">
+                      <Clock className="h-4 w-4 text-[#1a56db]" /> Working Hours
+                    </h3>
+                    {garage.businessHours ? (
+                      <div className="space-y-1.5 text-[11px]">
+                        {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => {
+                          const hours = garage.businessHours?.[day];
+                          return (
+                            <div key={day} className="flex justify-between items-center py-1 border-b border-[#f0f4ff] last:border-0">
+                              <span className="capitalize font-semibold text-[#536891]">{day}</span>
+                              <span className={cn("font-bold", hours?.open ? "text-[#17307a]" : "text-red-500")}>
+                                {hours?.open ? `${hours.start} – ${hours.end}` : 'Closed'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <p className="text-[11px] text-[#8a99ad]">Schedule not configured.</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </Card>

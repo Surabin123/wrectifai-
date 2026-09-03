@@ -92,6 +92,25 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
 });
 
 
+function parseTimeToMinutes(timeStr: any): number | null {
+  if (!timeStr || typeof timeStr !== 'string') return null;
+  const str = timeStr.trim().toUpperCase();
+  const isPM = str.includes('PM');
+  const isAM = str.includes('AM');
+  const cleanStr = str.replace(/AM|PM/g, '').trim();
+  const parts = cleanStr.split(':');
+  if (parts.length < 2) return null;
+
+  let hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+  if (isNaN(hours) || isNaN(minutes)) return null;
+
+  if (isPM && hours < 12) hours += 12;
+  if (isAM && hours === 12) hours = 0;
+
+  return hours * 60 + minutes;
+}
+
 async function createBookingInternal(req: any, res: any, data: {
   garageId?: string;
   vehicleId: string;
@@ -147,14 +166,53 @@ async function createBookingInternal(req: any, res: any, data: {
   }
 
   try {
-    // Check if garage is suspended or deleted
-    const garageCheck = await query(`SELECT approval_status FROM garages WHERE id = $1`, [garageId]);
+    // Check if garage is suspended or deleted & fetch business hours
+    const garageCheck = await query(`SELECT approval_status, name, business_hours FROM garages WHERE id = $1`, [garageId]);
     if (garageCheck.rows.length === 0) {
       return error(res, 'Garage not found', 'NOT_FOUND', 404);
     }
-    const garageStatus = garageCheck.rows[0].approval_status;
+    const garageData = garageCheck.rows[0];
+    const garageStatus = garageData.approval_status;
     if (garageStatus === 'suspended' || garageStatus === 'deleted' || garageStatus === 'inactive') {
       return error(res, 'This garage is not available for new bookings.', 'FORBIDDEN', 403);
+    }
+
+    // Backend Working Hours Validation
+    const businessHours = garageData.business_hours;
+    if (businessHours && scheduledAt) {
+      const scheduledDate = new Date(scheduledAt);
+      if (!isNaN(scheduledDate.getTime())) {
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayName = dayNames[scheduledDate.getDay()];
+        const dayDisplay = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+        const dayConfig = businessHours[dayName];
+
+        if (dayConfig) {
+          if (!dayConfig.open) {
+            return error(
+              res,
+              `Booking is unavailable because ${garageData.name || 'the garage'} is closed on ${dayDisplay}.`,
+              'BAD_REQUEST',
+              400
+            );
+          }
+
+          const bookingMinutes = scheduledDate.getHours() * 60 + scheduledDate.getMinutes();
+          const startMinutes = parseTimeToMinutes(dayConfig.start);
+          const endMinutes = parseTimeToMinutes(dayConfig.end);
+
+          if (startMinutes !== null && endMinutes !== null) {
+            if (bookingMinutes < startMinutes || bookingMinutes > endMinutes) {
+              return error(
+                res,
+                `Booking time is outside ${garageData.name || 'the garage'}'s working hours (${dayConfig.start} - ${dayConfig.end} on ${dayDisplay}).`,
+                'BAD_REQUEST',
+                400
+              );
+            }
+          }
+        }
+      }
     }
 
     let finalServiceType = extractedNotes || 'General Service';

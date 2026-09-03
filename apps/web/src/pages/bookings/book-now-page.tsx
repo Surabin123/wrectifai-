@@ -7,9 +7,9 @@ import { TopNavbar } from '@/components/home/top-navbar';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { apiClient } from '@/lib/api-client';
-import { formatCurrency } from '@/lib/currency';
-import { Calendar, Clock, Plus, Trash2, Wrench, ShieldCheck } from 'lucide-react';
+import { Calendar, Clock, Plus, Trash2, Wrench, ShieldCheck, AlertCircle } from 'lucide-react';
 import { getSavedCity, formatCurrencyForCity } from '@/utils/location';
+import { getDaySchedule } from '@/utils/working-hours';
 
 export default function BookNowPage() {
   const router = useRouter();
@@ -47,13 +47,18 @@ export default function BookNowPage() {
         setVehicles(v);
         if (v.length > 0) setSelectedVehicleId(v[0].id);
 
-        // Fetch garage details (we can infer from services API)
+        // Fetch garage details
+        const garageDetails = await apiClient.get<any>(`/garages/${garageId}`).catch(() => null);
+        
+        // Fetch services
         const s = await apiClient.get<any[]>(`/services?city=${encodeURIComponent(userCity)}`);
         // Filter only services belonging to THIS garage
         const garageServices = s.filter(srv => srv.garageId === garageId);
         setAvailableServices(garageServices);
 
-        if (garageServices.length > 0) {
+        if (garageDetails) {
+          setGarage(garageDetails);
+        } else if (garageServices.length > 0) {
           setGarage({
             id: garageServices[0].garageId,
             name: garageServices[0].garageName
@@ -87,9 +92,28 @@ export default function BookNowPage() {
     });
   }, [selectedServiceIds, availableServices]);
 
+  const schedule = useMemo(() => {
+    return getDaySchedule(garage?.businessHours, preferredDate);
+  }, [garage, preferredDate]);
+
   const totalAmount = useMemo(() => {
     return selectedServices.reduce((sum, s) => sum + Number(s.price || 0), 0);
   }, [selectedServices]);
+
+  useEffect(() => {
+    if (preferredDate) {
+      if (!schedule.isOpen) {
+        setPreferredTime('');
+      } else if (schedule.availableTimeSlots.length > 0) {
+        const valid = schedule.availableTimeSlots.some(s => s.value === preferredTime);
+        if (!valid) {
+          setPreferredTime(schedule.availableTimeSlots[0].value);
+        }
+      }
+    }
+  }, [preferredDate, schedule]);
+
+  const todayStr = new Date().toISOString().split('T')[0];
 
   const handleAddService = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
@@ -111,6 +135,10 @@ export default function BookNowPage() {
     }
     if (!preferredDate || !preferredTime) {
       setErrorMsg('Please select a date and time.');
+      return;
+    }
+    if (!schedule.isOpen) {
+      setErrorMsg(`Booking is unavailable because ${garage?.name || 'the garage'} is closed on ${schedule.dayDisplay}.`);
       return;
     }
     
@@ -229,13 +257,58 @@ export default function BookNowPage() {
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-semibold mb-1">Preferred Date</label>
-                  <input type="date" required value={preferredDate} onChange={e => setPreferredDate(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500" />
+                  <input 
+                    type="date" 
+                    required 
+                    min={todayStr}
+                    value={preferredDate} 
+                    onChange={e => setPreferredDate(e.target.value)} 
+                    className="w-full p-3 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-sm" 
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-semibold mb-1">Preferred Time</label>
-                  <input type="time" required value={preferredTime} onChange={e => setPreferredTime(e.target.value)} className="w-full p-3 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500" />
+                  {preferredDate && !schedule.isOpen ? (
+                    <div className="p-3 border border-red-200 bg-red-50 text-red-700 rounded-xl text-xs font-bold flex items-center gap-1.5 h-[46px]">
+                      <span>Closed on {schedule.dayDisplay}</span>
+                    </div>
+                  ) : schedule.availableTimeSlots.length > 0 ? (
+                    <select
+                      value={preferredTime}
+                      onChange={e => setPreferredTime(e.target.value)}
+                      required
+                      className="w-full p-3 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-sm bg-white"
+                    >
+                      {schedule.availableTimeSlots.map(slot => (
+                        <option key={slot.value} value={slot.value}>{slot.label}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input 
+                      type="time" 
+                      required 
+                      value={preferredTime} 
+                      onChange={e => setPreferredTime(e.target.value)} 
+                      className="w-full p-3 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500 text-sm" 
+                    />
+                  )}
                 </div>
               </div>
+
+              {preferredDate && (
+                <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
+                  !schedule.isOpen 
+                    ? 'bg-red-50 text-red-700 border border-red-200' 
+                    : 'bg-blue-50 text-blue-800 border border-blue-100'
+                }`}>
+                  <Clock className="w-4 h-4 shrink-0" />
+                  <span>
+                    {!schedule.isOpen 
+                      ? `${garage?.name || 'This garage'} is CLOSED on ${schedule.dayDisplay}s. Please choose an open day.`
+                      : `Working Hours on ${schedule.dayDisplay}: ${schedule.startStr || '09:00 AM'} - ${schedule.endStr || '07:00 PM'}`}
+                  </span>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold mb-1">Additional Notes</label>
