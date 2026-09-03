@@ -331,6 +331,7 @@ export function BookingsPage() {
   };
 
   const [refundReason, setRefundReason] = useState('');
+  const [refundExplanation, setRefundExplanation] = useState('');
 
   const handleRefund = (bookingId: string) => {
     setRefundConfirmBookingId(bookingId);
@@ -346,20 +347,26 @@ export function BookingsPage() {
     setPaymentProcessingId(refundConfirmBookingId);
     try {
       const { apiClient } = await import('@/lib/api-client');
-      await apiClient.post(`/payments/booking/${refundConfirmBookingId}/refund`, { reason: refundReason });
-      setBookings((prev) => prev.map((b) => (b.id === refundConfirmBookingId ? { ...b, paymentStatus: 'REFUNDED' } : b)));
+      await apiClient.post(`/bookings/${refundConfirmBookingId}/refund-requests`, { 
+        reason: refundReason,
+        explanation: refundExplanation,
+        evidenceUrls: [] 
+      });
       setPaymentSuccessData({
         isOpen: true,
         method: 'online',
         amount: bookings.find(b => b.id === refundConfirmBookingId)?.totalAmount || 0,
-        title: 'Refund Processed',
-        desc: 'Refund requested successfully. It may take a few days to reflect.'
+        title: 'Refund Requested',
+        desc: 'Your refund request has been submitted to the garage.'
       });
+      loadBookings();
     } catch (err: any) {
       setPaymentError(err.message || 'Failed to request refund.');
     } finally {
       setPaymentProcessingId(null);
       setRefundConfirmBookingId(null);
+      setRefundReason('');
+      setRefundExplanation('');
     }
   };
 
@@ -1035,15 +1042,33 @@ export function BookingsPage() {
             <AlertCircle className="h-12 w-12 text-[#1a56db] mx-auto mb-4" />
             <h3 className="text-xl font-bold text-[#17307a] mb-2">Are you sure?</h3>
             <p className="text-slate-600 mb-6">
-              Are you sure you want to request a refund for this booking? Please provide a reason below:
+              Please provide a reason and detailed explanation for your refund request.
             </p>
-            <textarea
-              className="w-full p-3 border border-slate-300 rounded mb-6 text-sm"
-              placeholder="Why are you requesting a refund?"
-              rows={3}
-              value={refundReason}
-              onChange={(e) => setRefundReason(e.target.value)}
-            />
+            <div className="mb-4 text-left">
+              <label className="block text-sm font-semibold mb-1 text-slate-700">Reason</label>
+              <select
+                className="w-full p-3 border border-slate-300 rounded text-sm bg-white"
+                value={refundReason}
+                onChange={(e) => setRefundReason(e.target.value)}
+              >
+                <option value="">Select a reason</option>
+                <option value="service_not_provided">Service not provided</option>
+                <option value="quality_issue">Quality issue</option>
+                <option value="overcharged">Overcharged</option>
+                <option value="cancelled">Booking cancelled</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="mb-6 text-left">
+              <label className="block text-sm font-semibold mb-1 text-slate-700">Detailed Explanation & When Issue Occurred</label>
+              <textarea
+                className="w-full p-3 border border-slate-300 rounded text-sm"
+                placeholder="Explain the issue in detail and when it occurred..."
+                rows={4}
+                value={refundExplanation}
+                onChange={(e) => setRefundExplanation(e.target.value)}
+              />
+            </div>
             <div className="flex gap-3 justify-center">
               <Button
                 variant="outline"

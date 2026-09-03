@@ -1233,4 +1233,227 @@ garagesRouter.post('/my-requests/:type/:id/add-to-catalog', authenticate, async 
     const detail = err?.message || 'Unknown database error';
     return error(res, `Failed to add item to catalog: ${detail}`, 'DATABASE_ERROR', 500);
   }
+
+// GET /api/v1/garages/refund-requests
+garagesRouter.get('/refund-requests', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const result = await query(
+      `SELECT r.*, b.scheduled_at, b.status as booking_status, u.name as customer_name, v.make as vehicle_make, v.model as vehicle_model 
+       FROM refund_requests r
+       JOIN bookings b ON r.booking_id = b.id
+       JOIN users u ON r.customer_id = u.id
+       LEFT JOIN vehicles v ON b.vehicle_id = v.id
+       WHERE r.garage_id = $1
+       ORDER BY r.created_at DESC`,
+      [garageId]
+    );
+
+    return success(res, result.rows);
+  } catch (err) {
+    return error(res, 'Failed to fetch refund requests', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// POST /api/v1/garages/refund-requests/:id/approve
+garagesRouter.post('/refund-requests/:id/approve', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const { id } = req.params;
+
+    const reqResult = await query(`SELECT * FROM refund_requests WHERE id = $1 AND garage_id = $2`, [id, garageId]);
+    if (reqResult.rows.length === 0) return error(res, 'Refund request not found', 'NOT_FOUND', 404);
+    
+    const request = reqResult.rows[0];
+    if (request.status !== 'pending' && request.status !== 'info_requested') {
+      return error(res, 'Refund request is not pending', 'BAD_REQUEST', 400);
+    }
+
+    const client = await getDbPool().connect();
+    try {
+      await client.query('BEGIN');
+
+      // Update request status
+      await client.query(`UPDATE refund_requests SET status = 'approved', updated_at = NOW() WHERE id = $1`, [id]);
+
+      // Find the payment
+      const paymentRes = await client.query(
+        'SELECT * FROM payments WHERE booking_id = $1 AND status IN (\'paid\', \'succeeded\') FOR UPDATE',
+        [request.booking_id]
+      );
+
+      if (paymentRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'Payment not found or already refunded', 'BAD_REQUEST', 400);
+      }
+
+      const payment = paymentRes.rows[0];
+
+      if (payment.method === 'cash') {
+         // Cash refunds not handled via Razorpay
+         await client.query('UPDATE payments SET status = \'refund_pending\', updated_at = NOW() WHERE id = $1', [payment.id]);
+         await client.query('UPDATE bookings SET payment_status = \'REFUND_PENDING\', updated_at = NOW() WHERE id = $1', [request.booking_id]);
+      } else if (payment.provider_payment_id) {
+         // Razorpay refund
+         const Razorpay = require('razorpay');
+         const rzp = new Razorpay({
+            key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || '',
+            key_secret: process.env.RAZORPAY_KEY_SECRET || '',
+         });
+
+         let refund;
+         try {
+           refund = await rzp.payments.refund(payment.provider_payment_id, {
+             amount: Math.round(Number(payment.amount) * 100),
+             speed: 'normal',
+             notes: { reason: request.reason }
+           });
+         } catch (rzpErr: any) {
+           await client.query('ROLLBACK');
+           const errorMessage = rzpErr?.error?.description || rzpErr?.message || (typeof rzpErr === 'string' ? rzpErr : JSON.stringify(rzpErr)) || 'Unknown Razorpay Error';
+           return error(res, 'Razorpay refund API failed: ' + errorMessage, 'BAD_REQUEST', 400);
+         }
+
+         const paymentRefundStatus = refund.status === 'processed' ? 'refunded' : 'refund_pending';
+         const bookingRefundStatus = refund.status === 'processed' ? 'REFUNDED' : 'REFUND_PENDING';
+         
+         await client.query(
+           'UPDATE payments SET status = $1, provider_refund_id = $2, refund_reason = $3, updated_at = NOW() WHERE id = $4',
+           [paymentRefundStatus, refund.id, request.reason, payment.id]
+         );
+
+         await client.query(
+           'UPDATE bookings SET payment_status = $1, updated_at = NOW() WHERE id = $2',
+           [bookingRefundStatus, payment.booking_id]
+         );
+
+         if (bookingRefundStatus === 'REFUNDED') {
+           // Create credit note
+           const invoiceRes = await client.query('SELECT * FROM invoices WHERE booking_id = $1 AND type = \'invoice\'', [request.booking_id]);
+           if (invoiceRes.rows.length > 0) {
+             const origInv = invoiceRes.rows[0];
+             await client.query(
+               `INSERT INTO invoices (booking_id, invoice_number, subtotal, tax_amount, platform_fee, discount_amount, total_amount, currency, type, original_invoice_id)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'credit_note', $9)`,
+               [
+                 request.booking_id,
+                 'CN-' + origInv.invoice_number,
+                 -Math.abs(Number(origInv.subtotal)),
+                 -Math.abs(Number(origInv.tax_amount)),
+                 -Math.abs(Number(origInv.platform_fee)),
+                 -Math.abs(Number(origInv.discount_amount)),
+                 -request.calculated_refund_amount,
+                 origInv.currency,
+                 origInv.id
+               ]
+             );
+           }
+         }
+      } else {
+         // Wallet refund
+         const { holdWalletBalance } = require('../wallet/wallet.service');
+         await client.query('UPDATE payments SET status = \'refunded\', updated_at = NOW() WHERE id = $1', [payment.id]);
+         await client.query('UPDATE bookings SET payment_status = \'REFUNDED\', updated_at = NOW() WHERE id = $1', [request.booking_id]);
+         
+         // Insert wallet refund transaction
+         const walletRes = await client.query('SELECT id FROM wallets WHERE user_id = $1', [request.customer_id]);
+         if (walletRes.rows.length > 0) {
+            const walletId = walletRes.rows[0].id;
+            await client.query(`
+              INSERT INTO wallet_transactions 
+              (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
+              VALUES ($1, 'REFUND', $2, (SELECT balance FROM wallets WHERE id = $1), (SELECT balance FROM wallets WHERE id = $1) + $2, 'BOOKING', $3, 'COMPLETED', 'Refund for Booking')
+            `, [walletId, request.calculated_refund_amount, request.booking_id]);
+            await client.query('UPDATE wallets SET balance = balance + $1 WHERE id = $2', [request.calculated_refund_amount, walletId]);
+         }
+
+         // Create credit note
+         const invoiceRes = await client.query('SELECT * FROM invoices WHERE booking_id = $1 AND type = \'invoice\'', [request.booking_id]);
+         if (invoiceRes.rows.length > 0) {
+           const origInv = invoiceRes.rows[0];
+           await client.query(
+             `INSERT INTO invoices (booking_id, invoice_number, subtotal, tax_amount, platform_fee, discount_amount, total_amount, currency, type, original_invoice_id)
+              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'credit_note', $9)`,
+             [
+               request.booking_id,
+               'CN-' + origInv.invoice_number,
+               -Math.abs(Number(origInv.subtotal)),
+               -Math.abs(Number(origInv.tax_amount)),
+               -Math.abs(Number(origInv.platform_fee)),
+               -Math.abs(Number(origInv.discount_amount)),
+               -request.calculated_refund_amount,
+               origInv.currency,
+               origInv.id
+             ]
+           );
+         }
+      }
+
+      await client.query('COMMIT');
+      return success(res, { message: 'Refund approved and processed' });
+    } catch (err: any) {
+      await client.query('ROLLBACK');
+      console.error('Refund approval error:', err);
+      return error(res, 'Failed to process refund', 'INTERNAL_SERVER_ERROR', 500);
+    } finally {
+      client.release();
+    }
+  } catch (err) {
+    console.error('Refund approval error:', err);
+    return error(res, 'Failed to process refund', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// POST /api/v1/garages/refund-requests/:id/reject
+garagesRouter.post('/refund-requests/:id/reject', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const { id } = req.params;
+    const { rejectionReason } = req.body;
+
+    if (!rejectionReason) return error(res, 'Rejection reason is required', 'BAD_REQUEST', 400);
+
+    const result = await query(
+      `UPDATE refund_requests SET status = 'rejected', rejection_reason = $1, updated_at = NOW() WHERE id = $2 AND garage_id = $3 AND status IN ('pending', 'info_requested') RETURNING *`,
+      [rejectionReason, id, garageId]
+    );
+
+    if (result.rows.length === 0) return error(res, 'Refund request not found or not pending', 'NOT_FOUND', 404);
+
+    return success(res, { request: result.rows[0] });
+  } catch (err) {
+    return error(res, 'Failed to reject refund', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// POST /api/v1/garages/refund-requests/:id/request-info
+garagesRouter.post('/refund-requests/:id/request-info', authenticate, async (req, res) => {
+  try {
+    if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
+    if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+
+    const { id } = req.params;
+    const { garageNotes } = req.body;
+
+    const result = await query(
+      `UPDATE refund_requests SET status = 'info_requested', garage_notes = $1, updated_at = NOW() WHERE id = $2 AND garage_id = $3 AND status = 'pending' RETURNING *`,
+      [garageNotes, id, garageId]
+    );
+
+    if (result.rows.length === 0) return error(res, 'Refund request not found or not pending', 'NOT_FOUND', 404);
+
+    return success(res, { request: result.rows[0] });
+  } catch (err) {
+    return error(res, 'Failed to request info', 'INTERNAL_SERVER_ERROR', 500);
+  }
 });

@@ -240,7 +240,8 @@ paymentsRouter.post('/booking/:id/refund', authenticate, async (req, res) => {
       });
     } catch (rzpErr: any) {
       await client.query('ROLLBACK');
-      return error(res, 'Razorpay refund API failed: ' + rzpErr?.message, 'BAD_REQUEST', 400);
+      const errorMessage = rzpErr?.error?.description || rzpErr?.message || (typeof rzpErr === 'string' ? rzpErr : JSON.stringify(rzpErr)) || 'Unknown Razorpay Error';
+      return error(res, 'Razorpay refund API failed: ' + errorMessage, 'BAD_REQUEST', 400);
     }
 
     const paymentRefundStatus = refund.status === 'processed' ? 'refunded' : 'refund_pending';
@@ -402,11 +403,34 @@ paymentsRouter.post('/webhook', async (req, res) => {
 
       if (paymentId) {
         const updateRes = await client.query(
-          "UPDATE payments SET status = 'refunded', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refunded' RETURNING booking_id",
+          "UPDATE payments SET status = 'refunded', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refunded' RETURNING booking_id, amount",
           [refundId, paymentId]
         );
         if (updateRes.rows.length > 0) {
-          await client.query("UPDATE bookings SET payment_status = 'REFUNDED', updated_at = NOW() WHERE id = $1", [updateRes.rows[0].booking_id]);
+          const bookingId = updateRes.rows[0].booking_id;
+          const refundedAmount = updateRes.rows[0].amount;
+          await client.query("UPDATE bookings SET payment_status = 'REFUNDED', updated_at = NOW() WHERE id = $1", [bookingId]);
+
+          // Create credit note
+          const invoiceRes = await client.query('SELECT * FROM invoices WHERE booking_id = $1 AND type = \'invoice\'', [bookingId]);
+          if (invoiceRes.rows.length > 0) {
+            const origInv = invoiceRes.rows[0];
+            await client.query(
+              `INSERT INTO invoices (booking_id, invoice_number, subtotal, tax_amount, platform_fee, discount_amount, total_amount, currency, type, original_invoice_id)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'credit_note', $9) ON CONFLICT DO NOTHING`,
+              [
+                bookingId,
+                'CN-' + origInv.invoice_number,
+                -Math.abs(Number(origInv.subtotal)),
+                -Math.abs(Number(origInv.tax_amount)),
+                -Math.abs(Number(origInv.platform_fee)),
+                -Math.abs(Number(origInv.discount_amount)),
+                -refundedAmount,
+                origInv.currency,
+                origInv.id
+              ]
+            );
+          }
         }
       }
     } else if (webhookBody.event === 'refund.failed') {

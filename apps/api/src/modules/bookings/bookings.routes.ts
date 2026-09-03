@@ -961,4 +961,77 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
     return error(res, 'Failed to confirm cash payment', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
+// POST /api/v1/bookings/:id/refund-requests - Customer requests a refund
+bookingsRouter.post('/:id/refund-requests', authenticate, async (req, res) => {
+  try {
+    const bookingId = req.params.id;
+    const customerId = req.user?.userId;
+    const { reason, explanation, evidenceUrls } = req.body;
+
+    if (!reason) {
+      return error(res, 'Refund reason is required', 'BAD_REQUEST', 400);
+    }
+
+    // 1. Verify Booking Eligibility
+    const bookingRes = await query(
+      `SELECT b.id, b.garage_id, b.total_amount, b.payment_status, p.amount as payment_amount, p.status as p_status 
+       FROM bookings b 
+       LEFT JOIN payments p ON p.booking_id = b.id AND p.status IN ('paid', 'succeeded') 
+       WHERE b.id = $1 AND b.customer_id = $2`,
+      [bookingId, customerId]
+    );
+
+    if (bookingRes.rows.length === 0) {
+      return error(res, 'Booking not found or you are not authorized', 'NOT_FOUND', 404);
+    }
+
+    const booking = bookingRes.rows[0];
+
+    // Must be paid to request refund
+    if (booking.payment_status !== 'PAID') {
+      return error(res, 'Booking is not eligible for refund (not paid)', 'BAD_REQUEST', 400);
+    }
+
+    // Check for existing pending requests
+    const existingReq = await query(
+      `SELECT id, status FROM refund_requests WHERE booking_id = $1 AND status IN ('pending', 'info_requested')`,
+      [bookingId]
+    );
+    if (existingReq.rows.length > 0) {
+      return error(res, 'A refund request is already in progress', 'BAD_REQUEST', 400);
+    }
+
+    // Calculate refundable amount using backend logic (e.g. amount paid)
+    const refundAmount = booking.payment_amount || booking.total_amount;
+
+    // Create the refund request
+    const insertRes = await query(
+      `INSERT INTO refund_requests (booking_id, garage_id, customer_id, reason, explanation, evidence_urls, calculated_refund_amount, status) 
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING *`,
+      [
+        bookingId,
+        booking.garage_id,
+        customerId,
+        reason,
+        explanation || null,
+        JSON.stringify(evidenceUrls || []),
+        refundAmount
+      ]
+    );
+
+    // Notify Garage
+    await query(
+      `INSERT INTO notifications (garage_id, type, title, description) 
+       VALUES ($1, 'refund_requested', 'New Refund Request', 'Customer requested a refund for booking ' || $2)`,
+      [booking.garage_id, bookingId]
+    );
+
+    return success(res, insertRes.rows[0], 201);
+  } catch (err: any) {
+    console.error('[refund-request] Error:', err);
+    return error(res, 'Failed to submit refund request', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// Added at bottom for testing
 

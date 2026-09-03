@@ -185,3 +185,18 @@ export async function fetchGarageCompletedJobs(): Promise<GarageCompletedJob[]> 
 export async function getGarageIncomingBookings(): Promise<any[]> {
   return apiClient.get('/bookings/garage-incoming');
 }
+export async function getGarageRefundRequests(): Promise<any[]> {
+  return apiClient.get('/garages/refund-requests');
+}
+
+export async function approveRefundRequest(id: string): Promise<any> {
+  return apiClient.post(`/garages/refund-requests/${id}/approve`, {});
+}
+
+export async function rejectRefundRequest(id: string, rejectionReason: string): Promise<any> {
+  return apiClient.post(`/garages/refund-requests/${id}/reject`, { rejectionReason });
+}
+
+export async function requestRefundInfo(id: string, garageNotes: string): Promise<any> {
+  return apiClient.post(`/garages/refund-requests/${id}/request-info`, { garageNotes });
+}
