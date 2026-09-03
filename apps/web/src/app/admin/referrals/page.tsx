@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { DashboardShell } from '@/components/admin/admin-dashboard-shell';
+import { AdminDashboardShell } from '@/components/admin/admin-dashboard-shell';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency } from '@/lib/currency';
@@ -56,7 +56,7 @@ export default function AdminReferralsPage() {
   };
 
   return (
-    <DashboardShell>
+    <AdminDashboardShell>
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-2xl font-bold">Refer & Earn Management</h1>
@@ -109,6 +109,6 @@ export default function AdminReferralsPage() {
           </div>
         )}
       </div>
-    </DashboardShell>
+    </AdminDashboardShell>
   );
 }
