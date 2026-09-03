@@ -584,17 +584,18 @@ export function GarageDetailPage({
                     </h3>
                     {garage.businessHours ? (
                       <div className="space-y-1.5 text-[11px]">
-                        {['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'].map((day) => {
+                        {(() => {
+                          const day = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][new Date().getDay()];
                           const hours = garage.businessHours?.[day];
                           return (
-                            <div key={day} className="flex justify-between items-center py-1 border-b border-[#f0f4ff] last:border-0">
+                            <div className="flex justify-between items-center py-1">
                               <span className="capitalize font-semibold text-[#536891]">{day}</span>
                               <span className={cn("font-bold", hours?.open ? "text-[#17307a]" : "text-red-500")}>
                                 {hours?.open ? `${hours.start} – ${hours.end}` : 'Closed'}
                               </span>
                             </div>
                           );
-                        })}
+                        })()}
                       </div>
                     ) : (
                       <p className="text-[11px] text-[#8a99ad]">Schedule not configured.</p>
