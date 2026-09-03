@@ -613,12 +613,18 @@ authRouter.post('/forgot-password', async (req, res) => {
       [userId, tokenHash, expiresAt]
     );
 
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    if (!appUrl) {
+      console.error('Configuration Error: NEXT_PUBLIC_APP_URL is not defined in the environment.');
+      return error(res, 'System configuration error: Frontend URL is missing. Please contact support.', 'CONFIG_ERROR', 500);
+    }
     const resetUrl = `${appUrl}/login/reset-password?token=${rawToken}`;
 
     if (process.env.RESEND_API_KEY) {
-      await resend.emails.send({
-        from: 'WrectifAI <noreply@wrectifai.com>',
+      const senderEmail = process.env.RESEND_FROM_EMAIL || 'WrectifAI <noreply@wrectifai.com>';
+      
+      const { data, error: resendError } = await resend.emails.send({
+        from: senderEmail,
         to: emailClean,
         subject: 'WrectifAI - Password Reset',
         html: `
@@ -629,8 +635,14 @@ authRouter.post('/forgot-password', async (req, res) => {
           <p>If you did not request this, you can safely ignore this email.</p>
         `
       });
+
+      if (resendError) {
+        console.error('Resend API Error:', resendError);
+        return error(res, 'Failed to send reset email. The email provider rejected the request. Please try again later or contact support.', 'EMAIL_SEND_FAILED', 500);
+      }
     } else {
-      console.log(`[Dev] Forgot Password link for ${emailClean}: ${resetUrl}`);
+      console.error('Configuration Error: RESEND_API_KEY is not defined.');
+      return error(res, 'System configuration error: Email provider is not configured. Please contact support.', 'CONFIG_ERROR', 500);
     }
 
     return genericSuccess();

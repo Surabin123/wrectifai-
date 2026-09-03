@@ -241,6 +241,25 @@ export default function LoginPage() {
     }
   };
 
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setErrorMsg('Please enter your email address first.');
+      return;
+    }
+    setErrorMsg('');
+    setSuccessMsg('');
+    setIsSubmitting(true);
+    try {
+      await apiClient.post('/auth/forgot-password', { email });
+      setSuccessMsg(`Password reset link sent to ${email}`);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to process forgot password request.';
+      setErrorMsg(message);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -474,13 +493,7 @@ export default function LoginPage() {
                 <label className="block text-xs font-semibold text-[#17307a]">Password</label>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!email) {
-                      setErrorMsg('Please enter your email address first.');
-                    } else {
-                      setSuccessMsg(`Password reset link sent to ${email}`);
-                    }
-                  }}
+                  onClick={handleForgotPassword}
                   className="text-xs font-semibold text-[#1a56db] hover:underline"
                 >
                   Forgot Password?
