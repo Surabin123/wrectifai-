@@ -88,7 +88,7 @@ export async function handleUserLoginOrRegister(email: string, name: string) {
 
   let garageId = undefined;
   if (roles.includes('garage')) {
-    const garageResult = await query('SELECT id FROM garages WHERE owner_user_id = $1', [user.id]);
+    const garageResult = await query('SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1', [user.id]);
     if (garageResult.rows.length > 0) {
       garageId = garageResult.rows[0].id;
     }
@@ -250,7 +250,7 @@ authRouter.post('/register', async (req, res, next) => {
 
     let garageId = undefined;
     if (roles.includes('garage')) {
-      const garageResult = await query('SELECT id FROM garages WHERE owner_user_id = $1', [user.id]);
+      const garageResult = await query('SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1', [user.id]);
       if (garageResult.rows.length > 0) {
         garageId = garageResult.rows[0].id;
       }
@@ -449,7 +449,7 @@ authRouter.post('/refresh', async (req, res) => {
 
     let garageId = undefined;
     if (roles.includes('garage')) {
-      const garageResult = await query('SELECT id FROM garages WHERE owner_user_id = $1', [userId]);
+      const garageResult = await query('SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1', [userId]);
       if (garageResult.rows.length > 0) {
         garageId = garageResult.rows[0].id;
       }

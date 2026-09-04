@@ -8,9 +8,9 @@ export const garageOffersRouter = Router({ mergeParams: true });
 // Helper: resolve garageId from token or DB (handles stale tokens without garageId)
 async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<string | null> {
   if (tokenGarageId) return tokenGarageId;
-  // Fallback: look up from DB (stale token case)
+  // Fallback: look up from DB (stale token case) — use DESC to match auth token generation
   const result = await query(
-    'SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at ASC LIMIT 1',
+    'SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1',
     [userId]
   );
   return result.rows.length > 0 ? result.rows[0].id : null;
