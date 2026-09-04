@@ -53,7 +53,6 @@ export const navItems: NavItem[] = [
   { label: 'Quotes', icon: FileText, href: '/quotes', slug: 'quotes' },
   { label: 'Vehicles', icon: CarFront, href: '/vehicles', slug: 'vehicles' },
   { label: 'Offers', icon: Tag, href: '/offers', slug: 'offers' },
-  { label: 'Refer & Earn', icon: Gift, href: '/refer', slug: 'refer' },
   { label: 'Car Tips', icon: Lightbulb, href: '/car-tips', slug: 'car-tips' },
   { label: 'Wallet & Payments', icon: Wallet, href: '/wallet-payments', slug: 'wallet-payments' },
   { label: 'Profile', icon: UserRound, href: '/profile', slug: 'profile' },

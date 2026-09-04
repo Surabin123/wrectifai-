@@ -122,12 +122,16 @@ export default function GarageOffersContent() {
   };
 
   const submitOffer = async () => {
-    setErrorMsg('');
-    if (!offerForm.code || !offerForm.title || offerForm.discount_value === undefined) {
-      setErrorMsg('Code, title, and discount value are required.');
-      return;
-    }
     try {
+      if (!offerForm.code || !offerForm.title || offerForm.discount_value === undefined) {
+        throw new Error('Please fill all required fields.');
+      }
+      if (!offerForm.valid_from || !offerForm.valid_until) {
+        throw new Error('Valid From and Valid Until dates are mandatory.');
+      }
+      if (new Date(offerForm.valid_from) >= new Date(offerForm.valid_until)) {
+        throw new Error('Valid Until must be after Valid From.');
+      }
       if (isEditOffer && selectedOffer) {
         await apiClient.put(`/garages/my-offers/${selectedOffer.id}`, offerForm);
       } else {
@@ -136,17 +140,15 @@ export default function GarageOffersContent() {
       setShowOfferModal(false);
       fetchData();
     } catch (err: any) {
-      setErrorMsg(err.message || 'Failed to save offer.');
+      setErrorMsg(err.message || 'Failed to save promo code.');
     }
   };
 
   const submitDeal = async () => {
-    setErrorMsg('');
-    if (!dealForm.title || dealForm.numericPrice === undefined) {
-      setErrorMsg('Title and final price are required.');
-      return;
-    }
     try {
+      if (!dealForm.title || dealForm.numericPrice === undefined) {
+        throw new Error('Please fill all required fields.');
+      }
       if (isEditDeal && selectedDeal) {
         await apiClient.put(`/garages/my-deals/${selectedDeal.id}`, dealForm);
       } else {
@@ -242,6 +244,16 @@ export default function GarageOffersContent() {
                     </span>
                   </div>
                   <p className="text-xs text-slate-500 line-clamp-2">{o.description}</p>
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 font-medium">Valid From:</span>
+                      <span className="font-bold text-slate-700">{o.valid_from ? new Date(o.valid_from).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set'}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-slate-500 font-medium">Valid Until:</span>
+                      <span className="font-bold text-slate-700">{o.valid_until ? new Date(o.valid_until).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set'}</span>
+                    </div>
+                  </div>
                 </div>
               </Card>
             ))
@@ -324,11 +336,11 @@ export default function GarageOffersContent() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Valid From (Optional)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Valid From</label>
               <input type="datetime-local" value={offerForm.valid_from ? new Date(offerForm.valid_from).toISOString().slice(0,16) : ''} onChange={e => setOfferForm({ ...offerForm, valid_from: e.target.value ? new Date(e.target.value).toISOString() : undefined })} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Valid Until (Optional)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Valid Until</label>
               <input type="datetime-local" value={offerForm.valid_until ? new Date(offerForm.valid_until).toISOString().slice(0,16) : ''} onChange={e => setOfferForm({ ...offerForm, valid_until: e.target.value ? new Date(e.target.value).toISOString() : undefined })} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
