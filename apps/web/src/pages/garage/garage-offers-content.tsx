@@ -121,6 +121,24 @@ export default function GarageOffersContent() {
     }
   };
 
+  const getLocalDatetime = (isoString?: string) => {
+    if (!isoString) return '';
+    const date = new Date(isoString);
+    const tzOffset = date.getTimezoneOffset() * 60000;
+    return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
+  };
+
+  const handleDatetimeChange = (e: React.ChangeEvent<HTMLInputElement>, field: string, setForm: any, form: any) => {
+    const val = e.target.value;
+    if (!val) {
+      setForm({ ...form, [field]: undefined });
+      return;
+    }
+    // Convert local input back to UTC ISO string
+    const date = new Date(val);
+    setForm({ ...form, [field]: date.toISOString() });
+  };
+
   const submitOffer = async () => {
     try {
       if (!offerForm.code || !offerForm.title || offerForm.discount_value === undefined) {
@@ -129,7 +147,9 @@ export default function GarageOffersContent() {
       if (!offerForm.valid_from || !offerForm.valid_until) {
         throw new Error('Valid From and Valid Until dates are mandatory.');
       }
-      if (new Date(offerForm.valid_from) >= new Date(offerForm.valid_until)) {
+      const fromDate = new Date(offerForm.valid_from);
+      const untilDate = new Date(offerForm.valid_until);
+      if (fromDate >= untilDate) {
         throw new Error('Valid Until must be after Valid From.');
       }
       if (isEditOffer && selectedOffer) {
@@ -143,6 +163,7 @@ export default function GarageOffersContent() {
       setErrorMsg(err.message || 'Failed to save promo code.');
     }
   };
+
 
   const submitDeal = async () => {
     try {
@@ -221,7 +242,7 @@ export default function GarageOffersContent() {
             filteredOffers.map((o) => (
               <Card key={o.id} className="overflow-hidden flex flex-col border-slate-200">
                 <div className="p-5 flex-1 relative group">
-                  <div className="absolute top-3 right-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-3 right-3 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button onClick={() => { setSelectedOffer(o); setOfferForm(o); setIsEditOffer(true); setShowOfferModal(true); }} className="p-1.5 rounded-full bg-white shadow hover:bg-slate-50 text-slate-700" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
                     <button onClick={() => toggleOfferStatus(o)} className="p-1.5 rounded-full bg-white shadow hover:bg-slate-50 text-slate-700" title={o.active ? 'Deactivate' : 'Activate'}>{o.active ? <XCircle className="w-3.5 h-3.5 text-amber-500" /> : <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}</button>
                     <button onClick={() => setDeleteModal({ isOpen: true, id: o.id, title: o.title, type: 'offer' })} className="p-1.5 rounded-full bg-white shadow hover:bg-red-50 text-red-600" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -247,11 +268,11 @@ export default function GarageOffersContent() {
                   <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-1">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="text-slate-500 font-medium">Valid From:</span>
-                      <span className="font-bold text-slate-700">{o.valid_from ? new Date(o.valid_from).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set'}</span>
+                      <span className="font-bold text-slate-700">{o.valid_from ? new Date(o.valid_from).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Not set'}</span>
                     </div>
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="text-slate-500 font-medium">Valid Until:</span>
-                      <span className="font-bold text-slate-700">{o.valid_until ? new Date(o.valid_until).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) : 'Not set'}</span>
+                      <span className="font-bold text-slate-700">{o.valid_until ? new Date(o.valid_until).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Not set'}</span>
                     </div>
                   </div>
                 </div>
@@ -278,7 +299,7 @@ export default function GarageOffersContent() {
                   </div>
                 )}
                 <div className="p-4 flex-1 relative group">
-                  <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="absolute top-2 right-2 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button onClick={() => { setSelectedDeal(d); setDealForm(d); setImagePreview(d.image || ''); setIsEditDeal(true); setShowDealModal(true); }} className="p-1.5 rounded-full bg-white shadow hover:bg-slate-50 text-slate-700"><Edit2 className="w-3.5 h-3.5" /></button>
                     <button onClick={() => toggleDealStatus(d)} className="p-1.5 rounded-full bg-white shadow hover:bg-slate-50 text-slate-700">{d.active ? <XCircle className="w-3.5 h-3.5 text-amber-500" /> : <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}</button>
                     <button onClick={() => setDeleteModal({ isOpen: true, id: d.id, title: d.title, type: 'deal' })} className="p-1.5 rounded-full bg-white shadow hover:bg-red-50 text-red-600"><Trash2 className="w-3.5 h-3.5" /></button>
@@ -313,7 +334,7 @@ export default function GarageOffersContent() {
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Target Category</label>
               <select value={offerForm.offer_type} onChange={e => setOfferForm({ ...offerForm, offer_type: e.target.value as any })} className="w-full border rounded-lg px-3 py-2 text-sm">
-                <option value="SERVICE">Services</option><option value="PARTS">Products</option><option value="COMBO">Combos</option>
+                <option value="SERVICE">Services</option><option value="PARTS">Products</option><option value="COMBO">Combos</option><option value="GLOBAL">Global/All</option>
               </select>
             </div>
           </div>
@@ -337,11 +358,11 @@ export default function GarageOffersContent() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Valid From</label>
-              <input type="datetime-local" value={offerForm.valid_from ? new Date(offerForm.valid_from).toISOString().slice(0,16) : ''} onChange={e => setOfferForm({ ...offerForm, valid_from: e.target.value ? new Date(e.target.value).toISOString() : undefined })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <input type="datetime-local" value={getLocalDatetime(offerForm.valid_from)} onChange={e => handleDatetimeChange(e, 'valid_from', setOfferForm, offerForm)} min={getLocalDatetime(new Date().toISOString())} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Valid Until</label>
-              <input type="datetime-local" value={offerForm.valid_until ? new Date(offerForm.valid_until).toISOString().slice(0,16) : ''} onChange={e => setOfferForm({ ...offerForm, valid_until: e.target.value ? new Date(e.target.value).toISOString() : undefined })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <input type="datetime-local" value={getLocalDatetime(offerForm.valid_until)} onChange={e => handleDatetimeChange(e, 'valid_until', setOfferForm, offerForm)} min={offerForm.valid_from ? getLocalDatetime(offerForm.valid_from) : getLocalDatetime(new Date().toISOString())} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t">
@@ -396,11 +417,11 @@ export default function GarageOffersContent() {
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Valid From (Optional)</label>
-              <input type="datetime-local" value={dealForm.validFrom ? new Date(dealForm.validFrom).toISOString().slice(0,16) : ''} onChange={e => setDealForm({ ...dealForm, validFrom: e.target.value ? new Date(e.target.value).toISOString() : undefined })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <input type="datetime-local" value={getLocalDatetime(dealForm.validFrom)} onChange={e => handleDatetimeChange(e, 'validFrom', setDealForm, dealForm)} min={getLocalDatetime(new Date().toISOString())} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1">Valid Until (Optional)</label>
-              <input type="datetime-local" value={dealForm.validTill ? new Date(dealForm.validTill).toISOString().slice(0,16) : ''} onChange={e => setDealForm({ ...dealForm, validTill: e.target.value ? new Date(e.target.value).toISOString() : undefined })} className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <input type="datetime-local" value={getLocalDatetime(dealForm.validTill)} onChange={e => handleDatetimeChange(e, 'validTill', setDealForm, dealForm)} min={dealForm.validFrom ? getLocalDatetime(dealForm.validFrom) : getLocalDatetime(new Date().toISOString())} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
 
@@ -411,18 +432,18 @@ export default function GarageOffersContent() {
 
           <div className="flex justify-end gap-3 pt-4 border-t">
             <button onClick={() => setShowDealModal(false)} className="px-4 py-2 text-slate-600 border rounded-lg text-sm">Cancel</button>
-            <button onClick={submitDeal} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold">Save Combo</button>
+            <button onClick={submitDeal} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold">Save Combo Deal</button>
           </div>
         </div>
       </Modal>
 
-      {/* Delete Confirmation */}
-      <Modal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: '', title: '', type: 'offer' })} title={`Remove ${deleteModal.type === 'offer' ? 'Offer' : 'Deal'}`}>
+      {/* Delete Modal */}
+      <Modal isOpen={deleteModal.isOpen} onClose={() => setDeleteModal({ isOpen: false, id: '', title: '', type: 'offer' })} title="Confirm Delete">
         <div className="space-y-4">
-          <p className="text-sm text-slate-600">Are you sure you want to delete <strong>{deleteModal.title}</strong>?</p>
+          <p className="text-sm text-slate-600">Are you sure you want to remove <strong>{deleteModal.title}</strong>? It will no longer be available to customers.</p>
           <div className="flex justify-end gap-3 pt-4 border-t">
-            <button onClick={() => setDeleteModal({ isOpen: false, id: '', title: '', type: 'offer' })} className="px-4 py-2 text-slate-600 border rounded-lg text-sm">Cancel</button>
-            <button
+            <button onClick={() => setDeleteModal({ isOpen: false, id: '', title: '', type: 'offer' })} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm">Cancel</button>
+            <button 
               onClick={async () => {
                 try {
                   if (deleteModal.type === 'offer') {
@@ -432,9 +453,12 @@ export default function GarageOffersContent() {
                   }
                   setDeleteModal({ isOpen: false, id: '', title: '', type: 'offer' });
                   fetchData();
-                } catch (e) {}
-              }}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-bold"
+                } catch(e) {
+                  console.error(e);
+                  setDeleteModal({ isOpen: false, id: '', title: '', type: 'offer' });
+                }
+              }} 
+              className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-sm font-bold"
             >
               Delete
             </button>

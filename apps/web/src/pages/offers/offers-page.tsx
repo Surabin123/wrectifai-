@@ -99,8 +99,8 @@ export function OffersPage() {
         
         {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl sm:text-4xl font-black text-[#17307a] tracking-tight">Active Offers & Promos</h1>
-          <p className="text-slate-500 mt-2 text-sm sm:text-base font-medium max-w-2xl">
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-gray-900">Active Offers & Promos</h1>
+          <p className="text-slate-500 mt-2 text-sm max-w-2xl">
             Save big on your next garage visit. Discover exclusive discounts on services, parts, and combos from top-rated garages.
           </p>
         </div>
