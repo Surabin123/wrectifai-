@@ -796,103 +796,103 @@ adminRouter.put('/garages/:id', async (req, res) => {
     // If phone is provided, let's update the owner's phone if there is a way to link it (e.g. via users table).
     // The current architecture registers the user, we will try to find the owner user via an association or assume the current user is the owner if garage side, 
     // but since this is admin side, we might not have a direct garage owner mapping without joining garage_team/users.
+    return error(res, err.message || 'Failed to add customer', 'DATABASE_ERROR', 500);
+  } finally {
+    dbClient.release();
+  }
+});
+
+// GET /bookings
+adminRouter.get('/bookings', async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT b.id, u.name as "customerName", u.mobile_number as "customerPhone", p.city as "customerCity", g.name as "garageName", b.status, b.created_at as "createdAt",
+              b.scheduled_at as "scheduledAt", b.total_amount as "totalAmount", COALESCE(b.currency, g.business_currency, 'USD') as "currency",
+              v.make as "vehicleMake", v.model as "vehicleModel",
+              v.vin as "vin", b.quote_id as "quoteId", q.eta_days as "estimatedDays", qr.issue_summary as "issueDescription", qr.preferred_date as "preferredDate",
+              (SELECT status FROM payments p WHERE p.booking_id = b.id ORDER BY p.created_at DESC LIMIT 1) as "paymentStatus"
+       FROM bookings b
+       LEFT JOIN users u ON b.customer_id = u.id
+       LEFT JOIN profiles p ON u.id = p.user_id
+       LEFT JOIN garages g ON b.garage_id = g.id
+       LEFT JOIN vehicles v ON b.vehicle_id = v.id
+       LEFT JOIN quotes q ON b.quote_id = q.id
+       LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
+       ORDER BY b.created_at DESC`
+    );
+    return success(res, result.rows);
+  } catch (err) {
+    return error(res, 'Failed to fetch bookings', 'DATABASE_ERROR', 500);
+  }
+});
+
+// Update customer status
+adminRouter.post('/users/:id/:action', async (req, res) => {
+  try {
+    const { action } = req.params;
+    if (!['verify', 'reject', 'suspend', 'activate'].includes(action)) {
+      return error(res, 'Invalid action', 'INVALID_ACTION', 400);
+    }
+    
+    const status = action === 'verify' || action === 'activate' ? 'active' : action === 'suspend' ? 'suspended' : 'rejected';
+    
+    const result = await query(
+      `UPDATE users SET status = $1 WHERE id = $2 RETURNING id`,
+      [status, req.params.id]
+    );
+    if (result.rows.length === 0) return error(res, 'User not found', 'NOT_FOUND', 404);
+    
+    return success(res, { success: true, status });
+  } catch (err) {
+    return error(res, 'Failed to update customer status', 'DATABASE_ERROR', 500);
+  }
+});
+
+// Delete customer
+adminRouter.delete('/users/:id', async (req, res) => {
+  try {
+    const userId = req.params.id;
+    // Delete all dependent records first to avoid foreign key constraint errors
+    await query('DELETE FROM user_roles WHERE user_id = $1', [userId]);
+    await query('DELETE FROM profiles WHERE user_id = $1', [userId]);
+    await query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
+    await query('DELETE FROM bookings WHERE customer_id = $1', [userId]);
+    await query('DELETE FROM quote_requests WHERE customer_id = $1', [userId]);
+    await query('DELETE FROM vehicles WHERE customer_id = $1 OR owner_id = $1', [userId]);
+    
+    // Finally delete the user
+    const result = await query('DELETE FROM users WHERE id = $1 RETURNING id', [userId]);
+    
+    if (result.rows.length === 0) return error(res, 'User not found', 'NOT_FOUND', 404);
+    
+    return success(res, { success: true });
+  } catch (err) {
+    console.error('Error deleting user:', err);
+    return error(res, 'Failed to delete customer', 'DATABASE_ERROR', 500);
+  }
+});
+
+adminRouter.post('/service-requests', async (req, res) => {
+  try {
+    const { customerId, vehicleId, serviceType, priority, description, preferredDate, status } = req.body;
+    
+    // Ensure we have a valid vehicle ID to satisfy the foreign key constraint. We can query the first vehicle for this customer or fallback to a hardcoded UUID if needed, but it's best to require it or fallback gracefully.
+    // If vehicleId is not provided, try to fetch the customer's first vehicle
+    let resolvedVehicleId = vehicleId;
+    if (!resolvedVehicleId && customerId) {
+      const vRes = await query('SELECT id FROM vehicles WHERE customer_id = $1 LIMIT 1', [customerId]);
+      if (vRes.rows.length > 0) resolvedVehicleId = vRes.rows[0].id;
+    }
+    
+    const result = await query(
+      `INSERT INTO quote_requests (customer_id, vehicle_id, issue_summary, preferred_date, status)
+       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
+      [customerId || null, resolvedVehicleId || '00000000-0000-0000-0000-000000000002', description || serviceType || 'Issue not provided', preferredDate || null, status || 'open']
+    );
     
     return success(res, result.rows[0]);
   } catch (err) {
-    console.error('Update garage error:', err);
-    return error(res, 'Failed to update garage', 'DATABASE_ERROR', 500);
-  }
-});
-
-// GET /requests
-adminRouter.get('/requests', async (req, res) => {
-  try {
-    const serviceRequests = await query(`
-      SELECT sr.*, g.name as "garageName", g.city as "garageCity", 'service' as type
-      FROM service_requests sr
-      JOIN garages g ON sr.garage_id = g.id
-      ORDER BY sr.created_at DESC
-    `);
-    
-    const productRequests = await query(`
-      SELECT pr.*, g.name as "garageName", g.city as "garageCity", 'product' as type
-      FROM product_requests pr
-      JOIN garages g ON pr.garage_id = g.id
-      ORDER BY pr.created_at DESC
-    `);
-
-    // Combine and sort by created_at desc
-    const allRequests = [...serviceRequests.rows, ...productRequests.rows].sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
-
-    return success(res, allRequests);
-  } catch (err) {
-    console.error('Fetch requests error:', err);
-    return error(res, 'Failed to fetch requests', 'DATABASE_ERROR', 500);
-  }
-});
-
-// POST /requests/:type/:id/approve
-adminRouter.post('/requests/:type/:id/approve', async (req, res) => {
-  const { type, id } = req.params;
-  const adminId = req.user?.userId;
-  const client = await getDbPool().connect();
-
-  try {
-    if (type !== 'service' && type !== 'product') {
-      return error(res, 'Invalid request type', 'INVALID_TYPE', 400);
-    }
-
-    await client.query('BEGIN');
-
-    const table = type === 'service' ? 'service_requests' : 'product_requests';
-    const requestRes = await client.query(`SELECT * FROM ${table} WHERE id = $1 FOR UPDATE`, [id]);
-    
-    if (requestRes.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return error(res, 'Request not found', 'NOT_FOUND', 404);
-    }
-
-    const request = requestRes.rows[0];
-    if (request.status !== 'pending') {
-      await client.query('ROLLBACK');
-      return error(res, 'Request is not pending', 'INVALID_STATUS', 400);
-    }
-
-    // Approve the request
-    await client.query(
-      `UPDATE ${table} SET status = 'approved', admin_notes = $1, updated_at = NOW() WHERE id = $2`,
-      [`Approved by Admin ${adminId}`, id]
-    );
-
-    // Create the platform catalog item
-    if (type === 'service') {
-      const psRes = await client.query(
-        `INSERT INTO platform_services (name, category, description, icon, base_price)
-         VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-        [request.name, request.category || 'General Service', request.description || '', request.icon || 'Wrench', request.suggested_price || 0]
-      );
-      
-      // Update request with platform_service_id
-      await client.query(
-        `UPDATE service_requests SET platform_service_id = $1 WHERE id = $2`,
-        [psRes.rows[0].id, id]
-      );
-    } else {
-      // Find the platform seller id
-      const sellerRes = await client.query(`SELECT id FROM sellers WHERE seller_type = 'platform' LIMIT 1`);
-      if (sellerRes.rows.length === 0) {
-        await client.query('ROLLBACK');
-        return error(res, 'Platform seller not found for product creation', 'SYSTEM_ERROR', 500);
-      }
-      const platformSellerId = sellerRes.rows[0].id;
-
-      const pRes = await client.query(
-        `INSERT INTO products (seller_id, name, description, category, price, is_active, image)
-         VALUES ($1, $2, $3, $4, $5, true, $6) RETURNING id`,
-        [platformSellerId, request.name, request.description || '', request.category || 'Spares', request.suggested_price || 0, request.image]
-      );
+    console.error('Add service request error:', err);
     return error(res, 'Failed to create service request', 'DATABASE_ERROR', 500);
   }
 });
@@ -988,9 +988,8 @@ adminRouter.put('/garages/:id', async (req, res) => {
       return error(res, 'Garage not found', 'NOT_FOUND', 404);
     }
     
-    // If phone is provided, let's update the owner's phone if there is a way to link it (e.g. via users table).
-    // The current architecture registers the user, we will try to find the owner user via an association or assume the current user is the owner if garage side, 
-    // but since this is admin side, we might not have a direct garage owner mapping without joining garage_team/users.
+    // If phone is provided, the owner's phone would be updated via the users table.
+    // Since this is admin side, we don't have a direct garage owner mapping without joining garage_team/users.
     
     return success(res, result.rows[0]);
   } catch (err) {
