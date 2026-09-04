@@ -76,6 +76,19 @@ apiRouter.get('/debug-schema', async (req, res) => {
   }
 });
 
+apiRouter.get('/debug-offers', async (req, res) => {
+  try {
+    const allGarages = await query('SELECT id, name, owner_user_id FROM garages WHERE name ILIKE \'%torque%\'');
+    const allOffers = await query('SELECT * FROM offers');
+    res.json({
+      myGarages: allGarages.rows,
+      allOffers: allOffers.rows
+    });
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
+  }
+});
+
 apiRouter.get('/promos', async (req, res) => {
   try {
     const city = req.query.city ? (req.query.city as string).toLowerCase() : null;

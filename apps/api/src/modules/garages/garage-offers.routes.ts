@@ -31,10 +31,28 @@ garageOffersRouter.get('/my-offers', authenticate, async (req, res) => {
       [userId]
     );
 
+    console.log(`[DEBUG my-offers] userId: ${userId}`);
+    console.log(`[DEBUG my-offers] found ${result.rows.length} offers`);
+
     return success(res, result.rows);
   } catch (err) {
-    console.error(err);
+    console.error('[DEBUG my-offers] ERROR:', err);
     return error(res, 'Failed to fetch offers', 'DATABASE_ERROR', 500);
+  }
+});
+
+garageOffersRouter.get('/debug-my-offers', authenticate, async (req, res) => {
+  try {
+    const userId = req.user!.userId;
+    const allGarages = await query('SELECT id, name, owner_user_id FROM garages WHERE owner_user_id = $1 OR name ILIKE \'%torque%\'', [userId]);
+    const allOffers = await query('SELECT * FROM offers');
+    return success(res, {
+      userId,
+      myGarages: allGarages.rows,
+      allOffers: allOffers.rows
+    });
+  } catch (err) {
+    return error(res, 'Fail', 'ERR', 500);
   }
 });
 
