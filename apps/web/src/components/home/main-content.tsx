@@ -802,121 +802,6 @@ interface PromoItem {
   image?: string;
 }
 
-function SeasonalDeals({
-  deals,
-}: {
-  deals: Deal[];
-}) {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const [showLeft, setShowLeft] = useState(false);
-  const [showRight, setShowRight] = useState(true);
-
-  useEffect(() => {
-    const container = scrollRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      const maxScroll = container.scrollWidth - container.clientWidth;
-      if (maxScroll <= 0) {
-        setShowLeft(false);
-        setShowRight(false);
-        return;
-      }
-      setShowLeft(container.scrollLeft > 10);
-      setShowRight(container.scrollLeft < maxScroll - 10);
-    };
-
-    container.addEventListener('scroll', handleScroll, { passive: true });
-    handleScroll();
-
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, []);
-
-  return (
-    <section id="seasonal-deals">
-      <SectionHeader title="Seasonal Care Combo Deals" linkLabel="View All Deals" href="/deals" />
-      <div className="relative">
-        <div
-          ref={scrollRef}
-          className="flex gap-4 overflow-x-auto pb-2 pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        >
-          {deals.map((deal) => {
-            const DealIcon = deal.icon;
-            return (
-              <Card
-                key={deal.title}
-                style={{ backgroundColor: deal.bgColor }}
-                className="w-[270px] shrink-0 overflow-hidden border border-[#e5e9f2]/50 p-0 shadow-[0_3px_10px_-1px_rgba(0,0,0,0.03)] transition-all duration-300 hover:shadow-[0_4px_12px_-1px_rgba(0,0,0,0.05)] hover:-translate-y-0.5"
-              >
-                <div className="grid min-h-[96px] grid-cols-[1.25fr_0.75fr]">
-                  <div className="p-3 pb-2.5 relative z-10 flex flex-col justify-between">
-                    <div>
-                      <div className={cn('flex items-center gap-1 text-[11.5px] font-bold', deal.textColor)}>
-                        {DealIcon ? <DealIcon className="h-3.5 w-3.5 shrink-0" /> : null}
-                        {deal.title}
-                      </div>
-                      <p className="mt-1 max-w-[175px] text-[10.5px] leading-[1.35] font-normal text-[#17307a] line-clamp-2">{deal.subtitle}</p>
-                    </div>
-                    <div className="mt-1.5 flex items-center gap-1.5 whitespace-nowrap">
-                      <span className={cn('text-[17px] font-bold leading-none', deal.textColor)}>{deal.price}</span>
-                      <span className="text-[10.5px] font-medium text-[#8a96b8] line-through">{deal.strikePrice}</span>
-                      <Badge tone="lightGreen" className="px-1.5 py-0.5 text-[9px] font-bold leading-none">
-                        {deal.discount}
-                      </Badge>
-                    </div>
-                  </div>
-                  <div 
-                    className="relative h-full w-full overflow-hidden select-none"
-                    style={{ backgroundColor: deal.bgColor }}
-                  >
-                    {deal.image ? (
-                      <>
-                        <Image
-                           src={resolveImageUrl(deal.image)}
-                           alt={deal.title}
-                           fill
-                           sizes="(max-width: 768px) 100vw, 15vw"
-                           className="object-cover object-center"
-                        />
-                        <div 
-                          className="absolute inset-y-0 left-0 w-10 pointer-events-none"
-                          style={{
-                            background: `linear-gradient(to right, ${deal.bgColor} 0%, ${deal.bgColor}a0 40%, ${deal.bgColor}00 100%)`
-                          }}
-                        />
-                      </>
-                    ) : null}
-                  </div>
-                </div>
-              </Card>
-            );
-          })}
-        </div>
-        {showLeft && (
-          <button
-            type="button"
-            onClick={() => scrollRow(scrollRef.current, -286)}
-            aria-label="Show previous seasonal deals"
-            className="absolute left-[-14px] top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#1a56db] shadow-[0_10px_25px_rgba(20,44,112,0.18)] xl:flex z-10 animate-in fade-in duration-200"
-          >
-            <ChevronLeft className="h-5 w-5" />
-          </button>
-        )}
-        {showRight && (
-          <button
-            type="button"
-            onClick={() => scrollRow(scrollRef.current, 286)}
-            aria-label="Show more seasonal deals"
-            className="absolute right-[-14px] top-1/2 hidden h-10 w-10 -translate-y-1/2 items-center justify-center rounded-full bg-white text-[#1a56db] shadow-[0_10px_25px_rgba(20,44,112,0.18)] xl:flex z-10 animate-in fade-in duration-200"
-          >
-            <ChevronRight className="h-5 w-5" />
-          </button>
-        )}
-      </div>
-    </section>
-  );
-}
-
 function CareTips({
   tips,
 }: {
@@ -1277,7 +1162,7 @@ export function MainContent() {
         ) : null}
         {filteredMaintenance.length > 0 ? <MaintenanceStrip items={filteredMaintenance} /> : null}
         {filteredGarages.length > 0 ? <FeaturedGarages garagesList={filteredGarages} /> : null}
-        {filteredDeals.length > 0 ? <SeasonalDeals deals={filteredDeals} /> : null}
+        {filteredDeals.length > 0 ? null : null}
         {filteredTips.length > 0 ? <CareTips tips={filteredTips} /> : null}
         {!hasResults ? (
           <Card className="rounded-[18px] border-[#e4ecff] px-5 py-6 text-center shadow-[0_8px_20px_rgba(20,44,112,0.04)]">

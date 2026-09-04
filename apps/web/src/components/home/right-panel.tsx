@@ -376,8 +376,8 @@ function OffersPanel() {
 
 
   return (
-    <Card id="offers" className="p-4 border-[#f0f4ff] bg-white">
-      <div className="mb-4 flex items-center justify-between gap-3">
+    <Card id="offers" className="p-4 border-[#f0f4ff] bg-white flex flex-col max-h-[500px]">
+      <div className="mb-4 flex items-center justify-between gap-3 shrink-0">
         <h2 className="text-[14.5px] font-semibold tracking-[-0.03em] text-[#17307a]">
           Offers &amp; Promos
         </h2>
@@ -385,10 +385,30 @@ function OffersPanel() {
           View All Offers
         </Link>
       </div>
-      <div className="space-y-4">
-        {promos.map((promo: any) => (
-          <OfferCard key={promo.eyebrow} {...promo} />
-        ))}
+      <div className="space-y-4 overflow-y-auto pr-2 [scrollbar-width:thin] flex-1">
+        {promos
+          .sort((a, b) => {
+             const aExpired = a.validTill ? new Date(a.validTill) < new Date() : false;
+             const bExpired = b.validTill ? new Date(b.validTill) < new Date() : false;
+             if (aExpired && !bExpired) return 1;
+             if (!aExpired && bExpired) return -1;
+             // active offers: sort by garage vs platform, or just relevance
+             return 0; // relevance is already sorted by API
+          })
+          .map((promo: any) => {
+          const isExpired = promo.validTill ? new Date(promo.validTill) < new Date() : false;
+          return (
+            <div key={promo.eyebrow} className={cn("transition-opacity", isExpired && "opacity-50 grayscale pointer-events-none")}>
+              <OfferCard {...promo} />
+              {isExpired && (
+                <div className="mt-1 text-right text-[10px] font-bold text-red-500">EXPIRED</div>
+              )}
+            </div>
+          );
+        })}
+        {promos.length === 0 && (
+          <div className="text-center text-sm text-[#6b7da5] py-4">No active offers right now.</div>
+        )}
       </div>
     </Card>
   );
@@ -399,6 +419,7 @@ export function RightPanel() {
     <aside className="space-y-4">
       <OverviewPanel />
       <EmergencyHelp />
+      <OffersPanel />
     </aside>
   );
 }
