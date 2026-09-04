@@ -20,16 +20,15 @@ async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<
 garageOffersRouter.get('/my-offers', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = await resolveGarageId(req.user.userId, req.user?.garageId);
-    if (!garageId) return error(res, 'Garage not found for this account', 'BAD_REQUEST', 400);
+    const userId = req.user.userId;
 
     const result = await query(
       `SELECT id, code, title, description, discount_type, discount_value, max_discount, min_order_amount,
               valid_from, valid_until, usage_limit, per_user_limit, active, offer_type, applicable_item_id, terms_conditions
        FROM offers 
-       WHERE garage_id = $1 AND (is_deleted = false OR is_deleted IS NULL)
+       WHERE garage_id IN (SELECT id FROM garages WHERE owner_user_id = $1) AND (is_deleted = false OR is_deleted IS NULL)
        ORDER BY created_at DESC`,
-      [garageId]
+      [userId]
     );
 
     return success(res, result.rows);
@@ -105,8 +104,7 @@ garageOffersRouter.post('/my-offers', authenticate, async (req, res) => {
 garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = await resolveGarageId(req.user.userId, req.user?.garageId);
-    if (!garageId) return error(res, 'Garage not found for this account', 'BAD_REQUEST', 400);
+    const userId = req.user.userId;
 
     const { 
       code, title, description, discount_type, discount_value, max_discount, 
@@ -117,14 +115,14 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
     if (applicable_item_id) {
       let valid = false;
       if (offer_type === 'SERVICE') {
-         const s = await query(`SELECT id FROM services WHERE id = $1 AND garage_id = $2`, [applicable_item_id, garageId]);
+         const s = await query(`SELECT id FROM services WHERE id = $1 AND garage_id IN (SELECT id FROM garages WHERE owner_user_id = $2)`, [applicable_item_id, userId]);
          valid = s.rows.length > 0;
       } else if (offer_type === 'PARTS') {
-         const p = await query(`SELECT id FROM garage_inventory WHERE id = $1 AND garage_id = $2`, [applicable_item_id, garageId]);
+         const p = await query(`SELECT id FROM garage_inventory WHERE id = $1 AND garage_id IN (SELECT id FROM garages WHERE owner_user_id = $2)`, [applicable_item_id, userId]);
          valid = p.rows.length > 0;
       } else if (offer_type === 'COMBO') {
-         const s = await query(`SELECT id FROM services WHERE id = $1 AND garage_id = $2`, [applicable_item_id, garageId]);
-         const p = await query(`SELECT id FROM garage_inventory WHERE id = $1 AND garage_id = $2`, [applicable_item_id, garageId]);
+         const s = await query(`SELECT id FROM services WHERE id = $1 AND garage_id IN (SELECT id FROM garages WHERE owner_user_id = $2)`, [applicable_item_id, userId]);
+         const p = await query(`SELECT id FROM garage_inventory WHERE id = $1 AND garage_id IN (SELECT id FROM garages WHERE owner_user_id = $2)`, [applicable_item_id, userId]);
          valid = s.rows.length > 0 || p.rows.length > 0;
       }
       if (!valid) {
@@ -150,13 +148,13 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
            applicable_item_id = $14,
            terms_conditions = $15,
            updated_at = NOW()
-       WHERE id = $16 AND garage_id = $17 AND is_deleted = false
+       WHERE id = $16 AND garage_id IN (SELECT id FROM garages WHERE owner_user_id = $17) AND is_deleted = false
        RETURNING *`,
       [
         code, title, description, discount_type, discount_value, max_discount || null, 
         min_order_amount, valid_from, valid_until || null, usage_limit || null, 
         per_user_limit, active, offer_type, applicable_item_id || null, terms_conditions || null,
-        req.params.id, garageId
+        req.params.id, userId
       ]
     );
 
@@ -178,12 +176,11 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
 garageOffersRouter.delete('/my-offers/:id', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = await resolveGarageId(req.user.userId, req.user?.garageId);
-    if (!garageId) return error(res, 'Garage not found for this account', 'BAD_REQUEST', 400);
+    const userId = req.user.userId;
 
     const result = await query(
-      `UPDATE offers SET is_deleted = true, active = false, updated_at = NOW() WHERE id = $1 AND garage_id = $2 RETURNING id`,
-      [req.params.id, garageId]
+      `UPDATE offers SET is_deleted = true, active = false, updated_at = NOW() WHERE id = $1 AND garage_id IN (SELECT id FROM garages WHERE owner_user_id = $2) RETURNING id`,
+      [req.params.id, userId]
     );
 
     if (result.rows.length === 0) {
@@ -201,8 +198,7 @@ garageOffersRouter.delete('/my-offers/:id', authenticate, async (req, res) => {
 garageOffersRouter.get('/my-deals', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = await resolveGarageId(req.user.userId, req.user?.garageId);
-    if (!garageId) return error(res, 'Garage not found for this account', 'BAD_REQUEST', 400);
+    const userId = req.user.userId;
 
     const result = await query(
       `SELECT id, badge, icon, title, bullets, numeric_price as "numericPrice", strike_price as "strikePrice", 
@@ -210,9 +206,9 @@ garageOffersRouter.get('/my-deals', authenticate, async (req, res) => {
               image, categories, is_combo as "isCombo", relevance, theme_preset as "themePreset",
               active, is_deleted as "isDeleted", valid_from as "validFrom", description
        FROM promos
-       WHERE garage_id = $1 AND is_deleted = false
+       WHERE garage_id IN (SELECT id FROM garages WHERE owner_user_id = $1) AND is_deleted = false
        ORDER BY created_at DESC`,
-      [garageId]
+      [userId]
     );
 
     return success(res, result.rows);
@@ -277,8 +273,7 @@ garageOffersRouter.post('/my-deals', authenticate, async (req, res) => {
 garageOffersRouter.put('/my-deals/:id', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = await resolveGarageId(req.user.userId, req.user?.garageId);
-    if (!garageId) return error(res, 'Garage not found for this account', 'BAD_REQUEST', 400);
+    const userId = req.user.userId;
 
     const { 
       title, badge, description, numericPrice, strikePrice, discountPercent, 
@@ -313,12 +308,12 @@ garageOffersRouter.put('/my-deals/:id', authenticate, async (req, res) => {
            active = COALESCE($9, active),
            valid_from = COALESCE($10, valid_from),
            valid_till = COALESCE($11, valid_till)
-       WHERE id = $12 AND garage_id = $13 AND is_deleted = false
+       WHERE id = $12 AND garage_id IN (SELECT id FROM garages WHERE owner_user_id = $13) AND is_deleted = false
        RETURNING *`,
       [
         title, badge, description, numericPrice, strikePrice, discountPercent, 
         bullets ? JSON.stringify(bullets) : null, processedImage, active, 
-        validFrom, validTill, req.params.id, garageId
+        validFrom, validTill, req.params.id, userId
       ]
     );
 
@@ -337,12 +332,11 @@ garageOffersRouter.put('/my-deals/:id', authenticate, async (req, res) => {
 garageOffersRouter.delete('/my-deals/:id', authenticate, async (req, res) => {
   try {
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    const garageId = await resolveGarageId(req.user.userId, req.user?.garageId);
-    if (!garageId) return error(res, 'Garage not found for this account', 'BAD_REQUEST', 400);
+    const userId = req.user.userId;
 
     const result = await query(
-      `UPDATE promos SET is_deleted = true, active = false WHERE id = $1 AND garage_id = $2 RETURNING id`,
-      [req.params.id, garageId]
+      `UPDATE promos SET is_deleted = true, active = false WHERE id = $1 AND garage_id IN (SELECT id FROM garages WHERE owner_user_id = $2) RETURNING id`,
+      [req.params.id, userId]
     );
 
     if (result.rows.length === 0) {
