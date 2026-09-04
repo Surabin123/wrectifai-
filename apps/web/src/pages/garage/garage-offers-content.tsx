@@ -87,18 +87,39 @@ export default function GarageOffersContent() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [o, d, s, i] = await Promise.all([
-        apiClient.get<Offer[]>('/garages/my-offers'),
-        apiClient.get<Deal[]>('/garages/my-deals'),
-        apiClient.get<any[]>('/garages/my-services'),
-        apiClient.get<any[]>('/garages/my-inventory')
-      ]);
-      setOffers(o || []);
-      setDeals(d || []);
-      setServices(s || []);
-      setInventory(i || []);
-    } catch (err) {
-      console.error(err);
+      setErrorMsg('');
+      
+      try {
+        const o = await apiClient.get<Offer[]>('/garages/my-offers');
+        setOffers(o || []);
+      } catch (err: any) {
+        console.error('Failed to fetch offers:', err);
+        setErrorMsg('Failed to fetch offers: ' + (err.message || 'Unknown error'));
+        setOffers([]);
+      }
+
+      try {
+        const d = await apiClient.get<Deal[]>('/garages/my-deals');
+        setDeals(d || []);
+      } catch (err: any) {
+        console.error('Failed to fetch deals:', err);
+        setDeals([]);
+      }
+
+      try {
+        const s = await apiClient.get<any[]>('/garages/my-services');
+        setServices(s || []);
+      } catch (err) {
+        console.error('Failed to fetch services:', err);
+      }
+
+      try {
+        const i = await apiClient.get<any[]>('/garages/my-inventory');
+        setInventory(i || []);
+      } catch (err) {
+        console.error('Failed to fetch inventory:', err);
+      }
+      
     } finally {
       setLoading(false);
     }
