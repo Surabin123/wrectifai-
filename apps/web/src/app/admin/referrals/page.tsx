@@ -162,7 +162,7 @@ export default function AdminReferralsPage() {
                             <option value="false">Disabled</option>
                           </select>
                         ) : (
-                          <span className={\`px-2 py-1 text-xs font-bold rounded \${config.is_enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}\`}>
+                          <span className={`px-2 py-1 text-xs font-bold rounded ${config.is_enabled ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
                             {config.is_enabled ? 'Enabled' : 'Disabled'}
                           </span>
                         )}
