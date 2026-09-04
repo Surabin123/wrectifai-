@@ -893,80 +893,111 @@ adminRouter.post('/requests/:type/:id/approve', async (req, res) => {
          VALUES ($1, $2, $3, $4, $5, true, $6) RETURNING id`,
         [platformSellerId, request.name, request.description || '', request.category || 'Spares', request.suggested_price || 0, request.image]
       );
-      
-      // Update request with product_id
-      await client.query(
-        `UPDATE product_requests SET product_id = $1 WHERE id = $2`,
-        [pRes.rows[0].id, id]
-      );
-    }
-
-    await client.query('COMMIT');
-    return success(res, { success: true, message: 'Request approved successfully' });
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('Approve request error:', err);
-    return error(res, 'Failed to approve request', 'DATABASE_ERROR', 500);
-  } finally {
-    client.release();
+    return error(res, 'Failed to create service request', 'DATABASE_ERROR', 500);
   }
 });
 
-// POST /requests/:type/:id/reject
-adminRouter.post('/requests/:type/:id/reject', async (req, res) => {
-  const { type, id } = req.params;
-  const { reason } = req.body;
-  const adminId = req.user?.userId;
-
+adminRouter.get('/service-history', async (req, res) => {
   try {
-    if (type !== 'service' && type !== 'product') {
-      return error(res, 'Invalid request type', 'INVALID_TYPE', 400);
-    }
-    if (!reason || !reason.trim()) {
-      return error(res, 'Rejection reason is required', 'VALIDATION_ERROR', 400);
-    }
+      const result = await query(
+      `SELECT b.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName",
+              COALESCE(b.total_amount, q.amount) as "totalAmount", COALESCE(b.currency, g.business_currency, 'USD') as "currency",
+              b.status, b.created_at as "createdAt", b.updated_at as "completedAt",
+              v.make as "vehicleMake", v.model as "vehicleModel", v.vin as "vin",
+              COALESCE(qr.issue_summary, b.booking_type, 'General Service') as "details"
+       FROM bookings b
+       LEFT JOIN users u ON b.customer_id = u.id
+       LEFT JOIN garages g ON b.garage_id = g.id
+       LEFT JOIN vehicles v ON b.vehicle_id = v.id
+       LEFT JOIN quotes q ON b.quote_id = q.id
+       LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
+       WHERE b.status IN ('completed', 'readyForCollection', 'collected')
+       ORDER BY b.updated_at DESC`
+      );
+    return success(res, result.rows);
+  } catch (err) {
+    return error(res, 'Failed to fetch service history', 'DATABASE_ERROR', 500);
+  }
+});
 
-    const table = type === 'service' ? 'service_requests' : 'product_requests';
-    
-    const rejectionObj = {
-      reason: reason.trim(),
-      rejected_at: new Date().toISOString(),
-      rejected_by: adminId
-    };
 
+
+adminRouter.get('/quotes', async (req, res) => {
+  try {
     const result = await query(
-      `UPDATE ${table} 
-       SET status = 'rejected', 
-           rejection_history = rejection_history || $1::jsonb,
-           updated_at = NOW() 
-       WHERE id = $2 AND status = 'pending' 
-       RETURNING id, garage_id, name`,
-      [JSON.stringify([rejectionObj]), id]
+      `SELECT q.id, u.name as "customerName", u.mobile_number as "customerPhone", p.city as "customerCity", g.name as "garageName", g.city as "garageCity", q.amount as "totalAmount",
+              COALESCE(g.business_currency, q.currency, 'USD') as "currency",
+              q.status, q.created_at as "createdAt", q.eta_days as "estimatedDays",
+              v.make as "vehicleMake", v.model as "vehicleModel", v.vin as "vin",
+              qr.preferred_date as "preferredDate", qr.issue_summary as "issueDescription"
+       FROM quotes q
+       LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
+       LEFT JOIN vehicles v ON qr.vehicle_id = v.id
+       LEFT JOIN users u ON qr.customer_id = u.id
+       LEFT JOIN profiles p ON u.id = p.user_id
+       LEFT JOIN garages g ON q.garage_id = g.id
+       ORDER BY q.created_at DESC`
+    );
+    return success(res, result.rows);
+  } catch (err) {
+    return error(res, 'Failed to fetch quotes', 'DATABASE_ERROR', 500);
+  }
+});
+
+adminRouter.post('/quotes', async (req, res) => {
+  try {
+    const { customerId, garageId, amount, status } = req.body;
+    const qrResult = await query(
+      `INSERT INTO quote_requests (customer_id, status) VALUES ($1, 'pending') RETURNING id`,
+      [customerId || null]
+    );
+    const qrId = qrResult.rows[0].id;
+    
+    const result = await query(
+      `INSERT INTO quotes (quote_request_id, garage_id, amount, status)
+       VALUES ($1, $2, $3, $4) RETURNING *`,
+      [qrId, garageId || null, amount || 0, status || 'pending']
+    );
+    return success(res, result.rows[0]);
+  } catch (err) {
+    console.error(err);
+    return error(res, 'Failed to create quote', 'DATABASE_ERROR', 500);
+  }
+});
+
+adminRouter.put('/garages/:id', async (req, res) => {
+  try {
+    const { name, phone, address, description, businessHours } = req.body;
+    
+    // Update garage details
+    // For phone number update, we would ideally update the owner's user account, 
+    // but for now, we just assume it's part of the user's mobile_number or garage contact logic.
+    // If we only have address, description, businessHours, name on garage table, let's update those:
+    const result = await query(
+      `UPDATE garages 
+       SET name = COALESCE($1, name), 
+           address = COALESCE($2, address), 
+           description = COALESCE($3, description), 
+           business_hours = COALESCE($4, business_hours),
+           updated_at = NOW()
+       WHERE id = $5 RETURNING *`,
+      [name, address, description, businessHours, req.params.id]
     );
 
     if (result.rows.length === 0) {
-      return error(res, 'Request not found or not pending', 'NOT_FOUND', 404);
+      return error(res, 'Garage not found', 'NOT_FOUND', 404);
     }
-
-    // Insert Notification for Garage
-    await query(
-      `INSERT INTO notifications (user_id, garage_id, channel, template_key, status, payload, title, description, is_admin)
-       VALUES (NULL, $1, 'inApp', 'request_rejected', 'sent', $2, $3, $4, false)`,
-      [
-        result.rows[0].garage_id,
-        JSON.stringify({ requestId: id, type, reason: reason.trim() }),
-        `${type === 'service' ? 'Service' : 'Product'} Request Rejected`,
-        `Your request for "${result.rows[0].name}" was rejected. Please review feedback.`
-      ]
-    );
-
-    return success(res, { success: true, message: 'Request rejected' });
+    
+    // If phone is provided, let's update the owner's phone if there is a way to link it (e.g. via users table).
+    // The current architecture registers the user, we will try to find the owner user via an association or assume the current user is the owner if garage side, 
+    // but since this is admin side, we might not have a direct garage owner mapping without joining garage_team/users.
+    
+    return success(res, result.rows[0]);
   } catch (err) {
-    console.error('Reject request error:', err);
-    return error(res, 'Failed to reject request', 'DATABASE_ERROR', 500);
+    console.error('Update garage error:', err);
+    return error(res, 'Failed to update garage', 'DATABASE_ERROR', 500);
   }
 });
-
 
 // --- Admin Referrals ---
 adminRouter.get('/referrals/config', authenticate, requireRole(['admin']), async (req, res) => {
@@ -988,15 +1019,21 @@ adminRouter.get('/referrals/config', authenticate, requireRole(['admin']), async
 
 adminRouter.post('/referrals/config', authenticate, requireRole(['admin']), async (req, res) => {
   try {
-    const { configs } = req.body;
-    for (const config of configs) {
+    const { action, config } = req.body;
+    if (action === 'create') {
       await query(
-        'UPDATE referral_configs SET is_enabled = $1, reward_amount = $2 WHERE id = $3',
-        [config.is_enabled, config.reward_amount, config.id]
+        'INSERT INTO referral_configs (region, currency, is_enabled, reward_amount) VALUES ($1, $2, $3, $4)',
+        [config.region, config.currency || 'USD', config.is_enabled !== false, config.reward_amount]
+      );
+    } else if (action === 'update') {
+      await query(
+        'UPDATE referral_configs SET region = $1, is_enabled = $2, reward_amount = $3 WHERE id = $4',
+        [config.region, config.is_enabled, config.reward_amount, config.id]
       );
     }
     return success(res, { success: true });
   } catch (err) {
-    return error(res, 'Failed to save configs', 'DATABASE_ERROR', 500);
+    console.error('Save config error:', err);
+    return error(res, 'Failed to save config', 'DATABASE_ERROR', 500);
   }
 });
