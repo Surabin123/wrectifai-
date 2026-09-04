@@ -796,9 +796,10 @@ adminRouter.put('/garages/:id', async (req, res) => {
     // If phone is provided, let's update the owner's phone if there is a way to link it (e.g. via users table).
     // The current architecture registers the user, we will try to find the owner user via an association or assume the current user is the owner if garage side, 
     // but since this is admin side, we might not have a direct garage owner mapping without joining garage_team/users.
-    return error(res, err.message || 'Failed to add customer', 'DATABASE_ERROR', 500);
-  } finally {
-    dbClient.release();
+    return success(res, result.rows[0]);
+  } catch (err) {
+    console.error('Update garage error:', err);
+    return error(res, 'Failed to update garage', 'DATABASE_ERROR', 500);
   }
 });
 
