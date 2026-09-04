@@ -467,11 +467,14 @@ adminRouter.get('/users/:id', async (req, res) => {
       LEFT JOIN vehicles v ON qr.vehicle_id = v.id
       WHERE qr.customer_id = $1 ORDER BY q.created_at DESC`, [userId]);
 
-    user.vehicles = vehiclesRes.rows;
-    user.bookings = bookingsRes.rows;
-    user.quotes = quotesRes.rows;
+    const userDetails = {
+      ...user,
+      vehicles: vehiclesRes.rows || [],
+      bookings: bookingsRes.rows || [],
+      quotes: quotesRes.rows || []
+    };
 
-    return success(res, user);
+    return success(res, userDetails);
   } catch (err) {
     return error(res, 'Failed to fetch user details', 'DATABASE_ERROR', 500);
   }

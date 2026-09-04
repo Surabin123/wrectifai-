@@ -1,8 +1,4 @@
 'use client';
-import { RoleGuard } from '@/components/common/role-guard';
-import { DashboardShell } from '@/components/home/dashboard-shell';
-import { DashboardHeader } from '@/components/common/dashboard-header';
-import { adminNavItems } from '@/lib/admin-config';
 import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency } from '@/lib/currency';
@@ -28,10 +24,8 @@ export default function AdminOrdersPage() {
   }
 
   return (
-    <RoleGuard allowedRoles={['admin']}>
-      <DashboardShell customNavItems={adminNavItems as any} hideBottomWidget={true} header={<DashboardHeader />}>
-        <div className="p-6 bg-slate-50 min-h-screen">
-          <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden">
+    <div className="p-6 bg-slate-50 min-h-screen">
+      <div className="bg-white rounded border border-slate-200 shadow-sm overflow-hidden">
              <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                <h1 className="text-lg font-bold text-slate-800">All Platform Orders</h1>
                <button onClick={loadData} className="px-3 py-1 bg-white border rounded shadow-sm text-sm hover:bg-gray-50">Refresh</button>
@@ -98,7 +92,5 @@ export default function AdminOrdersPage() {
              </div>
           </div>
         </div>
-      </DashboardShell>
-    </RoleGuard>
   );
 }

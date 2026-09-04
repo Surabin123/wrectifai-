@@ -2,9 +2,10 @@
 import { Card } from '@/components/common/card';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/common/button';
-import { Edit2, Save, CameraIcon, Check, AlertCircle, Shield, Activity, Users, Store, Calendar, ShieldCheck } from 'lucide-react';
+import { Edit2, Save, CameraIcon, Check, AlertCircle, Shield, Activity, ShieldCheck } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
+import { Modal } from '@/components/common/modal';
 
 export function AdminProfileContent() {
   const { user, token, login } = useAuth();
@@ -12,21 +13,12 @@ export function AdminProfileContent() {
   const [formData, setFormData] = useState({ name: '', email: '', mobileNumber: '', image: '' });
   const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
   
-  const [stats, setStats] = useState({ users: 0, garages: 0, bookings: 0 });
-  const [activeTab, setActiveTab] = useState<'personal' | 'security' | 'activity'>('personal');
+  const [activeTab, setActiveTab] = useState<'personal' | 'security'>('personal');
 
-  useEffect(() => {
-    // Fetch stats
-    apiClient.get<any>('/admin/stats').then(res => {
-      if (res && !res.error) {
-        setStats({
-          users: res.usersCount || 0,
-          garages: res.garagesCount || 0,
-          bookings: res.bookingsCount || 0
-        });
-      }
-    }).catch(console.error);
-  }, []);
+  const [pwdModalOpen, setPwdModalOpen] = useState(false);
+  const [pwdForm, setPwdForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [pwdError, setPwdError] = useState('');
+  const [pwdSubmitting, setPwdSubmitting] = useState(false);
 
   const showToast = (message: string, type: 'success'|'error') => {
     setToast({ message, type });
@@ -57,6 +49,41 @@ export function AdminProfileContent() {
     }
   };
 
+  const handleChangePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setPwdError('');
+
+    if (!pwdForm.currentPassword || !pwdForm.newPassword || !pwdForm.confirmPassword) {
+      setPwdError('All fields are required.');
+      return;
+    }
+
+    if (pwdForm.newPassword !== pwdForm.confirmPassword) {
+      setPwdError('New password and confirm password do not match.');
+      return;
+    }
+
+    setPwdSubmitting(true);
+    try {
+      await apiClient.post('/auth/change-password', {
+        currentPassword: pwdForm.currentPassword,
+        newPassword: pwdForm.newPassword,
+      });
+      showToast('Password updated successfully', 'success');
+      setPwdModalOpen(false);
+      setPwdForm({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    } catch (err: any) {
+      const errorMsg = err?.response?.data?.message || err?.response?.data?.error?.message || err.message;
+      if (errorMsg?.toLowerCase().includes('invalid current password')) {
+        setPwdError('Please enter your correct current password');
+      } else {
+        setPwdError(errorMsg || 'Failed to update password');
+      }
+    } finally {
+      setPwdSubmitting(false);
+    }
+  };
+
   if (!user) {
     return <div className="p-8 text-center text-slate-500">Loading Profile...</div>;
   }
@@ -64,7 +91,7 @@ export function AdminProfileContent() {
   const initials = user.name ? user.name.substring(0, 2).toUpperCase() : (user.email ? user.email.substring(0, 2).toUpperCase() : 'AD');
 
   return (
-    <div className="space-y-6 relative max-w-5xl">
+    <div className="space-y-6 relative max-w-4xl mx-auto">
       {toast && (
         <div className={`fixed bottom-4 right-4 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom-5 flex items-center gap-2 ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
           {toast.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -146,144 +173,122 @@ export function AdminProfileContent() {
         >
           Security
         </button>
-        <button 
-          onClick={() => setActiveTab('activity')}
-          className={`pb-3 px-2 text-sm font-bold border-b-2 transition-colors ${activeTab === 'activity' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-800'}`}
-        >
-          Activity Log
-        </button>
       </div>
 
       {/* Tab Content */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        
-        {/* Left Column (2/3) */}
-        <div className="md:col-span-2 space-y-6">
-          
-          {activeTab === 'personal' && (
-            <Card className="p-6 shadow-sm border-slate-100 rounded-[24px]">
-              <h3 className="text-lg font-bold text-slate-900 mb-6">Account Information</h3>
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
-                  <span className="text-sm font-medium text-slate-500 w-1/3">Full Name</span>
-                  {isEditing ? (
-                    <input type="text" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
-                  ) : (
-                    <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.name || 'N/A'}</span>
-                  )}
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
-                  <span className="text-sm font-medium text-slate-500 w-1/3">Email</span>
-                  {isEditing ? (
-                    <input type="email" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
-                  ) : (
-                    <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.email || 'N/A'}</span>
-                  )}
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2">
-                  <span className="text-sm font-medium text-slate-500 w-1/3">Phone Number</span>
-                  {isEditing ? (
-                    <input type="text" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.mobileNumber} onChange={(e) => setFormData({...formData, mobileNumber: e.target.value})} />
-                  ) : (
-                    <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.mobileNumber ?? 'N/A'}</span>
-                  )}
-                </div>
+      <div className="space-y-6">
+        {activeTab === 'personal' && (
+          <Card className="p-6 shadow-sm border-slate-100 rounded-[24px]">
+            <h3 className="text-lg font-bold text-slate-900 mb-6">Account Information</h3>
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
+                <span className="text-sm font-medium text-slate-500 w-1/3">Full Name</span>
+                {isEditing ? (
+                  <input type="text" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.name} onChange={(e) => setFormData({...formData, name: e.target.value})} />
+                ) : (
+                  <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.name || 'N/A'}</span>
+                )}
               </div>
-              
-              {isEditing && (
-                <div className="flex justify-end gap-4 mt-6">
-                  <Button variant="outline" className="font-bold w-32" onClick={() => setIsEditing(false)}>Cancel</Button>
-                  <Button className="font-bold w-32 bg-blue-600 text-white hover:bg-blue-700" onClick={handleSave}>
-                    <Save className="w-4 h-4 mr-2" /> Save Changes
-                  </Button>
-                </div>
-              )}
-            </Card>
-          )}
-
-          {activeTab === 'security' && (
-            <Card className="p-6 shadow-sm border-slate-100 rounded-[24px]">
-              <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
-                <ShieldCheck className="w-5 h-5 text-blue-600" /> Account Security
-              </h3>
-              <div className="space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
-                  <div>
-                    <span className="text-sm font-bold text-slate-900 block">Password</span>
-                    <span className="text-xs text-slate-500">Last changed 3 months ago</span>
-                  </div>
-                  <Button variant="outline" size="sm" className="font-bold">Change Password</Button>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
-                  <div>
-                    <span className="text-sm font-bold text-slate-900 block">Two-Factor Authentication (2FA)</span>
-                    <span className="text-xs text-slate-500">Add an extra layer of security</span>
-                  </div>
-                  <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded">Coming Soon</span>
-                </div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2">
-                  <div>
-                    <span className="text-sm font-bold text-slate-900 block">Active Sessions</span>
-                    <span className="text-xs text-slate-500">Manage signed-in devices</span>
-                  </div>
-                  <Button variant="outline" size="sm" className="font-bold">View All</Button>
-                </div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
+                <span className="text-sm font-medium text-slate-500 w-1/3">Email</span>
+                {isEditing ? (
+                  <input type="email" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+                ) : (
+                  <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.email || 'N/A'}</span>
+                )}
               </div>
-            </Card>
-          )}
-
-          {activeTab === 'activity' && (
-            <Card className="p-6 shadow-sm border-slate-100 rounded-[24px] flex flex-col items-center justify-center text-center h-64">
-              <Activity className="w-12 h-12 text-slate-300 mb-4" />
-              <h3 className="text-lg font-bold text-slate-900 mb-2">Activity Log</h3>
-              <p className="text-sm text-slate-500 max-w-sm">
-                Detailed audit logs and activity history will appear here. This feature is currently under development.
-              </p>
-            </Card>
-          )}
-
-        </div>
-
-        {/* Right Column (1/3) */}
-        <div className="space-y-6">
-          <Card className="p-6 shadow-sm border-slate-100 rounded-[24px] bg-gradient-to-br from-slate-900 to-slate-800 text-white">
-            <h3 className="text-sm font-bold text-slate-300 mb-4 uppercase tracking-wider">Platform Stats</h3>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2">
+                <span className="text-sm font-medium text-slate-500 w-1/3">Phone Number</span>
+                {isEditing ? (
+                  <input type="text" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.mobileNumber} onChange={(e) => setFormData({...formData, mobileNumber: e.target.value})} />
+                ) : (
+                  <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.mobileNumber ?? 'N/A'}</span>
+                )}
+              </div>
+            </div>
             
-            <div className="space-y-4">
-              <div className="flex items-center gap-4 bg-white/10 p-3 rounded-xl border border-white/5">
-                <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center text-blue-400">
-                  <Users className="w-5 h-5" />
-                </div>
-                <div>
-                  <div className="text-2xl font-bold">{stats.users}</div>
-                  <div className="text-xs text-slate-400">Total Users</div>
-                </div>
+            {isEditing && (
+              <div className="flex justify-end gap-4 mt-6">
+                <Button variant="outline" className="font-bold w-32" onClick={() => setIsEditing(false)}>Cancel</Button>
+                <Button className="font-bold w-32 bg-blue-600 text-white hover:bg-blue-700" onClick={handleSave}>
+                  <Save className="w-4 h-4 mr-2" /> Save Changes
+                </Button>
               </div>
-              
-              <div className="flex items-center gap-4 bg-white/10 p-3 rounded-xl border border-white/5">
-                <div className="w-10 h-10 rounded-lg bg-orange-500/20 flex items-center justify-center text-orange-400">
-                  <Store className="w-5 h-5" />
-                </div>
+            )}
+          </Card>
+        )}
+
+        {activeTab === 'security' && (
+          <Card className="p-6 shadow-sm border-slate-100 rounded-[24px]">
+            <h3 className="text-lg font-bold text-slate-900 mb-6 flex items-center gap-2">
+              <ShieldCheck className="w-5 h-5 text-blue-600" /> Account Security
+            </h3>
+            <div className="space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
                 <div>
-                  <div className="text-2xl font-bold">{stats.garages}</div>
-                  <div className="text-xs text-slate-400">Garages</div>
+                  <span className="text-sm font-bold text-slate-900 block">Password</span>
+                  <span className="text-xs text-slate-500">Secure your account with a strong password</span>
                 </div>
+                <Button variant="outline" size="sm" className="font-bold" onClick={() => { setPwdModalOpen(true); setPwdError(''); setPwdForm({currentPassword:'', newPassword:'', confirmPassword:''}); }}>Change Password</Button>
               </div>
-              
-              <div className="flex items-center gap-4 bg-white/10 p-3 rounded-xl border border-white/5">
-                <div className="w-10 h-10 rounded-lg bg-green-500/20 flex items-center justify-center text-green-400">
-                  <Calendar className="w-5 h-5" />
-                </div>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2">
                 <div>
-                  <div className="text-2xl font-bold">{stats.bookings}</div>
-                  <div className="text-xs text-slate-400">Total Bookings</div>
+                  <span className="text-sm font-bold text-slate-900 block">Two-Factor Authentication (2FA)</span>
+                  <span className="text-xs text-slate-500">Add an extra layer of security</span>
                 </div>
+                <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs font-bold rounded">Coming Soon</span>
               </div>
             </div>
           </Card>
-        </div>
-        
+        )}
+
       </div>
+
+      <Modal isOpen={pwdModalOpen} onClose={() => setPwdModalOpen(false)} title="Change Password" className="max-w-md">
+        <form onSubmit={handleChangePassword} className="space-y-4">
+          {pwdError && (
+             <div className="p-3 bg-red-50 text-red-700 text-sm font-medium rounded-lg border border-red-200">
+               {pwdError}
+             </div>
+          )}
+          <div className="space-y-1">
+            <label className="text-sm font-bold text-slate-700">Current Password</label>
+            <input 
+              type="password" 
+              required
+              className="w-full border rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-600" 
+              value={pwdForm.currentPassword}
+              onChange={(e) => setPwdForm({...pwdForm, currentPassword: e.target.value})}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-bold text-slate-700">New Password</label>
+            <input 
+              type="password" 
+              required
+              className="w-full border rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-600" 
+              value={pwdForm.newPassword}
+              onChange={(e) => setPwdForm({...pwdForm, newPassword: e.target.value})}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-bold text-slate-700">Confirm New Password</label>
+            <input 
+              type="password" 
+              required
+              className="w-full border rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-600" 
+              value={pwdForm.confirmPassword}
+              onChange={(e) => setPwdForm({...pwdForm, confirmPassword: e.target.value})}
+            />
+          </div>
+          <div className="flex justify-end gap-3 pt-4 border-t border-slate-100 mt-6">
+             <Button type="button" variant="outline" onClick={() => setPwdModalOpen(false)}>Cancel</Button>
+             <Button type="submit" disabled={pwdSubmitting} className="bg-blue-600 text-white hover:bg-blue-700">
+               {pwdSubmitting ? 'Saving...' : 'Save Password'}
+             </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

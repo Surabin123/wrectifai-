@@ -81,16 +81,7 @@ export default function AdminDashboardPage() {
             </Card>
           </Link>
 
-          <Link href="/admin/bookings" className="block">
-            <Card className="p-5 flex items-center gap-4 h-full hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center"><CalendarRange className="w-6 h-6"/></div>
-              <div>
-                <p className="text-xs font-bold text-slate-500 mb-0.5">Active Bookings</p>
-                <p className="text-2xl font-black text-[#17307a]">{stats.activeBookings}</p>
-                <p className="text-[10px] font-bold text-green-500 flex items-center gap-1">Live</p>
-              </div>
-            </Card>
-          </Link>
+
           <Link href="/admin/quotes" className="block">
             <Card className="p-5 flex items-center gap-4 h-full hover:shadow-md transition-shadow">
               <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center"><FileText className="w-6 h-6"/></div>
@@ -98,16 +89,6 @@ export default function AdminDashboardPage() {
                 <p className="text-xs font-bold text-slate-500 mb-0.5">Quotes</p>
                 <p className="text-2xl font-black text-[#17307a]">{stats.quotesCount}</p>
                 <p className="text-[10px] font-bold text-green-500 flex items-center gap-1">Submitted</p>
-              </div>
-            </Card>
-          </Link>
-          <Link href="/admin/service-history" className="block">
-            <Card className="p-5 flex items-center gap-4 h-full hover:shadow-md transition-shadow">
-              <div className="w-12 h-12 rounded-xl bg-teal-50 text-teal-600 flex items-center justify-center"><CheckCircle2 className="w-6 h-6"/></div>
-              <div>
-                <p className="text-xs font-bold text-slate-500 mb-0.5">Completed Jobs</p>
-                <p className="text-2xl font-black text-[#17307a]">{stats.completedJobsCount}</p>
-                <p className="text-[10px] font-bold text-green-500 flex items-center gap-1">Finished</p>
               </div>
             </Card>
           </Link>

@@ -409,13 +409,18 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
   try {
     const ordersRes = await pool.query(`
       SELECT o.*, 
-        json_agg(json_build_object(
-          'id', oi.id,
-          'product_id', oi.product_id,
-          'quantity', oi.quantity,
-          'unit_price', oi.unit_price,
-          'name', p.name
-        )) as items,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', oi.id,
+              'product_id', oi.product_id,
+              'quantity', oi.quantity,
+              'unit_price', oi.unit_price,
+              'name', p.name
+            )
+          ) FILTER (WHERE oi.id IS NOT NULL), 
+          '[]'
+        ) as items,
         g.name as garage_name,
         u.name as customer_name,
         da.status as delivery_status,
