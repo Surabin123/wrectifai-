@@ -10,6 +10,16 @@ import { ReferralService } from '../../services/referral.service';
 
 export const bookingsRouter = Router();
 
+// Helper: resolve garageId from token or DB
+async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<string | null> {
+  if (tokenGarageId) return tokenGarageId;
+  const result = await query(
+    'SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1',
+    [userId]
+  );
+  return result.rows.length > 0 ? result.rows[0].id : null;
+}
+
 // GET /bookings — list all bookings globally
 bookingsRouter.get('/', authenticate, async (req, res) => {
   try {
@@ -20,7 +30,7 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
     
     if (!userRoles.includes('admin')) {
       if (userRoles.includes('garage')) {
-        const garageId = req.user?.garageId;
+        const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
         if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
         
         filterCondition = 'b.garage_id = $1';
@@ -383,7 +393,7 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
     if (!garageUserId || !req.user?.roles?.includes('garage')) {
       return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     }
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) {
       return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
     }
