@@ -60,8 +60,8 @@ export function CartPage() {
     const price = item.numericPrice || parseFloat(String(item.price || 0).replace(/[^0-9.]/g, '')) || 0;
     return acc + price * (item.quantity || 1);
   }, 0);
-  const tax = subtotal * 0.1;
-  const shipping = subtotal > 0 ? 15 : 0;
+  const tax = subtotal * 0.18;
+  const shipping = subtotal > 0 ? 10 : 0;
   const total = subtotal + tax + shipping;
 
   const [isProcessing, setIsProcessing] = useState(false);
