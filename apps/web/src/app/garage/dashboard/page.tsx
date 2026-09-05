@@ -146,7 +146,7 @@ export default function GarageDashboard() {
           <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
             <div className="p-5 border-b border-slate-200 flex justify-between items-center">
               <h2 className="text-lg font-bold text-[#17307a]">Pending Quote Requests</h2>
-              <Link href="/garage/incoming-requests" className="text-xs text-blue-600">View All</Link>
+              <Link href="/garage/quotes" className="text-xs text-blue-600">View All</Link>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">
@@ -183,7 +183,7 @@ export default function GarageDashboard() {
                         </td>
                         <td className="px-6 py-4 text-right">
                           <button 
-                            onClick={() => router.push(`/garage/incoming-requests`)}
+                            onClick={() => router.push(`/garage/quotes`)}
                             className="text-blue-600 hover:text-blue-800 font-medium px-4 py-2 hover:bg-blue-50 rounded-lg transition-colors"
                           >
                             View

@@ -211,12 +211,21 @@ export default function QuotesPage() {
                 >
                   Close
                 </button>
-                <button 
-                  onClick={() => setShowQuoteForm(true)}
-                  className="px-4 py-2 bg-blue-600 rounded text-sm font-bold text-white hover:bg-blue-700"
-                >
-                  Create Quote
-                </button>
+                {(() => {
+                  const isExpired = Date.now() - new Date(selectedRequest.createdAt).getTime() > 24 * 60 * 60 * 1000;
+                  return isExpired ? (
+                    <div className="text-red-500 font-bold text-sm px-2 flex items-center">
+                      Request Expired (Older than 24h)
+                    </div>
+                  ) : (
+                    <button 
+                      onClick={() => setShowQuoteForm(true)}
+                      className="px-4 py-2 bg-blue-600 rounded text-sm font-bold text-white hover:bg-blue-700"
+                    >
+                      Create Quote
+                    </button>
+                  );
+                })()}
               </div>
             </div>
           </div>
