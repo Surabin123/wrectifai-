@@ -7,6 +7,16 @@ import { QuoteEstimationService } from './quote-estimation.service';
 
 export const quotesRouter = Router();
 
+// Helper: resolve garageId from token or DB (handles stale tokens without garageId)
+async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<string | null> {
+  if (tokenGarageId) return tokenGarageId;
+  const result = await query(
+    'SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1',
+    [userId]
+  );
+  return result.rows.length > 0 ? result.rows[0].id : null;
+}
+
 // POST /quotes/:quoteId/view - Mark a quote as viewed
 quotesRouter.post('/:quoteId/view', authenticate, async (req, res) => {
   try {
@@ -173,7 +183,7 @@ quotesRouter.get('/garage-requests', authenticate, async (req, res) => {
       return error(res, 'Unauthorized for garage access', 'UNAUTHORIZED', 403);
     }
     
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(

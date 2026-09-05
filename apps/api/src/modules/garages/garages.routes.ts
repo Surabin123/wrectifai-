@@ -595,12 +595,16 @@ garagesRouter.get('/my-services', authenticate, async (req, res) => {
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const result = await query(
-      `SELECT s.id, ps.name, ps.category, ps.description, ps.icon, s.price, s.is_active, s.duration_mins,
+      `SELECT s.id, 
+              COALESCE(ps.name, s.name) as name, 
+              COALESCE(ps.category, s.category) as category, 
+              COALESCE(ps.description, s.description) as description, 
+              ps.icon, s.price, s.is_active, s.duration_mins,
               s.duration_unit, ps.base_price as "basePrice"
        FROM services s 
-       JOIN platform_services ps ON s.platform_service_id = ps.id 
+       LEFT JOIN platform_services ps ON s.platform_service_id = ps.id 
        WHERE s.garage_id = $1
-       ORDER BY ps.name ASC`,
+       ORDER BY COALESCE(ps.name, s.name) ASC`,
       [garageId]
     );
     return success(res, result.rows);
@@ -844,9 +848,13 @@ garagesRouter.get('/:id', async (req, res) => {
         [req.params.id]
       ),
       query(
-        `SELECT s.id, ps.name, ps.category, ps.description, ps.icon, s.price, s.is_active 
+        `SELECT s.id, 
+                COALESCE(ps.name, s.name) as name, 
+                COALESCE(ps.category, s.category) as category, 
+                COALESCE(ps.description, s.description) as description, 
+                ps.icon, s.price, s.is_active 
          FROM services s 
-         JOIN platform_services ps ON s.platform_service_id = ps.id 
+         LEFT JOIN platform_services ps ON s.platform_service_id = ps.id 
          WHERE s.garage_id = $1`,
         [req.params.id]
       )
