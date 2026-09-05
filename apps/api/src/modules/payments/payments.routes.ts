@@ -338,7 +338,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
           );
           if (paymentCheck.rows.length === 0) {
             await client.query(
-              `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, status)
+              `INSERT INTO payments (customer_user_id, booking_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, status)
                VALUES ($1, $2, 'razorpay', $3, $4, $5, $6, 'succeeded')
                ON CONFLICT (provider_intent_id) DO NOTHING`,
               [booking.customer_id, booking.id, paymentEntity.id, providerIntentId, paymentEntity.id, amount]
@@ -369,7 +369,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
           );
           if (failedPaymentCheck.rows.length === 0) {
             await client.query(
-              `INSERT INTO payments (payer_user_id, booking_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, status)
+              `INSERT INTO payments (customer_user_id, booking_id, provider, provider_intent_id, provider_order_id, provider_payment_id, amount, status)
                VALUES ($1, $2, 'razorpay', $3, $4, $5, $6, 'failed')
                ON CONFLICT (provider_intent_id) DO NOTHING`,
               [booking.customer_id, booking.id, paymentEntity.id, providerIntentId, paymentEntity.id, paymentEntity.amount / 100]
