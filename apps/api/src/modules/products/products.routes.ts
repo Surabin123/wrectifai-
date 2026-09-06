@@ -26,10 +26,8 @@ productsRouter.get('/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const productResult = await query(
-      `SELECT p.id, p.name, p.category, p.description, p.price, p.is_diy_kit, p.image, p.compatible_vehicle_rules,
-       s.business_name as seller_name 
+      `SELECT p.id, p.name, p.category, p.description, p.price, p.is_diy_kit, p.image, p.compatible_vehicle_rules
        FROM products p
-       LEFT JOIN sellers s ON p.seller_id = s.id
        WHERE p.id = $1 AND p.is_active = true`,
       [id]
     );
