@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { useRouter } from 'next/navigation';
-import { Trash2, ShoppingBag, ArrowLeft, Loader2, AlertCircle } from 'lucide-react';
+import { Trash2, ShoppingBag, ArrowLeft, Loader2, AlertCircle, Tag, MapPin } from 'lucide-react';
 import Image from 'next/image';
 import { PaymentSuccessModal } from '@/components/common/payment-success-modal';
 import { DashboardShell } from '@/components/home/dashboard-shell';
@@ -19,6 +19,19 @@ export function CartPage() {
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
   const [userCity, setUserCity] = useState<string>('Bengaluru');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [promoCode, setPromoCode] = useState('');
+  const [promoCodeApplied, setPromoCodeApplied] = useState('');
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [isVerifyingPromo, setIsVerifyingPromo] = useState(false);
+  
+  const [address, setAddress] = useState({
+    name: '',
+    phone: '',
+    street: '',
+    city: 'Bengaluru',
+    state: 'Karnataka',
+    zip: ''
+  });
 
   useEffect(() => {
     setUserCity(getSavedCity() || 'Bengaluru');
@@ -60,9 +73,38 @@ export function CartPage() {
     const price = item.numericPrice || parseFloat(String(item.price || 0).replace(/[^0-9.]/g, '')) || 0;
     return acc + price * (item.quantity || 1);
   }, 0);
-  const tax = subtotal * 0.18;
-  const shipping = subtotal > 0 ? 10 : 0;
-  const total = subtotal + tax + shipping;
+  const discountAmount = subtotal * (discountPercent / 100);
+  const discountedSubtotal = subtotal - discountAmount;
+  const tax = discountedSubtotal * 0.18;
+  const shipping = discountedSubtotal > 0 ? 10 : 0;
+  const total = discountedSubtotal + tax + shipping;
+
+  const handleApplyPromo = async () => {
+    if (!promoCode || !cartItems.length) return;
+    setIsVerifyingPromo(true);
+    try {
+      const res = await apiClient.post<any>('/offers/validate', {
+        code: promoCode,
+        garageId: cartItems[0].garageId,
+        subtotal
+      });
+      if (res.isValid) {
+        setDiscountPercent(res.discount);
+        setPromoCodeApplied(promoCode);
+        setErrorMsg(null);
+      } else {
+        setErrorMsg('Invalid or expired promo code');
+        setDiscountPercent(0);
+        setPromoCodeApplied('');
+      }
+    } catch (e: any) {
+      setErrorMsg(e.message || 'Failed to apply promo code');
+      setDiscountPercent(0);
+      setPromoCodeApplied('');
+    } finally {
+      setIsVerifyingPromo(false);
+    }
+  };
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<any>(null);
@@ -89,12 +131,25 @@ export function CartPage() {
     setIsProcessing(true);
     
     try {
+      if (!address.name || !address.phone || !address.street || !address.zip) {
+        throw new Error("Please fill in all shipping address fields.");
+      }
+
       const garageId = cartItems[0].garageId;
       if (!garageId) throw new Error("Items are missing garage information");
       
       const payload = {
         garageId,
-        shippingAddress: { city: 'Bengaluru', zip: '560001', country: 'India' },
+        shippingAddress: { 
+          name: address.name,
+          phone: address.phone,
+          street: address.street,
+          city: address.city, 
+          state: address.state,
+          zip: address.zip, 
+          country: 'India' 
+        },
+        offerCode: promoCodeApplied || undefined,
         items: cartItems.map(i => ({
           productId: i.id,
           quantity: i.quantity || 1
@@ -155,9 +210,9 @@ export function CartPage() {
           }
         },
         prefill: {
-          name: 'Customer',
+          name: address.name,
           email: 'customer@example.com',
-          contact: '9999999999'
+          contact: address.phone
         },
         theme: {
           color: '#1a56db'
@@ -236,7 +291,37 @@ export function CartPage() {
             )}
           </div>
 
-          <div className="lg:w-80 shrink-0">
+          <div className="lg:w-80 shrink-0 space-y-4">
+            <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
+              <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-blue-600"/> Shipping Address</h3>
+              <div className="space-y-3">
+                <input type="text" placeholder="Full Name" value={address.name} onChange={e => setAddress({...address, name: e.target.value})} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
+                <input type="text" placeholder="Phone Number" value={address.phone} onChange={e => setAddress({...address, phone: e.target.value})} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
+                <input type="text" placeholder="Street Address" value={address.street} onChange={e => setAddress({...address, street: e.target.value})} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
+                <div className="flex gap-2">
+                  <input type="text" placeholder="City" value={address.city} onChange={e => setAddress({...address, city: e.target.value})} className="w-1/2 text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
+                  <input type="text" placeholder="ZIP" value={address.zip} onChange={e => setAddress({...address, zip: e.target.value})} className="w-1/2 text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
+              <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2"><Tag className="w-5 h-5 text-blue-600"/> Promo Code</h3>
+              {promoCodeApplied ? (
+                <div className="flex items-center justify-between bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm border border-green-100">
+                  <span className="font-bold">{promoCodeApplied}</span>
+                  <span>{discountPercent}% OFF</span>
+                </div>
+              ) : (
+                <div className="flex gap-2">
+                  <input type="text" placeholder="Enter code" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} className="flex-1 text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
+                  <Button onClick={handleApplyPromo} disabled={isVerifyingPromo || !promoCode} className="px-4 bg-slate-900 text-white rounded-lg hover:bg-slate-800" size="sm">
+                    {isVerifyingPromo ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Apply'}
+                  </Button>
+                </div>
+              )}
+            </Card>
+
             <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm sticky top-24">
               <h3 className="font-bold text-lg text-slate-900 mb-6">Order Summary</h3>
               <div className="space-y-4 text-sm">
@@ -244,6 +329,12 @@ export function CartPage() {
                   <span className="text-slate-500">Subtotal</span>
                   <span className="font-medium">{formatCurrencyForCity(subtotal, userCity)}</span>
                 </div>
+                {discountAmount > 0 && (
+                  <div className="flex justify-between text-green-600">
+                    <span>Discount ({discountPercent}%)</span>
+                    <span className="font-medium">-{formatCurrencyForCity(discountAmount, userCity)}</span>
+                  </div>
+                )}
                 <div className="flex justify-between">
                   <span className="text-slate-500">Tax (18%)</span>
                   <span className="font-medium">{formatCurrencyForCity(tax, userCity)}</span>

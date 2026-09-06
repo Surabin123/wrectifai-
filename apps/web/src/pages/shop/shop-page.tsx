@@ -241,10 +241,10 @@ export function ShopPage() {
                   >
                     <Heart className="w-5 h-5" fill={wishlistItems.some((i: any) => i.id === product.id) ? 'currentColor' : 'none'} />
                   </button>
-                  <div className="relative h-32 flex items-center justify-center mb-4">
+                  <div className="relative h-32 flex items-center justify-center mb-4 cursor-pointer" onClick={() => router.push(`/garage/shop/${product.id}`)}>
                     <Image src={product.img} alt={product.name} width={100} height={100} className="object-contain group-hover:scale-110 transition-transform" />
                   </div>
-                  <h4 className="font-bold text-sm text-slate-900 line-clamp-2 h-10 mb-2">{product.name}</h4>
+                  <h4 className="font-bold text-sm text-slate-900 line-clamp-2 h-10 mb-2 cursor-pointer hover:text-blue-600 transition-colors" onClick={() => router.push(`/garage/shop/${product.id}`)}>{product.name}</h4>
                   
                   {userVehicle && product.hasCompatibilityRules && (
                     <div className="mb-2">

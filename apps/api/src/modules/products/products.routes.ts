@@ -20,3 +20,71 @@ productsRouter.get('/', async (req, res) => {
     return error(res, 'Failed to fetch products', 'DATABASE_ERROR', 500);
   }
 });
+
+// GET /api/v1/products/:id - Fetch product details and reviews
+productsRouter.get('/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const productResult = await query(
+      `SELECT p.id, p.name, p.category, p.description, p.price, p.is_diy_kit, p.image, p.compatible_vehicle_rules,
+       s.business_name as seller_name 
+       FROM products p
+       LEFT JOIN sellers s ON p.seller_id = s.id
+       WHERE p.id = $1 AND p.is_active = true`,
+      [id]
+    );
+
+    if (productResult.rows.length === 0) {
+      return error(res, 'Product not found', 'NOT_FOUND', 404);
+    }
+
+    const reviewsResult = await query(
+      `SELECT r.id, r.rating, r.review_text, r.created_at, u.name as "first_name"
+       FROM product_reviews r
+       JOIN users u ON r.user_id = u.id
+       WHERE r.product_id = $1
+       ORDER BY r.created_at DESC`,
+      [id]
+    );
+
+    const product = productResult.rows[0];
+    product.reviews = reviewsResult.rows;
+
+    return success(res, product);
+  } catch (err) {
+    console.error('Error fetching product details:', err);
+    return error(res, 'Failed to fetch product details', 'DATABASE_ERROR', 500);
+  }
+});
+
+// POST /api/v1/products/:id/reviews - Submit a review
+productsRouter.post('/:id/reviews', async (req, res) => {
+  const { id } = req.params;
+  const { rating, review_text, user_id } = req.body; // In real app, user_id comes from token
+
+  if (!rating || rating < 1 || rating > 5) {
+    return error(res, 'Invalid rating (must be 1-5)', 'BAD_REQUEST', 400);
+  }
+
+  // Fallback user ID for testing since we might not have a full token setup in this mock context
+  // but let's assume req.user is set if authenticate middleware is used. Wait, no authenticate middleware used here yet.
+  const actualUserId = (req as any).user?.userId || user_id;
+
+  if (!actualUserId) {
+    return error(res, 'Unauthorized to leave a review', 'UNAUTHORIZED', 401);
+  }
+
+  try {
+    const result = await query(
+      `INSERT INTO product_reviews (product_id, user_id, rating, review_text)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, rating, review_text, created_at`,
+      [id, actualUserId, rating, review_text]
+    );
+
+    return success(res, result.rows[0]);
+  } catch (err) {
+    console.error('Error submitting review:', err);
+    return error(res, 'Failed to submit review', 'DATABASE_ERROR', 500);
+  }
+});

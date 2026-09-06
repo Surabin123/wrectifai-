@@ -4,6 +4,7 @@ import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
+import { validateOffer, recordOfferRedemption } from '../offers/offers.service';
 
 export const ordersRouter = Router();
 
@@ -18,7 +19,7 @@ ordersRouter.post('/', authenticate, async (req, res) => {
   const customerId = req.user?.userId;
   if (!customerId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
 
-  const { items, garageId, shippingAddress } = req.body;
+  const { items, garageId, shippingAddress, offerCode } = req.body;
   
   if (!items || !items.length || !garageId || !shippingAddress) {
     return error(res, 'Missing required fields', 'BAD_REQUEST', 400);
@@ -65,9 +66,25 @@ ordersRouter.post('/', authenticate, async (req, res) => {
       });
     }
     
-    const tax = subtotal * 0.18; // 18% tax
-    const shippingCost = 10.0; // Flat shipping cost
-    const total = subtotal + tax + shippingCost;
+    let discountApplied = 0;
+    let offerId: string | null = null;
+    
+    if (offerCode) {
+      try {
+        const offerResult = await validateOffer(offerCode, garageId, customerId);
+        offerId = offerResult.offerId;
+        const discountPercentage = offerResult.discountPercentage;
+        discountApplied = subtotal * (discountPercentage / 100);
+      } catch (e: any) {
+        console.warn(`Failed to apply offer ${offerCode}: ${e.message}`);
+      }
+    }
+
+    const discountedSubtotal = subtotal - discountApplied;
+    const tax = discountedSubtotal * 0.18; // 18% tax on discounted amount
+    const shippingCost = discountedSubtotal > 0 ? 10.0 : 0; // Flat shipping cost if cart not empty
+    
+    const total = discountedSubtotal + tax + shippingCost;
     const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     // Fetch garage location to set correct currency
@@ -81,13 +98,18 @@ ordersRouter.post('/', authenticate, async (req, res) => {
 
     // 2. Create the Order
     const orderResult = await client.query(
-      `INSERT INTO orders (customer_id, garage_id, order_number, status, subtotal, shipping_cost, tax, total, currency, fulfillment_mode, shipping_address)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-      [customerId, garageId, orderNumber, 'pendingPayment', subtotal, shippingCost, tax, total, currency, 'inHouse', shippingAddress]
+      `INSERT INTO orders (customer_id, garage_id, order_number, status, subtotal, shipping_cost, tax, discount_applied, offer_id, total, currency, fulfillment_mode, shipping_address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
+      [customerId, garageId, orderNumber, 'pendingPayment', subtotal, shippingCost, tax, discountApplied, offerId, total, currency, 'inHouse', shippingAddress]
     );
     const orderId = orderResult.rows[0].id;
     
-    // 3. Create Order Items
+    // 3. Record offer redemption
+    if (offerId && discountApplied > 0) {
+      await recordOfferRedemption(offerId, customerId, undefined, discountApplied);
+    }
+    
+    // 4. Create Order Items
     for (const pItem of processedItems) {
       await client.query(
         `INSERT INTO order_items (order_id, product_id, quantity, unit_price, total_price)
@@ -97,7 +119,7 @@ ordersRouter.post('/', authenticate, async (req, res) => {
     }
     
     await client.query('COMMIT');
-    return success(res, { orderId, orderNumber, total, subtotal, tax, shippingCost });
+    return success(res, { orderId, orderNumber, total, subtotal, tax, shippingCost, discountApplied });
   } catch (err: any) {
     await client.query('ROLLBACK');
     console.error('Order creation error:', err);

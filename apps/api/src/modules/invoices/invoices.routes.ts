@@ -143,7 +143,7 @@ invoicesRouter.get('/by-order/:orderId', authenticate, async (req, res) => {
         p.city as "customerCity"
        FROM invoices i
        JOIN orders o ON i.order_id = o.id
-       JOIN garages g ON o.garage_id = g.id
+       LEFT JOIN garages g ON o.garage_id = g.id
        LEFT JOIN users u ON o.customer_id = u.id
        LEFT JOIN users gu ON g.owner_user_id = gu.id
        LEFT JOIN profiles p ON u.id = p.user_id
