@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { Trash2, ShoppingBag, ArrowLeft, Loader2, AlertCircle, Tag, MapPin } from 'lucide-react';
 import Image from 'next/image';
 import { PaymentSuccessModal } from '@/components/common/payment-success-modal';
+import { Modal } from '@/components/common/modal';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { apiClient } from '@/lib/api-client';
@@ -23,6 +24,7 @@ export function CartPage() {
   const [promoCodeApplied, setPromoCodeApplied] = useState('');
   const [discountPercent, setDiscountPercent] = useState(0);
   const [isVerifyingPromo, setIsVerifyingPromo] = useState(false);
+  const [promoErrorMsg, setPromoErrorMsg] = useState<string | null>(null);
   
   const [address, setAddress] = useState({
     name: '',
@@ -91,14 +93,14 @@ export function CartPage() {
       if (res.isValid) {
         setDiscountPercent(res.discount);
         setPromoCodeApplied(promoCode);
-        setErrorMsg(null);
+        setPromoErrorMsg(null);
       } else {
-        setErrorMsg('Invalid or expired promo code');
+        setPromoErrorMsg(res.message || 'This promo code is invalid or has expired.');
         setDiscountPercent(0);
         setPromoCodeApplied('');
       }
     } catch (e: any) {
-      setErrorMsg(e.message || 'Failed to apply promo code');
+      setPromoErrorMsg(e.message || 'This promo code is invalid or has expired.');
       setDiscountPercent(0);
       setPromoCodeApplied('');
     } finally {
@@ -379,6 +381,27 @@ export function CartPage() {
           }
         }}
       />
+
+      <Modal
+        isOpen={!!promoErrorMsg}
+        onClose={() => setPromoErrorMsg(null)}
+        title="Offer Not Valid"
+        className="max-w-sm"
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-slate-600 leading-relaxed">
+            {promoErrorMsg}
+          </p>
+          <div className="flex justify-end">
+            <Button
+              onClick={() => setPromoErrorMsg(null)}
+              className="bg-blue-600 hover:bg-blue-700 text-white px-6"
+            >
+              OK
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </DashboardShell>
   );
 }
