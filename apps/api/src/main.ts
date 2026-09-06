@@ -3,7 +3,6 @@ import { resolve } from 'path';
 require('dotenv').config({ path: resolve(__dirname, '../../../../.env') });
 import { getEnv } from './config/env';
 import { createApp } from './app';
-import { runMigrations } from './db/migrations';
 import dns from 'dns';
 
 // Fix ENOTFOUND errors on some Windows setups where IPv6 fails
@@ -13,9 +12,6 @@ const { host, port } = getEnv();
 
 async function startServer() {
   try {
-    // Run database migrations before starting the listener
-    await runMigrations();
-    
     const app = createApp();
     app.listen(port, host, () => {
       console.log(`[api] listening on http://${host}:${port}`);
