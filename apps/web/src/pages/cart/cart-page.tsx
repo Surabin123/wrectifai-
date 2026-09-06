@@ -259,7 +259,7 @@ export function CartPage() {
                 <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto mb-4" />
                 <h3 className="text-lg font-bold text-slate-900 mb-2">Your cart is empty</h3>
                 <p className="text-slate-500 mb-6">Looks like you haven&apos;t added any items to your cart yet.</p>
-                <Button onClick={() => router.push('/shop-all')}>Continue Shopping</Button>
+                <Button onClick={() => router.push('/shop')}>Continue Shopping</Button>
               </Card>
             ) : (
               cartItems.map((item) => (
@@ -274,17 +274,22 @@ export function CartPage() {
                   <div className="flex-1">
                     <h4 className="font-bold text-slate-900">{item.name}</h4>
                     <p className="text-sm text-slate-500 mb-2">{item.category}</p>
-                    <div className="text-lg font-bold text-blue-600">{item.formattedPrice || formatCurrencyForCity(item.numericPrice || 0, userCity)}</div>
+                    <div className="text-sm font-medium text-slate-500">{formatCurrencyForCity(item.numericPrice || 0, userCity)} each</div>
                   </div>
-                  <div className="flex items-center gap-4 mt-4 sm:mt-0">
-                    <div className="flex items-center gap-3 border border-slate-200 rounded-full px-3 py-1">
-                      <button onClick={() => updateQuantity(item.id, -1)} className="text-slate-500 hover:text-slate-900 font-bold">-</button>
-                      <span className="font-medium w-4 text-center">{item.quantity || 1}</span>
-                      <button onClick={() => updateQuantity(item.id, 1)} className="text-slate-500 hover:text-slate-900 font-bold">+</button>
+                  <div className="flex flex-col items-end gap-2 mt-4 sm:mt-0">
+                    <div className="text-lg font-bold text-blue-600">
+                      {formatCurrencyForCity((item.numericPrice || 0) * (item.quantity || 1), userCity)}
                     </div>
-                    <Button variant="outline" size="sm" onClick={() => removeItem(item.id)} className="text-red-500 border-red-100 hover:bg-red-50 p-2">
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-3 border border-slate-200 rounded-full px-3 py-1">
+                        <button onClick={() => updateQuantity(item.id, -1)} className="text-slate-500 hover:text-slate-900 font-bold">-</button>
+                        <span className="font-medium w-4 text-center">{item.quantity || 1}</span>
+                        <button onClick={() => updateQuantity(item.id, 1)} className="text-slate-500 hover:text-slate-900 font-bold">+</button>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => removeItem(item.id)} className="text-red-500 border-red-100 hover:bg-red-50 p-2">
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </div>
                 </Card>
               ))

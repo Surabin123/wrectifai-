@@ -72,7 +72,7 @@ export default function ProductDetailsPage() {
       localStorage.setItem('shopCart', JSON.stringify(cart));
       window.dispatchEvent(new Event('cart-updated'));
       setAddingToCart(false);
-      router.push('/garage/shop/cart');
+      router.push('/cart');
     }, 500);
   };
 
