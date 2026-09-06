@@ -159,9 +159,12 @@ export default function ProductDetailsPage() {
               <p className="text-slate-500 text-sm mb-4">By {product.seller_name || 'WrectifAI Verified Seller'}</p>
               
               <div className="flex items-center gap-2 mb-6">
-                 {[1,2,3,4,5].map(star => (
-                    <Star key={star} className={\`w-5 h-5 \${product.reviews?.length && product.reviews.reduce((a:any,c:any)=>a+c.rating,0)/product.reviews.length >= star ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}\`} />
-                 ))}
+                 {[1,2,3,4,5].map(star => {
+                    const avgRating = product.reviews?.length ? product.reviews.reduce((a: any, c: any) => a + c.rating, 0) / product.reviews.length : 0;
+                    return (
+                      <Star key={star} className={`w-5 h-5 ${avgRating >= star ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
+                    );
+                 })}
                  <span className="text-sm text-slate-500 ml-2">({product.reviews?.length || 0} reviews)</span>
               </div>
               
@@ -190,7 +193,7 @@ export default function ProductDetailsPage() {
               
               <Button onClick={handleAddToCart} disabled={addingToCart} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl text-lg flex items-center justify-center gap-2">
                 {addingToCart ? <Loader2 className="w-6 h-6 animate-spin" /> : (
-                  <><ShoppingBag className="w-5 h-5" /> Add to Cart</>
+                  <span className="flex items-center gap-2"><ShoppingBag className="w-5 h-5" /> Add to Cart</span>
                 )}
               </Button>
             </div>
@@ -208,7 +211,7 @@ export default function ProductDetailsPage() {
                 <div className="flex gap-2 mb-4">
                   {[1,2,3,4,5].map(star => (
                     <button key={star} onClick={() => setRating(star)} className="focus:outline-none">
-                      <Star className={\`w-8 h-8 \${rating >= star ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}\`} />
+                      <Star className={`w-8 h-8 ${rating >= star ? 'text-amber-400 fill-amber-400' : 'text-slate-300'}`} />
                     </button>
                   ))}
                 </div>
@@ -239,7 +242,7 @@ export default function ProductDetailsPage() {
                       </div>
                       <div className="flex">
                         {[1,2,3,4,5].map(star => (
-                          <Star key={star} className={\`w-4 h-4 \${rev.rating >= star ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}\`} />
+                          <Star key={star} className={`w-4 h-4 ${rev.rating >= star ? 'text-amber-400 fill-amber-400' : 'text-slate-200'}`} />
                         ))}
                       </div>
                     </div>

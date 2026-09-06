@@ -71,9 +71,9 @@ ordersRouter.post('/', authenticate, async (req, res) => {
     
     if (offerCode) {
       try {
-        const offerResult = await validateOffer(offerCode, garageId, customerId);
+        const offerResult = await validateOffer(offerCode, customerId, subtotal, garageId);
         offerId = offerResult.offerId;
-        const discountPercentage = offerResult.discountPercentage;
+        const discountPercentage = offerResult.discount;
         discountApplied = subtotal * (discountPercentage / 100);
       } catch (e: any) {
         console.warn(`Failed to apply offer ${offerCode}: ${e.message}`);
