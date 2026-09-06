@@ -9,6 +9,7 @@ import { TopNavbar } from '@/components/home/top-navbar';
 import { ArrowLeft, Loader2, Star, AlertCircle, ShoppingBag } from 'lucide-react';
 import Image from 'next/image';
 import { apiClient } from '@/lib/api-client';
+import { getSavedCity, formatCurrencyForCity } from '@/utils/location';
 
 export default function ProductDetailsPage() {
   const params = useParams();
@@ -29,7 +30,8 @@ export default function ProductDetailsPage() {
   const fetchProduct = async () => {
     try {
       setIsLoading(true);
-      const res = await apiClient.get<any>(`/products/${productId}`);
+      const garageId = typeof window !== 'undefined' ? localStorage.getItem('selectedGarageId') : '';
+      const res = await apiClient.get<any>(`/products/${productId}${garageId ? `?garageId=${encodeURIComponent(garageId)}` : ''}`);
       setProduct(res);
       setErrorMsg(null);
     } catch (err: any) {
@@ -65,7 +67,7 @@ export default function ProductDetailsPage() {
           numericPrice: parseFloat(product.price),
           img: product.image,
           quantity: quantity,
-          garageId: '86baf9c8-f2cc-4186-9466-d8087427047e' // Default fallback for now
+          garageId: product.garage_id || (typeof window !== 'undefined' ? localStorage.getItem('selectedGarageId') : '')
         });
       }
       
@@ -77,22 +79,11 @@ export default function ProductDetailsPage() {
   };
 
   const handleSubmitReview = async () => {
-    if (!reviewText.trim()) return;
-    
     setSubmittingReview(true);
     try {
-      // Find a user ID from localStorage (quick mock auth check)
-      const auth = localStorage.getItem('auth_store');
-      let userId = '';
-      if (auth) {
-        const parsed = JSON.parse(auth);
-        userId = parsed.state?.user?.id;
-      }
-      
       await apiClient.post(`/products/${productId}/reviews`, {
         rating,
-        review_text: reviewText,
-        user_id: userId || '4bd9f00d-f215-4cf4-9189-5144b6b66e3b' // fallback
+        review_text: reviewText.trim()
       });
       
       setReviewText('');
@@ -168,7 +159,7 @@ export default function ProductDetailsPage() {
                  <span className="text-sm text-slate-500 ml-2">({product.reviews?.length || 0} reviews)</span>
               </div>
               
-              <div className="text-4xl font-extrabold text-blue-600 mb-6">₹{parseFloat(product.price).toLocaleString('en-IN')}</div>
+              <div className="text-4xl font-extrabold text-blue-600 mb-6">{formatCurrencyForCity(Number(product.price), getSavedCity() || 'Bengaluru')}</div>
               
               <p className="text-slate-700 leading-relaxed mb-8">
                 {product.description || 'No description available for this product.'}
@@ -221,7 +212,7 @@ export default function ProductDetailsPage() {
                   value={reviewText}
                   onChange={e => setReviewText(e.target.value)}
                 />
-                <Button onClick={handleSubmitReview} disabled={submittingReview || !reviewText.trim()} className="w-full rounded-xl">
+                <Button onClick={handleSubmitReview} disabled={submittingReview || !rating} className="w-full rounded-xl">
                   {submittingReview ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Submit Review'}
                 </Button>
               </Card>

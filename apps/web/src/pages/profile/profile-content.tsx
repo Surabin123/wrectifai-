@@ -5,9 +5,11 @@ import { Button } from '@/components/common/button';
 import { Edit2, Save, CameraIcon, Check, AlertCircle, Car, Calendar, ShoppingBag, Star, UserCircle, FileText } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
+import { useRouter } from 'next/navigation';
 
 export function ProfileContent() {
   const { user, token, login } = useAuth();
+  const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', mobileNumber: '', image: '' });
   const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
@@ -213,7 +215,7 @@ export function ProfileContent() {
               <p className="text-sm text-slate-500 max-w-sm mb-4">
                 You currently have {stats.vehiclesCount} vehicle(s) registered to your account.
               </p>
-              <Button variant="outline" className="font-bold">Manage Vehicles in Garage</Button>
+              <Button variant="outline" className="font-bold" onClick={() => router.push('/vehicles')}>Manage Vehicles in Garage</Button>
             </Card>
           )}
 
@@ -224,7 +226,7 @@ export function ProfileContent() {
               <p className="text-sm text-slate-500 max-w-sm mb-4">
                 You have {stats.bookingsCount} total bookings and {stats.ordersCount} orders.
               </p>
-              <Button variant="outline" className="font-bold">View Full Service History</Button>
+              <Button variant="outline" className="font-bold" onClick={() => router.push('/orders')}>View Full Service History</Button>
             </Card>
           )}
 
@@ -270,7 +272,7 @@ export function ProfileContent() {
             <h3 className="text-sm font-bold text-slate-900 mb-4">Your Summary</h3>
             
             <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <button onClick={() => router.push('/vehicles')} className="w-full flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center text-blue-600">
                     <Car className="w-4 h-4" />
@@ -278,9 +280,9 @@ export function ProfileContent() {
                   <span className="text-sm font-medium text-slate-700">Vehicles</span>
                 </div>
                 <span className="font-bold text-slate-900">{stats.vehiclesCount}</span>
-              </div>
+              </button>
               
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <button onClick={() => router.push('/bookings')} className="w-full flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
                     <Calendar className="w-4 h-4" />
@@ -288,9 +290,9 @@ export function ProfileContent() {
                   <span className="text-sm font-medium text-slate-700">Bookings</span>
                 </div>
                 <span className="font-bold text-slate-900">{stats.bookingsCount}</span>
-              </div>
+              </button>
               
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <button onClick={() => router.push('/quotes')} className="w-full flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center text-purple-600">
                     <FileText className="w-4 h-4" />
@@ -298,9 +300,9 @@ export function ProfileContent() {
                   <span className="text-sm font-medium text-slate-700">Quotes</span>
                 </div>
                 <span className="font-bold text-slate-900">{stats.quotesCount}</span>
-              </div>
+              </button>
               
-              <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
+              <button onClick={() => setActiveTab('reviews')} className="w-full flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 text-left">
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center text-amber-600">
                     <Star className="w-4 h-4" />
@@ -308,7 +310,7 @@ export function ProfileContent() {
                   <span className="text-sm font-medium text-slate-700">Reviews</span>
                 </div>
                 <span className="font-bold text-slate-900">{myReviews.length}</span>
-              </div>
+              </button>
             </div>
           </Card>
         </div>

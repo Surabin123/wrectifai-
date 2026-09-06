@@ -220,12 +220,12 @@ export function ShopPage() {
             <div className="relative z-10">
               <h2 className="text-2xl font-bold text-white mb-2">Summer Mega Sale</h2>
               <p className="text-blue-100 mb-4 max-w-sm">Up to 40% off on all engine oils and maintenance products.</p>
-              <Button className="bg-white text-blue-900 hover:bg-slate-50">Shop Now</Button>
+              <Button onClick={() => document.getElementById('shop-products')?.scrollIntoView({ behavior: 'smooth' })} className="bg-white text-blue-900 hover:bg-slate-50">Shop Now</Button>
             </div>
           </Card>
 
           {/* Products Grid */}
-          <div>
+          <div id="shop-products">
             <div className="flex justify-between items-center mb-4">
               <h3 className="font-bold text-slate-900">Popular Products</h3>
             </div>

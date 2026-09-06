@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { query } from '../../config/database';
+import { authenticate } from '../../middleware/auth';
 
 export const productsRouter = Router();
 
@@ -26,10 +27,15 @@ productsRouter.get('/:id', async (req, res) => {
   const { id } = req.params;
   try {
     const productResult = await query(
-      `SELECT p.id, p.name, p.category, p.description, p.price, p.is_diy_kit, p.image, p.compatible_vehicle_rules
+      `SELECT p.id, p.name, p.category, p.description,
+              COALESCE(gi.price, p.price) AS price,
+              COALESCE(gi.qty_available, 0) AS qty_available,
+              p.is_diy_kit, p.image, p.compatible_vehicle_rules,
+              gi.garage_id
        FROM products p
+       LEFT JOIN garage_inventory gi ON gi.product_id = p.id AND gi.is_active = true AND gi.garage_id = $2
        WHERE p.id = $1 AND p.is_active = true`,
-      [id]
+      [id, req.query.garageId || null]
     );
 
     if (productResult.rows.length === 0) {
@@ -56,17 +62,15 @@ productsRouter.get('/:id', async (req, res) => {
 });
 
 // POST /api/v1/products/:id/reviews - Submit a review
-productsRouter.post('/:id/reviews', async (req, res) => {
+productsRouter.post('/:id/reviews', authenticate, async (req, res) => {
   const { id } = req.params;
-  const { rating, review_text, user_id } = req.body; // In real app, user_id comes from token
+  const { rating, review_text } = req.body;
 
   if (!rating || rating < 1 || rating > 5) {
     return error(res, 'Invalid rating (must be 1-5)', 'BAD_REQUEST', 400);
   }
 
-  // Fallback user ID for testing since we might not have a full token setup in this mock context
-  // but let's assume req.user is set if authenticate middleware is used. Wait, no authenticate middleware used here yet.
-  const actualUserId = (req as any).user?.userId || user_id;
+  const actualUserId = req.user?.userId;
 
   if (!actualUserId) {
     return error(res, 'Unauthorized to leave a review', 'UNAUTHORIZED', 401);
@@ -77,7 +81,7 @@ productsRouter.post('/:id/reviews', async (req, res) => {
       `INSERT INTO product_reviews (product_id, user_id, rating, review_text)
        VALUES ($1, $2, $3, $4)
        RETURNING id, rating, review_text, created_at`,
-      [id, actualUserId, rating, review_text]
+      [id, actualUserId, rating, review_text || '']
     );
 
     return success(res, result.rows[0]);
