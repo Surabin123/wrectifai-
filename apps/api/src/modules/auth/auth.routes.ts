@@ -525,6 +525,7 @@ authRouter.get('/me', authenticate, async (req, res) => {
         status: user.status,
         roles,
         country: user.country,
+        image: user.image || null,
       },
     });
   } catch (err) {

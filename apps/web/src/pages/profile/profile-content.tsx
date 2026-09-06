@@ -55,12 +55,24 @@ export function ProfileContent() {
   };
 
   const handleSave = async () => {
+    if (!formData.name.trim()) {
+      showToast('Name cannot be empty', 'error');
+      return;
+    }
     try {
       const updatedUser = await apiClient.put<any>('/users/profile', formData);
       setIsEditing(false);
       showToast('Profile updated successfully', 'success');
-      if (token) {
-        login(token, undefined, { ...user, ...updatedUser, roles: user?.roles || [] });
+      // Refresh the in-memory user context with the persisted data from the API response.
+      // This ensures the displayed profile matches what /auth/me will return on next page load/refresh.
+      if (token && user) {
+        login(token, undefined, {
+          ...user,
+          name: updatedUser.name || user.name,
+          mobileNumber: updatedUser.mobileNumber || user.mobileNumber,
+          image: updatedUser.image || user.image,
+          roles: user.roles,
+        });
       }
     } catch (err: any) {
       console.error(err);
@@ -103,6 +115,14 @@ export function ProfileContent() {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
+                    if (file.size > 2 * 1024 * 1024) {
+                      showToast('Image must be under 2MB', 'error');
+                      return;
+                    }
+                    if (!file.type.startsWith('image/')) {
+                      showToast('Please select a valid image file', 'error');
+                      return;
+                    }
                     const reader = new FileReader();
                     reader.onloadend = () => {
                       setFormData({ ...formData, image: reader.result as string });
@@ -226,7 +246,7 @@ export function ProfileContent() {
               <p className="text-sm text-slate-500 max-w-sm mb-4">
                 You have {stats.bookingsCount} total bookings and {stats.ordersCount} orders.
               </p>
-              <Button variant="outline" className="font-bold" onClick={() => router.push('/orders')}>View Full Service History</Button>
+              <Button variant="outline" className="font-bold" onClick={() => router.push('/bookings')}>View Service History</Button>
             </Card>
           )}
 
