@@ -21,6 +21,10 @@ export interface User {
   status?: string;
   country?: string;
   image?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
 }
 
 export interface AuthContextType {
