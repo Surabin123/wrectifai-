@@ -111,6 +111,8 @@ export function CartPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [completedOrder, setCompletedOrder] = useState<any>(null);
   const [paymentTransactionId, setPaymentTransactionId] = useState<string | undefined>();
+  const [isPaymentSelectionOpen, setIsPaymentSelectionOpen] = useState(false);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'online' | 'cod'>('online');
 
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
@@ -126,10 +128,18 @@ export function CartPage() {
     });
   };
 
-  const handleCheckout = async () => {
+  const handleProceedToCheckout = () => {
     if (cartItems.length === 0) return;
-    
+    if (!address.name || !address.phone || !address.street || !address.zip) {
+      setErrorMsg("Please fill in all shipping address fields.");
+      return;
+    }
     setErrorMsg(null);
+    setIsPaymentSelectionOpen(true);
+  };
+
+  const processPayment = async (method: 'online' | 'cod') => {
+    setIsPaymentSelectionOpen(false);
     setIsProcessing(true);
     
     try {
@@ -155,13 +165,22 @@ export function CartPage() {
         items: cartItems.map(i => ({
           productId: i.id,
           quantity: i.quantity || 1
-        }))
+        })),
+        paymentMethod: method
       };
 
       // 1. Create Order
       const orderRes = await apiClient.post<any>('/orders', payload);
       
-      // 2. Init Payment
+      if (method === 'cod') {
+        setCompletedOrder(orderRes);
+        setSelectedPaymentMethod('cod');
+        setIsCheckoutModalOpen(true);
+        updateCart([]);
+        return;
+      }
+      
+      // 2. Init Payment (Online)
       const payRes = await apiClient.post<any>(`/orders/${orderRes.orderId}/pay`, {});
       
       const loaded = await loadRazorpayScript();
@@ -203,6 +222,7 @@ export function CartPage() {
               providerSignature: response.razorpay_signature
             });
             setCompletedOrder(orderRes);
+            setSelectedPaymentMethod('online');
             setPaymentTransactionId(response.razorpay_payment_id);
             setIsCheckoutModalOpen(true);
             updateCart([]);
@@ -355,7 +375,7 @@ export function CartPage() {
                   <span className="font-bold text-xl text-blue-600">{formatCurrencyForCity(total, userCity)}</span>
                 </div>
               </div>
-              <Button onClick={handleCheckout} disabled={cartItems.length === 0 || isProcessing} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 flex items-center justify-center gap-2">
+              <Button onClick={handleProceedToCheckout} disabled={cartItems.length === 0 || isProcessing} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 flex items-center justify-center gap-2">
                 {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Proceed to Checkout'}
               </Button>
             </Card>
@@ -366,21 +386,51 @@ export function CartPage() {
       <PaymentSuccessModal
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
-        title="Order Placed Successfully"
-        description="Your order has been placed successfully. You will receive an email confirmation shortly."
+        title="Order Placed Successfully!"
+        description={selectedPaymentMethod === 'cod' 
+          ? "Your order has been placed and will be delivered to you. Payment Method: Cash on Delivery"
+          : "Your payment was successful and your order has been placed."}
         amount={total}
-        paymentMethod="online"
+        paymentMethod={selectedPaymentMethod === 'cod' ? 'cash' : selectedPaymentMethod}
         transactionId={paymentTransactionId}
-        primaryActionLabel="View Invoice"
+        primaryActionLabel="View Order"
         onPrimaryAction={() => {
           setIsCheckoutModalOpen(false);
-          if (completedOrder) {
-            router.push(`/invoices/${completedOrder.orderId}?type=order`);
-          } else {
-            router.push('/shop');
-          }
+          router.push('/orders');
         }}
       />
+
+      <Modal
+        isOpen={isPaymentSelectionOpen}
+        onClose={() => setIsPaymentSelectionOpen(false)}
+        title="Choose Payment Method"
+        className="max-w-md"
+      >
+        <div className="space-y-4">
+          <div 
+            className={`p-4 border rounded-xl cursor-pointer hover:border-blue-500 transition-colors ${selectedPaymentMethod === 'online' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}
+            onClick={() => setSelectedPaymentMethod('online')}
+          >
+            <h4 className="font-bold text-slate-900">Online Payment</h4>
+            <p className="text-sm text-slate-500">Pay securely with UPI, Credit/Debit Card or Netbanking</p>
+          </div>
+          
+          <div 
+            className={`p-4 border rounded-xl cursor-pointer hover:border-blue-500 transition-colors ${selectedPaymentMethod === 'cod' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}
+            onClick={() => setSelectedPaymentMethod('cod')}
+          >
+            <h4 className="font-bold text-slate-900">Cash on Delivery</h4>
+            <p className="text-sm text-slate-500">Pay when your order is delivered to your doorstep</p>
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <Button variant="outline" className="flex-1" onClick={() => setIsPaymentSelectionOpen(false)}>Cancel</Button>
+            <Button className="flex-1 bg-blue-600 hover:bg-blue-700" onClick={() => processPayment(selectedPaymentMethod)}>
+              Place Order
+            </Button>
+          </div>
+        </div>
+      </Modal>
 
       <Modal
         isOpen={!!promoErrorMsg}

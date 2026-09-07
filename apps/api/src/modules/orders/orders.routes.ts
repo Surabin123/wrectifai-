@@ -19,7 +19,7 @@ ordersRouter.post('/', authenticate, async (req, res) => {
   const customerId = req.user?.userId;
   if (!customerId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
 
-  const { items, garageId, shippingAddress, offerCode } = req.body;
+  const { items, garageId, shippingAddress, offerCode, paymentMethod } = req.body;
   
   if (!items || !items.length || !garageId || !shippingAddress) {
     return error(res, 'Missing required fields', 'BAD_REQUEST', 400);
@@ -98,9 +98,9 @@ ordersRouter.post('/', authenticate, async (req, res) => {
 
     // 2. Create the Order
     const orderResult = await client.query(
-      `INSERT INTO orders (customer_id, garage_id, order_number, status, subtotal, shipping_cost, tax, discount_applied, offer_id, total, currency, fulfillment_mode, shipping_address)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13) RETURNING id`,
-      [customerId, garageId, orderNumber, 'pendingPayment', subtotal, shippingCost, tax, discountApplied, offerId, total, currency, 'inHouse', shippingAddress]
+      `INSERT INTO orders (customer_id, garage_id, order_number, status, subtotal, shipping_cost, tax, total, currency, fulfillment_mode, shipping_address)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+      [customerId, garageId, orderNumber, paymentMethod === 'cod' ? 'processing' : 'pendingPayment', subtotal, shippingCost, tax, total, currency, 'inHouse', shippingAddress]
     );
     const orderId = orderResult.rows[0].id;
     
@@ -116,6 +116,24 @@ ordersRouter.post('/', authenticate, async (req, res) => {
          VALUES ($1, $2, $3, $4, $5)`,
         [orderId, pItem.productId, pItem.quantity, pItem.unitPrice, pItem.totalPrice]
       );
+    }
+    
+    // 5. If COD, create payment record
+    if (paymentMethod === 'cod') {
+      await client.query(
+        `INSERT INTO payments (payer_user_id, order_id, provider, provider_intent_id, amount, currency, status)
+         VALUES ($1, $2, 'cod', $3, $4, $5, 'created')`,
+        [customerId, orderId, `cod_${orderId}`, total, currency]
+      );
+      // Deduct inventory immediately for COD
+      const itemsRes = await client.query(`SELECT * FROM order_items WHERE order_id = $1`, [orderId]);
+      for (const item of itemsRes.rows) {
+        await client.query(
+          `UPDATE garage_inventory SET qty_available = qty_available - $1 
+           WHERE product_id = $2 AND garage_id = $3`,
+          [item.quantity, item.product_id, garageId]
+        );
+      }
     }
     
     await client.query('COMMIT');
@@ -155,7 +173,7 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
     
     // Record payment intent
     await pool.query(
-      `INSERT INTO payments (customer_user_id, order_id, method, transaction_id, provider_order_id, amount, currency, status)
+      `INSERT INTO payments (payer_user_id, order_id, provider, provider_intent_id, provider_order_id, amount, currency, status)
        VALUES ($1, $2, 'razorpay', $3, $3, $4, 'INR', 'created')`,
       [customerId, orderId, rzpOrder.id, parseFloat(order.total)]
     );
@@ -197,7 +215,7 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
       // Update Payment
       await client.query(
         `UPDATE payments SET status = 'succeeded', provider_payment_id = $1, updated_at = NOW()
-         WHERE transaction_id = $2`,
+         WHERE provider_intent_id = $2`,
         [providerPaymentId, providerOrderId]
       );
       
