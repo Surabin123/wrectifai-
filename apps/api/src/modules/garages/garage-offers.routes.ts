@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
 import { query } from '../../config/database';
+import crypto from 'crypto';
 
 export const garageOffersRouter = Router({ mergeParams: true });
 
@@ -267,14 +268,15 @@ garageOffersRouter.post('/my-deals', authenticate, async (req, res) => {
       }
     }
 
+    const dealId = crypto.randomUUID();
     const result = await query(
       `INSERT INTO promos (
-         garage_id, title, badge, description, numeric_price, strike_price, discount_percent, 
+         id, garage_id, title, badge, description, numeric_price, strike_price, discount_percent, 
          bullets, image, active, is_combo, valid_from, valid_till
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true, $11, $12)
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, $12, $13)
        RETURNING *`,
       [
-        garageId, title, badge || 'Seasonal Deal', description, numericPrice, strikePrice || null, 
+        dealId, garageId, title, badge || 'Seasonal Deal', description, numericPrice, strikePrice || null, 
         discountPercent || null, bullets ? JSON.stringify(bullets) : null, processedImage || null, 
         active !== undefined ? active : true, validFrom || null, validTill || null
       ]
