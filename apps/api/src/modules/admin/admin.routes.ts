@@ -324,15 +324,17 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       for (const serviceName of services) {
         // Find matching platform service
         const platformServiceRes = await client.query(
-          `SELECT id, base_price FROM platform_services WHERE name = $1 LIMIT 1`,
+          `SELECT id, name, category, description, base_price FROM platform_services WHERE name = $1 LIMIT 1`,
           [serviceName]
         );
         if (platformServiceRes.rows.length > 0) {
           const ps = platformServiceRes.rows[0];
           await client.query(
-            `INSERT INTO services (garage_id, platform_service_id, price, duration_mins, is_active) VALUES ($1, $2, $3, $4, true)`,
-            [garageId, ps.id, ps.base_price || 0, 60]
+            `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, true)`,
+            [garageId, ps.id, ps.name, ps.category || 'General Service', ps.description || '', ps.base_price || 0, 60]
           );
+        } else {
+          throw new Error(`Validation Error: Selected service "${serviceName}" does not exist in the platform catalog.`);
         }
       }
     }
