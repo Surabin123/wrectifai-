@@ -16,7 +16,7 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
       throw new Error('FATAL: DATABASE_URL environment variable is not set in production.');
     }
     if (!envSource.RAZORPAY_WEBHOOK_SECRET) {
-      throw new Error('FATAL: RAZORPAY_WEBHOOK_SECRET environment variable is not set in production.');
+      console.warn('WARNING: RAZORPAY_WEBHOOK_SECRET environment variable is not set in production. Webhooks will fail verification.');
     }
   } else if (!warnLogged) {
     if (!jwtSecret || !jwtRefreshSecret) {
