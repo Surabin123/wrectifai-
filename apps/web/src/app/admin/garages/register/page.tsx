@@ -556,11 +556,10 @@ export default function RegisterGaragePage() {
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-10 mb-8">
-                  {/* Category */}
                   <div>
-                    <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">General Maintenance</h3>
+                    <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">Maintenance & Repairs</h3>
                     <div className="space-y-3">
-                      {['Oil & Filter Change', 'Periodic Maintenance', 'Brake Service', 'Battery Replacement', 'AC Service', 'Engine Service', 'Transmission Service', 'Wheel Alignment', 'Wheel Balancing', 'Tire Replacement'].map(s => (
+                      {['General Service', 'AC Service', 'Tyres & Wheel Care', 'Engine Repair', 'Brakes & Suspension', 'Battery Service'].map(s => (
                         <label key={s} className="flex items-center gap-3 cursor-pointer group">
                           <input type="checkbox" checked={formData.services.includes(s)} onChange={() => toggleService(s)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
                           <span className="text-sm text-slate-700 group-hover:text-blue-700">{s}</span>
@@ -569,47 +568,15 @@ export default function RegisterGaragePage() {
                     </div>
                   </div>
                   <div>
-                    <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">Diagnostics</h3>
-                    <div className="space-y-3 mb-10">
-                      {['Computer Diagnostics', 'Engine Diagnostics', 'Electrical Diagnostics', 'Battery Diagnostics', 'ECU Diagnostics'].map(s => (
-                        <label key={s} className="flex items-center gap-3 cursor-pointer group">
-                          <input type="checkbox" checked={formData.services.includes(s)} onChange={() => toggleService(s)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
-                          <span className="text-sm text-slate-700 group-hover:text-blue-700">{s}</span>
-                        </label>
-                      ))}
-                    </div>
-                    <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">Repair Services</h3>
+                    <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">Diagnostics & Others</h3>
                     <div className="space-y-3">
-                      {['Engine Repair', 'Transmission Repair', 'Suspension Repair', 'Steering Repair', 'Brake Repair', 'Electrical Repair'].map(s => (
+                      {['Diagnostics', 'Computer Diagnostics', 'More Services'].map(s => (
                         <label key={s} className="flex items-center gap-3 cursor-pointer group">
                           <input type="checkbox" checked={formData.services.includes(s)} onChange={() => toggleService(s)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
                           <span className="text-sm text-slate-700 group-hover:text-blue-700">{s}</span>
                         </label>
                       ))}
                     </div>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">Body & Exterior</h3>
-                    <div className="space-y-3">
-                      {['Dent Repair', 'Painting', 'Car Washing', 'Detailing', 'Ceramic Coating', 'Windshield Replacement'].map(s => (
-                        <label key={s} className="flex items-center gap-3 cursor-pointer group">
-                          <input type="checkbox" checked={formData.services.includes(s)} onChange={() => toggleService(s)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
-                          <span className="text-sm text-slate-700 group-hover:text-blue-700">{s}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">EV Services</h3>
-                    <div className="space-y-3">
-                      {['EV Diagnostics', 'EV Battery Service', 'EV Charging', 'EV Motor Service'].map(s => (
-                        <label key={s} className="flex items-center gap-3 cursor-pointer group">
-                          <input type="checkbox" checked={formData.services.includes(s)} onChange={() => toggleService(s)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
-                          <span className="text-sm text-slate-700 group-hover:text-blue-700">{s}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
                 </div>
 
                 <div className="border-t pt-6 border-slate-200">
