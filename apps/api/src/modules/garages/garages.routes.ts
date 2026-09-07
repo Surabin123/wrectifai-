@@ -868,7 +868,7 @@ garagesRouter.get('/my-requests', authenticate, async (req, res) => {
   }
 });
 
-garagesRouter.get('/:id', async (req, res) => {
+garagesRouter.get('/:id([0-9a-fA-F-]{36})', async (req, res) => {
   try {
     const [result, servicesResult] = await Promise.all([
       query(
