@@ -21,7 +21,7 @@ export function middleware(request: NextRequest) {
     path.startsWith('/customer') ||
     path === '/garages' ||
     path === '/settings' ||
-    path === '/shop' ||
+    path.startsWith('/shop') ||
     path === '/dashboard';
 
   // If no token exists

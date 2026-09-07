@@ -42,9 +42,10 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       const onAdminPath = pathname?.startsWith('/admin');
       const onGaragePath = pathname?.startsWith('/garage/') || pathname === '/garage';
       const isRoot = pathname === '/';
+      const onSharedPath = pathname?.startsWith('/shop') || pathname?.startsWith('/cart') || pathname?.startsWith('/orders');
       
-      // If a path is not admin, garage, root, or public, it's considered a customer path
-      const onCustomerPath = !onAdminPath && !onGaragePath && !isRoot && !isPublicPath;
+      // If a path is not admin, garage, root, public, or shared, it's considered a customer path
+      const onCustomerPath = !onAdminPath && !onGaragePath && !isRoot && !isPublicPath && !onSharedPath;
 
       // 0. Public Path Redirects (Authenticated user lands on login/signup)
       if (isPublicPath) {
@@ -71,8 +72,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // 2. Garage Security - Garage can only access garage paths
-      if (primaryRole === 'garage' && !onGaragePath && !isRoot) {
+      // 2. Garage Security - Garage can only access garage paths and shared paths
+      if (primaryRole === 'garage' && !onGaragePath && !onSharedPath && !isRoot) {
          router.replace('/garage/dashboard');
          return;
       }

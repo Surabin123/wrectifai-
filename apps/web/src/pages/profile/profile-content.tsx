@@ -65,8 +65,8 @@ export function ProfileContent() {
       showToast('Profile updated successfully', 'success');
       // Refresh the in-memory user context with the persisted data from the API response.
       // This ensures the displayed profile matches what /auth/me will return on next page load/refresh.
-      if (token && user) {
-        login(token, undefined, {
+      if (user) {
+        login(token || '', undefined, {
           ...user,
           name: updatedUser.name || user.name,
           mobileNumber: updatedUser.mobileNumber || user.mobileNumber,
