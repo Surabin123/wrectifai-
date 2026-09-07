@@ -97,9 +97,10 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
             return 'REFRESHED';
           } catch (_refreshErr) {
-            refreshPromise = null;
             window.dispatchEvent(new CustomEvent('auth-logout'));
             throw new ApiError('Session expired. Please log in again.', 401, 'UNAUTHORIZED_EXPIRED');
+          } finally {
+            refreshPromise = null;
           }
         })();
       }

@@ -86,7 +86,7 @@ export default function RegisterGaragePage() {
   const handleNext = () => {
     setErrorMsg('');
     if (step === 1) {
-      if (!formData.name || !formData.type || !formData.phone || !formData.email || !formData.city || !formData.area || !formData.address) {
+      if (!formData.name || !formData.type || !formData.phone || !formData.email || !formData.city || !formData.area || !formData.address || !formData.registrationNumber || !formData.description) {
         setErrorMsg('Please fill out all required fields marked with *');
         return;
       }
@@ -318,9 +318,9 @@ export default function RegisterGaragePage() {
                      )}
                    </div>
                    <div>
-                     <label className="block text-xs font-bold text-slate-700 mb-2">Registration Number <span className="text-slate-400 font-normal">(Optional)</span></label>
-                     <input type="text" value={formData.registrationNumber} onChange={e => setFormData({...formData, registrationNumber: e.target.value})} placeholder="Enter registration number" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
-                   </div>
+                      <label className="block text-xs font-bold text-slate-700 mb-2">Registration Number <span className="text-red-500">*</span></label>
+                      <input type="text" value={formData.registrationNumber} onChange={e => setFormData({...formData, registrationNumber: e.target.value})} placeholder="Enter registration number" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                    </div>
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Established Year <span className="text-red-500">*</span></label>
                      <select value={formData.year} onChange={e => setFormData({...formData, year: e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
@@ -377,7 +377,7 @@ export default function RegisterGaragePage() {
                 
                 <div className="grid grid-cols-2 gap-6 mb-6">
                    <div>
-                     <label className="block text-xs font-bold text-slate-700 mb-2">Garage Description <span className="text-slate-400 font-normal">(Optional)</span></label>
+                     <label className="block text-xs font-bold text-slate-700 mb-2">Garage Description <span className="text-red-500">*</span></label>
                      <textarea value={formData.description} onChange={e => setFormData({...formData, description: e.target.value})} maxLength={200} placeholder="A multi-brand automotive service center providing vehicle maintenance..." className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none h-24 focus:border-blue-500"></textarea>
                      <div className="text-right text-[10px] text-slate-400 mt-1">{formData.description.length}/200</div>
                    </div>

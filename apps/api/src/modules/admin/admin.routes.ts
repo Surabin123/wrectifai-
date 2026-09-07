@@ -126,8 +126,16 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       name, phone, email, city, address, area,
       ownerName, ownerPhone, password, 
       services, description, workingHours,
-      chips, image, country, responseMins
+      chips, image, country, responseMins,
+      registrationNumber
     } = req.body;
+
+    if (!registrationNumber || !registrationNumber.trim()) {
+      return error(res, 'Registration number is strictly required.', 'VALIDATION_ERROR', 400);
+    }
+    if (!description || !description.trim()) {
+      return error(res, 'Garage description is strictly required.', 'VALIDATION_ERROR', 400);
+    }
 
     // Backend validation for documents (before DB work)
     if (image) {
