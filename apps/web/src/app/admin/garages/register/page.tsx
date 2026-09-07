@@ -577,6 +577,7 @@ export default function RegisterGaragePage() {
                         </label>
                       ))}
                     </div>
+                  </div>
                 </div>
 
                 <div className="border-t pt-6 border-slate-200">
