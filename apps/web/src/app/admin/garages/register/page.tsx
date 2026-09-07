@@ -39,7 +39,9 @@ export default function RegisterGaragePage() {
     ownerIdDoc: null as any,
     addressProofDoc: null as any,
     services: [] as string[],
+    servicePrices: {} as Record<string, string>,
     customServices: [] as string[],
+    customServicePrices: {} as Record<string, string>,
     chips: [] as string[],
     image: null as any,
     workingHours: {
@@ -134,6 +136,24 @@ export default function RegisterGaragePage() {
         setErrorMsg('Please select at least one service offered by the garage.');
         return;
       }
+      
+      // Validate prices for selected platform services
+      for (const s of formData.services) {
+        const price = formData.servicePrices[s];
+        if (!price || isNaN(Number(price)) || Number(price) < 0) {
+          const serviceName = platformServices.find(ps => ps.id === s)?.name || 'a selected service';
+          setErrorMsg(`Please enter a valid non-negative price for ${serviceName}.`);
+          return;
+        }
+      }
+      // Validate prices for custom services
+      for (const s of formData.customServices) {
+        const price = formData.customServicePrices[s];
+        if (!price || isNaN(Number(price)) || Number(price) < 0) {
+          setErrorMsg(`Please enter a valid non-negative price for custom service "${s}".`);
+          return;
+        }
+      }
     }
 
     setStep(prev => Math.min(prev + 1, 6));
@@ -171,7 +191,9 @@ export default function RegisterGaragePage() {
         ownerPhone: formData.sameAsGaragePhone ? (formData.countryCode + formData.phone) : (formData.ownerCountryCode + formData.ownerPhone),
         password: formData.password,
         services: formData.services,
+        servicePrices: formData.servicePrices,
         customServices: formData.customServices,
+        customServicePrices: formData.customServicePrices,
         chips: formData.chips,
         image: formData.image,
         description: formData.description,
@@ -560,23 +582,59 @@ export default function RegisterGaragePage() {
                   <div>
                     <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">Maintenance & Repairs</h3>
                     <div className="space-y-3">
-                      {platformServices.filter(s => s.category !== 'Inspection').map(s => (
-                        <label key={s.id} className="flex items-center gap-3 cursor-pointer group">
-                          <input type="checkbox" checked={formData.services.includes(s.id)} onChange={() => toggleService(s.id)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
-                          <span className="text-sm text-slate-700 group-hover:text-blue-700">{s.name}</span>
-                        </label>
-                      ))}
+                      {platformServices.filter(s => s.category !== 'Inspection').map(s => {
+                        const isSelected = formData.services.includes(s.id);
+                        return (
+                          <div key={s.id} className="flex flex-col gap-2">
+                            <label className="flex items-center gap-3 cursor-pointer group">
+                              <input type="checkbox" checked={isSelected} onChange={() => toggleService(s.id)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
+                              <span className="text-sm text-slate-700 group-hover:text-blue-700">{s.name}</span>
+                            </label>
+                            {isSelected && (
+                              <div className="ml-7 flex items-center gap-2">
+                                <span className="text-xs text-slate-500">Price: {formData.countryCode === '+91' ? '₹' : formData.countryCode === '+1' ? '$' : 'AED '}</span>
+                                <input 
+                                  type="number" 
+                                  min="0"
+                                  value={formData.servicePrices[s.id] || ''} 
+                                  onChange={(e) => setFormData(prev => ({ ...prev, servicePrices: { ...prev.servicePrices, [s.id]: e.target.value } }))} 
+                                  placeholder="0.00"
+                                  className="border border-slate-300 rounded px-2 py-1 text-xs w-24 outline-none focus:border-blue-500" 
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                   <div>
                     <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">Diagnostics & Others</h3>
                     <div className="space-y-3">
-                      {platformServices.filter(s => s.category === 'Inspection').map(s => (
-                        <label key={s.id} className="flex items-center gap-3 cursor-pointer group">
-                          <input type="checkbox" checked={formData.services.includes(s.id)} onChange={() => toggleService(s.id)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
-                          <span className="text-sm text-slate-700 group-hover:text-blue-700">{s.name}</span>
-                        </label>
-                      ))}
+                      {platformServices.filter(s => s.category === 'Inspection').map(s => {
+                        const isSelected = formData.services.includes(s.id);
+                        return (
+                          <div key={s.id} className="flex flex-col gap-2">
+                            <label className="flex items-center gap-3 cursor-pointer group">
+                              <input type="checkbox" checked={isSelected} onChange={() => toggleService(s.id)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
+                              <span className="text-sm text-slate-700 group-hover:text-blue-700">{s.name}</span>
+                            </label>
+                            {isSelected && (
+                              <div className="ml-7 flex items-center gap-2">
+                                <span className="text-xs text-slate-500">Price: {formData.countryCode === '+91' ? '₹' : formData.countryCode === '+1' ? '$' : 'AED '}</span>
+                                <input 
+                                  type="number" 
+                                  min="0"
+                                  value={formData.servicePrices[s.id] || ''} 
+                                  onChange={(e) => setFormData(prev => ({ ...prev, servicePrices: { ...prev.servicePrices, [s.id]: e.target.value } }))} 
+                                  placeholder="0.00"
+                                  className="border border-slate-300 rounded px-2 py-1 text-xs w-24 outline-none focus:border-blue-500" 
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
@@ -588,11 +646,25 @@ export default function RegisterGaragePage() {
                     <button onClick={addCustomService} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><Plus className="w-4 h-4"/> Add</button>
                   </div>
                   {formData.customServices.length > 0 && (
-                    <div className="flex flex-wrap gap-2 mt-4">
+                    <div className="flex flex-col gap-3 mt-4 max-w-md">
                       {formData.customServices.map(s => (
-                        <span key={s} className="bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
-                          {s} <button onClick={() => setFormData(prev => ({ ...prev, customServices: prev.customServices.filter(service => service !== s) }))} className="text-blue-400 hover:text-blue-700"><X className="w-3 h-3"/></button>
-                        </span>
+                        <div key={s} className="bg-blue-50 border border-blue-100 px-3 py-2 rounded-lg flex items-center justify-between gap-4">
+                          <span className="text-sm text-blue-700 font-medium">{s}</span>
+                          <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-blue-600">Price: {formData.countryCode === '+91' ? '₹' : formData.countryCode === '+1' ? '$' : 'AED '}</span>
+                              <input 
+                                type="number" 
+                                min="0"
+                                value={formData.customServicePrices[s] || ''} 
+                                onChange={(e) => setFormData(prev => ({ ...prev, customServicePrices: { ...prev.customServicePrices, [s]: e.target.value } }))} 
+                                placeholder="0.00"
+                                className="border border-blue-200 rounded px-2 py-1 text-xs w-24 outline-none focus:border-blue-500" 
+                              />
+                            </div>
+                            <button onClick={() => setFormData(prev => ({ ...prev, customServices: prev.customServices.filter(service => service !== s) }))} className="text-blue-400 hover:text-blue-700"><X className="w-4 h-4"/></button>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   )}
