@@ -135,6 +135,7 @@ export default function ServicesPage() {
       setValidationError('All fields are required.');
       return;
     }
+    setValidationError('');
     try {
       await apiClient.post('/garages/my-services/request', {
         ...requestData,
@@ -163,6 +164,7 @@ export default function ServicesPage() {
       setValidationError('Image must be less than 2MB.');
       return;
     }
+    setValidationError('');
     const reader = new FileReader();
     reader.onload = (event) => {
       const base64 = event.target?.result as string;
