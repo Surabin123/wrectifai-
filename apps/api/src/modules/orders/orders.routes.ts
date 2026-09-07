@@ -137,7 +137,17 @@ ordersRouter.post('/', authenticate, async (req, res) => {
     }
     
     await client.query('COMMIT');
-    return success(res, { orderId, orderNumber, total, subtotal, tax, shippingCost, discountApplied });
+    return success(res, { 
+      orderId, 
+      orderNumber, 
+      total: parseFloat(total.toString()), 
+      subtotal: parseFloat(subtotal.toString()), 
+      tax: parseFloat(tax.toString()), 
+      shippingCost: parseFloat(shippingCost.toString()), 
+      discountApplied: parseFloat(discountApplied.toString()),
+      currency,
+      paymentMethod
+    });
   } catch (err: any) {
     await client.query('ROLLBACK');
     console.error('Order creation error:', err);
@@ -246,7 +256,15 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
       );
       
       await client.query('COMMIT');
-      return success(res, { verified: true, orderId });
+      return success(res, { 
+        verified: true, 
+        orderId: order.id,
+        orderNumber: order.order_number,
+        transactionId: providerPaymentId,
+        paymentMethod: 'online',
+        amount: parseFloat(order.total),
+        currency: order.currency
+      });
     } catch (dbErr) {
       await client.query('ROLLBACK');
       throw dbErr;
@@ -440,6 +458,56 @@ ordersRouter.get('/customer/me', authenticate, async (req, res) => {
   } catch (err) {
     console.error('Fetch customer orders error', err);
     return error(res, 'Failed to fetch customer orders', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// GET /api/v1/orders/:id - Get single order details by ID
+ordersRouter.get('/:id', authenticate, async (req, res) => {
+  const customerId = req.user?.userId;
+  const { id } = req.params;
+  if (!customerId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
+
+  const pool = getDbPool();
+  try {
+    const ordersRes = await pool.query(`
+      SELECT o.*, 
+        g.name as garage_name,
+        COALESCE(
+          json_agg(
+            json_build_object(
+              'id', oi.id,
+              'product_id', oi.product_id,
+              'quantity', oi.quantity,
+              'unit_price', oi.unit_price,
+              'total_price', oi.total_price,
+              'name', p.name,
+              'image', p.image
+            )
+          ) FILTER (WHERE oi.id IS NOT NULL), 
+          '[]'
+        ) as items,
+        p_pay.method as payment_method,
+        p_pay.provider_payment_id as payment_transaction_id,
+        p_pay.status as payment_status,
+        da.status as delivery_status
+      FROM orders o
+      LEFT JOIN garages g ON o.garage_id = g.id
+      LEFT JOIN order_items oi ON o.id = oi.order_id
+      LEFT JOIN products p ON oi.product_id = p.id
+      LEFT JOIN payments p_pay ON o.id = p_pay.order_id
+      LEFT JOIN delivery_assignments da ON o.id = da.order_id
+      WHERE o.id = $1 AND (o.customer_id = $2 OR g.owner_user_id = $2)
+      GROUP BY o.id, g.name, p_pay.method, p_pay.provider_payment_id, p_pay.status, da.status
+    `, [id, customerId]);
+
+    if (ordersRes.rows.length === 0) {
+      return error(res, 'Order not found or unauthorized', 'NOT_FOUND', 404);
+    }
+
+    return success(res, ordersRes.rows[0]);
+  } catch (err) {
+    console.error('Fetch order details error', err);
+    return error(res, 'Failed to fetch order details', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
 

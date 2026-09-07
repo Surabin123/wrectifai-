@@ -173,8 +173,15 @@ export function CartPage() {
       const orderRes = await apiClient.post<any>('/orders', payload);
       
       if (method === 'cod') {
-        setCompletedOrder(orderRes);
+        setCompletedOrder({
+          id: orderRes.orderId,
+          orderNumber: orderRes.orderNumber,
+          total: orderRes.total,
+          paymentMethod: 'cod',
+          transactionId: undefined
+        });
         setSelectedPaymentMethod('cod');
+        setPaymentTransactionId(undefined);
         setIsCheckoutModalOpen(true);
         updateCart([]);
         return;
@@ -215,13 +222,19 @@ export function CartPage() {
         },
         handler: async function (response: any) {
           try {
-            await apiClient.post('/orders/verify-payment', {
+            const verifyRes = await apiClient.post<any>('/orders/verify-payment', {
               orderId: orderRes.orderId,
               providerOrderId: response.razorpay_order_id,
               providerPaymentId: response.razorpay_payment_id,
               providerSignature: response.razorpay_signature
             });
-            setCompletedOrder(orderRes);
+            setCompletedOrder({
+              id: verifyRes.orderId || orderRes.orderId,
+              orderNumber: verifyRes.orderNumber || orderRes.orderNumber,
+              total: verifyRes.amount ?? orderRes.total,
+              paymentMethod: 'online',
+              transactionId: response.razorpay_payment_id
+            });
             setSelectedPaymentMethod('online');
             setPaymentTransactionId(response.razorpay_payment_id);
             setIsCheckoutModalOpen(true);
@@ -387,16 +400,20 @@ export function CartPage() {
         isOpen={isCheckoutModalOpen}
         onClose={() => setIsCheckoutModalOpen(false)}
         title="Order Placed Successfully!"
-        description={selectedPaymentMethod === 'cod' 
+        description={completedOrder?.paymentMethod === 'cod' 
           ? "Your order has been placed and will be delivered to you. Payment Method: Cash on Delivery"
           : "Your payment was successful and your order has been placed."}
-        amount={total}
-        paymentMethod={selectedPaymentMethod === 'cod' ? 'cash' : selectedPaymentMethod}
-        transactionId={paymentTransactionId}
+        amount={completedOrder?.total ?? 0}
+        paymentMethod={completedOrder?.paymentMethod === 'cod' ? 'cash' : 'online'}
+        transactionId={completedOrder?.paymentMethod === 'cod' ? undefined : (completedOrder?.transactionId || paymentTransactionId)}
         primaryActionLabel="View Order"
         onPrimaryAction={() => {
           setIsCheckoutModalOpen(false);
-          router.push('/orders');
+          if (completedOrder?.id) {
+            router.push(`/orders/${completedOrder.id}`);
+          } else {
+            router.push('/orders');
+          }
         }}
       />
 
