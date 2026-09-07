@@ -240,6 +240,11 @@ export default function CustomersPage() {
                   <span>{selectedUser.email}</span>
                   <span>{selectedUser.phone || 'No Phone'}</span>
                 </div>
+                {selectedUser.address && (
+                  <div className="text-xs text-slate-500 mt-2">
+                    {selectedUser.address}, {selectedUser.city}, {selectedUser.state} - {selectedUser.pincode}
+                  </div>
+                )}
               </div>
               <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase border ${
                  selectedUser.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-700 border-orange-200'

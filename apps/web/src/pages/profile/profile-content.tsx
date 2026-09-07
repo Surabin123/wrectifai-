@@ -11,7 +11,7 @@ export function ProfileContent() {
   const { user, token, login } = useAuth();
   const router = useRouter();
   const [isEditing, setIsEditing] = useState(false);
-  const [formData, setFormData] = useState({ name: '', email: '', mobileNumber: '', image: '' });
+  const [formData, setFormData] = useState({ name: '', email: '', mobileNumber: '', image: '', address: '', city: '', state: '', pincode: '' });
   const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
   
   const [stats, setStats] = useState({ bookingsCount: 0, vehiclesCount: 0, quotesCount: 0, ordersCount: 0 });
@@ -49,7 +49,11 @@ export function ProfileContent() {
       name: user?.name || '', 
       email: user?.email || '', 
       mobileNumber: user?.mobileNumber || '',
-      image: user?.image || ''
+      image: user?.image || '',
+      address: user?.address || '',
+      city: user?.city || '',
+      state: user?.state || '',
+      pincode: user?.pincode || ''
     });
     setIsEditing(true);
   };
@@ -71,6 +75,10 @@ export function ProfileContent() {
           name: updatedUser.name || user.name,
           mobileNumber: updatedUser.mobileNumber || user.mobileNumber,
           image: updatedUser.image || user.image,
+          address: updatedUser.address || user.address,
+          city: updatedUser.city || user.city,
+          state: updatedUser.state || user.state,
+          pincode: updatedUser.pincode || user.pincode,
           roles: user.roles,
         });
       }
@@ -207,12 +215,44 @@ export function ProfileContent() {
                     <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.email || 'N/A'}</span>
                   )}
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
                   <span className="text-sm font-medium text-slate-500 w-1/3">Phone Number</span>
                   {isEditing ? (
                     <input type="text" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.mobileNumber} onChange={(e) => setFormData({...formData, mobileNumber: e.target.value})} />
                   ) : (
                     <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.mobileNumber ?? 'N/A'}</span>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
+                  <span className="text-sm font-medium text-slate-500 w-1/3">Address</span>
+                  {isEditing ? (
+                    <input type="text" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.address} onChange={(e) => setFormData({...formData, address: e.target.value})} placeholder="Street Address" />
+                  ) : (
+                    <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.address || 'N/A'}</span>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
+                  <span className="text-sm font-medium text-slate-500 w-1/3">City</span>
+                  {isEditing ? (
+                    <input type="text" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.city} onChange={(e) => setFormData({...formData, city: e.target.value})} placeholder="City" />
+                  ) : (
+                    <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.city || 'N/A'}</span>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
+                  <span className="text-sm font-medium text-slate-500 w-1/3">State</span>
+                  {isEditing ? (
+                    <input type="text" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.state} onChange={(e) => setFormData({...formData, state: e.target.value})} placeholder="State" />
+                  ) : (
+                    <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.state || 'N/A'}</span>
+                  )}
+                </div>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2">
+                  <span className="text-sm font-medium text-slate-500 w-1/3">Pincode</span>
+                  {isEditing ? (
+                    <input type="text" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.pincode} onChange={(e) => setFormData({...formData, pincode: e.target.value})} placeholder="Pincode" />
+                  ) : (
+                    <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.pincode || 'N/A'}</span>
                   )}
                 </div>
               </div>

@@ -14,7 +14,7 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
     const userId = req.user?.userId;
     if (!userId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
 
-    const { name, email, mobileNumber, image } = req.body;
+    const { name, email, mobileNumber, image, address, city, state, pincode } = req.body;
 
     if (!name || typeof name !== 'string' || name.trim() === '') {
       return error(res, 'Name is required', 'VALIDATION_ERROR', 400);
@@ -28,6 +28,7 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
     const phoneToSave = mobileNumber && mobileNumber.trim() !== '' ? mobileNumber.trim() : null;
     const imageToSave = image && typeof image === 'string' && image.trim() !== '' ? image.trim() : null;
     
+    // Update users table
     const result = await query(
       'UPDATE users SET name = $1, email = $2, mobile_number = $3, image = $4 WHERE id = $5 RETURNING id, email, name, mobile_number as "mobileNumber", image, status',
       [name.trim(), emailToSave, phoneToSave, imageToSave, userId]
@@ -37,7 +38,30 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
       return error(res, 'User not found', 'NOT_FOUND', 404);
     }
 
-    return success(res, result.rows[0]);
+    // Update or insert into profiles table
+    await query(`
+      INSERT INTO profiles (id, user_id, address_line, city, state, postal_code)
+      VALUES (gen_random_uuid(), $1, $2, $3, $4, $5)
+      ON CONFLICT (user_id) DO UPDATE SET 
+        address_line = EXCLUDED.address_line,
+        city = EXCLUDED.city,
+        state = EXCLUDED.state,
+        postal_code = EXCLUDED.postal_code
+    `, [
+      userId,
+      address ? address.trim() : null,
+      city ? city.trim() : null,
+      state ? state.trim() : null,
+      pincode ? pincode.trim() : null
+    ]);
+
+    const updatedUser = result.rows[0];
+    updatedUser.address = address ? address.trim() : '';
+    updatedUser.city = city ? city.trim() : '';
+    updatedUser.state = state ? state.trim() : '';
+    updatedUser.pincode = pincode ? pincode.trim() : '';
+
+    return success(res, updatedUser);
   } catch (err: any) {
     console.error('Failed to update profile', err);
     if (err.code === '23505') {

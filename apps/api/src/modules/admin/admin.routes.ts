@@ -469,8 +469,15 @@ adminRouter.get('/users/:id', async (req, res) => {
       LEFT JOIN vehicles v ON qr.vehicle_id = v.id
       WHERE qr.customer_id = $1 ORDER BY q.created_at DESC`, [userId]);
 
+    const profileRes = await query(`SELECT address_line as address, city, state, postal_code as pincode FROM profiles WHERE user_id = $1`, [userId]);
+    const profile = profileRes.rows[0] || {};
+
     const userDetails = {
       ...user,
+      address: profile.address || '',
+      city: profile.city || '',
+      state: profile.state || '',
+      pincode: profile.pincode || '',
       vehicles: vehiclesRes.rows || [],
       bookings: bookingsRes.rows || [],
       quotes: quotesRes.rows || []
@@ -606,6 +613,40 @@ adminRouter.post('/users', async (req, res) => {
     return error(res, err.message || 'Failed to add customer', 'DATABASE_ERROR', 500);
   } finally {
     dbClient.release();
+  }
+});
+
+// Add a vehicle to an existing customer record (Admin only)
+adminRouter.post('/users/:id/vehicles', async (req, res) => {
+  try {
+    const customerId = req.params.id;
+    const { make, model, year, vin, plateNumber, trim, fuelType, mileage } = req.body;
+
+    if (!make || !model || !year) {
+      return error(res, 'Make, model, and year are required', 'BAD_REQUEST', 400);
+    }
+
+    const result = await query(
+      `INSERT INTO vehicles (customer_id, make, model, year, vin, plate_number, trim, fuel_type, mileage, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)
+       RETURNING *`,
+      [
+        customerId,
+        make.trim(),
+        model.trim(),
+        parseInt(year, 10),
+        vin ? vin.trim() : null,
+        plateNumber ? plateNumber.trim() : null,
+        trim ? trim.trim() : null,
+        fuelType ? fuelType.trim() : null,
+        mileage ? parseInt(mileage, 10) : null
+      ]
+    );
+
+    return success(res, result.rows[0], 201);
+  } catch (err: any) {
+    console.error('Admin add vehicle error:', err);
+    return error(res, err.message || 'Failed to add vehicle', 'DATABASE_ERROR', 500);
   }
 });
 

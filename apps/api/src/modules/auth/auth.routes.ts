@@ -508,6 +508,9 @@ authRouter.get('/me', authenticate, async (req, res) => {
       }
     }
 
+    const profileResult = await query('SELECT * FROM profiles WHERE user_id = $1', [userId]);
+    const profile = profileResult.rows[0] || {};
+
     return success(res, {
       user: {
         id: user.id,
@@ -521,6 +524,10 @@ authRouter.get('/me', authenticate, async (req, res) => {
         roles,
         country: user.country,
         image: user.image || null,
+        address: profile.address_line || '',
+        city: profile.city || '',
+        state: profile.state || '',
+        pincode: profile.postal_code || '',
       },
     });
   } catch (err) {
