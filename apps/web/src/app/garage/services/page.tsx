@@ -131,8 +131,8 @@ export default function ServicesPage() {
   };
 
   const submitRequestService = async () => {
-    if (!requestData.name || !requestData.category) {
-      setValidationError('Name and category are required.');
+    if (!requestData.name || !requestData.category || !requestData.image || !requestData.description || !requestData.suggestedPrice || !requestData.suggestedDuration || !requestData.durationUnit) {
+      setValidationError('All fields are required.');
       return;
     }
     try {
@@ -445,7 +445,7 @@ export default function ServicesPage() {
                     <input type="text" value={requestData.category} onChange={(e) => setRequestData({...requestData, category: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Performance" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Service Image</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Service Image *</label>
                     {imagePreview ? (
                       <div className="relative inline-block">
                         <img src={imagePreview} alt="Preview" className="w-24 h-24 object-cover rounded-lg border border-slate-200" />
@@ -456,26 +456,26 @@ export default function ServicesPage() {
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Description</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Description *</label>
                     <textarea value={requestData.description} onChange={(e) => setRequestData({...requestData, description: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm min-h-[60px]" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Suggested Price</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Suggested Price *</label>
                       <input type="text" inputMode="decimal" value={requestData.suggestedPrice} onChange={(e) => {
                         const val = e.target.value.replace(/[^0-9.]/g, '');
                         setRequestData({...requestData, suggestedPrice: val});
-                      }} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Optional" />
+                      }} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 1500" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Suggested Duration Value</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Suggested Duration Value *</label>
                       <input type="text" inputMode="numeric" value={requestData.suggestedDuration} onChange={(e) => {
                          const val = e.target.value.replace(/[^0-9]/g, '');
                          setRequestData({...requestData, suggestedDuration: val});
                       }} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 60" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Unit</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Unit *</label>
                       <select value={requestData.durationUnit} onChange={(e) => setRequestData({...requestData, durationUnit: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">
                         <option value="Minutes">Minutes</option>
                         <option value="Hours">Hours</option>
@@ -485,7 +485,7 @@ export default function ServicesPage() {
                   </div>
                   <div className="mt-8 flex justify-end gap-3">
                     <button onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded-lg text-sm font-bold text-slate-600">Cancel</button>
-                    <button onClick={submitRequestService} disabled={!requestData.name || !requestData.category} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Add Custom Service</button>
+                    <button onClick={submitRequestService} disabled={!requestData.name || !requestData.category || !requestData.image || !requestData.description || !requestData.suggestedPrice || !requestData.suggestedDuration || !requestData.durationUnit} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Add Custom Service</button>
                   </div>
                 </div>
               )}
