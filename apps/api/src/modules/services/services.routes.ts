@@ -9,11 +9,15 @@ servicesRouter.get('/', async (req, res) => {
   try {
     const city = req.query.city ? (req.query.city as string).toLowerCase() : null;
     const country = req.query.country ? (req.query.country as string).toLowerCase() : null;
+    const garageId = req.query.garageId ? (req.query.garageId as string) : null;
 
     const params: any[] = [];
     const conditions: string[] = ["s.is_active = true", "g.approval_status IN ('active', 'approved', 'suspended')"];
 
-    if (city && city !== 'location') {
+    if (garageId) {
+      params.push(garageId);
+      conditions.push(`s.garage_id = $${params.length}`);
+    } else if (city && city !== 'location') {
       params.push(city);
       conditions.push(`LOWER(COALESCE(g.location->>'city', g.city)) = $${params.length}`);
     }

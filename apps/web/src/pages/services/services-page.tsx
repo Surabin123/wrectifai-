@@ -9,7 +9,6 @@ import Image from 'next/image';
 import { cn } from '@/utils/cn';
 import { setLocationCookie, getLocationCookie } from '@/utils/location';
 import { formatCurrency } from '@/lib/currency';
-import { Modal } from '@/components/common/modal';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 // Trigger recompile
@@ -35,26 +34,38 @@ export function ServicesPage() {
   const router = useRouter();
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All Services');
-  const [selectedServiceGroup, setSelectedServiceGroup] = useState<any>(null);
-  const [isGarageModalOpen, setIsGarageModalOpen] = useState(false);
   const [rawServices, setRawServices] = useState<any[]>([]);
+  const [garages, setGarages] = useState<any[]>([]);
+  const [selectedGarageId, setSelectedGarageId] = useState<string>('');
   const [userCity, setUserCity] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
-  const fetchServices = (city: string) => {
+  // Fetch Garages for the current city
+  const fetchLocationGarages = (city: string) => {
     const activeCity = city || getSavedCity() || 'Bengaluru';
     setUserCity(activeCity);
-    apiClient.get<any[]>(`/services?city=${encodeURIComponent(activeCity)}`)
+    apiClient.get<any[]>(`/garages?city=${encodeURIComponent(activeCity)}`)
       .then(data => {
-        setRawServices(data || []);
+        setGarages(data || []);
+        if (data && data.length > 0) {
+          const savedGarage = localStorage.getItem('selectedGarageId');
+          const isValidSaved = data.some(g => g.id === savedGarage);
+          const nextGarageId = isValidSaved ? savedGarage! : data[0].id;
+          setSelectedGarageId(nextGarageId);
+          localStorage.setItem('selectedGarageId', nextGarageId);
+        } else {
+          setSelectedGarageId('');
+          setRawServices([]);
+        }
       })
       .catch(console.error);
   };
 
   useEffect(() => {
-    fetchServices(getSavedCity() || 'Bengaluru');
+    fetchLocationGarages(getSavedCity() || 'Bengaluru');
 
     const handleCityChange = () => {
-      fetchServices(getSavedCity() || 'Bengaluru');
+      fetchLocationGarages(getSavedCity() || 'Bengaluru');
     };
 
     const handleSearch = (e: CustomEvent) => setSearchQuery(e.detail);
@@ -68,58 +79,32 @@ export function ServicesPage() {
     };
   }, []);
 
-  // Group services by name so customer sees unique service types in current city
-  const groupedServicesMap: Record<string, {
-    name: string;
-    category: string;
-    description: string;
-    minPrice: number;
-    img: string;
-    garages: Array<{ id: string; garageId: string; garageName: string; price: number; formattedPrice: string }>;
-  }> = {};
-
-  rawServices.forEach(item => {
-    const key = item.name;
-    const priceNum = Number(item.price);
-    if (!groupedServicesMap[key]) {
-      groupedServicesMap[key] = {
-        name: item.name,
-        category: item.category || 'Maintenance',
-        description: item.description || `${item.name} for your vehicle by trusted local garages.`,
-        minPrice: priceNum,
-        img: getServiceImage(item.name),
-        garages: []
-      };
+  // Fetch Services when garage changes
+  useEffect(() => {
+    if (selectedGarageId) {
+      setIsLoading(true);
+      // Clear stale services first
+      setRawServices([]);
+      apiClient.get<any[]>(`/services?garageId=${selectedGarageId}`)
+        .then(data => {
+          setRawServices(data || []);
+          setIsLoading(false);
+        })
+        .catch(() => setIsLoading(false));
+      
+      localStorage.setItem('selectedGarageId', selectedGarageId);
     }
-    if (priceNum > 0 && priceNum < groupedServicesMap[key].minPrice) {
-      groupedServicesMap[key].minPrice = priceNum;
-    }
-    groupedServicesMap[key].garages.push({
-      id: item.id,
-      garageId: item.garageId,
-      garageName: item.garageName,
-      price: priceNum,
-      formattedPrice: formatCurrencyForCity(priceNum, userCity)
-    });
-  });
+  }, [selectedGarageId]);
 
-  const groupedServicesList = Object.values(groupedServicesMap);
-
-  const filteredServices = groupedServicesList.filter(s => {
+  const filteredServices = rawServices.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
     const matchesCategory = selectedCategory === 'All Services' || s.category === selectedCategory;
     return matchesSearch && matchesCategory;
   });
 
-  const handleServiceClick = (serviceGroup: any) => {
-    setSelectedServiceGroup(serviceGroup);
-    setIsGarageModalOpen(true);
-  };
-
-  const handleGarageSelect = (garageOffer: any) => {
-    setIsGarageModalOpen(false);
+  const handleServiceClick = (service: any) => {
     setTimeout(() => {
-      router.push(`/book-now?garageId=${garageOffer.garageId}&serviceId=${garageOffer.id}`);
+      router.push(`/book-now?garageId=${service.garageId}&serviceId=${service.id}`);
     }, 150);
   };
 
@@ -128,9 +113,27 @@ export function ServicesPage() {
       <div className="flex flex-col lg:flex-row gap-6 p-4">
         {/* Main Content */}
         <div className="flex-1 space-y-6">
-          <div>
-            <h1 className="text-2xl font-bold text-slate-900 mb-1">Services in {userCity}</h1>
-            <p className="text-slate-500 text-sm">Professional car services offered by verified garages in {userCity}</p>
+          <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-4">
+            <div>
+              <h1 className="text-2xl font-bold text-slate-900 mb-1">Services in {userCity}</h1>
+              <p className="text-slate-500 text-sm">Professional car services offered by verified garages in {userCity}</p>
+            </div>
+            
+            {/* Garage Selector */}
+            {garages.length > 0 && (
+              <div className="flex flex-col gap-1 w-full md:max-w-[280px]">
+                <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Browsing Services From:</label>
+                <select 
+                  className="w-full bg-white border border-slate-200 rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  value={selectedGarageId}
+                  onChange={(e) => setSelectedGarageId(e.target.value)}
+                >
+                  {garages.map(g => (
+                    <option key={g.id} value={g.id}>{g.name || g.facade}</option>
+                  ))}
+                </select>
+              </div>
+            )}
           </div>
 
           {/* Filters */}
@@ -158,30 +161,32 @@ export function ServicesPage() {
           )}
 
           {/* Services Grid */}
-          {filteredServices.length === 0 ? (
+          {isLoading ? (
+            <div className="py-20 text-center text-slate-500">Loading services...</div>
+          ) : filteredServices.length === 0 ? (
             <div className="py-20 text-center bg-white rounded-[24px] border border-slate-100 flex flex-col items-center">
               <Wrench className="w-12 h-12 text-slate-300 mb-4" />
-              <h3 className="text-lg font-bold text-slate-900 mb-2">No services found in {userCity}</h3>
-              <p className="text-slate-500">Try selecting a different category or change your location context.</p>
+              <h3 className="text-lg font-bold text-slate-900 mb-2">No services found for this garage</h3>
+              <p className="text-slate-500">Try selecting a different category or garage.</p>
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredServices.map((serviceGroup) => (
+              {filteredServices.map((service) => (
                 <Card 
-                  key={serviceGroup.name} 
-                  onClick={() => handleServiceClick(serviceGroup)}
+                  key={service.id} 
+                  onClick={() => handleServiceClick(service)}
                   className="overflow-hidden hover:shadow-md transition-all cursor-pointer flex flex-col group bg-white border-slate-100 rounded-[20px]"
                 >
                   <div className="relative h-40 bg-slate-50 flex items-center justify-center p-4">
-                    <Image src={serviceGroup.img} alt={serviceGroup.name} width={120} height={120} className="object-contain group-hover:scale-105 transition-transform" />
+                    <Image src={getServiceImage(service.name)} alt={service.name} width={120} height={120} className="object-contain group-hover:scale-105 transition-transform" />
                   </div>
                   <div className="p-4 flex flex-col flex-1">
-                    <div className="text-xs font-semibold text-blue-600 mb-1">{serviceGroup.category}</div>
-                    <h3 className="font-bold text-slate-900 mb-1">{serviceGroup.name}</h3>
-                    <p className="text-xs text-slate-500 line-clamp-2 mb-4 flex-1">{serviceGroup.description}</p>
+                    <div className="text-xs font-semibold text-blue-600 mb-1">{service.category || 'Maintenance'}</div>
+                    <h3 className="font-bold text-slate-900 mb-1">{service.name}</h3>
+                    <p className="text-xs text-slate-500 line-clamp-2 mb-4 flex-1">{service.description || `${service.name} for your vehicle by trusted local garages.`}</p>
                     <div className="flex items-center justify-between mt-auto">
                       <span className="text-xs font-bold text-slate-900 bg-slate-100 px-2.5 py-1 rounded-lg">
-                        {formatCurrencyForCity(serviceGroup.minPrice, userCity)} onwards ({serviceGroup.garages.length} {serviceGroup.garages.length === 1 ? 'garage' : 'garages'})
+                        {formatCurrencyForCity(Number(service.price), userCity)}
                       </span>
                       <div className="w-8 h-8 rounded-full bg-slate-50 flex items-center justify-center text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors">
                         <ChevronRight className="w-4 h-4" />
@@ -226,32 +231,6 @@ export function ServicesPage() {
           </Card>
         </div>
       </div>
-
-      <Modal isOpen={isGarageModalOpen} onClose={() => setIsGarageModalOpen(false)} title={`Garages in ${userCity} Offering ${selectedServiceGroup?.name || ''}`}>
-        <div className="space-y-4 py-2">
-          <p className="text-sm text-slate-500 mb-4">
-            Select a garage offering <span className="font-bold text-slate-900">{selectedServiceGroup?.name}</span> in <span className="font-bold text-slate-900">{userCity}</span>:
-          </p>
-          <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-            {selectedServiceGroup?.garages.map((garageOffer: any) => (
-              <div 
-                key={garageOffer.id} 
-                onClick={() => handleGarageSelect(garageOffer)}
-                className="flex items-center justify-between p-4 border border-slate-200 rounded-xl hover:border-blue-500 hover:bg-blue-50 cursor-pointer transition-colors group"
-              >
-                <div>
-                  <h4 className="font-bold text-slate-900 group-hover:text-blue-700">{garageOffer.garageName}</h4>
-                  <div className="flex items-center gap-3 mt-1">
-                    <span className="flex items-center text-xs text-slate-500"><MapPin className="w-3 h-3 mr-1"/> {userCity}</span>
-                    <span className="text-xs font-bold text-blue-600 bg-blue-100 px-2 py-0.5 rounded">{garageOffer.formattedPrice}</span>
-                  </div>
-                </div>
-                <Button size="sm" className="opacity-90 group-hover:opacity-100">Select & Book</Button>
-              </div>
-            ))}
-          </div>
-        </div>
-      </Modal>
     </DashboardShell>
   );
 }
