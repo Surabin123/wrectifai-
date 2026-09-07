@@ -599,7 +599,7 @@ garagesRouter.get('/my-services', authenticate, async (req, res) => {
               COALESCE(ps.name, s.name) as name, 
               COALESCE(ps.category, s.category) as category, 
               COALESCE(ps.description, s.description) as description, 
-              ps.icon, s.price, s.is_active, s.duration_mins,
+              ps.icon, s.image, s.price, s.is_active, s.duration_mins,
               s.duration_unit, ps.base_price as "basePrice"
        FROM services s 
        LEFT JOIN platform_services ps ON s.platform_service_id = ps.id 
@@ -673,7 +673,7 @@ garagesRouter.put('/my-services/:serviceId', authenticate, async (req, res) => {
     const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
-    const { price, is_active, duration_mins, description } = req.body;
+    const { price, is_active, duration_mins, description, image } = req.body;
     
     const parsedPrice = price !== undefined ? Number(price) : undefined;
     const parsedDuration = duration_mins !== undefined ? Number(duration_mins) : undefined;
@@ -682,12 +682,29 @@ garagesRouter.put('/my-services/:serviceId', authenticate, async (req, res) => {
       return error(res, 'Invalid price or duration', 'BAD_REQUEST', 400);
     }
 
+    let processedImage = undefined;
+    if (image && typeof image === 'string' && image.startsWith('data:image')) {
+      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+        try {
+          const { v2: cloudinary } = require('cloudinary');
+          const uploadResult = await cloudinary.uploader.upload(image, {
+            folder: `wrectifai/services`
+          });
+          processedImage = uploadResult.secure_url;
+        } catch (err) {
+          console.error('Cloudinary Upload Error:', err);
+        }
+      }
+    } else if (image !== undefined) {
+      processedImage = image; // Could be a URL or null
+    }
+
     const result = await query(
       `UPDATE services 
-       SET price = COALESCE($1, price), is_active = COALESCE($2, is_active), duration_mins = COALESCE($3, duration_mins), description = COALESCE($4, description), updated_at = NOW()
-       WHERE id = $5 AND garage_id = $6
+       SET price = COALESCE($1, price), is_active = COALESCE($2, is_active), duration_mins = COALESCE($3, duration_mins), description = COALESCE($4, description), image = COALESCE($5, image), updated_at = NOW()
+       WHERE id = $6 AND garage_id = $7
        RETURNING *`,
-      [parsedPrice, is_active, parsedDuration, description, req.params.serviceId, garageId]
+      [parsedPrice, is_active, parsedDuration, description, processedImage, req.params.serviceId, garageId]
     );
 
     if (result.rows.length === 0) {
@@ -729,7 +746,7 @@ garagesRouter.post('/my-services/request', authenticate, async (req, res) => {
     const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
-    const { name, category, description, suggestedDuration, suggestedPrice, durationUnit } = req.body;
+    const { name, category, description, suggestedDuration, suggestedPrice, durationUnit, image } = req.body;
     
     if (!name || !category) {
       return error(res, 'Name and category are required', 'BAD_REQUEST', 400);
@@ -738,12 +755,29 @@ garagesRouter.post('/my-services/request', authenticate, async (req, res) => {
     const parsedPrice = suggestedPrice !== undefined && suggestedPrice !== '' ? Number(suggestedPrice) : 0;
     const parsedDuration = suggestedDuration !== undefined && suggestedDuration !== '' ? Number(suggestedDuration) : 60;
     
+    let processedImage = null;
+    if (image && typeof image === 'string' && image.startsWith('data:image')) {
+      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+        try {
+          const { v2: cloudinary } = require('cloudinary');
+          const uploadResult = await cloudinary.uploader.upload(image, {
+            folder: `wrectifai/services`
+          });
+          processedImage = uploadResult.secure_url;
+        } catch (err) {
+          console.error('Cloudinary Upload Error:', err);
+        }
+      }
+    } else if (image) {
+      processedImage = image;
+    }
+
     // We optionally use durationUnit if the schema supports it. It was passed by the frontend.
     // If not, it will just insert the default columns safely.
     const result = await query(
-      `INSERT INTO services (garage_id, name, category, description, price, duration_mins, is_active)
-       VALUES ($1, $2, $3, $4, $5, $6, true) RETURNING *`,
-      [garageId, name, category, description, parsedPrice, parsedDuration]
+      `INSERT INTO services (garage_id, name, category, description, price, duration_mins, image, is_active)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, true) RETURNING *`,
+      [garageId, name, category, description, parsedPrice, parsedDuration, processedImage]
     );
 
     // Also update the duration_unit if the column exists (safe update)

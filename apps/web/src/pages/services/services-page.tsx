@@ -178,7 +178,7 @@ export function ServicesPage() {
                   className="overflow-hidden hover:shadow-md transition-all cursor-pointer flex flex-col group bg-white border-slate-100 rounded-[20px]"
                 >
                   <div className="relative h-40 bg-slate-50 flex items-center justify-center p-4">
-                    <Image src={getServiceImage(service.name)} alt={service.name} width={120} height={120} className="object-contain group-hover:scale-105 transition-transform" />
+                    <Image src={service.image || getServiceImage(service.name)} alt={service.name} width={120} height={120} className="object-contain group-hover:scale-105 transition-transform" />
                   </div>
                   <div className="p-4 flex flex-col flex-1">
                     <div className="text-xs font-semibold text-blue-600 mb-1">{service.category || 'Maintenance'}</div>

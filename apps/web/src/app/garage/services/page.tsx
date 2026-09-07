@@ -17,6 +17,7 @@ interface FormData {
   description: string;
   isActive: boolean;
   durationUnit?: string;
+  image?: string;
 }
 
 export default function ServicesPage() {
@@ -37,7 +38,8 @@ export default function ServicesPage() {
     durationMins: 60,
     description: '',
     isActive: true,
-    durationUnit: 'Minutes'
+    durationUnit: 'Minutes',
+    image: ''
   });
   
   // Delete Modal State
@@ -176,13 +178,15 @@ export default function ServicesPage() {
 
   const handleEditClick = (service: any) => {
     setSelectedService(service);
+    setImagePreview(service.image || service.icon || '');
     setFormData({
       platformServiceId: '',
       price: service.price,
       durationMins: service.duration_mins || '',
       description: service.description || '',
       isActive: service.is_active,
-      durationUnit: service.duration_unit || 'Minutes'
+      durationUnit: service.duration_unit || 'Minutes',
+      image: service.image || ''
     });
     setValidationError('');
     setShowEditModal(true);
@@ -207,7 +211,8 @@ export default function ServicesPage() {
         duration_mins: parsedDuration,
         duration_unit: formData.durationUnit,
         description: formData.description,
-        is_active: formData.isActive
+        is_active: formData.isActive,
+        image: formData.image
       });
       setShowEditModal(false);
       fetchServices();
@@ -534,6 +539,27 @@ export default function ServicesPage() {
                       <option value="Days">Days</option>
                     </select>
                   </div>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 mb-1">Service Image</label>
+                  {imagePreview ? (
+                    <div className="relative inline-block">
+                      <img src={imagePreview} alt="Preview" className="w-24 h-24 object-cover rounded-lg border border-slate-200" />
+                      <button onClick={() => { setImagePreview(''); setFormData({...formData, image: ''}) }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3"/></button>
+                    </div>
+                  ) : (
+                    <input type="file" accept="image/*" onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (event) => {
+                        const base64 = event.target?.result as string;
+                        setImagePreview(base64);
+                        setFormData({ ...formData, image: base64 });
+                      };
+                      reader.readAsDataURL(file);
+                    }} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-bold text-slate-700 mb-1">Service Description</label>
