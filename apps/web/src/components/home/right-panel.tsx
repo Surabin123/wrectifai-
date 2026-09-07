@@ -395,8 +395,8 @@ function OffersPanel() {
         <h2 className="text-[14.5px] font-semibold tracking-[-0.03em] text-[#17307a]">
           Offers &amp; Promos
         </h2>
-        <Link href="/deals" className="cursor-pointer text-[11.5px] font-bold text-[#1a56db] hover:underline">
-          View All Offers
+      <Link href="/offers" className="cursor-pointer text-[11.5px] font-bold text-[#1a56db] hover:underline">
+          View All Offers &amp; Promos
         </Link>
       </div>
       <div className="space-y-4 overflow-y-auto pr-2 [scrollbar-width:thin] flex-1">

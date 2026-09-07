@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { ShieldCheck, Tag, Percent, SlidersHorizontal, Package, Wrench } from 'lucide-react';
 import { Card } from '@/components/common/card';
 import { TopNavbar } from '@/components/home/top-navbar';
@@ -47,6 +48,11 @@ export function OffersPage() {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<OfferFilter>('All');
   const [currencyCode, setCurrencyCode] = useState('INR');
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    if (searchParams?.get('type') === 'combo') setActiveFilter('COMBO');
+  }, [searchParams]);
 
   useEffect(() => {
     import('@/utils/location').then(({ getSavedCity, getCurrencyCodeForCity }) => {
@@ -119,7 +125,7 @@ export function OffersPage() {
 
   return (
     <RoleGuard allowedRoles={['customer']}>
-      <DashboardShell hideBottomWidget={true} header={<TopNavbar />}>
+      <DashboardShell header={<TopNavbar />}>
         <div className="flex-1 w-full max-w-[1200px] mx-auto px-4 sm:px-6 mt-8 pb-24 font-sans">
         
         {/* Header */}

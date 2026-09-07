@@ -775,6 +775,31 @@ function FeaturedGarages({
   );
 }
 
+function ComboDeals({ deals }: { deals: Deal[] }) {
+  return (
+    <section id="combo-deals">
+      <SectionHeader title="Combo Deals" linkLabel="View All" href="/offers?type=combo" />
+      <div className="flex gap-4 overflow-x-auto pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {deals.map((deal) => (
+          <Link key={deal.title} href="/offers?type=combo" className="w-[270px] shrink-0 block">
+            <Card className="overflow-hidden border-0 p-0 shadow-[0_8px_20px_rgba(20,44,112,0.06)]">
+              <div className={cn('p-4', deal.bgColor)}>
+                <p className={cn('text-[11px] font-bold uppercase', deal.textColor)}>{deal.title}</p>
+                <p className="mt-2 text-[12px] font-semibold text-[#17307a]">{deal.subtitle}</p>
+                <div className="mt-3 flex items-center gap-2">
+                  <span className={cn('text-[15px] font-bold', deal.textColor)}>{deal.price}</span>
+                  {deal.strikePrice && <span className="text-[11px] text-slate-400 line-through">{deal.strikePrice}</span>}
+                </div>
+                <span className="mt-2 inline-block rounded bg-white/70 px-2 py-1 text-[10px] font-bold text-[#17307a]">{deal.discount}</span>
+              </div>
+            </Card>
+          </Link>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 interface Deal {
   title: string;
   subtitle: string;
@@ -1162,7 +1187,7 @@ export function MainContent() {
         ) : null}
         {filteredMaintenance.length > 0 ? <MaintenanceStrip items={filteredMaintenance} /> : null}
         {filteredGarages.length > 0 ? <FeaturedGarages garagesList={filteredGarages} /> : null}
-        {filteredDeals.length > 0 ? null : null}
+        {filteredDeals.length > 0 ? <ComboDeals deals={filteredDeals} /> : null}
         {filteredTips.length > 0 ? <CareTips tips={filteredTips} /> : null}
         {!hasResults ? (
           <Card className="rounded-[18px] border-[#e4ecff] px-5 py-6 text-center shadow-[0_8px_20px_rgba(20,44,112,0.04)]">
