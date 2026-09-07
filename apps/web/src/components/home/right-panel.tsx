@@ -341,11 +341,12 @@ function OffersPanel() {
         url += '?' + params.toString();
       }
 
-      apiClient.get<any[]>(url)
-        .then((data) => {
-          if (active && data) {
+      const offersUrl = params.toString() ? `/offers?${params.toString()}` : '/offers';
+      Promise.all([apiClient.get<any[]>(url), apiClient.get<any[]>(offersUrl)])
+        .then(([data, offerData]) => {
+          if (active && (data || offerData)) {
             // Filter to only display non-combo/home promos (or just take the first 3)
-            const homePromos = data
+            const homePromos = (data || [])
               .filter((p: any) => !p.isCombo)
               .map((p: any) => ({
                 eyebrow: p.badge,
@@ -357,8 +358,21 @@ function OffersPanel() {
                 icon: p.icon,
                 image: p.image,
               }));
-            if (homePromos.length > 0) {
-              setPromos(homePromos);
+            const garageOffers = (offerData || []).map((offer: any) => ({
+              eyebrow: offer.offer_type || 'OFFER',
+              title: offer.title,
+              price: offer.discount_type === 'PERCENTAGE'
+                ? `${offer.discount_value}% OFF`
+                : `${formatCurrency(Number(offer.discount_value || 0), userPhone) } OFF`,
+              strikePrice: undefined,
+              discount: offer.discount_type === 'PERCENTAGE' ? `${offer.discount_value}% OFF` : 'OFFER',
+              themePreset: 'blue',
+              icon: 'Tag',
+              image: undefined,
+            }));
+            const combinedPromos = [...garageOffers, ...homePromos];
+            if (combinedPromos.length > 0) {
+              setPromos(combinedPromos);
             }
           }
         })

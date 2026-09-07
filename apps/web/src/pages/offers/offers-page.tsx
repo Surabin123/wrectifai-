@@ -28,6 +28,11 @@ interface Offer {
   applicable_item_id?: string;
   terms_conditions?: string;
   garageName?: string;
+  badge?: string;
+  numericPrice?: number;
+  strikePrice?: number;
+  discountPercent?: number;
+  image?: string;
 }
 
 const filters: { label: OfferFilter; displayLabel: string; icon?: any }[] = [
@@ -76,8 +81,28 @@ export function OffersPage() {
           url += '?' + params.toString();
         }
 
-        const data = await apiClient.get<Offer[]>(url);
-        setOffers(data || []);
+        const [promoCodeData, comboData] = await Promise.all([
+          apiClient.get<Offer[]>(url),
+          apiClient.get<any[]>(`/promos${params.toString() ? `?${params.toString()}` : ''}`),
+        ]);
+        const combos: Offer[] = (comboData || []).map((combo) => ({
+          id: combo.id,
+          code: '',
+          title: combo.title,
+          description: combo.description || '',
+          discount_type: 'FIXED',
+          discount_value: Number(combo.numericPrice || 0),
+          valid_from: combo.validFrom,
+          valid_until: combo.validTill,
+          offer_type: 'COMBO',
+          garageName: combo.garageName,
+          badge: combo.badge,
+          numericPrice: Number(combo.numericPrice || 0),
+          strikePrice: combo.strikePrice ? Number(combo.strikePrice) : undefined,
+          discountPercent: combo.discountPercent ? Number(combo.discountPercent) : undefined,
+          image: combo.image,
+        }));
+        setOffers([...(promoCodeData || []), ...combos]);
       } catch (err) {
         console.error('Failed to load offers', err);
       } finally {
@@ -169,11 +194,19 @@ export function OffersPage() {
 
                   <div className="flex items-end gap-2 mb-2">
                     <span className="text-2xl font-black text-green-600">
-                      {offer.discount_type === 'PERCENTAGE'
+                      {offer.offer_type === 'COMBO'
+                        ? formatCurrency(offer.numericPrice || 0, currencyCode)
+                        : offer.discount_type === 'PERCENTAGE'
                         ? `${offer.discount_value}% OFF`
                         : `${formatCurrency(offer.discount_value, currencyCode)} OFF`}
                     </span>
                   </div>
+
+                  {offer.offer_type === 'COMBO' && offer.strikePrice && (
+                    <p className="text-xs text-slate-500 line-through">
+                      {formatCurrency(offer.strikePrice, currencyCode)}
+                    </p>
+                  )}
                   
                   {(offer.min_order_amount ?? 0) > 0 && (
                     <p className="text-xs text-slate-500 font-medium">
@@ -184,10 +217,14 @@ export function OffersPage() {
 
                 <div className="bg-slate-50 px-5 py-4 border-t border-slate-100 flex items-center justify-between">
                   <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Use Code</span>
-                    <span className="font-mono font-bold text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm inline-block mt-1">
-                      {offer.code}
-                    </span>
+                    <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">{offer.offer_type === 'COMBO' ? 'Combo Deal' : 'Use Code'}</span>
+                    {offer.code ? (
+                      <span className="font-mono font-bold text-slate-800 bg-white px-2 py-1 rounded border border-slate-200 shadow-sm inline-block mt-1">
+                        {offer.code}
+                      </span>
+                    ) : offer.badge ? (
+                      <span className="font-bold text-slate-800 mt-1 block">{offer.badge}</span>
+                    ) : null}
                   </div>
                   {offer.valid_until && (
                     <div className="text-right">
