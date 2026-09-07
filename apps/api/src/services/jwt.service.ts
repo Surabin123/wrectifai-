@@ -17,7 +17,8 @@ export interface RefreshTokenPayload {
 
 export function generateAccessToken(payload: UserTokenPayload): string {
   const { jwtSecret } = getEnv();
-  return jwt.sign(payload, jwtSecret, { expiresIn: '15m' });
+  const privileged = payload.roles.some((role) => ['admin', 'garage', 'vendor', 'delivery_agent'].includes(role));
+  return jwt.sign(payload, jwtSecret, { expiresIn: privileged ? '5m' : '15m' });
 }
 
 export function generateRefreshToken(payload: RefreshTokenPayload): string {

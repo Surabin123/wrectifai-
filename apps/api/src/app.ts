@@ -24,15 +24,15 @@ export function createApp() {
           return callback(null, false);
         }
         const normalizedOrigin = origin.replace(/\/$/, '');
-        // Dynamically allow local development and Render subdomains to prevent config issues.
+        // Production origins must be explicitly configured. Local origins are development-only.
         const isAllowed = 
           allowedOrigins.includes(normalizedOrigin) ||
-          normalizedOrigin.endsWith('.onrender.com') ||
-          normalizedOrigin.endsWith('.vercel.app') ||
-          normalizedOrigin.startsWith('http://localhost:') ||
-          normalizedOrigin.startsWith('http://127.0.0.1:') ||
-          normalizedOrigin === 'http://localhost' ||
-          normalizedOrigin === 'http://127.0.0.1';
+          (env.nodeEnv !== 'production' && (
+            normalizedOrigin.startsWith('http://localhost:') ||
+            normalizedOrigin.startsWith('http://127.0.0.1:') ||
+            normalizedOrigin === 'http://localhost' ||
+            normalizedOrigin === 'http://127.0.0.1'
+          ));
 
         if (isAllowed) {
           callback(null, true);
@@ -68,7 +68,7 @@ export function createApp() {
   app.use(cookieParser());
 
   // Body parsing middlewares — 20 MB limit to accommodate base64-encoded images/audio
-  app.use(express.json({ limit: '20mb' }));
+  app.use(express.json({ limit: '20mb', verify: (req, _res, buf) => { (req as any).rawBody = buf.toString('utf8'); } }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
   // Request logger middleware

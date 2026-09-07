@@ -12,6 +12,12 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     if (!jwtRefreshSecret) {
       throw new Error('FATAL: JWT_REFRESH_SECRET environment variable is not set in production.');
     }
+    if (!envSource.DATABASE_URL) {
+      throw new Error('FATAL: DATABASE_URL environment variable is not set in production.');
+    }
+    if (!envSource.RAZORPAY_WEBHOOK_SECRET) {
+      throw new Error('FATAL: RAZORPAY_WEBHOOK_SECRET environment variable is not set in production.');
+    }
   } else if (!warnLogged) {
     if (!jwtSecret || !jwtRefreshSecret) {
       if (!jwtSecret) {
@@ -35,11 +41,14 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
   }
 
   return {
+    nodeEnv: envSource.NODE_ENV ?? 'development',
     host: envSource.HOST ?? '0.0.0.0',
     port: envSource.PORT ? Number(envSource.PORT) : 3000,
     databaseUrl: envSource.DATABASE_URL ?? 'postgresql://postgres:password@localhost:5432/wrectifai',
-    jwtSecret: jwtSecret ?? 'super-secret-jwt-key',
-    jwtRefreshSecret: jwtRefreshSecret ?? 'super-secret-refresh-key',
+    jwtSecret: jwtSecret ?? (isProd ? '' : 'local-development-jwt-secret'),
+    jwtRefreshSecret: jwtRefreshSecret ?? (isProd ? '' : 'local-development-refresh-secret'),
+    razorpayWebhookSecret: envSource.RAZORPAY_WEBHOOK_SECRET ?? '',
+    adminTemporaryPassword: envSource.ADMIN_TEMPORARY_PASSWORD ?? envSource.ADMIN_BOOTSTRAP_PASSWORD,
     corsOrigins: envSource.WEB_ORIGINS ? envSource.WEB_ORIGINS.split(',') : ['http://localhost:4200', 'http://localhost:3001'],
     googleClientId: envSource.GOOGLE_CLIENT_ID,
     llmProvider: provider,

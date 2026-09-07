@@ -113,11 +113,14 @@ export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
                 <div className="flex items-center gap-3">
                   <h1 className="text-2xl font-black text-slate-900">Order #{order.order_number}</h1>
                   <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
-                    order.status === 'paid' || order.status === 'delivered'
+                    order.payment_status === 'PAID' || order.status === 'paid'
                       ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       : 'bg-amber-50 text-amber-700 border border-amber-200'
                   }`}>
-                    {order.status}
+                    Payment: {order.payment_status === 'PAID' || order.status === 'paid' ? 'PAID' : (order.payment_method === 'cod' ? 'COD PENDING' : 'PENDING')}
+                  </span>
+                  <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                    Fulfillment: {(order.status || '').replace('_', ' ')}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
@@ -209,9 +212,9 @@ export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Payment Status</span>
                   <span className={`font-semibold uppercase ${
-                    order.status === 'paid' || order.payment_status === 'succeeded' ? 'text-emerald-600' : 'text-amber-600'
+                    order.payment_status === 'PAID' || order.status === 'paid' ? 'text-emerald-600' : 'text-amber-600'
                   }`}>
-                    {order.payment_status || (order.status === 'paid' ? 'succeeded' : 'pending')}
+                    {order.payment_status || (order.status === 'paid' ? 'PAID' : 'PENDING')}
                   </span>
                 </div>
               </div>

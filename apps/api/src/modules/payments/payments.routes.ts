@@ -280,7 +280,10 @@ paymentsRouter.post('/webhook', async (req, res) => {
 
   const webhookBody = req.body;
   const rawBody = (req as any).rawBody || JSON.stringify(webhookBody);
-  const secret = env.jwtSecret; // Or RAZORPAY_WEBHOOK_SECRET
+  const secret = env.razorpayWebhookSecret;
+  if (!secret) {
+    return res.status(503).send('Webhook verification is not configured');
+  }
 
   const isValid = verifyWebhookSignature(rawBody, signature, secret);
   if (!isValid) {

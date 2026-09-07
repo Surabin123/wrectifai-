@@ -302,11 +302,6 @@ export default function LoginPage() {
       return;
     }
 
-    if (newPassword === 'Admin@12345') {
-      setErrorMsg('You cannot reuse the temporary password. Please choose a strong new password.');
-      return;
-    }
-
     setIsSubmitting(true);
 
     try {

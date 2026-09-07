@@ -15,6 +15,7 @@ import crypto from 'crypto';
 import { authenticate, requireRole } from '../../middleware/auth';
 import { CookieOptions, Response } from 'express';
 import { NotificationsService } from '../notifications/notifications.service';
+import { getEnv } from '../../config/env';
 
 export const authRouter = Router();
 
@@ -31,18 +32,12 @@ function setTokensInCookies(res: Response, accessToken: string, refreshToken: st
   res.cookie('refreshToken', refreshToken, cookieConfig);
 }
 
-// Modular function to encapsulate password reset detection logic.
-// In the future, this can be swapped to check a database flag like `user.requires_password_reset`.
-function checkIfPasswordResetRequired(passwordHash: string, userRoles: string[]): boolean {
-  if (userRoles.includes('admin') && passwordHash) {
-    // If the hash matches the temporary password, require a change.
-    return bcrypt.compareSync('Admin@12345', passwordHash);
-  }
-  return false;
-}
-
-
 const HARDCODED_PHONES = ['9876543210', '1234567890'];
+
+function checkIfPasswordResetRequired(passwordHash: string, userRoles: string[]): boolean {
+  const temporaryPassword = getEnv().adminTemporaryPassword;
+  return userRoles.includes('admin') && !!passwordHash && !!temporaryPassword && bcrypt.compareSync(temporaryPassword, passwordHash);
+}
 
 // Helper to register/login a user from a verified OAuth profile (Google, Apple, etc.)
 export async function handleUserLoginOrRegister(email: string, name: string) {
@@ -554,8 +549,8 @@ authRouter.post('/change-password', authenticate, async (req, res) => {
       return error(res, 'Invalid current password', 'UNAUTHORIZED', 401);
     }
 
-    // Prevent reuse of the temporary password
-    if (newPassword === 'Admin@12345') {
+    const temporaryPassword = getEnv().adminTemporaryPassword;
+    if (temporaryPassword && newPassword === temporaryPassword) {
       return error(res, 'You cannot reuse the temporary password. Please choose a strong new password.', 'BAD_REQUEST', 400);
     }
 

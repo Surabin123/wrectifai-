@@ -10,8 +10,8 @@ test('env - default keys and warnings in development', () => {
   };
 
   const env = getEnv(mockEnv);
-  assert.strictEqual(env.jwtSecret, 'super-secret-jwt-key');
-  assert.strictEqual(env.jwtRefreshSecret, 'super-secret-refresh-key');
+  assert.strictEqual(env.jwtSecret, 'local-development-jwt-secret');
+  assert.strictEqual(env.jwtRefreshSecret, 'local-development-refresh-secret');
 });
 
 test('env - throws in production on missing JWT_SECRET', () => {

@@ -19,7 +19,7 @@ ordersRouter.post('/', authenticate, async (req, res) => {
   const customerId = req.user?.userId;
   if (!customerId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
 
-  const { items, garageId, shippingAddress, offerCode, paymentMethod } = req.body;
+  const { items, garageId, shippingAddress, offerCode, paymentMethod, checkoutSessionId } = req.body;
   
   if (!items || !items.length || !garageId || !shippingAddress) {
     return error(res, 'Missing required fields', 'BAD_REQUEST', 400);
@@ -31,6 +31,37 @@ ordersRouter.post('/', authenticate, async (req, res) => {
   try {
     await client.query('BEGIN');
     
+    // 0. Idempotency Check: if checkoutSessionId supplied or an active unpaid order exists for this exact checkout session
+    if (checkoutSessionId) {
+      const existingOrderRes = await client.query(
+        `SELECT o.*, p_pay.method as payment_method 
+         FROM orders o 
+         LEFT JOIN payments p_pay ON o.id = p_pay.order_id
+         WHERE o.customer_id = $1 AND o.garage_id = $2 AND o.payment_status = 'PENDING'
+           AND o.shipping_address->>'checkoutSessionId' = $3
+         ORDER BY o.created_at DESC LIMIT 1`,
+        [customerId, garageId, checkoutSessionId]
+      );
+
+      if (existingOrderRes.rows.length > 0) {
+        const existingOrder = existingOrderRes.rows[0];
+        await client.query('COMMIT');
+        return success(res, {
+          orderId: existingOrder.id,
+          orderNumber: existingOrder.order_number,
+          total: parseFloat(existingOrder.total.toString()),
+          subtotal: parseFloat(existingOrder.subtotal.toString()),
+          tax: parseFloat(existingOrder.tax.toString()),
+          shippingCost: parseFloat(existingOrder.shipping_cost.toString()),
+          currency: existingOrder.currency,
+          paymentMethod: existingOrder.payment_method || paymentMethod,
+          paymentStatus: existingOrder.payment_status,
+          status: existingOrder.status,
+          reused: true
+        });
+      }
+    }
+
     // 1. Calculate totals and check inventory
     let subtotal = 0;
     const processedItems = [];
@@ -87,6 +118,12 @@ ordersRouter.post('/', authenticate, async (req, res) => {
     const total = discountedSubtotal + tax + shippingCost;
     const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
+    // Attach checkoutSessionId to shippingAddress for idempotency tracking
+    const updatedShippingAddress = {
+      ...shippingAddress,
+      checkoutSessionId: checkoutSessionId || undefined
+    };
+
     // Fetch garage location to set correct currency
     const garageRes = await client.query(`SELECT location->>'country' as country, city FROM garages WHERE id = $1`, [garageId]);
     let currency = 'INR';
@@ -96,11 +133,11 @@ ordersRouter.post('/', authenticate, async (req, res) => {
       else if (c.includes('united arab emirates') || c === 'ae') currency = 'AED';
     }
 
-    // 2. Create the Order
+    // 2. Create the Order (Default status: PENDING_ACCEPTANCE, payment_status: PENDING)
     const orderResult = await client.query(
-      `INSERT INTO orders (customer_id, garage_id, order_number, status, subtotal, shipping_cost, tax, total, currency, fulfillment_mode, shipping_address)
+      `INSERT INTO orders (customer_id, garage_id, order_number, status, payment_status, subtotal, shipping_cost, tax, total, currency, fulfillment_mode, shipping_address)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-      [customerId, garageId, orderNumber, paymentMethod === 'cod' ? 'processing' : 'pendingPayment', subtotal, shippingCost, tax, total, currency, 'inHouse', shippingAddress]
+      [customerId, garageId, orderNumber, 'PENDING_ACCEPTANCE', 'PENDING', subtotal, shippingCost, tax, total, currency, 'inHouse', updatedShippingAddress]
     );
     const orderId = orderResult.rows[0].id;
     
@@ -146,7 +183,9 @@ ordersRouter.post('/', authenticate, async (req, res) => {
       shippingCost: parseFloat(shippingCost.toString()), 
       discountApplied: parseFloat(discountApplied.toString()),
       currency,
-      paymentMethod
+      paymentMethod,
+      paymentStatus: 'PENDING',
+      status: 'PENDING_ACCEPTANCE'
     });
   } catch (err: any) {
     await client.query('ROLLBACK');
@@ -170,7 +209,9 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
     if (orderRes.rows.length === 0) return error(res, 'Order not found', 'NOT_FOUND', 404);
     
     const order = orderRes.rows[0];
-    if (order.status !== 'pendingPayment') return error(res, 'Order is not pending payment', 'BAD_REQUEST', 400);
+    if (order.payment_status === 'PAID') {
+      return error(res, 'Order is already paid', 'BAD_REQUEST', 400);
+    }
     
     const amountInPaise = Math.round(parseFloat(order.total) * 100);
     
@@ -225,13 +266,13 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
       // Update Payment
       await client.query(
         `UPDATE payments SET status = 'succeeded', provider_payment_id = $1, updated_at = NOW()
-         WHERE transaction_id = $2`,
-        [providerPaymentId, providerOrderId]
+         WHERE transaction_id = $2 OR order_id = $3`,
+        [providerPaymentId, providerOrderId, orderId]
       );
       
-      // Update Order
+      // Update Order: payment_status = PAID, status = PENDING_ACCEPTANCE (do NOT auto accept!)
       const orderRes = await client.query(
-        `UPDATE orders SET status = 'paid', updated_at = NOW() WHERE id = $1 RETURNING *`,
+        `UPDATE orders SET payment_status = 'PAID', status = 'PENDING_ACCEPTANCE', updated_at = NOW() WHERE id = $1 RETURNING *`,
         [orderId]
       );
       
@@ -262,6 +303,8 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
         orderNumber: order.order_number,
         transactionId: providerPaymentId,
         paymentMethod: 'online',
+        paymentStatus: 'PAID',
+        status: 'PENDING_ACCEPTANCE',
         amount: parseFloat(order.total),
         currency: order.currency
       });
@@ -278,88 +321,6 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
   }
 });
 
-// POST /api/v1/orders/:id/assign-delivery - Assign a delivery agent to an order
-ordersRouter.post('/:id/assign-delivery', authenticate, async (req, res) => {
-  const { id } = req.params;
-  const { deliveryAgentId } = req.body;
-  const garageOwnerId = req.user?.userId;
-
-  if (!deliveryAgentId) {
-    return error(res, 'Delivery agent ID is required', 'BAD_REQUEST', 400);
-  }
-
-  const pool = getDbPool();
-  const client = await pool.connect();
-  
-  try {
-    await client.query('BEGIN');
-
-    // 1. Verify that the user is the garage owner for this order
-    const orderRes = await client.query(`
-      SELECT o.id, o.garage_id, o.fulfillment_mode, o.status, g.owner_user_id
-      FROM orders o
-      JOIN garages g ON o.garage_id = g.id
-      WHERE o.id = $1
-    `, [id]);
-
-    if (orderRes.rows.length === 0) {
-      throw new Error('Order not found');
-    }
-
-    const order = orderRes.rows[0];
-    
-    // Admin override could be added here, but sticking to garage owner for now
-    // Actually let's assume either Admin or the actual Garage Owner
-    const isOwner = order.owner_user_id === garageOwnerId;
-    // We would need to check if they are admin too, but for now we enforce owner
-    
-    if (!isOwner) {
-      throw new Error('Unauthorized to assign delivery for this order');
-    }
-
-    if (order.fulfillment_mode !== 'thirdParty' && order.fulfillment_mode !== 'delivery') {
-      // The current DB schema had 'inHouse' and 'thirdParty' for fulfillment_mode
-      // But we will allow assigning anyway if they explicitly try to assign it.
-    }
-
-    // 2. Check if already assigned
-    const existingAssignRes = await client.query(`
-      SELECT id FROM delivery_assignments WHERE order_id = $1
-    `, [id]);
-    
-    if (existingAssignRes.rows.length > 0) {
-      throw new Error('Delivery agent already assigned to this order');
-    }
-
-    // 3. Verify delivery agent exists and has correct role
-    const agentRes = await client.query(`
-      SELECT u.id FROM users u
-      JOIN user_roles ur ON u.id = ur.user_id
-      JOIN roles r ON ur.role_id = r.id
-      WHERE u.id = $1 AND r.code = 'delivery_agent'
-    `, [deliveryAgentId]);
-
-    if (agentRes.rows.length === 0) {
-      throw new Error('Invalid delivery agent');
-    }
-
-    // 4. Create assignment
-    const assignmentRes = await client.query(`
-      INSERT INTO delivery_assignments (order_id, garage_id, delivery_agent_id, status)
-      VALUES ($1, $2, $3, 'ASSIGNED') RETURNING *
-    `, [id, order.garage_id, deliveryAgentId]);
-
-    await client.query('COMMIT');
-    return success(res, assignmentRes.rows[0]);
-  } catch (err: any) {
-    await client.query('ROLLBACK');
-    console.error('Assign delivery error:', err);
-    return error(res, err.message, 'ASSIGN_DELIVERY_ERROR', 400);
-  } finally {
-    client.release();
-  }
-});
-
 // GET /api/v1/orders/garage - Get all orders for the authenticated garage
 ordersRouter.get('/garage', authenticate, requireRole(['garage', 'admin']), async (req, res) => {
   const userId = req.user?.userId;
@@ -367,11 +328,14 @@ ordersRouter.get('/garage', authenticate, requireRole(['garage', 'admin']), asyn
   try {
     // Get garage ID for user
     const garageRes = await pool.query('SELECT id FROM garages WHERE owner_user_id = $1', [userId]);
-    if (garageRes.rows.length === 0) return error(res, 'Garage not found', 'NOT_FOUND', 404);
+    if (garageRes.rows.length === 0) return error(res, 'Garage not found for this user', 'NOT_FOUND', 404);
     const garageId = garageRes.rows[0].id;
 
     const ordersRes = await pool.query(`
       SELECT o.*, 
+        o.payment_status as payment_status,
+        COALESCE(p_pay.method, 'online') as payment_method,
+        p_pay.provider_payment_id as payment_transaction_id,
         json_agg(json_build_object(
           'id', oi.id,
           'product_id', oi.product_id,
@@ -384,9 +348,10 @@ ordersRouter.get('/garage', authenticate, requireRole(['garage', 'admin']), asyn
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN products p ON oi.product_id = p.id
+      LEFT JOIN payments p_pay ON o.id = p_pay.order_id
       LEFT JOIN delivery_assignments da ON o.id = da.order_id
       WHERE o.garage_id = $1
-      GROUP BY o.id, da.id
+      GROUP BY o.id, da.id, p_pay.method, p_pay.provider_payment_id
       ORDER BY o.created_at DESC
     `, [garageId]);
 
@@ -397,34 +362,122 @@ ordersRouter.get('/garage', authenticate, requireRole(['garage', 'admin']), asyn
   }
 });
 
-// PUT /api/v1/orders/:id/status - Update order status
+// PUT /api/v1/orders/:id/status - Update order fulfillment status
 ordersRouter.put('/:id/status', authenticate, requireRole(['garage', 'admin']), async (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status: requestedStatus } = req.body;
   const userId = req.user?.userId;
+
+  if (!requestedStatus) {
+    return error(res, 'Status is required', 'BAD_REQUEST', 400);
+  }
 
   try {
     const pool = getDbPool();
-    // check ownership
+
+    // Check if order exists and verify garage ownership
     const checkRes = await pool.query(`
-      SELECT o.id FROM orders o 
+      SELECT o.id, o.status, o.payment_status, g.owner_user_id
+      FROM orders o 
       JOIN garages g ON o.garage_id = g.id 
-      WHERE o.id = $1 AND g.owner_user_id = $2
-    `, [id, userId]);
+      WHERE o.id = $1
+    `, [id]);
 
     if (checkRes.rows.length === 0) {
-      return error(res, 'Unauthorized or order not found', 'UNAUTHORIZED', 401);
+      return error(res, 'Order not found', 'NOT_FOUND', 404);
+    }
+
+    const order = checkRes.rows[0];
+
+    // Ownership check: authenticated user MUST be the garage owner
+    if (order.owner_user_id !== userId) {
+      return error(res, 'Unauthorized: Garage does not own this order', 'FORBIDDEN', 403);
+    }
+
+    // Normalize target status
+    const statusMap: Record<string, string> = {
+      'ACCEPTED': 'PACKING', // Accepting moves to PACKING
+      'PACKING': 'PACKING',
+      'SHIPPED': 'SHIPPED',
+      'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY',
+      'DELIVERED': 'DELIVERED',
+      'CANCELLED': 'CANCELLED'
+    };
+
+    const targetStatus = statusMap[requestedStatus] || requestedStatus;
+
+    // Enforce transition rules
+    if (targetStatus === 'DELIVERED' && order.payment_status !== 'PAID') {
+      return error(res, 'Payment must be confirmed before marking order as delivered', 'BAD_REQUEST', 400);
     }
 
     const updateRes = await pool.query(
       'UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
-      [status, id]
+      [targetStatus, id]
     );
 
     return success(res, updateRes.rows[0]);
   } catch (err) {
     console.error('Update order status error', err);
-    return error(res, 'Failed to update order', 'INTERNAL_SERVER_ERROR', 500);
+    return error(res, 'Failed to update order status', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+// POST /api/v1/orders/:id/confirm-cash - Garage confirms cash receipt for COD order
+ordersRouter.post('/:id/confirm-cash', authenticate, requireRole(['garage', 'admin']), async (req, res) => {
+  const { id } = req.params;
+  const userId = req.user?.userId;
+
+  const pool = getDbPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Verify ownership and order state
+    const orderRes = await client.query(`
+      SELECT o.id, o.garage_id, o.status, o.payment_status, g.owner_user_id
+      FROM orders o
+      JOIN garages g ON o.garage_id = g.id
+      WHERE o.id = $1
+    `, [id]);
+
+    if (orderRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return error(res, 'Order not found', 'NOT_FOUND', 404);
+    }
+
+    const order = orderRes.rows[0];
+
+    if (order.owner_user_id !== userId) {
+      await client.query('ROLLBACK');
+      return error(res, 'Unauthorized: Garage does not own this order', 'FORBIDDEN', 403);
+    }
+
+    if (order.status !== 'OUT_FOR_DELIVERY') {
+      await client.query('ROLLBACK');
+      return error(res, 'Cash can only be confirmed when order is Out for Delivery', 'BAD_REQUEST', 400);
+    }
+
+    // Update payment_status to PAID
+    await client.query(
+      `UPDATE orders SET payment_status = 'PAID', updated_at = NOW() WHERE id = $1`,
+      [id]
+    );
+
+    // Update payments table status to succeeded
+    await client.query(
+      `UPDATE payments SET status = 'succeeded', updated_at = NOW() WHERE order_id = $1`,
+      [id]
+    );
+
+    await client.query('COMMIT');
+    return success(res, { confirmed: true, orderId: id, paymentStatus: 'PAID', status: order.status });
+  } catch (err: any) {
+    await client.query('ROLLBACK');
+    console.error('Confirm cash error:', err);
+    return error(res, err.message || 'Failed to confirm cash receipt', 'INTERNAL_SERVER_ERROR', 500);
+  } finally {
+    client.release();
   }
 });
 
@@ -437,6 +490,9 @@ ordersRouter.get('/customer/me', authenticate, async (req, res) => {
   try {
     const ordersRes = await pool.query(`
       SELECT o.*, 
+        o.payment_status as payment_status,
+        COALESCE(p_pay.method, 'online') as payment_method,
+        p_pay.provider_payment_id as payment_transaction_id,
         json_agg(json_build_object(
           'id', oi.id,
           'product_id', oi.product_id,
@@ -448,9 +504,10 @@ ordersRouter.get('/customer/me', authenticate, async (req, res) => {
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN products p ON oi.product_id = p.id
+      LEFT JOIN payments p_pay ON o.id = p_pay.order_id
       LEFT JOIN delivery_assignments da ON o.id = da.order_id
       WHERE o.customer_id = $1
-      GROUP BY o.id, da.id
+      GROUP BY o.id, da.id, p_pay.method, p_pay.provider_payment_id
       ORDER BY o.created_at DESC
     `, [customerId]);
 
@@ -472,6 +529,9 @@ ordersRouter.get('/:id', authenticate, async (req, res) => {
     const ordersRes = await pool.query(`
       SELECT o.*, 
         g.name as garage_name,
+        o.payment_status as payment_status,
+        COALESCE(p_pay.method, 'online') as payment_method,
+        p_pay.provider_payment_id as payment_transaction_id,
         COALESCE(
           json_agg(
             json_build_object(
@@ -486,9 +546,6 @@ ordersRouter.get('/:id', authenticate, async (req, res) => {
           ) FILTER (WHERE oi.id IS NOT NULL), 
           '[]'
         ) as items,
-        p_pay.method as payment_method,
-        p_pay.provider_payment_id as payment_transaction_id,
-        p_pay.status as payment_status,
         da.status as delivery_status
       FROM orders o
       LEFT JOIN garages g ON o.garage_id = g.id
@@ -497,7 +554,7 @@ ordersRouter.get('/:id', authenticate, async (req, res) => {
       LEFT JOIN payments p_pay ON o.id = p_pay.order_id
       LEFT JOIN delivery_assignments da ON o.id = da.order_id
       WHERE o.id = $1 AND (o.customer_id = $2 OR g.owner_user_id = $2)
-      GROUP BY o.id, g.name, p_pay.method, p_pay.provider_payment_id, p_pay.status, da.status
+      GROUP BY o.id, g.name, p_pay.method, p_pay.provider_payment_id, da.status
     `, [id, customerId]);
 
     if (ordersRes.rows.length === 0) {
@@ -517,6 +574,9 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
   try {
     const ordersRes = await pool.query(`
       SELECT o.*, 
+        o.payment_status as payment_status,
+        COALESCE(p_pay.method, 'online') as payment_method,
+        p_pay.provider_payment_id as payment_transaction_id,
         COALESCE(
           json_agg(
             json_build_object(
@@ -538,9 +598,10 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
       LEFT JOIN products p ON oi.product_id = p.id
       LEFT JOIN garages g ON o.garage_id = g.id
       LEFT JOIN users u ON o.customer_id = u.id
+      LEFT JOIN payments p_pay ON o.id = p_pay.order_id
       LEFT JOIN delivery_assignments da ON o.id = da.order_id
       LEFT JOIN users agent ON da.delivery_agent_id = agent.id
-      GROUP BY o.id, da.id, g.name, u.name, agent.name
+      GROUP BY o.id, da.id, g.name, u.name, agent.name, p_pay.method, p_pay.provider_payment_id
       ORDER BY o.created_at DESC
     `);
 
@@ -550,4 +611,3 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
     return error(res, 'Failed to fetch admin orders', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
-

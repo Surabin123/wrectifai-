@@ -150,6 +150,9 @@ export function CartPage() {
       const garageId = cartItems[0].garageId;
       if (!garageId) throw new Error("Items are missing garage information");
       
+      const checkoutSessionId = (window as any)._cartCheckoutSessionId || `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      (window as any)._cartCheckoutSessionId = checkoutSessionId;
+
       const payload = {
         garageId,
         shippingAddress: { 
@@ -166,7 +169,8 @@ export function CartPage() {
           productId: i.id,
           quantity: i.quantity || 1
         })),
-        paymentMethod: method
+        paymentMethod: method,
+        checkoutSessionId
       };
 
       // 1. Create Order

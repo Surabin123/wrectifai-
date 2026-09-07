@@ -42,6 +42,41 @@ export function OrdersPage() {
     }
   };
 
+  const getFulfillmentLabel = (status: string) => {
+    const s = (status || '').toUpperCase();
+    if (s === 'PENDING_ACCEPTANCE' || s === 'PENDINGPAYMENT' || s === 'PAID') return 'Pending Acceptance';
+    if (s === 'PACKING' || s === 'PROCESSING') return 'Packing';
+    if (s === 'SHIPPED') return 'Shipped';
+    if (s === 'OUT_FOR_DELIVERY') return 'Out for Delivery';
+    if (s === 'DELIVERED') return 'Delivered';
+    return status;
+  };
+
+  const getPaymentBadge = (order: any) => {
+    const isPaid = order.payment_status === 'PAID' || order.status === 'paid';
+    const isCod = order.payment_method === 'cod';
+
+    if (isPaid) {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200">
+          Paid
+        </span>
+      );
+    }
+    if (isCod) {
+      return (
+        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+          COD — Pending
+        </span>
+      );
+    }
+    return (
+      <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
+        Payment Pending
+      </span>
+    );
+  };
+
   if (isLoading || loading) {
     return (
       <RoleGuard allowedRoles={['customer']}>
@@ -84,14 +119,11 @@ export function OrdersPage() {
                 >
                   <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-100 pb-4 mb-4 gap-2">
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-bold text-slate-900 text-base">Order #{order.order_number}</span>
-                        <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${
-                          order.status === 'paid' || order.status === 'delivered'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-amber-50 text-amber-700 border border-amber-200'
-                        }`}>
-                          {order.status}
+                        {getPaymentBadge(order)}
+                        <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
+                          {getFulfillmentLabel(order.status)}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">

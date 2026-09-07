@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * Seeds the admin user into the database after migrations.
- * Runs automatically on Render deploy: node db/seed-admin.js
+ * Run explicitly for local/bootstrap environments only.
  * Env: DATABASE_URL (required)
  */
 
@@ -10,6 +10,15 @@ const bcrypt = require('bcryptjs');
 require('dotenv').config();
 
 async function seed() {
+  if (!['development', 'test'].includes(process.env.NODE_ENV || '')) {
+    console.error('Admin/demo bootstrap is limited to development and test environments.');
+    process.exit(1);
+  }
+  const rawPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
+  if (!rawPassword) {
+    console.error('ADMIN_BOOTSTRAP_PASSWORD is required for local admin bootstrap.');
+    process.exit(1);
+  }
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) {
     console.error('DATABASE_URL is not set');
@@ -19,14 +28,13 @@ async function seed() {
   const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
   const client = new Client({
     connectionString: databaseUrl,
-    ssl: isLocal ? false : { rejectUnauthorized: process.env.RENDER !== 'true' },
+    ssl: isLocal ? false : { rejectUnauthorized: true },
   });
 
   await client.connect();
 
   const email = 'admin@wrectifai.com';
   const name = 'System Admin';
-  const rawPassword = 'Admin@12345';
   const mobileNumber = '0000000000';
 
   try {
@@ -69,7 +77,6 @@ async function seed() {
 
     console.log('\n[seed] Done!');
     console.log(`  Email:    ${email}`);
-    console.log(`  Password: ${rawPassword}`);
   } catch (err) {
     console.error('[seed] Error:', err.message);
     process.exit(1);

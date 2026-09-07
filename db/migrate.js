@@ -23,13 +23,22 @@ async function main() {
     .filter((f) => f.endsWith('.sql'))
     .sort();
 
+  // Fixture migrations remain available for local development, but are not
+  // loaded into a production database unless explicitly opted in.
+  const fixtureMigrations = new Set([
+    '005_dummy_test_user.sql', '008_bookings_seed.sql', '030_seed_more_garages.sql'
+  ]);
+  const filesToApply = process.env.NODE_ENV === 'production' && process.env.MIGRATIONS_INCLUDE_FIXTURES !== 'true'
+    ? files.filter((file) => !fixtureMigrations.has(file))
+    : files;
+
   if (files.length === 0) {
     console.log('No migration files found.');
     return;
   }
 
   const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
-  const ssl = isLocal ? false : { rejectUnauthorized: process.env.RENDER !== 'true' };
+  const ssl = isLocal ? false : { rejectUnauthorized: true };
 
   const client = new Client({ connectionString: databaseUrl, ssl });
   await client.connect();
@@ -52,7 +61,7 @@ async function main() {
     const appliedSet = new Set(applied.rows.map((r) => r.filename));
 
     let ran = 0;
-    for (const file of files) {
+    for (const file of filesToApply) {
       if (appliedSet.has(file)) {
         continue;
       }
@@ -65,7 +74,7 @@ async function main() {
       console.log(`  ✓ ${file}`);
     }
     await client.query('COMMIT');
-    console.log(`\nDone. ${ran} migration(s) applied, ${files.length - ran} already applied.`);
+    console.log(`\nDone. ${ran} migration(s) applied, ${filesToApply.length - ran} already applied.`);
   } catch (err) {
     await client.query('ROLLBACK');
     console.error(`Migration failed:`, err.message);

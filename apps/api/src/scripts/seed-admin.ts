@@ -6,10 +6,16 @@ import * as bcrypt from 'bcryptjs';
 async function seedAdmin() {
   const email = 'admin@wrectifai.com';
   const name = 'System Admin';
-  const rawPassword = 'Admin@12345';
+  const rawPassword = process.env.ADMIN_BOOTSTRAP_PASSWORD;
   const mobileNumber = '0000000000'; 
 
   try {
+    if (!['development', 'test'].includes(process.env.NODE_ENV || '')) {
+      throw new Error('Admin bootstrap is limited to development and test environments.');
+    }
+    if (!rawPassword) {
+      throw new Error('ADMIN_BOOTSTRAP_PASSWORD must be set for local admin bootstrap.');
+    }
     const salt = bcrypt.genSaltSync(10);
     const passwordHash = bcrypt.hashSync(rawPassword, salt);
 
@@ -47,7 +53,6 @@ async function seedAdmin() {
 
     console.log('\nSeed successful!');
     console.log(`Email: ${email}`);
-    console.log(`Password: ${rawPassword}`);
     process.exit(0);
   } catch (error) {
     console.error('Error seeding admin:', error);
