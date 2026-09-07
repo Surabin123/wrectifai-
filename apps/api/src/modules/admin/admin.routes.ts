@@ -125,7 +125,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     const { 
       name, phone, email, city, address, area,
       ownerName, ownerPhone, password, 
-      services, description, workingHours,
+      services, customServices, description, workingHours,
       chips, image, country, responseMins,
       registrationNumber
     } = req.body;
@@ -329,22 +329,30 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     }
 
     // Insert Services
-    if (services && Array.isArray(services)) {
-      for (const serviceName of services) {
-        // Find matching platform service
-        const platformServiceRes = await client.query(
-          `SELECT id, name, category, description, base_price FROM platform_services WHERE name = $1 LIMIT 1`,
-          [serviceName]
+    if (services && Array.isArray(services) && services.length > 0) {
+      const platformServiceRes = await client.query(
+        `SELECT id, name, category, description, base_price FROM platform_services WHERE id = ANY($1::uuid[])`,
+        [services]
+      );
+      if (platformServiceRes.rows.length !== services.length) {
+        throw new Error('Validation Error: One or more selected services do not exist in the platform catalog.');
+      }
+      for (const ps of platformServiceRes.rows) {
+        await client.query(
+          `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, true)`,
+          [garageId, ps.id, ps.name, ps.category || 'General Service', ps.description || '', ps.base_price || 0, 60]
         );
-        if (platformServiceRes.rows.length > 0) {
-          const ps = platformServiceRes.rows[0];
-          await client.query(
-            `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, true)`,
-            [garageId, ps.id, ps.name, ps.category || 'General Service', ps.description || '', ps.base_price || 0, 60]
-          );
-        } else {
-          throw new Error(`Validation Error: Selected service "${serviceName}" does not exist in the platform catalog.`);
+      }
+    }
+    if (customServices && Array.isArray(customServices)) {
+      for (const serviceName of customServices) {
+        if (typeof serviceName !== 'string' || !serviceName.trim()) {
+          throw new Error('Validation Error: Custom service names must not be empty.');
         }
+        await client.query(
+          `INSERT INTO services (garage_id, name, category, description, price, duration_mins, is_active) VALUES ($1, $2, $3, $4, $5, $6, true)`,
+          [garageId, serviceName.trim(), 'Other', '', 0, 60]
+        );
       }
     }
 

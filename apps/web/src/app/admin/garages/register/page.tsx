@@ -1,7 +1,7 @@
 'use client';
 import { Card } from '@/components/common/card';
 import { ShieldCheck, HeadphonesIcon, Upload, X, Check, Lock, Info, Plus } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { useRouter } from 'next/navigation';
 import { COUNTRIES, getCountryByCallingCode } from '@/lib/countries';
@@ -39,6 +39,7 @@ export default function RegisterGaragePage() {
     ownerIdDoc: null as any,
     addressProofDoc: null as any,
     services: [] as string[],
+    customServices: [] as string[],
     chips: [] as string[],
     image: null as any,
     workingHours: {
@@ -54,6 +55,13 @@ export default function RegisterGaragePage() {
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [platformServices, setPlatformServices] = useState<Array<{ id: string; name: string; category?: string; description?: string; base_price?: number }>>([]);
+
+  useEffect(() => {
+    apiClient.get<typeof platformServices>('/services/platform')
+      .then(setPlatformServices)
+      .catch(() => setErrorMsg('Failed to load the platform service catalog. Please try again.'));
+  }, []);
   
   const getCitiesForCountry = (code: string): string[] => {
     switch (code) {
@@ -122,7 +130,7 @@ export default function RegisterGaragePage() {
     }
 
     if (step === 4) {
-      if (formData.services.length === 0) {
+      if (formData.services.length === 0 && formData.customServices.length === 0) {
         setErrorMsg('Please select at least one service offered by the garage.');
         return;
       }
@@ -163,6 +171,7 @@ export default function RegisterGaragePage() {
         ownerPhone: formData.sameAsGaragePhone ? (formData.countryCode + formData.phone) : (formData.ownerCountryCode + formData.ownerPhone),
         password: formData.password,
         services: formData.services,
+        customServices: formData.customServices,
         chips: formData.chips,
         image: formData.image,
         description: formData.description,
@@ -244,21 +253,13 @@ export default function RegisterGaragePage() {
   };
 
   const handleSelectAllServices = () => {
-    const allServices = [
-      'Oil & Filter Change', 'Periodic Maintenance', 'Brake Service', 'Battery Replacement', 'AC Service', 'Engine Service', 'Transmission Service', 'Wheel Alignment', 'Wheel Balancing', 'Tire Replacement',
-      'Computer Diagnostics', 'Engine Diagnostics', 'Electrical Diagnostics', 'Battery Diagnostics', 'ECU Diagnostics',
-      'Engine Repair', 'Transmission Repair', 'Suspension Repair', 'Steering Repair', 'Brake Repair', 'Electrical Repair',
-      'Dent Repair', 'Painting', 'Car Washing', 'Detailing', 'Ceramic Coating', 'Windshield Replacement',
-      'EV Diagnostics', 'EV Battery Service', 'EV Charging', 'EV Motor Service'
-    ];
-    const customServices = formData.services.filter(s => !allServices.includes(s));
-    setFormData(prev => ({...prev, services: [...allServices, ...customServices]}));
+    setFormData(prev => ({ ...prev, services: platformServices.map(service => service.id) }));
   };
 
   const [newService, setNewService] = useState('');
   const addCustomService = () => {
-    if (newService.trim() && !formData.services.includes(newService.trim())) {
-      setFormData(prev => ({...prev, services: [...prev.services, newService.trim()]}));
+    if (newService.trim() && !formData.customServices.includes(newService.trim())) {
+      setFormData(prev => ({...prev, customServices: [...prev.customServices, newService.trim()]}));
       setNewService('');
     }
   };
@@ -559,10 +560,10 @@ export default function RegisterGaragePage() {
                   <div>
                     <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">Maintenance & Repairs</h3>
                     <div className="space-y-3">
-                      {['General Service', 'AC Service', 'Tyres & Wheel Care', 'Engine Repair', 'Brakes & Suspension', 'Battery Service'].map(s => (
-                        <label key={s} className="flex items-center gap-3 cursor-pointer group">
-                          <input type="checkbox" checked={formData.services.includes(s)} onChange={() => toggleService(s)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
-                          <span className="text-sm text-slate-700 group-hover:text-blue-700">{s}</span>
+                      {platformServices.filter(s => s.category !== 'Inspection').map(s => (
+                        <label key={s.id} className="flex items-center gap-3 cursor-pointer group">
+                          <input type="checkbox" checked={formData.services.includes(s.id)} onChange={() => toggleService(s.id)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
+                          <span className="text-sm text-slate-700 group-hover:text-blue-700">{s.name}</span>
                         </label>
                       ))}
                     </div>
@@ -570,10 +571,10 @@ export default function RegisterGaragePage() {
                   <div>
                     <h3 className="font-bold text-sm text-[#17307a] mb-4 border-b pb-2">Diagnostics & Others</h3>
                     <div className="space-y-3">
-                      {['Diagnostics', 'Computer Diagnostics', 'More Services'].map(s => (
-                        <label key={s} className="flex items-center gap-3 cursor-pointer group">
-                          <input type="checkbox" checked={formData.services.includes(s)} onChange={() => toggleService(s)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
-                          <span className="text-sm text-slate-700 group-hover:text-blue-700">{s}</span>
+                      {platformServices.filter(s => s.category === 'Inspection').map(s => (
+                        <label key={s.id} className="flex items-center gap-3 cursor-pointer group">
+                          <input type="checkbox" checked={formData.services.includes(s.id)} onChange={() => toggleService(s.id)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500 cursor-pointer" />
+                          <span className="text-sm text-slate-700 group-hover:text-blue-700">{s.name}</span>
                         </label>
                       ))}
                     </div>
@@ -586,11 +587,11 @@ export default function RegisterGaragePage() {
                     <input type="text" value={newService} onChange={e => setNewService(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCustomService()} placeholder="Type custom service name..." className="flex-1 border rounded-lg px-4 py-2 text-sm outline-none focus:border-blue-500" />
                     <button onClick={addCustomService} className="bg-slate-100 hover:bg-slate-200 text-slate-700 px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2"><Plus className="w-4 h-4"/> Add</button>
                   </div>
-                  {formData.services.filter(s => !['Oil & Filter Change', 'Periodic Maintenance', 'Brake Service', 'Battery Replacement', 'AC Service', 'Engine Service', 'Transmission Service', 'Wheel Alignment', 'Wheel Balancing', 'Tire Replacement', 'Computer Diagnostics', 'Engine Diagnostics', 'Electrical Diagnostics', 'Battery Diagnostics', 'ECU Diagnostics', 'Engine Repair', 'Transmission Repair', 'Suspension Repair', 'Steering Repair', 'Brake Repair', 'Electrical Repair', 'Dent Repair', 'Painting', 'Car Washing', 'Detailing', 'Ceramic Coating', 'Windshield Replacement', 'EV Diagnostics', 'EV Battery Service', 'EV Charging', 'EV Motor Service'].includes(s)).length > 0 && (
+                  {formData.customServices.length > 0 && (
                     <div className="flex flex-wrap gap-2 mt-4">
-                      {formData.services.filter(s => !['Oil & Filter Change', 'Periodic Maintenance', 'Brake Service', 'Battery Replacement', 'AC Service', 'Engine Service', 'Transmission Service', 'Wheel Alignment', 'Wheel Balancing', 'Tire Replacement', 'Computer Diagnostics', 'Engine Diagnostics', 'Electrical Diagnostics', 'Battery Diagnostics', 'ECU Diagnostics', 'Engine Repair', 'Transmission Repair', 'Suspension Repair', 'Steering Repair', 'Brake Repair', 'Electrical Repair', 'Dent Repair', 'Painting', 'Car Washing', 'Detailing', 'Ceramic Coating', 'Windshield Replacement', 'EV Diagnostics', 'EV Battery Service', 'EV Charging', 'EV Motor Service'].includes(s)).map(s => (
+                      {formData.customServices.map(s => (
                         <span key={s} className="bg-blue-50 text-blue-700 border border-blue-100 px-3 py-1 rounded-full text-xs font-medium flex items-center gap-2">
-                          {s} <button onClick={() => toggleService(s)} className="text-blue-400 hover:text-blue-700"><X className="w-3 h-3"/></button>
+                          {s} <button onClick={() => setFormData(prev => ({ ...prev, customServices: prev.customServices.filter(service => service !== s) }))} className="text-blue-400 hover:text-blue-700"><X className="w-3 h-3"/></button>
                         </span>
                       ))}
                     </div>
@@ -708,8 +709,11 @@ export default function RegisterGaragePage() {
                      </div>
                      <div className="p-5">
                         <div className="flex flex-wrap gap-2">
-                          {formData.services.map(s => (
-                            <span key={s} className="bg-blue-50 text-blue-700 border border-blue-100 text-xs px-3 py-1.5 rounded-full font-medium">{s}</span>
+                          {formData.services.map(id => (
+                            <span key={id} className="bg-blue-50 text-blue-700 border border-blue-100 text-xs px-3 py-1.5 rounded-full font-medium">{platformServices.find(s => s.id === id)?.name || id}</span>
+                          ))}
+                          {formData.customServices.map(name => (
+                            <span key={name} className="bg-blue-50 text-blue-700 border border-blue-100 text-xs px-3 py-1.5 rounded-full font-medium">{name}</span>
                           ))}
                         </div>
                      </div>
