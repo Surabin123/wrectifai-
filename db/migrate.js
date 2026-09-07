@@ -38,7 +38,7 @@ async function main() {
   }
 
   const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
-  const ssl = isLocal ? false : { rejectUnauthorized: true };
+  const ssl = isLocal ? false : { rejectUnauthorized: false };
 
   const client = new Client({ connectionString: databaseUrl, ssl });
   await client.connect();

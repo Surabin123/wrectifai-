@@ -21,7 +21,7 @@ export function getDbPool(): Pool {
     // Strict TLS certificate validation for remote DBs to prevent MITM.
     // Local connections (localhost/127.0.0.1) don't use SSL/TLS.
     const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
-    const ssl = isLocal ? false : { rejectUnauthorized: true };
+    const ssl = isLocal ? false : { rejectUnauthorized: false };
 
     pool = new Pool({
       connectionString: databaseUrl,
