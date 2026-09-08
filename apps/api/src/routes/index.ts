@@ -94,7 +94,7 @@ apiRouter.get('/promos', async (req, res) => {
     const city = req.query.city ? (req.query.city as string).toLowerCase() : null;
     const country = req.query.country ? (req.query.country as string) : null;
     
-    let condition = "p.active = true AND p.is_deleted = false AND (p.valid_till IS NULL OR p.valid_till > NOW())";
+    let condition = "p.active = true AND p.is_deleted = false AND (p.valid_from IS NULL OR p.valid_from <= NOW()) AND (p.valid_till IS NULL OR p.valid_till > NOW())";
     const params: any[] = [];
     
     // Strict city filter — backend enforced
@@ -137,6 +137,7 @@ apiRouter.get('/promos', async (req, res) => {
       numericPrice: Number(p.numeric_price),
       strikePrice: p.strike_price ? Number(p.strike_price) : undefined,
       discountPercent: p.discount_percent,
+      validFrom: p.valid_from,
       validTill: p.valid_till,
       usedCountValue: p.used_count_value,
       image: p.image,

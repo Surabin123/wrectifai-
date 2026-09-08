@@ -11,6 +11,7 @@ import { cn } from '@/utils/cn';
 import { apiClient } from '@/lib/api-client';
 import { getPromoTheme } from '@/utils/promo-theme';
 import { formatCurrency } from '@/lib/currency';
+import { resolveImageUrl } from '@/lib/utils';
 
 function OverviewPanel() {
   const [bookingsCount, setBookingsCount] = useState<number>(0);
@@ -264,7 +265,7 @@ function OfferCard({
           {image ? (
             <>
               <Image
-                src={image}
+                src={resolveImageUrl(image)}
                 alt={title}
                 fill
                 sizes="(max-width: 768px) 100vw, 15vw"

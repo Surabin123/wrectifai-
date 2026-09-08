@@ -34,6 +34,7 @@ export interface Promo {
   numericPrice: number;
   strikePrice?: number;
   discountPercent: number;
+  validFrom?: string;
   validTill: string;
   usedCountValue: number;
   image: string;

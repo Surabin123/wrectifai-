@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api-client';
 import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/utils/cn';
+import { resolveImageUrl } from '@/lib/utils';
 
 type OfferFilter = 'All' | 'SERVICE' | 'PARTS' | 'COMBO';
 
@@ -34,6 +35,7 @@ interface Offer {
   strikePrice?: number;
   discountPercent?: number;
   image?: string;
+  validFrom?: string;
 }
 
 const filters: { label: OfferFilter; displayLabel: string; icon?: any }[] = [
@@ -107,6 +109,7 @@ export function OffersPage() {
           strikePrice: combo.strikePrice ? Number(combo.strikePrice) : undefined,
           discountPercent: combo.discountPercent ? Number(combo.discountPercent) : undefined,
           image: combo.image,
+          validFrom: combo.validFrom,
         }));
         setOffers([...(promoCodeData || []), ...combos]);
       } catch (err) {
@@ -177,6 +180,7 @@ export function OffersPage() {
                 key={offer.id} 
                 className="overflow-hidden bg-white border border-slate-100 rounded-2xl shadow-sm hover:shadow-md transition-shadow group flex flex-col"
               >
+                {offer.image && <div className="relative h-40 w-full bg-slate-100"><img src={resolveImageUrl(offer.image)} alt={offer.title} className="h-full w-full object-cover" /></div>}
                 <div className="p-5 flex-1">
                   <div className="flex justify-between items-start mb-4">
                     <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-bold text-blue-700 ring-1 ring-inset ring-blue-700/10 uppercase">
