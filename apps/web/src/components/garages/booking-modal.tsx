@@ -11,6 +11,8 @@ export function BookingModal({
   garageId, 
   businessHours: initialBusinessHours,
   garageName: initialGarageName,
+  comboId,
+  comboTitle,
   onSubmitSuccess 
 }: { 
   isOpen: boolean; 
@@ -18,13 +20,15 @@ export function BookingModal({
   garageId: string; 
   businessHours?: BusinessHours;
   garageName?: string;
-  onSubmitSuccess: () => void; 
+  comboId?: string;
+  comboTitle?: string;
+  onSubmitSuccess?: () => void; 
 }) {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [preferredDate, setPreferredDate] = useState('');
   const [preferredTime, setPreferredTime] = useState('');
-  const [issueDescription, setIssueDescription] = useState('');
+  const [issueDescription, setIssueDescription] = useState(comboTitle || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -46,8 +50,14 @@ export function BookingModal({
           }
         }).catch(console.error);
       }
+      
+      if (comboTitle) {
+        setIssueDescription(comboTitle);
+      } else {
+        setIssueDescription('');
+      }
     }
-  }, [isOpen, garageId]);
+  }, [isOpen, garageId, comboTitle]);
 
   const schedule = useMemo(() => {
     return getDaySchedule(garageHours, preferredDate);
@@ -98,10 +108,11 @@ export function BookingModal({
         scheduledAt,
         serviceType: issueDescription,
         totalAmount: 0,
-        bookingType: 'instant',
-        quoteId: null
+        bookingType: 'quoteBased',
+        comboId
       });
-      onSubmitSuccess();
+
+      if (onSubmitSuccess) onSubmitSuccess();
       onClose();
     } catch (err: any) {
       console.error(err);
@@ -132,6 +143,18 @@ export function BookingModal({
               <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plate_number})</option>
             ))}
           </select>
+        </div>
+
+        <div className="mb-4">
+          <label className="mb-1 block text-sm font-semibold text-gray-700">Service or Issue Description</label>
+          <textarea
+            className="w-full rounded-xl border border-gray-300 p-2.5 text-sm disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:border-blue-500"
+            rows={3}
+            value={issueDescription}
+            onChange={(e) => setIssueDescription(e.target.value)}
+            placeholder="E.g., Oil change, brake pad replacement, weird noise from engine..."
+            disabled={!!comboTitle}
+          />
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

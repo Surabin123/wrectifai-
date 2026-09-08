@@ -39,6 +39,7 @@ export async function createBooking(data: {
   quoteId?: string | null;
   currency?: string;
   serviceType?: string;
+  comboId?: string;
 }): Promise<Booking> {
   return apiClient.post<Booking>('/bookings', data);
 }

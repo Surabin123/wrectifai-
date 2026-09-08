@@ -67,7 +67,7 @@ garageOffersRouter.post('/my-offers', authenticate, async (req, res) => {
     const { 
       code, title, description, discount_type, discount_value, max_discount, 
       min_order_amount, valid_from, valid_until, usage_limit, per_user_limit, 
-      active, offer_type, applicable_item_id, terms_conditions 
+      active, offer_type, applicable_item_id, terms_conditions, image
     } = req.body;
 
     if (!code || !title || !discount_type || discount_value === undefined) {
@@ -94,18 +94,33 @@ garageOffersRouter.post('/my-offers', authenticate, async (req, res) => {
       }
     }
 
+    let processedImage = image;
+    if (image && image.startsWith('data:image')) {
+      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+        try {
+          const uploadResult = await cloudinary.uploader.upload(image, {
+            folder: 'wrectifai/offers'
+          });
+          processedImage = uploadResult.secure_url;
+        } catch (uploadErr) {
+          console.error('Failed to upload image to cloudinary:', uploadErr);
+          // If cloudinary fails, it will fall back to using the base64 string
+        }
+      }
+    }
+
     const result = await query(
       `INSERT INTO offers (
         garage_id, code, title, description, discount_type, discount_value, max_discount, 
         min_order_amount, valid_from, valid_until, usage_limit, per_user_limit, active, 
-        offer_type, applicable_item_id, terms_conditions
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, NOW()), $10, $11, $12, COALESCE($13, true), $14, $15, $16)
+        offer_type, applicable_item_id, terms_conditions, image
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, COALESCE($9, NOW()), $10, $11, $12, COALESCE($13, true), $14, $15, $16, $17)
        RETURNING *`,
       [
         garageId, code, title, description, discount_type, discount_value, max_discount || null, 
         min_order_amount || 0, valid_from || null, valid_until || null, usage_limit || null, 
         per_user_limit || 1, active !== undefined ? active : true, 
-        offer_type || 'SERVICE', applicable_item_id || null, terms_conditions || null
+        offer_type || 'SERVICE', applicable_item_id || null, terms_conditions || null, processedImage || null
       ]
     );
 
@@ -128,7 +143,7 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
     const { 
       code, title, description, discount_type, discount_value, max_discount, 
       min_order_amount, valid_from, valid_until, usage_limit, per_user_limit, 
-      active, offer_type, applicable_item_id, terms_conditions 
+      active, offer_type, applicable_item_id, terms_conditions, image 
     } = req.body;
 
     if (applicable_item_id) {
@@ -149,6 +164,20 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
       }
     }
 
+    let processedImage = image;
+    if (image && image.startsWith('data:image')) {
+      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+        try {
+          const uploadResult = await cloudinary.uploader.upload(image, {
+            folder: 'wrectifai/offers'
+          });
+          processedImage = uploadResult.secure_url;
+        } catch (uploadErr) {
+          console.error('Failed to upload image to cloudinary:', uploadErr);
+        }
+      }
+    }
+
     const result = await query(
       `UPDATE offers 
        SET code = COALESCE($1, code),
@@ -166,6 +195,7 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
            offer_type = COALESCE($13, offer_type),
            applicable_item_id = $14,
            terms_conditions = $15,
+           image = COALESCE(NULLIF($18, ''), image),
            updated_at = NOW()
        WHERE id = $16 AND garage_id IN (SELECT id FROM garages WHERE owner_user_id = $17) AND is_deleted = false
        RETURNING *`,
@@ -173,7 +203,7 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
         code, title, description, discount_type, discount_value, max_discount || null, 
         min_order_amount, valid_from, valid_until || null, usage_limit || null, 
         per_user_limit, active, offer_type, applicable_item_id || null, terms_conditions || null,
-        req.params.id, userId
+        req.params.id, userId, processedImage || ''
       ]
     );
 

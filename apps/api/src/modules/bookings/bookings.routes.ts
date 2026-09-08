@@ -131,13 +131,14 @@ function parseTimeToMinutes(timeStr: any): number | null {
   issueDescription?: string;
   notes?: string;
   offerCode?: string;
+  comboId?: string;
   walletAmountToUse?: number;
   paymentMethod?: string;
   serviceIds?: string[];
 }) {
   const customerId = req.user?.userId;
   let { garageId } = data;
-  const { vehicleId, scheduledAt, bookingType, quoteId, currency, serviceType, issueDescription, notes, offerCode, walletAmountToUse, paymentMethod, serviceIds } = data;
+  const { vehicleId, scheduledAt, bookingType, quoteId, currency, serviceType, issueDescription, notes, offerCode, comboId, walletAmountToUse, paymentMethod, serviceIds } = data;
   
   const extractedNotes = issueDescription || serviceType || notes || req.body?.issueDescription || req.body?.serviceType || req.body?.notes || '';
   let totalAmount = data.totalAmount;
@@ -282,8 +283,35 @@ function parseTimeToMinutes(timeStr: any): number | null {
     let offerId: string | null = null;
     let discountApplied = 0;
 
-    // 1. Offer Validation
-    if (offerCode) {
+    // 1. Combo / Offer Validation
+    if (comboId) {
+      const comboCheck = await query('SELECT title, numeric_price, strike_price, garage_id FROM promos WHERE id = $1 AND active = true AND is_deleted = false', [comboId]);
+      if (comboCheck.rows.length === 0) {
+        return error(res, 'Combo deal not found or inactive', 'NOT_FOUND', 404);
+      }
+      const combo = comboCheck.rows[0];
+      if (combo.garage_id !== garageId) {
+        return error(res, 'This combo is not applicable for this garage.', 'BAD_REQUEST', 400);
+      }
+
+      finalServiceType = `Combo Deal: ${combo.title}`;
+      
+      const nPrice = Number(combo.numeric_price);
+      const sPrice = combo.strike_price ? Number(combo.strike_price) : nPrice;
+      
+      discountApplied = sPrice > nPrice ? sPrice - nPrice : 0;
+      finalAmount = nPrice; // The final amount to be paid
+      
+      // Do NOT classify entire price as labor_cost to preserve financial integrity.
+      serviceDetailsJSON = {
+        combo_id: comboId,
+        combo_name: combo.title,
+        parts_cost: 0,
+        labor_cost: 0,
+        total_cost: nPrice,
+        breakdown: { labor: [], parts: [] }
+      };
+    } else if (offerCode) {
       const offerValidation = await validateOffer(offerCode, customerId, finalAmount, garageId);
       offerId = offerValidation.offerId;
       discountApplied = offerValidation.discount;
@@ -314,7 +342,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
         scheduledAt,
         status,
         paymentStatus,
-        totalAmount, 
+        finalAmount, 
         currency || 'INR',
         finalServiceType,
         offerId,

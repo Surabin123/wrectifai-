@@ -369,7 +369,7 @@ function OffersPanel() {
               discount: offer.discount_type === 'PERCENTAGE' ? `${offer.discount_value}% OFF` : 'OFFER',
               themePreset: 'blue',
               icon: 'Tag',
-              image: undefined,
+              image: offer.image,
             }));
             const combinedPromos = [...garageOffers, ...homePromos];
             if (combinedPromos.length > 0) {

@@ -36,6 +36,44 @@ import {
   careTips,
   categoryItems,
   maintenanceItems,
+'use client';
+
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import Image from 'next/image';
+import {
+  BadgeIndianRupee,
+  BatteryCharging,
+  ChevronLeft,
+  ChevronRight,
+  Heart,
+  MapPin,
+  Search,
+  ShieldCheck,
+  Sparkles,
+  Star,
+  Sticker,
+  Zap,
+  Snowflake,
+  X,
+  FileText,
+  Gift,
+  Sun,
+  CloudRain,
+  Settings as SettingsIcon,
+} from 'lucide-react';
+
+import { fetchGarages, fetchPromos } from '@/lib/garages-api';
+import { Promo } from '@/lib/garages-api';
+import { useFavorites } from '@/lib/favorites-context';
+import { apiClient } from '@/lib/api-client';
+import { Badge } from '@/components/common/badge';
+import { Button } from '@/components/common/button';
+import { Card } from '@/components/common/card';
+import { Input } from '@/components/common/input';
+import {
+  careTips,
+  categoryItems,
+  maintenanceItems,
   type Garage,
 } from '@/components/home/data';
 
@@ -45,6 +83,7 @@ import { cn } from '@/lib/utils';
 import { resolveImageUrl } from '@/lib/utils';
 import { formatCurrency } from '@/lib/currency';
 import { getCountryForCity } from '@/utils/location';
+import { BookingModal } from '@/components/garages/booking-modal';
 
 function SectionHeader({
   title,
@@ -775,14 +814,14 @@ function FeaturedGarages({
   );
 }
 
-function ComboDeals({ deals }: { deals: Deal[] }) {
+function ComboDeals({ deals, onBookNow }: { deals: Deal[], onBookNow: (deal: Deal) => void }) {
   return (
     <section id="combo-deals">
       <SectionHeader title="Combo Deals" linkLabel="View All" href="/offers?type=combo" />
       <div className="flex gap-4 overflow-x-auto pr-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {deals.map((deal) => (
-          <Link key={deal.title} href="/offers?type=combo" className="w-[270px] shrink-0 block">
-            <Card className="overflow-hidden border-0 p-0 shadow-[0_8px_20px_rgba(20,44,112,0.06)]">
+          <div key={deal.title} className="w-[270px] shrink-0 block">
+            <Card className="overflow-hidden border-0 p-0 shadow-[0_8px_20px_rgba(20,44,112,0.06)] relative group">
               {deal.image && (
                 <div className="relative h-32 w-full bg-slate-100 border-b border-slate-100">
                   <img src={resolveImageUrl(deal.image)} alt={deal.title} className="h-full w-full object-cover" />
@@ -795,10 +834,21 @@ function ComboDeals({ deals }: { deals: Deal[] }) {
                   <span className={cn('text-[15px] font-bold', deal.textColor)}>{deal.price}</span>
                   {deal.strikePrice && <span className="text-[11px] text-slate-400 line-through">{deal.strikePrice}</span>}
                 </div>
-                <span className="mt-2 inline-block rounded bg-white/70 px-2 py-1 text-[10px] font-bold text-[#17307a]">{deal.discount}</span>
+                <div className="mt-2 flex items-center justify-between">
+                  <span className="inline-block rounded bg-white/70 px-2 py-1 text-[10px] font-bold text-[#17307a]">{deal.discount}</span>
+                  {deal.garageId && (
+                    <Button 
+                      onClick={() => onBookNow(deal)} 
+                      size="sm" 
+                      className="h-7 px-3 text-[10px] font-bold rounded-lg shadow-sm"
+                    >
+                      Book Now
+                    </Button>
+                  )}
+                </div>
               </div>
             </Card>
-          </Link>
+          </div>
         ))}
       </div>
     </section>
@@ -806,6 +856,8 @@ function ComboDeals({ deals }: { deals: Deal[] }) {
 }
 
 interface Deal {
+  id?: string;
+  garageId?: string;
   title: string;
   subtitle: string;
   price: string;
@@ -940,6 +992,7 @@ export function MainContent() {
   const [garagesList, setGaragesList] = useState<Garage[]>([]);
   const [dealsList, setDealsList] = useState<Deal[]>([]);
   const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
+  const [selectedComboDeal, setSelectedComboDeal] = useState<Deal | null>(null);
 
   useEffect(() => {
     try {
@@ -1092,6 +1145,8 @@ export function MainContent() {
               }
               
               return {
+                id: p.id,
+                garageId: p.garageId,
                 title: p.badge || p.title,
                 subtitle: p.title,
                 price: displayPrice,
@@ -1192,7 +1247,7 @@ export function MainContent() {
         ) : null}
         {filteredMaintenance.length > 0 ? <MaintenanceStrip items={filteredMaintenance} /> : null}
         {filteredGarages.length > 0 ? <FeaturedGarages garagesList={filteredGarages} /> : null}
-        {filteredDeals.length > 0 ? <ComboDeals deals={filteredDeals} /> : null}
+        {filteredDeals.length > 0 ? <ComboDeals deals={filteredDeals} onBookNow={(deal) => setSelectedComboDeal(deal)} /> : null}
         {filteredTips.length > 0 ? <CareTips tips={filteredTips} /> : null}
         {!hasResults ? (
           <Card className="rounded-[18px] border-[#e4ecff] px-5 py-6 text-center shadow-[0_8px_20px_rgba(20,44,112,0.04)]">
@@ -1206,6 +1261,13 @@ export function MainContent() {
       <CategoriesModal
         open={isCategoriesModalOpen}
         onClose={() => setIsCategoriesModalOpen(false)}
+      />
+      <BookingModal 
+        isOpen={!!selectedComboDeal}
+        onClose={() => setSelectedComboDeal(null)}
+        garageId={selectedComboDeal?.garageId || ''}
+        comboId={selectedComboDeal?.id}
+        comboTitle={selectedComboDeal?.title}
       />
     </>
   );

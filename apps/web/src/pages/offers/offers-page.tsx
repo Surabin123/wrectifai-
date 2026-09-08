@@ -12,6 +12,7 @@ import { apiClient } from '@/lib/api-client';
 import { formatCurrency } from '@/lib/currency';
 import { cn } from '@/utils/cn';
 import { resolveImageUrl } from '@/lib/utils';
+import { BookingModal } from '@/components/garages/booking-modal';
 
 type OfferFilter = 'All' | 'SERVICE' | 'PARTS' | 'COMBO';
 
@@ -36,6 +37,7 @@ interface Offer {
   discountPercent?: number;
   image?: string;
   validFrom?: string;
+  garageId?: string;
 }
 
 const filters: { label: OfferFilter; displayLabel: string; icon?: any }[] = [
@@ -50,6 +52,7 @@ export function OffersPage() {
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState<OfferFilter>('All');
   const [currencyCode, setCurrencyCode] = useState('INR');
+  const [selectedCombo, setSelectedCombo] = useState<Offer | null>(null);
   const searchParams = useSearchParams();
 
   useEffect(() => {
@@ -106,10 +109,10 @@ export function OffersPage() {
           garageName: combo.garageName,
           badge: combo.badge,
           numericPrice: Number(combo.numericPrice || 0),
-          strikePrice: combo.strikePrice ? Number(combo.strikePrice) : undefined,
           discountPercent: combo.discountPercent ? Number(combo.discountPercent) : undefined,
           image: combo.image,
           validFrom: combo.validFrom,
+          garageId: combo.garageId,
         }));
         setOffers([...(promoCodeData || []), ...combos]);
       } catch (err) {
@@ -244,12 +247,26 @@ export function OffersPage() {
                       </span>
                     </div>
                   )}
+                  {offer.offer_type === 'COMBO' && offer.garageId && (
+                    <div className="text-right ml-auto pl-2">
+                      <Button onClick={() => setSelectedCombo(offer)} size="sm" className="bg-blue-600 hover:bg-blue-700 text-white rounded-xl h-8 px-4 text-xs font-bold shadow-sm">
+                        Book Now
+                      </Button>
+                    </div>
+                  )}
                 </div>
               </Card>
             ))}
           </div>
           )}
         </div>
+        <BookingModal 
+          isOpen={!!selectedCombo}
+          onClose={() => setSelectedCombo(null)}
+          garageId={selectedCombo?.garageId || ''}
+          comboId={selectedCombo?.id}
+          comboTitle={selectedCombo?.title}
+        />
       </DashboardShell>
     </RoleGuard>
   );
