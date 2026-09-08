@@ -783,6 +783,11 @@ function ComboDeals({ deals }: { deals: Deal[] }) {
         {deals.map((deal) => (
           <Link key={deal.title} href="/offers?type=combo" className="w-[270px] shrink-0 block">
             <Card className="overflow-hidden border-0 p-0 shadow-[0_8px_20px_rgba(20,44,112,0.06)]">
+              {deal.image && (
+                <div className="relative h-32 w-full bg-slate-100 border-b border-slate-100">
+                  <img src={resolveImageUrl(deal.image)} alt={deal.title} className="h-full w-full object-cover" />
+                </div>
+              )}
               <div className={cn('p-4', deal.bgColor)}>
                 <p className={cn('text-[11px] font-bold uppercase', deal.textColor)}>{deal.title}</p>
                 <p className="mt-2 text-[12px] font-semibold text-[#17307a]">{deal.subtitle}</p>
