@@ -98,6 +98,7 @@ garageOffersRouter.post('/my-offers', authenticate, async (req, res) => {
     if (image && image.startsWith('data:image')) {
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
+          const { v2: cloudinary } = require('cloudinary');
           const uploadResult = await cloudinary.uploader.upload(image, {
             folder: 'wrectifai/offers'
           });
@@ -168,6 +169,7 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
     if (image && image.startsWith('data:image')) {
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
+          const { v2: cloudinary } = require('cloudinary');
           const uploadResult = await cloudinary.uploader.upload(image, {
             folder: 'wrectifai/offers'
           });

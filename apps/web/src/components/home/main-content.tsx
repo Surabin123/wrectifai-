@@ -36,44 +36,6 @@ import {
   careTips,
   categoryItems,
   maintenanceItems,
-'use client';
-
-import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react';
-import Image from 'next/image';
-import {
-  BadgeIndianRupee,
-  BatteryCharging,
-  ChevronLeft,
-  ChevronRight,
-  Heart,
-  MapPin,
-  Search,
-  ShieldCheck,
-  Sparkles,
-  Star,
-  Sticker,
-  Zap,
-  Snowflake,
-  X,
-  FileText,
-  Gift,
-  Sun,
-  CloudRain,
-  Settings as SettingsIcon,
-} from 'lucide-react';
-
-import { fetchGarages, fetchPromos } from '@/lib/garages-api';
-import { Promo } from '@/lib/garages-api';
-import { useFavorites } from '@/lib/favorites-context';
-import { apiClient } from '@/lib/api-client';
-import { Badge } from '@/components/common/badge';
-import { Button } from '@/components/common/button';
-import { Card } from '@/components/common/card';
-import { Input } from '@/components/common/input';
-import {
-  careTips,
-  categoryItems,
-  maintenanceItems,
   type Garage,
 } from '@/components/home/data';
 
