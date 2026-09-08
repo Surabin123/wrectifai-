@@ -27,6 +27,7 @@ export interface Garage {
 
 export interface Promo {
   id: string;
+  garageId?: string;
   badge: string;
   icon: string;
   title: string;
