@@ -16,7 +16,7 @@ offersRouter.get('/', async (req, res) => {
     const params: any[] = [];
     
     if (city && city !== 'location') {
-      condition += ` AND (o.garage_id IS NULL OR LOWER(COALESCE(g.location->>'city', g.city)) = $${params.length + 1})`;
+      condition += ` AND (o.garage_id IS NULL OR LOWER(COALESCE(g.location->>'city', g.city, '')) = $${params.length + 1})`;
       params.push(city);
     }
     
@@ -30,7 +30,8 @@ offersRouter.get('/', async (req, res) => {
       };
       const isoCode = countryIsoMap[country.toLowerCase()] || country.toLowerCase();
       condition += ` AND (o.garage_id IS NULL OR (
-        LOWER(COALESCE(g.location->>'country', '')) = $${params.length + 1}
+        COALESCE(g.location->>'country', '') = '' 
+        OR LOWER(COALESCE(g.location->>'country', '')) = $${params.length + 1}
         OR LOWER(COALESCE(g.location->>'country', '')) = $${params.length + 2}
       ))`;
       params.push(country.toLowerCase(), isoCode);
