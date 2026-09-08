@@ -289,11 +289,11 @@ export default function GarageOffersContent() {
                   <div className="mt-4 pt-3 border-t border-slate-100 flex flex-col gap-1">
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="text-slate-500 font-medium">Valid From:</span>
-                      <span className="font-bold text-slate-700">{o.valid_from ? new Date(o.valid_from).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Not set'}</span>
+                      <span className="font-bold text-slate-700">{o.valid_from ? new Date(o.valid_from).toLocaleString('en-US', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Not set'}</span>
                     </div>
                     <div className="flex items-center justify-between text-[11px]">
                       <span className="text-slate-500 font-medium">Valid Until:</span>
-                      <span className="font-bold text-slate-700">{o.valid_until ? new Date(o.valid_until).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Not set'}</span>
+                      <span className="font-bold text-slate-700">{o.valid_until ? new Date(o.valid_until).toLocaleString('en-US', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }) : 'Not set'}</span>
                     </div>
                   </div>
                 </div>
