@@ -94,7 +94,7 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
         // Fallback to local
         const fs = require('fs');
         const path = require('path');
-        const match = imageToSave.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        const match = (imageToSave as string).match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
         if (match && match.length === 3) {
           const ext = match[1].split('/')[1] || 'png';
           const filename = `profile_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
