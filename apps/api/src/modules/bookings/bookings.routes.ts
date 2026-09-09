@@ -343,7 +343,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
         status,
         paymentStatus,
         finalAmount, 
-        currency || garageData.business_currency || 'USD',
+        currency || garageData.business_currency || 'INR',
         finalServiceType,
         offerId,
         discountApplied,
@@ -658,7 +658,16 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
     }
 
     // Verify existing booking and handle refunds if paying online
-    const currentBookingRes = await query('SELECT payment_status, customer_id, status as old_status, total_amount, discount_applied, wallet_used, currency FROM bookings WHERE id = $1', [bookingId]);
+    // Authorize and lock the booking before any refund or other side effect.
+    const currentBookingRes = await query(
+      `SELECT payment_status, customer_id, status as old_status, total_amount, discount_applied, wallet_used, currency
+       FROM bookings
+       WHERE id = $1 AND (
+         $4 = true OR customer_id = $2 OR garage_id = $3
+       )
+       FOR UPDATE`,
+      [bookingId, req.user?.userId, req.user?.garageId || null, userRoles.includes('admin')]
+    );
     if (currentBookingRes.rows.length === 0) {
       return error(res, 'Booking not found', 'NOT_FOUND', 404);
     }

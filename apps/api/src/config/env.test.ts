@@ -17,7 +17,7 @@ test('env - default keys and warnings in development', () => {
 test('env - throws in production on missing JWT_SECRET', () => {
   const mockEnv = {
     NODE_ENV: 'production',
-    JWT_REFRESH_SECRET: 'valid-refresh-secret',
+    JWT_REFRESH_SECRET: 'valid-refresh-secret-0123456789012345',
   };
 
   assert.throws(() => {
@@ -28,7 +28,7 @@ test('env - throws in production on missing JWT_SECRET', () => {
 test('env - throws in production on missing JWT_REFRESH_SECRET', () => {
   const mockEnv = {
     NODE_ENV: 'production',
-    JWT_SECRET: 'valid-jwt-secret',
+    JWT_SECRET: 'valid-jwt-secret-012345678901234567890',
   };
 
   assert.throws(() => {

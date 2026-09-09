@@ -79,7 +79,8 @@ export async function runMigrations() {
       await client.query('ROLLBACK');
       failedCount++;
       console.error(`[migrations] Failed to apply migration: ${file}`, err);
-      // Continue applying subsequent migrations — don't throw
+      // A partially migrated database is unsafe to serve.
+      throw err;
     } finally {
       client.release();
     }

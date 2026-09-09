@@ -54,12 +54,12 @@ apiRouter.use('/deliveries', deliveriesRouter);
 apiRouter.use('/products', productsRouter);
 apiRouter.use('/referrals', referralsRouter);
 
-apiRouter.get('/debug-garages', async (req, res) => {
+if (process.env.NODE_ENV !== 'production') apiRouter.get('/debug-garages', async (req, res) => {
   const result = await query('SELECT id, name, approval_status, is_approved FROM garages');
   return res.json(result.rows);
 });
 
-apiRouter.get('/debug-schema', async (req, res) => {
+if (process.env.NODE_ENV !== 'production') apiRouter.get('/debug-schema', async (req, res) => {
   try {
     const migrations = await query('SELECT * FROM _migrations ORDER BY id DESC LIMIT 10');
     const quotesSchema = await query(`
@@ -76,7 +76,7 @@ apiRouter.get('/debug-schema', async (req, res) => {
   }
 });
 
-apiRouter.get('/debug-offers', async (req, res) => {
+if (process.env.NODE_ENV !== 'production') apiRouter.get('/debug-offers', async (req, res) => {
   try {
     const allGarages = await query('SELECT id, name, owner_user_id FROM garages WHERE name ILIKE \'%torque%\'');
     const allOffers = await query('SELECT * FROM offers');

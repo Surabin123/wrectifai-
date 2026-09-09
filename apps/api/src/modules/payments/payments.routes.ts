@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, requireRole } from '../../middleware/auth';
 import { getDbPool } from '../../config/database';
 import { createRazorpayOrder, verifyWebhookSignature, fetchRazorpayPayment } from './razorpay.service';
 import { getEnv } from '../../config/env';
@@ -15,23 +15,40 @@ const env = getEnv();
 // POST /api/v1/payments/orders - Generate Razorpay Order
 paymentsRouter.post('/orders', authenticate, async (req, res) => {
   const { amount, bookingId } = req.body;
-  if (!amount) {
-    return error(res, 'Amount is required to create a payment order', 'BAD_REQUEST', 400);
+  if (!bookingId || amount === undefined) {
+    return error(res, 'Booking ID and amount are required', 'BAD_REQUEST', 400);
   }
 
   try {
-    // Amount should be in paise for Razorpay
-    const amountInPaise = Math.round(Number(amount) * 100);
+    const bookingResult = await getDbPool().query(
+      `SELECT b.id, b.total_amount, b.discount_applied, b.wallet_used, b.payment_status, b.customer_id
+       FROM bookings b WHERE b.id = $1`, [bookingId]
+    );
+    const booking = bookingResult.rows[0];
+    const userId = req.user?.userId;
+    const roles = req.user?.roles || [];
+    if (!booking || (!roles.includes('admin') && booking.customer_id !== userId)) {
+      return error(res, 'Booking not found or unauthorized', 'NOT_FOUND', 404);
+    }
+    if (booking.payment_status === 'PAID') {
+      return error(res, 'Booking is already paid', 'BAD_REQUEST', 400);
+    }
+    const payable = Number(booking.total_amount) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
+    const requestedAmount = Number(amount);
+    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || Math.abs(requestedAmount - payable) > 0.01) {
+      return error(res, 'Payment amount does not match the booking balance', 'BAD_REQUEST', 400);
+    }
+    const amountInPaise = Math.round(payable * 100);
     const receiptId = bookingId ? bookingId.substring(0, 40) : `rcpt_${Date.now()}`;
     
     const order = await createRazorpayOrder(amountInPaise, receiptId, {
-      userId: req.user?.userId,
+      userId,
       bookingId
     });
 
     if (bookingId) {
       const pool = getDbPool();
-      await pool.query('UPDATE bookings SET payment_intent_id = $1 WHERE id = $2', [order.id, bookingId]);
+      await pool.query('UPDATE bookings SET payment_intent_id = $1 WHERE id = $2 AND customer_id = $3', [order.id, bookingId, userId]);
     }
 
     return success(
@@ -71,12 +88,7 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
     .digest('hex');
 
   if (generated_signature !== razorpay_signature) {
-    console.error('Signature mismatch in /verify', {
-      expected: generated_signature,
-      received: razorpay_signature,
-      orderId: razorpay_order_id,
-      paymentId: razorpay_payment_id
-    });
+    console.error('Payment signature mismatch', { orderId: razorpay_order_id, paymentId: razorpay_payment_id });
     return error(res, 'Payment signature verification failed', 'BAD_REQUEST', 400);
   }
 
@@ -198,7 +210,7 @@ paymentsRouter.post('/fail', authenticate, async (req, res) => {
 });
 
 // POST /api/v1/payments/booking/:id/refund - Process a refund by booking ID
-paymentsRouter.post('/booking/:id/refund', authenticate, async (req, res) => {
+paymentsRouter.post('/booking/:id/refund', authenticate, requireRole(['customer', 'user', 'garage', 'admin']), async (req, res) => {
   const bookingId = req.params.id;
   const { reason } = req.body;
   if (!reason || reason.trim() === '') {
@@ -212,8 +224,13 @@ paymentsRouter.post('/booking/:id/refund', authenticate, async (req, res) => {
     await client.query('BEGIN');
 
     const paymentRes = await client.query(
-      'SELECT * FROM payments WHERE booking_id = $1 AND status IN (\'paid\', \'succeeded\') FOR UPDATE',
-      [bookingId]
+      `SELECT p.* FROM payments p
+       JOIN bookings b ON b.id = p.booking_id
+       JOIN garages g ON g.id = b.garage_id
+       WHERE p.booking_id = $1 AND p.status IN ('paid', 'succeeded')
+         AND ($4 = true OR b.customer_id = $2 OR g.owner_user_id = $2)
+       FOR UPDATE`,
+      [bookingId, req.user!.userId, req.user!.garageId || null, (req.user!.roles || []).includes('admin')]
     );
 
     if (paymentRes.rows.length === 0) {
