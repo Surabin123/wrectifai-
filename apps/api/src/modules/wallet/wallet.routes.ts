@@ -18,29 +18,26 @@ walletRouter.get('/balance', authenticate, async (req, res) => {
     let bonus = 0;
     let pendingRefunds = 0;
 
-    try {
-      const walletRes = await query(
-        'SELECT id, balance FROM wallets WHERE user_id = $1',
-        [userId]
-      );
+    const walletRes = await query(
+      'SELECT id, balance FROM wallets WHERE user_id = $1',
+      [userId]
+    );
 
-      if (walletRes.rows.length > 0) {
-        balance = Number(walletRes.rows[0].balance);
-        const walletId = walletRes.rows[0].id;
+    if (walletRes.rows.length > 0) {
+      balance = Number(walletRes.rows[0].balance);
+      const walletId = walletRes.rows[0].id;
 
-        const txRes = await query(
-            `SELECT type, amount FROM wallet_transactions WHERE wallet_id = $1`,
-            [walletId]
-          );
-          let totalRewards = 0;
-          txRes.rows.forEach((r: any) => {
-            if (r.type === 'REWARD') totalRewards += Number(r.amount);
-          });
-          bonus = Math.min(totalRewards, balance);
-          main = balance - bonus;
-      }
+      const txRes = await query(
+          `SELECT type, amount FROM wallet_transactions WHERE wallet_id = $1`,
+          [walletId]
+        );
+        let totalRewards = 0;
+        txRes.rows.forEach((r: any) => {
+          if (r.type === 'REWARD') totalRewards += Number(r.amount);
+        });
+        bonus = Math.min(totalRewards, balance);
+        main = balance - bonus;
     }
-
     // Pending refunds — use customer_user_id (actual live DB column name)
     const pendingRes = await query(
         `SELECT COALESCE(SUM(amount), 0) as total_pending FROM payments WHERE customer_user_id = $1 AND status = 'refund_pending'`,
