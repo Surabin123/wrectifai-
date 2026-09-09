@@ -1,5 +1,6 @@
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
 const { Pool } = require('pg');
-const pool = new Pool({ connectionString: 'postgresql://postgres:Smruti%4022@localhost:5432/wrectifai_new' });
+const pool = new Pool({ connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/wrectifai' });
 
 pool.query(`
   INSERT INTO user_roles (user_id, role_id)

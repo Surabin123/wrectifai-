@@ -1,3 +1,4 @@
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
 /**
  * Reset demo garage cities back to 'Demo City' so that:
  *  - The /garages/search endpoint (which filters by city) is bypassed
@@ -6,7 +7,7 @@
  */
 const { Pool } = require('pg');
 const pool = new Pool({
-  connectionString: 'postgresql://postgres:Smruti@22@localhost:5432/wrectifai_new',
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/wrectifai',
 });
 
 async function run() {

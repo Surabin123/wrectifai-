@@ -1,8 +1,9 @@
+require('dotenv').config({ path: require('path').resolve(__dirname, '../../../.env') });
 const bcrypt = require('bcryptjs');
 const { Client } = require('pg');
 
 const client = new Client({
-  connectionString: 'postgresql://postgres:Smruti%4022@localhost:5432/wrectifai_new'
+  connectionString: process.env.DATABASE_URL || 'postgresql://postgres:password@localhost:5432/wrectifai'
 });
 
 async function run() {
