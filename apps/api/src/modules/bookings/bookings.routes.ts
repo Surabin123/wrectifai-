@@ -673,6 +673,21 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
     }
     const currentBooking = currentBookingRes.rows[0];
 
+    const allowedTransitions: Record<string, string[]> = {
+      requested: ['confirmed', 'cancelled'],
+      confirmed: ['in_progress', 'cancelled'],
+      checkedIn: ['in_progress', 'cancelled'],
+      in_progress: ['completed', 'cancelled'],
+      inService: ['completed', 'cancelled'],
+      completed: ['readyForCollection', 'cancelled'],
+      readyForCollection: ['collected'],
+      collected: [],
+      cancelled: [],
+    };
+    if (!allowedTransitions[currentBooking.old_status]?.includes(status)) {
+      return error(res, `Invalid booking transition from ${currentBooking.old_status} to ${status}`, 'INVALID_STATE_TRANSITION', 409);
+    }
+
     if (status === 'cancelled' && currentBooking.payment_status === 'PAID') {
       const paymentRes = await query("SELECT provider_payment_id, id, amount FROM payments WHERE booking_id = $1 AND status = 'succeeded'", [bookingId]);
       if (paymentRes.rows.length > 0) {
@@ -731,7 +746,8 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       updateQuery += `, payment_status = 'PAYMENT_DUE'`;
     }
 
-    updateQuery += ` WHERE id = $1${garageCheck} RETURNING id, status, updated_at as "updatedAt"`;
+    updateParams.push(currentBooking.old_status);
+    updateQuery += ` WHERE id = $1${garageCheck} AND status = $${updateParams.length} RETURNING id, status, updated_at as "updatedAt"`;
 
     const result = await query(updateQuery, updateParams);
 

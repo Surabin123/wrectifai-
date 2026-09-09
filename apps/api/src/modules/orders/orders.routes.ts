@@ -165,11 +165,12 @@ ordersRouter.post('/', authenticate, async (req, res) => {
       // Deduct inventory immediately for COD
       const itemsRes = await client.query(`SELECT * FROM order_items WHERE order_id = $1`, [orderId]);
       for (const item of itemsRes.rows) {
-        await client.query(
-          `UPDATE garage_inventory SET qty_available = qty_available - $1 
-           WHERE product_id = $2 AND garage_id = $3`,
+        const stockUpdate = await client.query(
+          `UPDATE garage_inventory SET qty_available = qty_available - $1, updated_at = NOW()
+           WHERE product_id = $2 AND garage_id = $3 AND qty_available >= $1`,
           [item.quantity, item.product_id, garageId]
         );
+        if (stockUpdate.rowCount !== 1) throw new Error(`Insufficient stock for product ${item.product_id}`);
       }
     }
     
@@ -247,7 +248,8 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
   
   try {
     // 1. Verify Signature
-    const secret = process.env.RAZORPAY_KEY_SECRET || 'dummy_secret';
+    const secret = process.env.RAZORPAY_KEY_SECRET || '';
+    if (!secret) return error(res, 'Payment provider is not configured', 'CONFIGURATION_ERROR', 500);
     const generatedSignature = crypto
       .createHmac('sha256', secret)
       .update(`${providerOrderId}|${providerPaymentId}`)
@@ -262,30 +264,44 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
     
     try {
       await client.query('BEGIN');
+
+      const orderRes = await client.query(
+        `SELECT * FROM orders WHERE id = $1 AND customer_id = $2 FOR UPDATE`,
+        [orderId, customerId]
+      );
+      if (orderRes.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'Order not found or unauthorized', 'NOT_FOUND', 404);
+      }
+      if (orderRes.rows[0].payment_status === 'PAID') {
+        await client.query('ROLLBACK');
+        return success(res, { verified: true, orderId, paymentStatus: 'PAID' });
+      }
       
       // Update Payment
       await client.query(
         `UPDATE payments SET status = 'succeeded', provider_payment_id = $1, updated_at = NOW()
-         WHERE transaction_id = $2 OR order_id = $3`,
+         WHERE order_id = $3 AND transaction_id = $2`,
         [providerPaymentId, providerOrderId, orderId]
       );
       
       // Update Order: payment_status = PAID, status = PENDING_ACCEPTANCE (do NOT auto accept!)
-      const orderRes = await client.query(
-        `UPDATE orders SET payment_status = 'PAID', status = 'PENDING_ACCEPTANCE', updated_at = NOW() WHERE id = $1 RETURNING *`,
-        [orderId]
+      const paidOrderRes = await client.query(
+        `UPDATE orders SET payment_status = 'PAID', status = 'PENDING_ACCEPTANCE', updated_at = NOW() WHERE id = $1 AND customer_id = $2 AND payment_status = 'PENDING' RETURNING *`,
+        [orderId, customerId]
       );
-      
-      const order = orderRes.rows[0];
+      const order = paidOrderRes.rows[0];
+      if (!order) throw new Error('Order payment state changed concurrently');
       
       // Deduct inventory
       const itemsRes = await client.query(`SELECT * FROM order_items WHERE order_id = $1`, [orderId]);
       for (const item of itemsRes.rows) {
-        await client.query(
-          `UPDATE garage_inventory SET qty_available = qty_available - $1 
-           WHERE product_id = $2 AND garage_id = $3`,
+        const stockUpdate = await client.query(
+          `UPDATE garage_inventory SET qty_available = qty_available - $1, updated_at = NOW()
+           WHERE product_id = $2 AND garage_id = $3 AND qty_available >= $1`,
           [item.quantity, item.product_id, order.garage_id]
         );
+        if (stockUpdate.rowCount !== 1) throw new Error(`Insufficient stock for product ${item.product_id}`);
       }
       
       // Generate Invoice

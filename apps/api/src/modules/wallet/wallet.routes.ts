@@ -13,7 +13,6 @@ walletRouter.get('/balance', authenticate, async (req, res) => {
       return error(res, 'User ID is required', 'UNAUTHORIZED', 401);
     }
 
-    // wallets table may not exist yet if no top-up has been done — return 0 safely
     let balance = 0;
     let main = 0;
     let bonus = 0;
@@ -29,8 +28,7 @@ walletRouter.get('/balance', authenticate, async (req, res) => {
         balance = Number(walletRes.rows[0].balance);
         const walletId = walletRes.rows[0].id;
 
-        try {
-          const txRes = await query(
+        const txRes = await query(
             `SELECT type, amount FROM wallet_transactions WHERE wallet_id = $1`,
             [walletId]
           );
@@ -40,25 +38,15 @@ walletRouter.get('/balance', authenticate, async (req, res) => {
           });
           bonus = Math.min(totalRewards, balance);
           main = balance - bonus;
-        } catch {
-          // wallet_transactions table may not exist yet
-          main = balance;
-        }
       }
-    } catch {
-      // wallets table may not exist yet — return 0
     }
 
     // Pending refunds — use customer_user_id (actual live DB column name)
-    try {
-      const pendingRes = await query(
+    const pendingRes = await query(
         `SELECT COALESCE(SUM(amount), 0) as total_pending FROM payments WHERE customer_user_id = $1 AND status = 'refund_pending'`,
         [userId]
       );
-      pendingRefunds = Number(pendingRes.rows[0].total_pending);
-    } catch {
-      // column or table mismatch — skip
-    }
+    pendingRefunds = Number(pendingRes.rows[0].total_pending);
 
     return success(res, { balance, main, bonus, pendingRefunds }, 200);
   } catch (err) {
@@ -80,9 +68,7 @@ walletRouter.get('/transactions', authenticate, async (req, res) => {
       return error(res, 'User ID is required', 'UNAUTHORIZED', 401);
     }
 
-    // wallet_transactions may not exist yet — return empty array safely
-    try {
-      const result = await query(
+    const result = await query(
         `SELECT t.id, t.wallet_id, t.type, t.amount, t.balance_before, t.balance_after, t.reference_type as "referenceType", t.reference_id, t.status, t.description, t.created_at as "createdAt"
          FROM wallet_transactions t
          JOIN wallets w ON t.wallet_id = w.id
@@ -90,11 +76,7 @@ walletRouter.get('/transactions', authenticate, async (req, res) => {
          ORDER BY t.created_at DESC`,
         [userId]
       );
-      return success(res, result.rows, 200);
-    } catch {
-      // Tables don't exist yet — return empty list
-      return success(res, [], 200);
-    }
+    return success(res, result.rows, 200);
   } catch (err) {
     return error(
       res,
@@ -115,16 +97,27 @@ walletRouter.post('/add-funds', authenticate, async (req, res) => {
     }
 
     const { amount } = req.body;
-    if (!amount || amount <= 0) {
-      return error(res, 'Valid amount is required', 'BAD_REQUEST', 400);
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount < 1 || numericAmount > 100000 || !/^\d+(\.\d{1,2})?$/.test(String(amount))) {
+      return error(res, 'Amount must be between 1 and 100000 with at most 2 decimal places', 'BAD_REQUEST', 400);
     }
 
-    const amountInPaise = Math.round(Number(amount) * 100);
+    const amountInPaise = Math.round(numericAmount * 100);
     const { createRazorpayOrder } = require('../payments/razorpay.service');
     const order = await createRazorpayOrder(amountInPaise, `wallet_topup_${Date.now()}`, {
       userId,
       type: 'wallet_topup'
     });
+
+    await query('INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING', [userId]);
+    await query(
+      `INSERT INTO wallet_transactions
+       (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
+       SELECT id, 'HOLD', $2, balance, balance, 'WALLET_TOPUP', $3, 'PENDING', 'Pending Razorpay wallet top-up'
+       FROM wallets WHERE user_id = $1
+       ON CONFLICT DO NOTHING`,
+      [userId, numericAmount, order.id]
+    );
 
     return success(res, { 
       razorpayOrderId: order.id,
@@ -149,7 +142,7 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
       return error(res, 'User ID is required', 'UNAUTHORIZED', 401);
     }
 
-    const { razorpay_order_id, razorpay_payment_id, razorpay_signature, amount } = req.body;
+    const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
     
     if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
       return error(res, 'Missing payment verification details', 'BAD_REQUEST', 400);
@@ -168,13 +161,14 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
       .digest('hex');
 
     if (generated_signature !== razorpay_signature) {
-      console.error('Signature mismatch', {
-        expected: generated_signature,
-        received: razorpay_signature,
-        orderId: razorpay_order_id,
-        paymentId: razorpay_payment_id
-      });
+      console.error('Wallet payment signature mismatch', { orderId: razorpay_order_id, paymentId: razorpay_payment_id });
       return error(res, 'Payment signature verification failed', 'BAD_REQUEST', 400);
+    }
+
+    const { fetchRazorpayPayment } = require('../payments/razorpay.service');
+    const providerPayment = await fetchRazorpayPayment(razorpay_payment_id);
+    if (providerPayment.order_id !== razorpay_order_id || providerPayment.status !== 'captured') {
+      return error(res, 'Payment is not a captured wallet top-up for this order', 'PAYMENT_VERIFICATION_FAILED', 400);
     }
 
     // --- Self-healing schema setup ---
@@ -224,7 +218,7 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
       // Use wallet_transactions.reference_id (TEXT) — no UUID columns involved.
       const idempCheck = await client.query(
         `SELECT id FROM wallet_transactions
-         WHERE reference_type = 'TOPUP' AND reference_id = $1`,
+         WHERE reference_type = 'TOPUP' AND reference_id = $1 AND status = 'COMPLETED'`,
         [razorpay_payment_id]
       );
       if (idempCheck.rows.length > 0) {
@@ -238,6 +232,20 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
         [userId]
       );
 
+      const pendingRes = await client.query(
+        `SELECT wt.id, wt.amount, wt.wallet_id FROM wallet_transactions wt
+         JOIN wallets w ON w.id = wt.wallet_id
+         WHERE wt.reference_type = 'WALLET_TOPUP' AND wt.reference_id = $1
+           AND w.user_id = $2 AND wt.status = 'PENDING' FOR UPDATE`,
+        [razorpay_order_id, userId]
+      );
+      if (pendingRes.rows.length === 0) throw new Error('Wallet top-up order is not recognized or already processed');
+      const pending = pendingRes.rows[0];
+      const providerAmount = Number(providerPayment.amount) / 100;
+      if (!Number.isFinite(providerAmount) || Math.abs(providerAmount - Number(pending.amount)) > 0.01) {
+        throw new Error('Captured payment amount does not match the wallet top-up order');
+      }
+
       // Lock the wallet row atomically
       const walletRes = await client.query(
         'SELECT id, balance FROM wallets WHERE user_id = $1 FOR UPDATE',
@@ -245,7 +253,7 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
       );
       const walletId = walletRes.rows[0].id;
       const balanceBefore = Number(walletRes.rows[0].balance);
-      const balanceAfter = balanceBefore + Number(amount);
+      const balanceAfter = balanceBefore + Number(pending.amount);
 
       // Credit wallet balance
       await client.query(
@@ -260,24 +268,22 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
         `INSERT INTO wallet_transactions
            (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
          VALUES ($1, 'CREDIT', $2, $3, $4, 'TOPUP', $5, 'COMPLETED', 'Wallet Top-up via Razorpay')`,
-        [walletId, amount, balanceBefore, balanceAfter, razorpay_payment_id]
+        [walletId, pending.amount, balanceBefore, balanceAfter, razorpay_payment_id]
       );
 
-      // Best-effort: record in payments table if the column names match the live DB.
-      // This is wrapped in its own try/catch so a schema mismatch never rolls back
-      // the wallet credit above.
-      try {
-        await client.query(
+      await client.query(
+        `UPDATE wallet_transactions SET status = 'COMPLETED', reference_id = $1,
+         balance_before = $2, balance_after = $3 WHERE id = $4 AND status = 'PENDING'`,
+        [razorpay_payment_id, balanceBefore, balanceAfter, pending.id]
+      );
+
+      await client.query(
           `INSERT INTO payments
              (customer_user_id, method, transaction_id, provider_order_id, provider_payment_id, amount, currency, status, signature_status)
            VALUES ($1, 'razorpay', $2, $3, $2, $4, 'INR', 'succeeded', 'valid')
            ON CONFLICT (transaction_id) DO NOTHING`,
-          [userId, razorpay_payment_id, razorpay_order_id, amount]
+          [userId, razorpay_payment_id, razorpay_order_id, pending.amount]
         );
-      } catch (paymentInsertErr) {
-        // Payments table schema mismatch — log but do NOT roll back the wallet credit.
-        console.warn('verify-topup: payments INSERT skipped (schema mismatch):', paymentInsertErr instanceof Error ? paymentInsertErr.message : paymentInsertErr);
-      }
 
       return balanceAfter;
     });

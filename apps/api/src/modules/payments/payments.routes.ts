@@ -100,8 +100,10 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
     await client.query('BEGIN');
 
     const bookingRes = await client.query(
-      'SELECT id, customer_id, total_amount, discount_applied, wallet_used, payment_status, status FROM bookings WHERE payment_intent_id = $1 FOR UPDATE', 
-      [razorpay_order_id]
+      `SELECT id, customer_id, total_amount, discount_applied, wallet_used, payment_status, status
+       FROM bookings WHERE payment_intent_id = $1
+       AND ($2 = true OR customer_id = $3) FOR UPDATE`,
+      [razorpay_order_id, (req.user?.roles || []).includes('admin'), req.user?.userId]
     );
     
     if (bookingRes.rows.length === 0) {
@@ -176,8 +178,10 @@ paymentsRouter.post('/fail', authenticate, async (req, res) => {
   const pool = getDbPool();
   try {
     const bookingRes = await pool.query(
-      'SELECT id, customer_id, total_amount, discount_applied, wallet_used FROM bookings WHERE payment_intent_id = $1',
-      [razorpay_order_id]
+      `SELECT id, customer_id, total_amount, discount_applied, wallet_used
+       FROM bookings WHERE payment_intent_id = $1
+       AND ($2 = true OR customer_id = $3)`,
+      [razorpay_order_id, (req.user?.roles || []).includes('admin'), req.user?.userId]
     );
 
     if (bookingRes.rows.length === 0) {
@@ -240,6 +244,19 @@ paymentsRouter.post('/booking/:id/refund', authenticate, requireRole(['customer'
 
     const payment = paymentRes.rows[0];
 
+    // Reserve the refund atomically, then release the database lock before
+    // waiting on Razorpay. A concurrent request will see refund_pending.
+    const reserveRes = await client.query(
+      `UPDATE payments SET status = 'refund_pending', refund_reason = $1, updated_at = NOW()
+       WHERE id = $2 AND status IN ('paid', 'succeeded') RETURNING id`,
+      [reason, payment.id]
+    );
+    if (reserveRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return error(res, 'Refund is already being processed', 'CONFLICT', 409);
+    }
+    await client.query('COMMIT');
+
     const rzp = new Razorpay({
       key_id: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || process.env.RAZORPAY_KEY_ID || '',
       key_secret: process.env.RAZORPAY_KEY_SECRET || '',
@@ -256,7 +273,10 @@ paymentsRouter.post('/booking/:id/refund', authenticate, requireRole(['customer'
         }
       });
     } catch (rzpErr: any) {
-      await client.query('ROLLBACK');
+      await pool.query(
+        `UPDATE payments SET status = 'refund_failed', updated_at = NOW() WHERE id = $1 AND status = 'refund_pending'`,
+        [payment.id]
+      );
       const errorMessage = rzpErr?.error?.description || rzpErr?.message || (typeof rzpErr === 'string' ? rzpErr : JSON.stringify(rzpErr)) || 'Unknown Razorpay Error';
       return error(res, 'Razorpay refund API failed: ' + errorMessage, 'BAD_REQUEST', 400);
     }
@@ -264,6 +284,7 @@ paymentsRouter.post('/booking/:id/refund', authenticate, requireRole(['customer'
     const paymentRefundStatus = refund.status === 'processed' ? 'refunded' : 'refund_pending';
     const bookingRefundStatus = refund.status === 'processed' ? 'REFUNDED' : 'REFUND_PENDING';
     
+    await client.query('BEGIN');
     await client.query(
       'UPDATE payments SET status = $1, provider_refund_id = $2, refund_reason = $3, updated_at = NOW() WHERE id = $4',
       [paymentRefundStatus, refund.id, reason, payment.id]
@@ -321,8 +342,9 @@ paymentsRouter.post('/webhook', async (req, res) => {
     }
 
     // Insert idempotency key
-    await client.query('INSERT INTO webhook_events (event_id, event_type, payload) VALUES ($1, $2, $3)', [
+    await client.query('INSERT INTO webhook_events (event_id, provider, type, payload) VALUES ($1, $2, $3, $4)', [
       eventId,
+      'razorpay',
       webhookBody.event,
       webhookBody
     ]);
@@ -341,7 +363,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
       if (bookingRes.rows.length > 0) {
         const booking = bookingRes.rows[0];
         
-        if (booking.payment_status === 'PAID') {
+        if (booking.payment_status === 'PAID' || booking.payment_status === 'REFUNDED') {
           // Already paid, ignore safely
         } else {
           // Update booking status
@@ -379,7 +401,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
       if (bookingRes.rows.length > 0) {
         const booking = bookingRes.rows[0];
         
-        if (booking.payment_status === 'FAILED' || booking.status === 'cancelled') {
+        if (['PAID', 'REFUNDED', 'FAILED'].includes(booking.payment_status) || booking.status === 'cancelled') {
            // Already handled
         } else {
           const failedPaymentCheck = await client.query(
