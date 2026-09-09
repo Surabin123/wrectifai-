@@ -45,8 +45,7 @@ adminRouter.get('/stats', async (req, res) => {
         FROM garages g
         LEFT JOIN users u ON g.owner_user_id = u.id
         WHERE g.approval_status = 'pending'
-        ORDER BY g.created_at DESC LIMIT 100
-        LIMIT 10
+        ORDER BY g.created_at DESC LIMIT 10
       `)
     ]);
 

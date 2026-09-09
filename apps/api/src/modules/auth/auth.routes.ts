@@ -159,7 +159,7 @@ authRouter.post('/check-user', async (req, res, next) => {
 });
 
 authRouter.post('/register', async (req, res, next) => {
-  let { mobileNumber, name, otp, email, password, role = 'customer', country, referralCode } = req.body;
+  let { mobileNumber, name, otp, email, password, country, referralCode } = req.body;
   if (email) email = email.toLowerCase();
   
   if (!name) {
@@ -236,11 +236,12 @@ authRouter.post('/register', async (req, res, next) => {
     }
 
     if (isNew) {
-      const resolvedRole = (role === 'customer' || role === 'user') ? 'customer' : role;
-      const roleResult = await query('SELECT id FROM roles WHERE code = $1', [resolvedRole]);
+      // SECURITY: Public registration always assigns 'customer'. Privileged roles
+      // (admin, garage) are only assigned through authenticated admin workflows.
+      const roleResult = await query("SELECT id FROM roles WHERE code = 'customer'");
       if (roleResult.rows.length > 0) {
         const roleId = roleResult.rows[0].id;
-        await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleId]);
+        await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [user.id, roleId]);
       }
     }
 
@@ -592,7 +593,12 @@ authRouter.post('/change-password', authenticate, async (req, res) => {
 import { Resend } from 'resend';
 import { getDbPool } from '../../config/database';
 
-const resend = new Resend(process.env.RESEND_API_KEY || 're_dummy');
+// Resend is initialized lazily per-request using the checked env var — no dummy fallback.
+function getResendClient() {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('EMAIL_NOT_CONFIGURED');
+  return new Resend(apiKey);
+}
 
 // Forgot Password - Send Reset Link
 authRouter.post('/forgot-password', async (req, res) => {
@@ -641,7 +647,7 @@ authRouter.post('/forgot-password', async (req, res) => {
     if (process.env.RESEND_API_KEY) {
       const senderEmail = process.env.RESEND_FROM_EMAIL || 'WrectifAI <noreply@wrectifai.com>';
       
-      const { data, error: resendError } = await resend.emails.send({
+      const { data, error: resendError } = await getResendClient().emails.send({
         from: senderEmail,
         to: emailClean,
         subject: 'WrectifAI - Password Reset',
@@ -656,11 +662,11 @@ authRouter.post('/forgot-password', async (req, res) => {
 
       if (resendError) {
         console.error('Resend API Error:', resendError);
-        return error(res, 'Failed to send reset email. The email provider rejected the request. Please try again later or contact support.', 'EMAIL_SEND_FAILED', 500);
+        return error(res, 'Failed to send reset email. Please try again later or contact support.', 'EMAIL_SEND_FAILED', 500);
       }
     } else {
       console.error('Configuration Error: RESEND_API_KEY is not defined.');
-      return error(res, 'System configuration error: Email provider is not configured. Please contact support.', 'CONFIG_ERROR', 500);
+      return error(res, 'Email provider is not configured. Please contact support.', 'CONFIG_ERROR', 500);
     }
 
     return genericSuccess();

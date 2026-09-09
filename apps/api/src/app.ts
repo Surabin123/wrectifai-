@@ -27,7 +27,7 @@ export function createApp() {
         }
         const normalizedOrigin = origin.replace(/\/$/, '');
         // Production origins must be explicitly configured. Local origins are development-only.
-        const isAllowed = 
+        const isAllowed =
           allowedOrigins.includes(normalizedOrigin) ||
           (env.nodeEnv !== 'production' && (
             normalizedOrigin.startsWith('http://localhost:') ||
@@ -46,11 +46,11 @@ export function createApp() {
     })
   );
 
-  // Global rate limiter: 100 requests per 15 minutes
+  // Global rate limiter: 1000 requests per 15 minutes
   app.use(
     rateLimiter({
       windowMs: 15 * 60 * 1000,
-      max: 1000, // Increased to accommodate active usage
+      max: 1000,
       message: 'Too many requests from this IP, please try again after 15 minutes',
     })
   );
@@ -69,8 +69,18 @@ export function createApp() {
   // Cookie parser
   app.use(cookieParser());
 
-  // Body parsing middlewares — 20 MB limit to accommodate base64-encoded images/audio
-  app.use(express.json({ limit: '20mb', verify: (req, _res, buf) => { (req as any).rawBody = buf.toString('utf8'); } }));
+  // Body parsing middlewares.
+  // rawBody is retained ONLY for Razorpay webhook routes where HMAC signature verification requires it.
+  // All other routes use standard JSON parsing without rawBody overhead.
+  app.use('/api/v1/payments/webhook', express.json({
+    limit: '1mb',
+    verify: (req, _res, buf) => { (req as any).rawBody = buf.toString('utf8'); }
+  }));
+  app.use('/api/payments/webhook', express.json({
+    limit: '1mb',
+    verify: (req, _res, buf) => { (req as any).rawBody = buf.toString('utf8'); }
+  }));
+  app.use(express.json({ limit: '20mb' }));
   app.use(express.urlencoded({ extended: true, limit: '20mb' }));
 
   // Request logger middleware

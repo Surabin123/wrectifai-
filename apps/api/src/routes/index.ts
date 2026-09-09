@@ -150,12 +150,8 @@ apiRouter.get('/promos', async (req, res) => {
     }));
     return success(res, mapped);
   } catch (err) {
-    return error(
-      res,
-      err instanceof Error ? err.message : 'Database query failed',
-      'DATABASE_ERROR',
-      500
-    );
+    console.error('[/promos] query failed:', err);
+    return error(res, 'Failed to fetch promos', 'DATABASE_ERROR', 500);
   }
 });
 
