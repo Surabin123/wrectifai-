@@ -148,6 +148,18 @@ function parseTimeToMinutes(timeStr: any): number | null {
     return error(res, 'Missing required booking fields', 'BAD_REQUEST', 400);
   }
 
+  if (typeof vehicleId !== 'string' || typeof scheduledAt !== 'string' || typeof bookingType !== 'string') {
+    return error(res, 'Invalid booking data format', 'BAD_REQUEST', 400);
+  }
+  
+  if (serviceIds !== undefined && !Array.isArray(serviceIds)) {
+    return error(res, 'serviceIds must be an array', 'BAD_REQUEST', 400);
+  }
+
+  if (typeof totalAmount !== 'number' || isNaN(totalAmount)) {
+    return error(res, 'Missing required booking fields', 'BAD_REQUEST', 400);
+  }
+
   const userCheck = await query('SELECT status FROM users WHERE id = $1', [customerId]);
   if (userCheck.rows.length === 0 || userCheck.rows[0].status === 'suspended') {
     return error(res, 'Your account is suspended. You cannot create new bookings.', 'FORBIDDEN', 403);
@@ -625,6 +637,11 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { status, collectionTime } = req.body;
+
+    const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+    if (!uuidRegex.test(bookingId)) {
+      return error(res, 'Invalid booking ID format', 'BAD_REQUEST', 400);
+    }
 
     const allowedStatuses = ['requested', 'confirmed', 'in_progress', 'completed', 'readyForCollection', 'collected', 'cancelled'];
     if (!status || !allowedStatuses.includes(status)) {

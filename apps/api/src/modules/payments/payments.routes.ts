@@ -18,6 +18,9 @@ paymentsRouter.post('/orders', authenticate, async (req, res) => {
   if (!bookingId || amount === undefined) {
     return error(res, 'Booking ID and amount are required', 'BAD_REQUEST', 400);
   }
+  if (typeof bookingId !== 'string' || typeof amount !== 'number') {
+    return error(res, 'Invalid booking ID or amount format', 'BAD_REQUEST', 400);
+  }
 
   try {
     const bookingResult = await getDbPool().query(
@@ -86,6 +89,9 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
   
   if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
     return error(res, 'Missing payment verification details', 'BAD_REQUEST', 400);
+  }
+  if (typeof razorpay_order_id !== 'string' || typeof razorpay_payment_id !== 'string' || typeof razorpay_signature !== 'string') {
+    return error(res, 'Invalid verification details format', 'BAD_REQUEST', 400);
   }
 
   const secret = process.env.RAZORPAY_KEY_SECRET || '';
@@ -188,6 +194,9 @@ paymentsRouter.post('/fail', authenticate, async (req, res) => {
   if (!razorpay_order_id) {
     return error(res, 'Missing order id', 'BAD_REQUEST', 400);
   }
+  if (typeof razorpay_order_id !== 'string') {
+    return error(res, 'Invalid order id format', 'BAD_REQUEST', 400);
+  }
 
   const pool = getDbPool();
   try {
@@ -231,8 +240,8 @@ paymentsRouter.post('/fail', authenticate, async (req, res) => {
 paymentsRouter.post('/booking/:id/refund', authenticate, requireRole(['customer', 'user', 'garage', 'admin']), async (req, res) => {
   const bookingId = req.params.id;
   const { reason } = req.body;
-  if (!reason || reason.trim() === '') {
-    return error(res, 'Refund reason is required', 'BAD_REQUEST', 400);
+  if (typeof reason !== 'string' || reason.trim() === '') {
+    return error(res, 'Refund reason is required and must be text', 'BAD_REQUEST', 400);
   }
 
   const pool = getDbPool();

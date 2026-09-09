@@ -214,6 +214,10 @@ garagesRouter.put('/my-profile', authenticate, async (req, res) => {
       pickupDropSupported, image, description, businessHours 
     } = req.body;
 
+    if ((garageName && typeof garageName !== 'string') || (address && typeof address !== 'string') || (description && typeof description !== 'string')) {
+      return error(res, 'Invalid profile data format', 'BAD_REQUEST', 400);
+    }
+
     let processedImage = image;
     
     if (image && image.startsWith('data:image')) {

@@ -146,6 +146,7 @@ authRouter.post('/google', async (req, res) => {
 
 authRouter.post('/check-user', async (req, res, next) => {
   const { mobileNumber } = req.body;
+  if (mobileNumber && typeof mobileNumber !== 'string') return error(res, 'Invalid phone number format', 'BAD_REQUEST', 400);
   if (!mobileNumber) {
     return error(res, 'Phone number is required', 'BAD_REQUEST', 400);
   }
@@ -160,6 +161,9 @@ authRouter.post('/check-user', async (req, res, next) => {
 
 authRouter.post('/register', async (req, res, next) => {
   let { mobileNumber, name, otp, email, password, country, referralCode } = req.body;
+  if ((email && typeof email !== 'string') || (password && typeof password !== 'string') || (name && typeof name !== 'string') || (mobileNumber && typeof mobileNumber !== 'string') || (otp && typeof otp !== 'string')) {
+    return error(res, 'Invalid input format', 'BAD_REQUEST', 400);
+  }
   if (email) email = email.toLowerCase();
   
   if (!name) {
@@ -292,6 +296,9 @@ authRouter.post('/register', async (req, res, next) => {
 
 authRouter.post('/login', async (req, res, next) => {
   let { mobileNumber, otp, provider, email, password } = req.body;
+  if ((email && typeof email !== 'string') || (password && typeof password !== 'string') || (mobileNumber && typeof mobileNumber !== 'string') || (otp && typeof otp !== 'string') || (provider && typeof provider !== 'string')) {
+    return error(res, 'Invalid input format', 'BAD_REQUEST', 400);
+  }
   if (email) email = email.toLowerCase();
 
   try {
@@ -555,6 +562,10 @@ authRouter.post('/change-password', authenticate, async (req, res) => {
   const { currentPassword, newPassword } = req.body;
   const userId = req.user?.userId;
 
+  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string') {
+    return error(res, 'Current and new passwords are required and must be text', 'BAD_REQUEST', 400);
+  }
+
   if (!currentPassword || !newPassword) {
     return error(res, 'Current and new passwords are required', 'BAD_REQUEST', 400);
   }
@@ -604,8 +615,8 @@ function getResendClient() {
 authRouter.post('/forgot-password', async (req, res) => {
   try {
     const { email } = req.body;
-    if (!email) {
-      return error(res, 'Email is required', 'VALIDATION_ERROR', 400);
+    if (!email || typeof email !== 'string') {
+      return error(res, 'Valid email is required', 'VALIDATION_ERROR', 400);
     }
     const emailClean = email.trim().toLowerCase();
 
@@ -682,8 +693,8 @@ authRouter.post('/reset-password', async (req, res) => {
   try {
     const { token, newPassword } = req.body;
     
-    if (!token || !newPassword) {
-      return error(res, 'Token and new password are required', 'VALIDATION_ERROR', 400);
+    if (!token || !newPassword || typeof token !== 'string' || typeof newPassword !== 'string') {
+      return error(res, 'Valid token and new password are required', 'VALIDATION_ERROR', 400);
     }
 
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
