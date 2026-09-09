@@ -40,7 +40,7 @@ function checkIfPasswordResetRequired(passwordHash: string, userRoles: string[])
 }
 
 // Helper to register/login a user from a verified OAuth profile (Google, Apple, etc.)
-export async function handleUserLoginOrRegister(email: string, name: string) {
+export async function handleUserLoginOrRegister(email: string, name: string, deviceInfo?: string, ipAddress?: string) {
   if (email) email = email.toLowerCase();
   let user;
   let isNew = false;
@@ -92,7 +92,12 @@ export async function handleUserLoginOrRegister(email: string, name: string) {
   const accessToken = generateAccessToken({ userId: user.id, email: user.email, name: user.name, roles, garageId });
   const refreshToken = generateRefreshToken({ userId: user.id });
 
-  await storeRefreshToken(user.id, refreshToken);
+  await storeRefreshToken(user.id, refreshToken, deviceInfo, ipAddress);
+
+  await query(
+    'INSERT INTO login_activity (user_id, device_info, ip_address, status) VALUES ($1, $2, $3, $4)',
+    [user.id, deviceInfo || null, ipAddress || null, 'success']
+  ).catch(e => console.error('Failed to log activity', e));
 
   if (isNew && roles.includes('customer')) {
     await NotificationsService.createNotification({
@@ -127,7 +132,9 @@ authRouter.post('/google', async (req, res) => {
 
   try {
     const googlePayload = await verifyGoogleIdToken(token);
-    const authResult = await handleUserLoginOrRegister(googlePayload.email, googlePayload.name);
+    const deviceInfo = req.headers['user-agent'];
+    const ipAddress = req.ip || (req.headers['x-forwarded-for'] as string) || '';
+    const authResult = await handleUserLoginOrRegister(googlePayload.email, googlePayload.name, deviceInfo, ipAddress);
     
     setTokensInCookies(res, authResult.accessToken, authResult.refreshToken);
     
@@ -379,7 +386,15 @@ authRouter.post('/login', async (req, res, next) => {
     const accessToken = generateAccessToken({ userId: user.id, email: user.email, name: user.name, roles, garageId });
     const refreshToken = generateRefreshToken({ userId: user.id });
 
-    await storeRefreshToken(user.id, refreshToken);
+    const deviceInfo = req.headers['user-agent'];
+    const ipAddress = req.ip || (req.headers['x-forwarded-for'] as string) || '';
+
+    await storeRefreshToken(user.id, refreshToken, deviceInfo, ipAddress);
+
+    await query(
+      'INSERT INTO login_activity (user_id, device_info, ip_address, status) VALUES ($1, $2, $3, $4)',
+      [user.id, deviceInfo || null, ipAddress || null, 'success']
+    ).catch(e => console.error('Failed to log activity', e));
 
     setTokensInCookies(res, accessToken, refreshToken);
 

@@ -40,12 +40,12 @@ export function hashToken(token: string): string {
   return crypto.createHash('sha256').update(token).digest('hex');
 }
 
-export async function storeRefreshToken(userId: string, token: string): Promise<void> {
+export async function storeRefreshToken(userId: string, token: string, deviceInfo?: string, ipAddress?: string): Promise<void> {
   const tokenHash = hashToken(token);
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
   await query(
-    'INSERT INTO refresh_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
-    [userId, tokenHash, expiresAt]
+    'INSERT INTO refresh_tokens (user_id, token_hash, expires_at, device_info, ip_address) VALUES ($1, $2, $3, $4, $5)',
+    [userId, tokenHash, expiresAt, deviceInfo || null, ipAddress || null]
   );
 }
 

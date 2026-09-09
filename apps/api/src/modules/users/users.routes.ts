@@ -9,6 +9,55 @@ usersRouter.get('/', (_req, res) => {
   res.json([{ id: 'u_1', name: 'Wrectifai User' }]);
 });
 
+usersRouter.get('/sessions', authenticate, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
+    const result = await query(
+      'SELECT id, device_info as "deviceInfo", ip_address as "ipAddress", created_at as "createdAt", expires_at as "expiresAt" FROM refresh_tokens WHERE user_id = $1 ORDER BY created_at DESC',
+      [userId]
+    );
+    return success(res, result.rows);
+  } catch (err) {
+    console.error('Failed to fetch sessions', err);
+    return error(res, 'Internal error', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+usersRouter.delete('/sessions/:id', authenticate, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    const sessionId = req.params.id;
+    if (!userId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
+    
+    const check = await query('SELECT id FROM refresh_tokens WHERE id = $1 AND user_id = $2', [sessionId, userId]);
+    if (check.rows.length === 0) {
+      return error(res, 'Session not found or unauthorized', 'NOT_FOUND', 404);
+    }
+
+    await query('DELETE FROM refresh_tokens WHERE id = $1 AND user_id = $2', [sessionId, userId]);
+    return success(res, { message: 'Session revoked' });
+  } catch (err) {
+    console.error('Failed to revoke session', err);
+    return error(res, 'Internal error', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+usersRouter.get('/login-activity', authenticate, async (req, res) => {
+  try {
+    const userId = req.user?.userId;
+    if (!userId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
+    const result = await query(
+      'SELECT id, device_info as "deviceInfo", ip_address as "ipAddress", status, created_at as "createdAt" FROM login_activity WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
+      [userId]
+    );
+    return success(res, result.rows);
+  } catch (err) {
+    console.error('Failed to fetch login activity', err);
+    return error(res, 'Internal error', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
 usersRouter.put('/profile', authenticate, async (req, res) => {
   try {
     const userId = req.user?.userId;
