@@ -215,12 +215,56 @@ export function ProfileContent() {
                     <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.email || 'N/A'}</span>
                   )}
                 </div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
-                  <span className="text-sm font-medium text-slate-500 w-1/3">Phone Number</span>
+                <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b pb-4">
+                  <span className="text-sm font-medium text-slate-500 w-1/3 mt-2">Phone Number</span>
                   {isEditing ? (
-                    <input type="text" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.mobileNumber} onChange={(e) => setFormData({...formData, mobileNumber: e.target.value})} />
+                    <div className="w-full sm:w-2/3 flex flex-col">
+                      <div className="flex gap-2">
+                        <select 
+                          value={(() => {
+                            const num = formData.mobileNumber || '';
+                            if (num.startsWith('+1')) return '+1';
+                            if (num.startsWith('+971')) return '+971';
+                            return '+91';
+                          })()}
+                          onChange={(e) => {
+                            const code = e.target.value;
+                            const currentNum = formData.mobileNumber || '';
+                            const bareNum = currentNum.replace(/^\+\d+/, '');
+                            setFormData({...formData, mobileNumber: code + bareNum});
+                          }}
+                          className="border rounded p-2 text-sm bg-white outline-none w-28"
+                        >
+                          <option value="+91">IN (+91)</option>
+                          <option value="+1">US (+1)</option>
+                          <option value="+971">AE (+971)</option>
+                        </select>
+                        <input 
+                          type="text" 
+                          className="border rounded p-2 text-sm flex-1 outline-none focus:border-blue-500" 
+                          placeholder="Enter phone number"
+                          value={(() => {
+                            const num = formData.mobileNumber || '';
+                            if (num.startsWith('+1')) return num.slice(2);
+                            if (num.startsWith('+971')) return num.slice(4);
+                            if (num.startsWith('+91')) return num.slice(3);
+                            return num;
+                          })()} 
+                          onChange={(e) => {
+                            const num = formData.mobileNumber || '';
+                            let code = '+91';
+                            if (num.startsWith('+1')) code = '+1';
+                            if (num.startsWith('+971')) code = '+971';
+                            
+                            const maxLen = code === '+971' ? 9 : 10;
+                            const bareNum = e.target.value.replace(/\D/g, '').slice(0, maxLen);
+                            setFormData({...formData, mobileNumber: code + bareNum});
+                          }} 
+                        />
+                      </div>
+                    </div>
                   ) : (
-                    <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{user.mobileNumber ?? 'N/A'}</span>
+                    <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3 mt-2">{user.mobileNumber ?? 'N/A'}</span>
                   )}
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">

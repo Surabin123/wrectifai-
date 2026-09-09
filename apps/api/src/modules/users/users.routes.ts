@@ -75,7 +75,36 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
     }
 
     const phoneToSave = mobileNumber && mobileNumber.trim() !== '' ? mobileNumber.trim() : null;
-    const imageToSave = image && typeof image === 'string' && image.trim() !== '' ? image.trim() : null;
+    let imageToSave = image && typeof image === 'string' && image.trim() !== '' ? image.trim() : null;
+    
+    if (imageToSave && imageToSave.startsWith('data:image')) {
+      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+        try {
+          const { v2: cloudinary } = require('cloudinary');
+          const uploadResult = await cloudinary.uploader.upload(imageToSave, {
+            folder: 'wrectifai/profiles'
+          });
+          imageToSave = uploadResult.secure_url;
+        } catch (uploadErr) {
+          console.error('Failed to upload image to cloudinary:', uploadErr);
+        }
+      }
+      
+      if (imageToSave === image) {
+        // Fallback to local
+        const fs = require('fs');
+        const path = require('path');
+        const match = imageToSave.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (match && match.length === 3) {
+          const ext = match[1].split('/')[1] || 'png';
+          const filename = `profile_${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+          const fullPath = path.join(process.cwd(), 'uploads', 'profiles');
+          if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
+          fs.writeFileSync(path.join(fullPath, filename), Buffer.from(match[2], 'base64'));
+          imageToSave = `/uploads/profiles/${filename}`;
+        }
+      }
+    }
     
     // Update users table
     const result = await query(

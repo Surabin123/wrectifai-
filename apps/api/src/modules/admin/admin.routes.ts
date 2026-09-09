@@ -127,7 +127,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       ownerName, ownerPhone, password, 
       services, customServices, servicePrices, customServicePrices, description, workingHours,
       chips, image, country, responseMins,
-      registrationNumber
+      registrationNumber, businessCurrency, locale
     } = req.body;
 
     if (!registrationNumber || !registrationNumber.trim()) {
@@ -297,8 +297,8 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     const newGarage = await client.query(
       `INSERT INTO garages (
         name, address, city, owner_user_id, approval_status, is_approved,
-        specializations, image, location, response_mins, description, business_hours, registration_number
-      ) VALUES ($1, $2, $3, $4, 'approved', true, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
+        specializations, image, location, response_mins, description, business_hours, registration_number, country, business_currency, locale
+      ) VALUES ($1, $2, $3, $4, 'approved', true, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
       [
         name,
         address,
@@ -310,7 +310,10 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         responseMins || null,
         description || null,
         workingHours ? JSON.stringify(workingHours) : null,
-        registrationNumber || null
+        registrationNumber || null,
+        country || 'IN',
+        businessCurrency || 'INR',
+        locale || 'en-IN'
       ]
     );
     const garageId = newGarage.rows[0].id;

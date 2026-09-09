@@ -105,7 +105,21 @@ garageOffersRouter.post('/my-offers', authenticate, async (req, res) => {
           processedImage = uploadResult.secure_url;
         } catch (uploadErr) {
           console.error('Failed to upload image to cloudinary:', uploadErr);
-          // If cloudinary fails, it will fall back to using the base64 string
+        }
+      }
+      
+      if (processedImage === image) {
+        // Fallback to local
+        const fs = require('fs');
+        const path = require('path');
+        const match = image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (match && match.length === 3) {
+          const ext = match[1].split('/')[1] || 'png';
+          const filename = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+          const fullPath = path.join(process.cwd(), 'uploads', 'offers');
+          if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
+          fs.writeFileSync(path.join(fullPath, filename), Buffer.from(match[2], 'base64'));
+          processedImage = `/uploads/offers/${filename}`;
         }
       }
     }
@@ -176,6 +190,21 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
           processedImage = uploadResult.secure_url;
         } catch (uploadErr) {
           console.error('Failed to upload image to cloudinary:', uploadErr);
+        }
+      }
+      
+      if (processedImage === image) {
+        // Fallback to local
+        const fs = require('fs');
+        const path = require('path');
+        const match = image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (match && match.length === 3) {
+          const ext = match[1].split('/')[1] || 'png';
+          const filename = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
+          const fullPath = path.join(process.cwd(), 'uploads', 'offers');
+          if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
+          fs.writeFileSync(path.join(fullPath, filename), Buffer.from(match[2], 'base64'));
+          processedImage = `/uploads/offers/${filename}`;
         }
       }
     }

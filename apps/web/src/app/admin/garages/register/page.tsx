@@ -227,10 +227,19 @@ export default function RegisterGaragePage() {
   const progressPercent = ((step - 1) / 5) * 100;
 
   const toggleService = (s: string) => {
-    setFormData(prev => ({
-      ...prev,
-      services: prev.services.includes(s) ? prev.services.filter(x => x !== s) : [...prev.services, s]
-    }));
+    setFormData(prev => {
+      const isSelected = prev.services.includes(s);
+      if (isSelected) {
+        return { ...prev, services: prev.services.filter(x => x !== s) };
+      } else {
+        const service = platformServices.find(ps => ps.id === s);
+        return { 
+          ...prev, 
+          services: [...prev.services, s],
+          servicePrices: { ...prev.servicePrices, [s]: (service?.base_price || 0).toString() }
+        };
+      }
+    });
   };
 
   const handleUpload = (field: string, e: any) => {
@@ -275,7 +284,14 @@ export default function RegisterGaragePage() {
   };
 
   const handleSelectAllServices = () => {
-    setFormData(prev => ({ ...prev, services: platformServices.map(service => service.id) }));
+    const allIds = platformServices.map(service => service.id);
+    const newPrices = { ...formData.servicePrices };
+    platformServices.forEach(service => {
+      if (!newPrices[service.id]) {
+        newPrices[service.id] = (service.base_price || 0).toString();
+      }
+    });
+    setFormData(prev => ({ ...prev, services: allIds, servicePrices: newPrices }));
   };
 
   const [newService, setNewService] = useState('');

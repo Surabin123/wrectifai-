@@ -176,7 +176,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
 
   try {
     // Check if garage is suspended or deleted & fetch business hours
-    const garageCheck = await query(`SELECT approval_status, name, business_hours FROM garages WHERE id = $1`, [garageId]);
+    const garageCheck = await query(`SELECT approval_status, name, business_hours, business_currency FROM garages WHERE id = $1`, [garageId]);
     if (garageCheck.rows.length === 0) {
       return error(res, 'Garage not found', 'NOT_FOUND', 404);
     }
@@ -343,7 +343,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
         status,
         paymentStatus,
         finalAmount, 
-        currency || 'INR',
+        currency || garageData.business_currency || 'USD',
         finalServiceType,
         offerId,
         discountApplied,
