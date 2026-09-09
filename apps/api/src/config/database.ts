@@ -16,12 +16,17 @@ export function getDbPool(): Pool {
   }
 
   if (!pool) {
-    const { databaseUrl } = getEnv();
+    const { databaseUrl, databaseSslCa, nodeEnv } = getEnv();
 
     // Strict TLS certificate validation for remote DBs to prevent MITM.
     // Local connections (localhost/127.0.0.1) don't use SSL/TLS.
     const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
-    const ssl = isLocal ? false : { rejectUnauthorized: true };
+    if (!isLocal && nodeEnv === 'production' && !databaseSslCa) {
+      throw new Error('FATAL: DATABASE_SSL_CA (PEM) is required for verified production PostgreSQL TLS.');
+    }
+    const ssl = isLocal
+      ? false
+      : { rejectUnauthorized: true, ca: databaseSslCa };
 
     pool = new Pool({
       connectionString: databaseUrl,

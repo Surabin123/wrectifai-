@@ -48,6 +48,7 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     host: envSource.HOST ?? '0.0.0.0',
     port: envSource.PORT ? Number(envSource.PORT) : 3000,
     databaseUrl: envSource.DATABASE_URL ?? 'postgresql://postgres:password@localhost:5432/wrectifai',
+    databaseSslCa: envSource.DATABASE_SSL_CA || envSource.PGSSLROOTCERT,
     jwtSecret: jwtSecret ?? (isProd ? '' : 'local-development-jwt-secret'),
     jwtRefreshSecret: jwtRefreshSecret ?? (isProd ? '' : 'local-development-refresh-secret'),
     razorpayWebhookSecret: envSource.RAZORPAY_WEBHOOK_SECRET ?? '',
