@@ -8,8 +8,6 @@ import { Modal } from '@/components/common/modal';
 const BLANK_FORM = {
   name: '', email: '', phone: '', password: '',
   address: '', city: '', state: '', pincode: '',
-  vehicleMake: '', vehicleModel: '', vehicleYear: '',
-  vehiclePlate: '', vehicleVin: '', vehicleTrim: '', vehicleFuelType: '', vehicleMileage: '',
 };
 
 export default function CustomersPage() {
@@ -44,12 +42,7 @@ export default function CustomersPage() {
       setAddError('Password must be at least 8 characters with uppercase, lowercase, and a special character.');
       return;
     }
-    // Vehicle partial-entry guard
-    const vehiclePartial = addForm.vehicleMake || addForm.vehicleModel || addForm.vehicleYear;
-    if (vehiclePartial && (!addForm.vehicleMake || !addForm.vehicleModel || !addForm.vehicleYear)) {
-      setAddError('Vehicle make, model, and year are all required when providing vehicle information.');
-      return;
-    }
+    // Vehicle partial-entry guard removed
     setAddSubmitting(true);
     try {
       await apiClient.post('/admin/users', {
@@ -61,14 +54,6 @@ export default function CustomersPage() {
         city:           addForm.city.trim()    || undefined,
         state:          addForm.state.trim()   || undefined,
         pincode:        addForm.pincode.trim() || undefined,
-        vehicleMake:     addForm.vehicleMake.trim()     || undefined,
-        vehicleModel:    addForm.vehicleModel.trim()    || undefined,
-        vehicleYear:     addForm.vehicleYear            || undefined,
-        vehiclePlate:    addForm.vehiclePlate.trim()    || undefined,
-        vehicleVin:      addForm.vehicleVin.trim()      || undefined,
-        vehicleTrim:     addForm.vehicleTrim.trim()     || undefined,
-        vehicleFuelType: addForm.vehicleFuelType.trim() || undefined,
-        vehicleMileage:  addForm.vehicleMileage         || undefined,
       });
       setAddSuccess('Customer created successfully.');
       setAddForm(BLANK_FORM);
@@ -416,60 +401,7 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          {/* ── Section 3: Vehicle (all optional, but if any entered make+model+year required) ── */}
-          <div className="space-y-3">
-            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-1">3. Vehicle Information (Optional)</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600">Make</label>
-                <input id="add-vehicleMake" type="text" value={addForm.vehicleMake} onChange={e => setField('vehicleMake', e.target.value)}
-                  placeholder="e.g. Toyota"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600">Model</label>
-                <input id="add-vehicleModel" type="text" value={addForm.vehicleModel} onChange={e => setField('vehicleModel', e.target.value)}
-                  placeholder="e.g. Fortuner"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600">Year</label>
-                <input id="add-vehicleYear" type="number" min="1990" max="2030" value={addForm.vehicleYear} onChange={e => setField('vehicleYear', e.target.value)}
-                  placeholder="e.g. 2022"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600">Plate Number</label>
-                <input id="add-vehiclePlate" type="text" value={addForm.vehiclePlate} onChange={e => setField('vehiclePlate', e.target.value)}
-                  placeholder="e.g. KA-01-AB-1234"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600">VIN</label>
-                <input id="add-vehicleVin" type="text" value={addForm.vehicleVin} onChange={e => setField('vehicleVin', e.target.value)}
-                  placeholder="17-digit VIN"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600">Trim / Body Type</label>
-                <input id="add-vehicleTrim" type="text" value={addForm.vehicleTrim} onChange={e => setField('vehicleTrim', e.target.value)}
-                  placeholder="e.g. Sedan, SUV"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600">Fuel Type</label>
-                <input id="add-vehicleFuelType" type="text" value={addForm.vehicleFuelType} onChange={e => setField('vehicleFuelType', e.target.value)}
-                  placeholder="e.g. Petrol, Diesel, EV"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600">Mileage (km)</label>
-                <input id="add-vehicleMileage" type="number" min="0" value={addForm.vehicleMileage} onChange={e => setField('vehicleMileage', e.target.value)}
-                  placeholder="e.g. 45000"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
-              </div>
-            </div>
-          </div>
+          {/* Section 3 removed */}
 
           <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
             <button type="button" onClick={() => { setAddOpen(false); setAddError(''); setAddSuccess(''); }}
