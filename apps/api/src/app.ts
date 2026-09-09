@@ -15,7 +15,7 @@ export function createApp() {
   const env = getEnv();
 
   // Trust proxies to correctly resolve client IPs (essential for rate limiting behind load balancers/Render/Cloudflare)
-  app.set('trust proxy', true);
+  app.set('trust proxy', 1);
 
   // CORS configuration must be first so that rate limiters and error handlers get CORS headers
   const allowedOrigins = env.corsOrigins.map((o) => o.replace(/\/$/, ''));
