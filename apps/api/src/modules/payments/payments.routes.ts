@@ -40,16 +40,30 @@ paymentsRouter.post('/orders', authenticate, async (req, res) => {
     }
     const amountInPaise = Math.round(payable * 100);
     const receiptId = bookingId ? bookingId.substring(0, 40) : `rcpt_${Date.now()}`;
+    const existingIntent = await getDbPool().query(
+      `SELECT provider_order_id FROM payments WHERE booking_id = $1 AND status = 'created' AND provider_order_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`, [bookingId]
+    );
+    if (existingIntent.rows[0]?.provider_order_id) {
+      return success(res, { id: existingIntent.rows[0].provider_order_id, amount: amountInPaise, currency: 'INR', status: 'created' }, 201);
+    }
+
+    // Persist the local intent before contacting Razorpay. The notes carry the
+    // same stable identifiers so a webhook can recover after a later DB error.
+    await getDbPool().query(
+      `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, amount, currency, status)
+       VALUES ($1, $2, 'razorpay', $3, $4, 'INR', 'created')
+       ON CONFLICT (transaction_id) DO NOTHING`,
+      [booking.customer_id, bookingId, `booking_intent_${bookingId}`, payable]
+    );
     
     const order = await createRazorpayOrder(amountInPaise, receiptId, {
       userId,
       bookingId
     });
 
-    if (bookingId) {
-      const pool = getDbPool();
-      await pool.query('UPDATE bookings SET payment_intent_id = $1 WHERE id = $2 AND customer_id = $3', [order.id, bookingId, userId]);
-    }
+    const pool = getDbPool();
+    await pool.query('UPDATE bookings SET payment_intent_id = $1 WHERE id = $2 AND customer_id = $3', [order.id, bookingId, userId]);
+    await pool.query('UPDATE payments SET provider_order_id = $1 WHERE booking_id = $2 AND transaction_id = $3', [order.id, bookingId, `booking_intent_${bookingId}`]);
 
     return success(
       res,
@@ -123,8 +137,8 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
     
     // Check for duplicate payment record (idempotency on retries)
     const paymentCheck = await client.query(
-      'SELECT id FROM payments WHERE provider_order_id = $1 AND (provider_payment_id = $2 OR transaction_id = $2)',
-      [razorpay_order_id, razorpay_payment_id]
+      'SELECT id FROM payments WHERE provider_payment_id = $1 OR provider_order_id = $2 OR transaction_id = $1',
+      [razorpay_payment_id, razorpay_order_id]
     );
 
     if (paymentCheck.rows.length === 0) {
@@ -335,33 +349,39 @@ paymentsRouter.post('/webhook', async (req, res) => {
     await client.query('BEGIN');
 
     // 1. Idempotency Check
-    const checkRes = await client.query('SELECT 1 FROM webhook_events WHERE event_id = $1', [eventId]);
-    if (checkRes.rows.length > 0) {
-      await client.query('ROLLBACK');
-      return res.status(200).send('OK');
-    }
-
-    // Insert idempotency key
-    await client.query('INSERT INTO webhook_events (event_id, provider, type, payload) VALUES ($1, $2, $3, $4)', [
+    const eventInsert = await client.query(
+      'INSERT INTO webhook_events (event_id, provider, type, payload) VALUES ($1, $2, $3, $4) ON CONFLICT (event_id) DO NOTHING RETURNING id', [
       eventId,
       'razorpay',
       webhookBody.event,
       webhookBody
-    ]);
+      ]
+    );
+    if (eventInsert.rows.length === 0) {
+      await client.query('COMMIT');
+      return res.status(200).send('OK');
+    }
 
     const paymentEntity = webhookBody.payload?.payment?.entity;
+    const orderEntity = webhookBody.payload?.order?.entity;
     
     if (webhookBody.event === 'payment.captured' || webhookBody.event === 'order.paid') {
-      const providerIntentId = paymentEntity.order_id || paymentEntity.id;
-      const amount = paymentEntity.amount / 100;
+      const providerIntentId = paymentEntity?.order_id || orderEntity?.id;
+      if (!providerIntentId || !paymentEntity?.id || !Number.isFinite(Number(paymentEntity.amount))) {
+        throw new Error('Razorpay payment webhook is missing provider identifiers or amount');
+      }
+      const amount = Number(paymentEntity.amount) / 100;
 
       const bookingRes = await client.query(
-        'SELECT id, customer_id, payment_status, status FROM bookings WHERE payment_intent_id = $1 FOR UPDATE', 
+        'SELECT id, customer_id, payment_status, status, currency FROM bookings WHERE payment_intent_id = $1 FOR UPDATE',
         [providerIntentId]
       );
       
       if (bookingRes.rows.length > 0) {
         const booking = bookingRes.rows[0];
+        if (!paymentEntity.currency || String(paymentEntity.currency).toUpperCase() !== String(booking.currency || 'INR').toUpperCase()) {
+          throw new Error('Razorpay payment currency does not match the booking currency');
+        }
         
         if (booking.payment_status === 'PAID' || booking.payment_status === 'REFUNDED') {
           // Already paid, ignore safely
@@ -392,9 +412,70 @@ paymentsRouter.post('/webhook', async (req, res) => {
             ['COMPLETED', booking.id, 'PENDING']
           );
         }
+      } else {
+        // Recovery path for orders/top-ups whose local binding failed after
+        // Razorpay accepted the payment. Provider order IDs are unique.
+        const paymentRes = await client.query(
+          `SELECT id, order_id, customer_user_id, amount FROM payments
+           WHERE provider_order_id = $1 FOR UPDATE`, [providerIntentId]
+        );
+        if (paymentRes.rows.length > 0 && paymentRes.rows[0].order_id) {
+          await client.query(
+            `UPDATE payments SET provider_payment_id = $1, status = CASE WHEN status IN ('refunded','succeeded') THEN status ELSE 'succeeded' END, updated_at = NOW()
+             WHERE id = $2`, [paymentEntity.id, paymentRes.rows[0].id]
+          );
+          await client.query(
+            `UPDATE orders SET payment_status = 'PAID', status = CASE WHEN status = 'PENDING' THEN 'PENDING_ACCEPTANCE' ELSE status END, updated_at = NOW()
+             WHERE id = $1 AND payment_status NOT IN ('PAID','REFUNDED')`, [paymentRes.rows[0].order_id]
+          );
+        }
+        const topupRes = await client.query(
+          `SELECT wt.id, wt.wallet_id, wt.amount FROM wallet_transactions wt
+           WHERE wt.reference_type = 'WALLET_TOPUP' AND wt.reference_id = $1 AND wt.status = 'PENDING' FOR UPDATE`, [providerIntentId]
+        );
+        if (topupRes.rows.length > 0) {
+          const topup = topupRes.rows[0];
+          const walletRes = await client.query('SELECT balance FROM wallets WHERE id = $1 FOR UPDATE', [topup.wallet_id]);
+          const before = Number(walletRes.rows[0].balance);
+          const after = before + Number(topup.amount);
+          await client.query('UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2', [after, topup.wallet_id]);
+          await client.query(`UPDATE wallet_transactions SET type='CREDIT', status='COMPLETED', reference_type='TOPUP', reference_id=$1, balance_before=$2, balance_after=$3 WHERE id=$4 AND status='PENDING'`, [paymentEntity.id, before, after, topup.id]);
+        }
+
+        // The post-provider binding may itself have failed. Razorpay echoes
+        // our stable notes, allowing recovery without a new schema/table.
+        const notes = paymentEntity?.notes || orderEntity?.notes || {};
+        if (notes.bookingId) {
+          await client.query(`UPDATE bookings SET payment_intent_id=$1, updated_at=NOW()
+            WHERE id=$2 AND payment_status NOT IN ('PAID','REFUNDED')`, [providerIntentId, notes.bookingId]);
+          await client.query(`UPDATE payments SET provider_order_id=$1, provider_payment_id=$2, status='succeeded', signature_status='valid'
+            WHERE booking_id=$3 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.bookingId]);
+        }
+        if (notes.order_id) {
+          await client.query(`UPDATE payments SET provider_order_id=$1, provider_payment_id=$2, transaction_id=$1, status='succeeded'
+            WHERE order_id=$3 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.order_id]);
+          await client.query(`UPDATE orders SET payment_status='PAID', status=CASE WHEN status='PENDING' THEN 'PENDING_ACCEPTANCE' ELSE status END, updated_at=NOW()
+            WHERE id=$1 AND payment_status NOT IN ('PAID','REFUNDED')`, [notes.order_id]);
+        }
+        if (notes.type === 'wallet_topup' && notes.userId) {
+          await client.query(`UPDATE payments SET provider_order_id=$1, provider_payment_id=$2, transaction_id=$1, status='succeeded'
+            WHERE customer_user_id=$3 AND amount=$4 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.userId, amount]);
+          const wt = await client.query(`SELECT wt.id, wt.wallet_id, wt.amount FROM wallet_transactions wt JOIN wallets w ON w.id=wt.wallet_id
+            WHERE w.user_id=$1 AND wt.reference_type='WALLET_TOPUP' AND wt.status='PENDING' AND wt.reference_id <> $2
+            ORDER BY wt.created_at DESC LIMIT 1 FOR UPDATE`, [notes.userId, providerIntentId]);
+          if (wt.rows.length) {
+            const row=wt.rows[0]; const w=await client.query('SELECT balance FROM wallets WHERE id=$1 FOR UPDATE',[row.wallet_id]);
+            const before=Number(w.rows[0].balance), after=before+Number(row.amount);
+            await client.query('UPDATE wallets SET balance=$1,updated_at=NOW() WHERE id=$2',[after,row.wallet_id]);
+            await client.query(`UPDATE wallet_transactions SET type='CREDIT',status='COMPLETED',reference_type='TOPUP',reference_id=$1,balance_before=$2,balance_after=$3 WHERE id=$4 AND status='PENDING'`,[paymentEntity.id,before,after,row.id]);
+          }
+        }
       }
     } else if (webhookBody.event === 'payment.failed') {
-      const providerIntentId = paymentEntity.order_id || paymentEntity.id;
+      const providerIntentId = paymentEntity?.order_id || orderEntity?.id;
+      if (!providerIntentId || !paymentEntity?.id) {
+        throw new Error('Razorpay failed-payment webhook is missing provider identifiers');
+      }
 
       const bookingRes = await client.query('SELECT id, customer_id, payment_status, status FROM bookings WHERE payment_intent_id = $1', [providerIntentId]);
       
@@ -424,7 +505,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
           // Release wallet hold
           const txRes = await client.query(
             'UPDATE wallet_transactions SET status = $1 WHERE reference_id = $2 AND status = $3 RETURNING amount, wallet_id',
-            ['RELEASED', booking.id, 'PENDING']
+            ['FAILED', booking.id, 'PENDING']
           );
 
           if (txRes.rows.length > 0) {

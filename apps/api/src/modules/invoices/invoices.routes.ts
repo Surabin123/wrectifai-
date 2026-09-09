@@ -5,6 +5,11 @@ import { query } from '../../config/database';
 
 export const invoicesRouter = Router();
 
+async function resolveGarageId(userId: string): Promise<string | null> {
+  const result = await query('SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1', [userId]);
+  return result.rows[0]?.id || null;
+}
+
 // GET /invoices/by-booking/:bookingId
 invoicesRouter.get('/by-booking/:bookingId', authenticate, async (req, res) => {
   try {
@@ -19,7 +24,7 @@ invoicesRouter.get('/by-booking/:bookingId', authenticate, async (req, res) => {
 
     if (!userRoles.includes('admin')) {
       if (userRoles.includes('garage')) {
-        const garageId = req.user?.garageId;
+        const garageId = userId ? await resolveGarageId(userId) : null;
         if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
         
         filterCondition = 'b.garage_id = $2';
@@ -105,7 +110,7 @@ invoicesRouter.get('/by-order/:orderId', authenticate, async (req, res) => {
 
     if (!userRoles.includes('admin')) {
       if (userRoles.includes('garage')) {
-        const garageId = req.user?.garageId;
+        const garageId = userId ? await resolveGarageId(userId) : null;
         if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
         
         filterCondition = 'o.garage_id = $2';
@@ -192,4 +197,3 @@ invoicesRouter.get('/by-order/:orderId', authenticate, async (req, res) => {
     );
   }
 });
-

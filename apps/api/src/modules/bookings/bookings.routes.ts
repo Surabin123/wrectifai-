@@ -7,12 +7,12 @@ import { holdWalletBalance } from '../wallet/wallet.service';
 import { createRazorpayOrder } from '../payments/razorpay.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { ReferralService } from '../../services/referral.service';
+import { getPagination } from '../../utils/pagination';
 
 export const bookingsRouter = Router();
 
 // Helper: resolve garageId from token or DB
 async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<string | null> {
-  if (tokenGarageId) return tokenGarageId;
   const result = await query(
     'SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1',
     [userId]
@@ -23,6 +23,7 @@ async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<
 // GET /bookings — list all bookings globally
 bookingsRouter.get('/', authenticate, async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const userRoles = req.user?.roles || [];
     const userId = req.user?.userId;
     let filterCondition = '1=1';
@@ -79,8 +80,8 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
        LEFT JOIN users u ON b.customer_id = u.id
        LEFT JOIN profiles p ON u.id = p.user_id
        WHERE ${filterCondition}
-       ORDER BY b.scheduled_at DESC`,
-      params
+       ORDER BY b.scheduled_at DESC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
     );
 
     const formatted = result.rows.map((row) => ({
@@ -442,7 +443,7 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
        WHERE b.garage_id = $1 AND b.status IN ('requested', 'confirmed')
-       ORDER BY b.created_at DESC`,
+       ORDER BY b.created_at DESC LIMIT 100`,
       [garageId]
     );
 
@@ -546,7 +547,7 @@ bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
     
     if (!userRoles.includes('admin')) {
       if (userRoles.includes('garage')) {
-        const garageId = req.user?.garageId;
+        const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
         if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
         
         filterCondition = 'b.garage_id = $2';
@@ -636,7 +637,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
 
     if (!userRoles.includes('admin')) {
       if (userRoles.includes('garage')) {
-        const garageId = req.user?.garageId;
+        const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
         if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
         const gCheckResult = await query(`SELECT approval_status FROM garages WHERE id = $1`, [garageId]);
@@ -666,7 +667,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
          $4 = true OR customer_id = $2 OR garage_id = $3
        )
        FOR UPDATE`,
-      [bookingId, req.user?.userId, req.user?.garageId || null, userRoles.includes('admin')]
+      [bookingId, req.user?.userId, garageId || null, userRoles.includes('admin')]
     );
     if (currentBookingRes.rows.length === 0) {
       return error(res, 'Booking not found', 'NOT_FOUND', 404);
@@ -692,12 +693,19 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       const paymentRes = await query("SELECT provider_payment_id, id, amount FROM payments WHERE booking_id = $1 AND status = 'succeeded'", [bookingId]);
       if (paymentRes.rows.length > 0) {
         const paymentRecord = paymentRes.rows[0];
+        const reserveRefund = await query(
+          `UPDATE payments SET status = 'refund_pending', updated_at = NOW()
+           WHERE id = $1 AND status = 'succeeded' RETURNING id`, [paymentRecord.id]
+        );
+        if (reserveRefund.rows.length === 0) {
+          return error(res, 'Refund is already being processed', 'CONFLICT', 409);
+        }
         try {
           const { issueRazorpayRefund } = require('../payments/razorpay.service');
           const refundResponse = await issueRazorpayRefund(paymentRecord.provider_payment_id);
           
           await query(
-            'UPDATE payments SET status = $1, provider_refund_id = $2, updated_at = NOW() WHERE id = $3',
+            'UPDATE payments SET status = $1, provider_refund_id = $2, updated_at = NOW() WHERE id = $3 AND status = \'refund_pending\'',
             ['refund_pending', refundResponse.id, paymentRecord.id]
           );
           await query(
@@ -718,7 +726,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
         } catch (refundErr) {
           console.error('Failed to initiate refund during cancellation:', refundErr);
           await query(
-            'UPDATE payments SET status = $1, updated_at = NOW() WHERE id = $2',
+            'UPDATE payments SET status = $1, updated_at = NOW() WHERE id = $2 AND status = \'refund_pending\'',
             ['refund_failed', paymentRecord.id]
           );
           await query(
@@ -833,7 +841,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
         }).catch(err => console.error('Failed to create notification', err));
       } else if (status === 'collected') {
         await NotificationsService.createNotification({
-          garageId: req.user?.garageId || undefined,
+          garageId: garageId || undefined,
           type: 'Booking',
           title: 'Vehicle Collected',
           description: `${customerStr} has confirmed collection of their vehicle.`
@@ -1037,7 +1045,7 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
       return error(res, 'Only garages or admins can confirm cash payments', 'FORBIDDEN', 403);
     }
     
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     let garageCheck = '';
     const params: any[] = [bookingId];
     

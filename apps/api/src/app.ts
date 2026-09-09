@@ -7,6 +7,8 @@ import { errorHandler } from './middleware/error-handler';
 import { requestLogger } from './middleware/request-logger';
 import { getEnv } from './config/env';
 import { rateLimiter } from './middleware/rate-limiter';
+import { authenticate } from './middleware/auth';
+import { query } from './config/database';
 
 export function createApp() {
   const app = express();
@@ -74,7 +76,45 @@ export function createApp() {
   // Request logger middleware
   app.use(requestLogger);
 
-  // Serve static uploads
+  // Public garage images remain available; diagnosis media and garage documents require authentication.
+  app.get('/uploads/diagnosis/:filename', authenticate, async (req, res) => {
+    try {
+      const filename = path.basename(req.params.filename);
+      const url = `/uploads/diagnosis/${filename}`;
+      const owner = await query(
+        `SELECT dr.customer_id FROM diagnosis_media dm
+         JOIN diagnosis_requests dr ON dr.id = dm.diagnosis_request_id
+         WHERE dm.url = $1 LIMIT 1`, [url]
+      );
+      const roles = req.user?.roles || [];
+      if (!owner.rows.length || (!roles.includes('admin') && owner.rows[0].customer_id !== req.user?.userId)) {
+        return res.status(owner.rows.length ? 403 : 404).end();
+      }
+      return res.sendFile(filename, { root: path.join(process.cwd(), 'uploads', 'diagnosis') });
+    } catch (err) {
+      console.error('[uploads/diagnosis] retrieval failed:', err instanceof Error ? err.message : 'unknown error');
+      return res.status(500).end();
+    }
+  });
+  app.get('/uploads/garages/documents/:filename', authenticate, async (req, res) => {
+    try {
+      const filename = path.basename(req.params.filename);
+      const url = `/uploads/garages/documents/${filename}`;
+      const documentRes = await query(
+        `SELECT g.owner_user_id AS owner_id FROM garage_documents gd
+         JOIN garages g ON g.id = gd.garage_id
+         WHERE gd.file_url = $1 LIMIT 1`, [url]
+      );
+      const roles = req.user?.roles || [];
+      if (!documentRes.rows.length || (!roles.includes('admin') && documentRes.rows[0].owner_id !== req.user?.userId)) {
+        return res.status(documentRes.rows.length ? 403 : 404).end();
+      }
+      return res.sendFile(filename, { root: path.join(process.cwd(), 'uploads', 'garages', 'documents') });
+    } catch (err) {
+      console.error('[uploads/garages/documents] retrieval failed:', err instanceof Error ? err.message : 'unknown error');
+      return res.status(500).end();
+    }
+  });
   app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
   // Mount API routers under versioned endpoint /api/v1 and fallback /api

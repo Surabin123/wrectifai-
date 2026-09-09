@@ -1,21 +1,30 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, requireRole } from '../../middleware/auth';
 import { query } from '../../config/database';
+import { getPagination } from '../../utils/pagination';
 
 export const usersRouter = Router();
 
-usersRouter.get('/', (_req, res) => {
-  res.json([{ id: 'u_1', name: 'Wrectifai User' }]);
+usersRouter.get('/', authenticate, requireRole(['admin']), async (req, res) => {
+  try {
+    const { limit, offset } = getPagination(req, 100);
+    const result = await query('SELECT id, name, email, status FROM users ORDER BY created_at DESC LIMIT $1 OFFSET $2', [limit, offset]);
+    return success(res, result.rows);
+  } catch (err) {
+    console.error('Failed to fetch users', err);
+    return error(res, 'Failed to fetch users', 'DATABASE_ERROR', 500);
+  }
 });
 
 usersRouter.get('/sessions', authenticate, async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const userId = req.user?.userId;
     if (!userId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
     const result = await query(
-      'SELECT id, device_info as "deviceInfo", ip_address as "ipAddress", created_at as "createdAt", expires_at as "expiresAt" FROM refresh_tokens WHERE user_id = $1 ORDER BY created_at DESC',
-      [userId]
+      'SELECT id, device_info as "deviceInfo", ip_address as "ipAddress", created_at as "createdAt", expires_at as "expiresAt" FROM refresh_tokens WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+      [userId, limit, offset]
     );
     return success(res, result.rows);
   } catch (err) {
@@ -45,11 +54,12 @@ usersRouter.delete('/sessions/:id', authenticate, async (req, res) => {
 
 usersRouter.get('/login-activity', authenticate, async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const userId = req.user?.userId;
     if (!userId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
     const result = await query(
-      'SELECT id, device_info as "deviceInfo", ip_address as "ipAddress", status, created_at as "createdAt" FROM login_activity WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
-      [userId]
+      'SELECT id, device_info as "deviceInfo", ip_address as "ipAddress", status, created_at as "createdAt" FROM login_activity WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+      [userId, limit, offset]
     );
     return success(res, result.rows);
   } catch (err) {

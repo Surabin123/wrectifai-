@@ -137,6 +137,14 @@ export async function processCashback(bookingId: string) {
     // Lock wallet
     const walletRes = await client.query('SELECT id, balance FROM wallets WHERE user_id = $1 FOR UPDATE', [b.customer_id]);
     const walletId = walletRes.rows[0].id;
+    const lockedTxCheck = await client.query(
+      `SELECT id FROM wallet_transactions WHERE reference_id = $1 AND reference_type = 'CASHBACK' FOR UPDATE`,
+      [bookingId]
+    );
+    if (lockedTxCheck.rows.length > 0) {
+      await client.query('ROLLBACK');
+      return;
+    }
     const balanceBefore = Number(walletRes.rows[0].balance);
     const balanceAfter = balanceBefore + cashbackAmount;
     
@@ -146,7 +154,8 @@ export async function processCashback(bookingId: string) {
     // Insert transaction
     await client.query(
       `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
-       VALUES ($1, 'CREDIT', $2, $3, $4, 'CASHBACK', $5, 'COMPLETED', 'Cashback for Booking')`,
+       VALUES ($1, 'CREDIT', $2, $3, $4, 'CASHBACK', $5, 'COMPLETED', 'Cashback for Booking')
+       ON CONFLICT (reference_type, reference_id) WHERE reference_type = 'CASHBACK' DO NOTHING`,
       [walletId, cashbackAmount, balanceBefore, balanceAfter, bookingId]
     );
     

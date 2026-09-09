@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
 import { query, withTransaction } from '../../config/database';
+import { getPagination } from '../../utils/pagination';
 
 export const walletRouter = Router();
 
@@ -60,6 +61,7 @@ walletRouter.get('/balance', authenticate, async (req, res) => {
 // GET /wallet/transactions
 walletRouter.get('/transactions', authenticate, async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const userId = req.user?.userId;
     if (!userId) {
       return error(res, 'User ID is required', 'UNAUTHORIZED', 401);
@@ -70,8 +72,8 @@ walletRouter.get('/transactions', authenticate, async (req, res) => {
          FROM wallet_transactions t
          JOIN wallets w ON t.wallet_id = w.id
          WHERE w.user_id = $1
-         ORDER BY t.created_at DESC`,
-        [userId]
+         ORDER BY t.created_at DESC LIMIT $2 OFFSET $3`,
+        [userId, limit, offset]
       );
     return success(res, result.rows, 200);
   } catch (err) {
@@ -101,20 +103,22 @@ walletRouter.post('/add-funds', authenticate, async (req, res) => {
 
     const amountInPaise = Math.round(numericAmount * 100);
     const { createRazorpayOrder } = require('../payments/razorpay.service');
+    await query('INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING', [userId]);
+    const intentToken = `wallet_intent_${userId}_${Date.now()}`;
+    await query(`INSERT INTO payments (customer_user_id, method, transaction_id, amount, currency, status)
+      VALUES ($1, 'razorpay', $2, $3, 'INR', 'created') ON CONFLICT (transaction_id) DO NOTHING`, [userId, intentToken, numericAmount]);
+    await query(
+      `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
+       SELECT id, 'HOLD', $2, balance, balance, 'WALLET_TOPUP', $3, 'PENDING', 'Pending Razorpay wallet top-up'
+       FROM wallets WHERE user_id = $1`, [userId, numericAmount, intentToken]
+    );
     const order = await createRazorpayOrder(amountInPaise, `wallet_topup_${Date.now()}`, {
       userId,
       type: 'wallet_topup'
     });
 
-    await query('INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING', [userId]);
-    await query(
-      `INSERT INTO wallet_transactions
-       (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
-       SELECT id, 'HOLD', $2, balance, balance, 'WALLET_TOPUP', $3, 'PENDING', 'Pending Razorpay wallet top-up'
-       FROM wallets WHERE user_id = $1
-       ON CONFLICT DO NOTHING`,
-      [userId, numericAmount, order.id]
-    );
+    await query('UPDATE wallet_transactions SET reference_id = $1 WHERE reference_type = $2 AND reference_id = $3 AND status = $4', [order.id, 'WALLET_TOPUP', intentToken, 'PENDING']);
+    await query('UPDATE payments SET provider_order_id = $1, transaction_id = $1 WHERE transaction_id = $2 AND status = $3', [order.id, intentToken, 'created']);
 
     return success(res, { 
       razorpayOrderId: order.id,
@@ -168,48 +172,6 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
       return error(res, 'Payment is not a captured wallet top-up for this order', 'PAYMENT_VERIFICATION_FAILED', 400);
     }
 
-    // --- Self-healing schema setup ---
-    // Ensure wallets and wallet_transactions tables exist regardless of migration state.
-    // All DDL is idempotent (IF NOT EXISTS). Uses the imported query() helper.
-    await query(`
-      CREATE TABLE IF NOT EXISTS wallets (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE UNIQUE,
-        balance NUMERIC(12,2) NOT NULL DEFAULT 0.00 CHECK (balance >= 0),
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    await query(`
-      CREATE TABLE IF NOT EXISTS wallet_transactions (
-        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-        wallet_id UUID NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
-        type VARCHAR(50) NOT NULL,
-        amount NUMERIC(12,2) NOT NULL,
-        balance_before NUMERIC(12,2) NOT NULL,
-        balance_after NUMERIC(12,2) NOT NULL,
-        reference_type VARCHAR(100),
-        reference_id TEXT,
-        status VARCHAR(50) NOT NULL,
-        description TEXT,
-        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-      )
-    `);
-    // If reference_id was created as UUID by a prior migration, convert it to TEXT now.
-    await query(`
-      DO $$
-      BEGIN
-        IF EXISTS (
-          SELECT 1 FROM information_schema.columns
-          WHERE table_name = 'wallet_transactions'
-            AND column_name = 'reference_id'
-            AND data_type = 'uuid'
-        ) THEN
-          ALTER TABLE wallet_transactions ALTER COLUMN reference_id TYPE TEXT USING reference_id::TEXT;
-        END IF;
-      END $$
-    `);
-
     const result = await withTransaction(async (client) => {
       // Idempotency: has this exact Razorpay payment already been credited?
       // Use wallet_transactions.reference_id (TEXT) — no UUID columns involved.
@@ -258,21 +220,14 @@ walletRouter.post('/verify-topup', authenticate, async (req, res) => {
         [balanceAfter, walletId]
       );
 
-      // Insert wallet ledger record.
-      // reference_id is TEXT — stores Razorpay pay_... ID safely.
-      // reference_type = 'TOPUP' is the idempotency discriminator.
-      await client.query(
-        `INSERT INTO wallet_transactions
-           (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
-         VALUES ($1, 'CREDIT', $2, $3, $4, 'TOPUP', $5, 'COMPLETED', 'Wallet Top-up via Razorpay')`,
-        [walletId, pending.amount, balanceBefore, balanceAfter, razorpay_payment_id]
-      );
-
-      await client.query(
-        `UPDATE wallet_transactions SET status = 'COMPLETED', reference_id = $1,
+      const completedRes = await client.query(
+        `UPDATE wallet_transactions SET type = 'CREDIT', status = 'COMPLETED', reference_type = 'TOPUP', reference_id = $1,
          balance_before = $2, balance_after = $3 WHERE id = $4 AND status = 'PENDING'`,
         [razorpay_payment_id, balanceBefore, balanceAfter, pending.id]
       );
+      if (completedRes.rowCount !== 1) {
+        throw new Error('Wallet top-up was processed concurrently');
+      }
 
       await client.query(
           `INSERT INTO payments
@@ -305,7 +260,7 @@ walletRouter.get('/saved-methods', authenticate, async (req, res) => {
     if (!userId) return error(res, 'User ID is required', 'UNAUTHORIZED', 401);
 
     const result = await query(
-      'SELECT id, token_id as "tokenId", card_network as "cardNetwork", card_last4 as "cardLast4", card_issuer as "cardIssuer", is_default as "isDefault", provider FROM saved_payment_methods WHERE user_id = $1 ORDER BY created_at DESC',
+      'SELECT id, token_id as "tokenId", card_network as "cardNetwork", card_last4 as "cardLast4", card_issuer as "cardIssuer", is_default as "isDefault", provider FROM saved_payment_methods WHERE user_id = $1 ORDER BY created_at DESC LIMIT 100',
       [userId]
     );
 

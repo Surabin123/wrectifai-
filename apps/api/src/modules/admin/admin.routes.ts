@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
 import { query, getDbPool } from '../../config/database';
+import { getPagination } from '../../utils/pagination';
 import fs from 'fs';
 import path from 'path';
 
@@ -37,14 +38,14 @@ adminRouter.get('/stats', async (req, res) => {
         FROM garages g
         LEFT JOIN users u ON g.owner_user_id = u.id
         WHERE g.approval_status IN ('active', 'approved')
-        ORDER BY g.created_at DESC
+        ORDER BY g.created_at DESC LIMIT 100
       `),
       query(`
         SELECT g.id, g.name, u.name as "ownerName", u.mobile_number as phone, g.city, g.created_at as "createdAt", g.approval_status as "approvalStatus"
         FROM garages g
         LEFT JOIN users u ON g.owner_user_id = u.id
         WHERE g.approval_status = 'pending'
-        ORDER BY g.created_at DESC
+        ORDER BY g.created_at DESC LIMIT 100
         LIMIT 10
       `)
     ]);
@@ -67,13 +68,14 @@ adminRouter.get('/stats', async (req, res) => {
 
 adminRouter.get('/onboarding/garages', async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const result = await query(
       `SELECT g.id, g.name, g.address, g.approval_status as "approvalStatus", g.created_at as "createdAt", g.city, g.specializations,
               u.name as "ownerName"
        FROM garages g
        LEFT JOIN users u ON g.owner_user_id = u.id
        WHERE g.approval_status != 'deleted'
-       ORDER BY g.created_at DESC`
+       ORDER BY g.created_at DESC LIMIT $1 OFFSET $2`, [limit, offset]
     );
     return success(res, result.rows);
   } catch (err) {
@@ -463,7 +465,7 @@ adminRouter.get('/users', async (req, res) => {
        JOIN user_roles ur ON u.id = ur.user_id
        JOIN roles r ON ur.role_id = r.id
        WHERE r.code = 'customer'
-       ORDER BY u.created_at DESC`
+       ORDER BY u.created_at DESC LIMIT 100`
     );
     return success(res, result.rows);
   } catch (err) {
@@ -487,7 +489,7 @@ adminRouter.get('/users/:id', async (req, res) => {
       FROM bookings b
       LEFT JOIN garages g ON b.garage_id = g.id
       LEFT JOIN vehicles v ON b.vehicle_id = v.id
-      WHERE b.customer_id = $1 ORDER BY b.created_at DESC`, [userId]);
+      WHERE b.customer_id = $1 ORDER BY b.created_at DESC LIMIT 100`, [userId]);
     const quotesRes = await query(`
       SELECT q.id, q.status, q.created_at as "createdAt", g.name as "garageName", v.make as "vehicleMake", v.model as "vehicleModel", 
              q.amount, COALESCE(q.currency, g.business_currency, 'USD') as currency
@@ -495,7 +497,7 @@ adminRouter.get('/users/:id', async (req, res) => {
       LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
       LEFT JOIN garages g ON q.garage_id = g.id
       LEFT JOIN vehicles v ON qr.vehicle_id = v.id
-      WHERE qr.customer_id = $1 ORDER BY q.created_at DESC`, [userId]);
+      WHERE qr.customer_id = $1 ORDER BY q.created_at DESC LIMIT 100`, [userId]);
 
     const profileRes = await query(`SELECT address_line as address, city, state, postal_code as pincode FROM profiles WHERE user_id = $1`, [userId]);
     const profile = profileRes.rows[0] || {};
@@ -681,6 +683,7 @@ adminRouter.post('/users/:id/vehicles', async (req, res) => {
 // GET /bookings
 adminRouter.get('/bookings', async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const result = await query(
       `SELECT b.id, u.name as "customerName", u.mobile_number as "customerPhone", p.city as "customerCity", g.name as "garageName", b.status, b.created_at as "createdAt",
               b.scheduled_at as "scheduledAt", b.total_amount as "totalAmount", COALESCE(b.currency, g.business_currency, 'USD') as "currency",
@@ -694,8 +697,8 @@ adminRouter.get('/bookings', async (req, res) => {
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
-       ORDER BY b.created_at DESC`
-    );
+       ORDER BY b.created_at DESC LIMIT $1 OFFSET $2`
+      , [limit, offset]);
     return success(res, result.rows);
   } catch (err) {
     return error(res, 'Failed to fetch bookings', 'DATABASE_ERROR', 500);
@@ -788,7 +791,7 @@ adminRouter.get('/service-history', async (req, res) => {
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
        WHERE b.status IN ('completed', 'readyForCollection', 'collected')
-       ORDER BY b.updated_at DESC`
+       ORDER BY b.updated_at DESC LIMIT 100`
       );
     return success(res, result.rows);
   } catch (err) {
@@ -812,7 +815,7 @@ adminRouter.get('/quotes', async (req, res) => {
        LEFT JOIN users u ON qr.customer_id = u.id
        LEFT JOIN profiles p ON u.id = p.user_id
        LEFT JOIN garages g ON q.garage_id = g.id
-       ORDER BY q.created_at DESC`
+       ORDER BY q.created_at DESC LIMIT 100`
     );
     return success(res, result.rows);
   } catch (err) {
@@ -890,7 +893,7 @@ adminRouter.get('/bookings', async (req, res) => {
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
-       ORDER BY b.created_at DESC`
+       ORDER BY b.created_at DESC LIMIT 100`
     );
     return success(res, result.rows);
   } catch (err) {
@@ -984,7 +987,7 @@ adminRouter.get('/service-history', async (req, res) => {
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
        WHERE b.status IN ('completed', 'readyForCollection', 'collected')
-       ORDER BY b.updated_at DESC`
+       ORDER BY b.updated_at DESC LIMIT 100`
       );
     return success(res, result.rows);
   } catch (err) {
@@ -1008,7 +1011,7 @@ adminRouter.get('/quotes', async (req, res) => {
        LEFT JOIN users u ON qr.customer_id = u.id
        LEFT JOIN profiles p ON u.id = p.user_id
        LEFT JOIN garages g ON q.garage_id = g.id
-       ORDER BY q.created_at DESC`
+       ORDER BY q.created_at DESC LIMIT 100`
     );
     return success(res, result.rows);
   } catch (err) {

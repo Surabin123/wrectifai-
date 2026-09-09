@@ -32,6 +32,7 @@ vehiclesRouter.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user?.userId;
     const userRoles = req.user?.roles || [];
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '50'), 10) || 50));
     let filterCondition = 'is_active = true';
     const params: any[] = [];
 
@@ -44,7 +45,7 @@ vehiclesRouter.get('/', authenticate, async (req, res) => {
       `SELECT id, customer_id as "customerId", make, model, year, vin, mileage, warranty, image, plate_number as "plateNumber", created_at as "createdAt", updated_at as "updatedAt"
        FROM vehicles
        WHERE ${filterCondition}
-       ORDER BY created_at DESC`,
+       ORDER BY created_at DESC LIMIT ${limit}`,
       params
     );
 

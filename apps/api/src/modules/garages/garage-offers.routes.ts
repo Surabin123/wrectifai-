@@ -3,12 +3,12 @@ import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
 import { query } from '../../config/database';
 import crypto from 'crypto';
+import { getPagination } from '../../utils/pagination';
 
 export const garageOffersRouter = Router({ mergeParams: true });
 
 // Helper: resolve garageId from token or DB (handles stale tokens without garageId)
 async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<string | null> {
-  if (tokenGarageId) return tokenGarageId;
   // Fallback: look up from DB (stale token case) — use DESC to match auth token generation
   const result = await query(
     'SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1',
@@ -20,6 +20,7 @@ async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<
 // GET /garages/my-offers
 garageOffersRouter.get('/my-offers', authenticate, async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     const userId = req.user.userId;
 
@@ -28,8 +29,8 @@ garageOffersRouter.get('/my-offers', authenticate, async (req, res) => {
               valid_from, valid_until, usage_limit, per_user_limit, active, offer_type, applicable_item_id, terms_conditions
        FROM offers 
        WHERE garage_id IN (SELECT id FROM garages WHERE owner_user_id = $1) AND (is_deleted = false OR is_deleted IS NULL)
-       ORDER BY created_at DESC`,
-      [userId]
+       ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
+      [userId, limit, offset]
     );
 
     console.log(`[DEBUG my-offers] userId: ${userId}`);
@@ -287,7 +288,7 @@ garageOffersRouter.get('/my-deals', authenticate, async (req, res) => {
               active, is_deleted as "isDeleted", valid_from as "validFrom", description
        FROM promos
        WHERE garage_id IN (SELECT id FROM garages WHERE owner_user_id = $1) AND is_deleted = false
-       ORDER BY created_at DESC`,
+       ORDER BY created_at DESC LIMIT 100`,
       [userId]
     );
 

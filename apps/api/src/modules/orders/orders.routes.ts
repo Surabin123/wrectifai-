@@ -10,8 +10,8 @@ export const ordersRouter = Router();
 
 // Initialize Razorpay
 const rzp = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID || 'dummy_key',
-  key_secret: process.env.RAZORPAY_KEY_SECRET || 'dummy_secret'
+  key_id: process.env.RAZORPAY_KEY_ID ?? '',
+  key_secret: process.env.RAZORPAY_KEY_SECRET ?? ''
 });
 
 // POST /api/v1/orders - Create a new order (Checkout)
@@ -165,8 +165,8 @@ ordersRouter.post('/', authenticate, async (req, res) => {
       // Deduct inventory immediately for COD
       const itemsRes = await client.query(`SELECT * FROM order_items WHERE order_id = $1`, [orderId]);
       for (const item of itemsRes.rows) {
-        const stockUpdate = await client.query(
-          `UPDATE garage_inventory SET qty_available = qty_available - $1, updated_at = NOW()
+      const stockUpdate = await client.query(
+        `UPDATE garage_inventory SET qty_available = qty_available - $1, updated_at = NOW()
            WHERE product_id = $2 AND garage_id = $3 AND qty_available >= $1`,
           [item.quantity, item.product_id, garageId]
         );
@@ -215,6 +215,18 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
     }
     
     const amountInPaise = Math.round(parseFloat(order.total) * 100);
+    const intentToken = `order_intent_${orderId}`;
+    const existingIntent = await pool.query(
+      `SELECT provider_order_id FROM payments WHERE order_id = $1 AND status = 'created' AND provider_order_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`, [orderId]
+    );
+    if (existingIntent.rows[0]?.provider_order_id) {
+      return success(res, { providerOrderId: existingIntent.rows[0].provider_order_id, amount: amountInPaise, currency: 'INR' });
+    }
+    await pool.query(
+      `INSERT INTO payments (customer_user_id, order_id, method, transaction_id, amount, currency, status)
+       VALUES ($1, $2, 'razorpay', $3, $4, 'INR', 'created') ON CONFLICT (transaction_id) DO NOTHING`,
+      [customerId, orderId, intentToken, parseFloat(order.total)]
+    );
     
     const rzpOrder = await rzp.orders.create({
       amount: amountInPaise,
@@ -225,9 +237,9 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
     
     // Record payment intent
     await pool.query(
-      `INSERT INTO payments (customer_user_id, order_id, method, transaction_id, provider_order_id, amount, currency, status)
-       VALUES ($1, $2, 'razorpay', $3, $3, $4, 'INR', 'created')`,
-      [customerId, orderId, rzpOrder.id, parseFloat(order.total)]
+      `UPDATE payments SET provider_order_id = $1, transaction_id = $1
+       WHERE order_id = $2 AND transaction_id = $3 AND status = 'created'`,
+      [rzpOrder.id, orderId, intentToken]
     );
     
     return success(res, { providerOrderId: rzpOrder.id, amount: amountInPaise, currency: 'INR' });
@@ -278,16 +290,18 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
         return success(res, { verified: true, orderId, paymentStatus: 'PAID' });
       }
       
-      // Update Payment
+      // Bind the provider payment exactly once. A retry must not overwrite a
+      // different provider payment for the same local intent.
       await client.query(
         `UPDATE payments SET status = 'succeeded', provider_payment_id = $1, updated_at = NOW()
-         WHERE order_id = $3 AND transaction_id = $2`,
+         WHERE order_id = $3 AND transaction_id = $2 AND status <> 'succeeded'`,
         [providerPaymentId, providerOrderId, orderId]
       );
       
       // Update Order: payment_status = PAID, status = PENDING_ACCEPTANCE (do NOT auto accept!)
       const paidOrderRes = await client.query(
-        `UPDATE orders SET payment_status = 'PAID', status = 'PENDING_ACCEPTANCE', updated_at = NOW() WHERE id = $1 AND customer_id = $2 AND payment_status = 'PENDING' RETURNING *`,
+        `UPDATE orders SET payment_status = 'PAID', status = 'PENDING_ACCEPTANCE', updated_at = NOW()
+         WHERE id = $1 AND customer_id = $2 AND payment_status = 'PENDING' RETURNING *`,
         [orderId, customerId]
       );
       const order = paidOrderRes.rows[0];
@@ -340,6 +354,7 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
 // GET /api/v1/orders/garage - Get all orders for the authenticated garage
 ordersRouter.get('/garage', authenticate, requireRole(['garage', 'admin']), async (req, res) => {
   const userId = req.user?.userId;
+  const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '50'), 10) || 50));
   const pool = getDbPool();
   try {
     // Get garage ID for user
@@ -369,6 +384,7 @@ ordersRouter.get('/garage', authenticate, requireRole(['garage', 'admin']), asyn
       WHERE o.garage_id = $1
       GROUP BY o.id, da.id, p_pay.method, p_pay.provider_payment_id
       ORDER BY o.created_at DESC
+      LIMIT ${limit}
     `, [garageId]);
 
     return success(res, ordersRes.rows);

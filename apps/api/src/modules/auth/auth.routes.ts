@@ -373,7 +373,7 @@ authRouter.post('/login', async (req, res, next) => {
     let garageId = undefined;
     let garages: any[] = [];
     if (roles.includes('garage')) {
-      const garageResult = await query('SELECT id, name FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC', [user.id]);
+      const garageResult = await query('SELECT id, name FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 100', [user.id]);
       if (garageResult.rows.length > 0) {
         garages = garageResult.rows.map(g => ({ id: g.id, name: g.name }));
         garageId = garageResult.rows[0].id;
@@ -515,7 +515,7 @@ authRouter.get('/me', authenticate, async (req, res) => {
     let garageId = undefined;
     let garages: any[] = [];
     if (roles.includes('garage')) {
-      const garageResult = await query('SELECT id, name FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC', [userId]);
+      const garageResult = await query('SELECT id, name FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 100', [userId]);
       if (garageResult.rows.length > 0) {
         garages = garageResult.rows.map(g => ({ id: g.id, name: g.name }));
         garageId = garageResult.rows[0].id;

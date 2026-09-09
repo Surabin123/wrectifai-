@@ -55,16 +55,7 @@ export class ReferralService {
       }
 
       // 2. Check for idempotency: Has this referee already generated a reward?
-      const existingRewardRes = await client.query(
-        'SELECT id FROM referral_rewards WHERE referee_id = $1 AND status = $2',
-        [refereeId, 'completed']
-      );
-
-      if (existingRewardRes.rows.length > 0) {
-        // Reward already given for this referee
-        await client.query('ROLLBACK');
-        return;
-      }
+      const existingRewardRes = await client.query('SELECT id, amount FROM referral_rewards WHERE referee_id = $1 FOR UPDATE', [refereeId]);
 
       // 3. Determine the reward amount based on the referrer's location/currency & region configuration
       const referrerRes = await client.query(
@@ -105,7 +96,9 @@ export class ReferralService {
           currency = configRes.rows[0].currency;
         }
       } catch (configErr) {
-        console.warn('[ReferralService] Could not fetch referral_configs, using regional defaults:', configErr);
+        console.error('[ReferralService] Could not fetch referral_configs:', configErr);
+        await client.query('ROLLBACK');
+        throw new Error('Referral configuration is temporarily unavailable');
       }
 
       if (rewardAmount <= 0) {
@@ -114,12 +107,19 @@ export class ReferralService {
       }
 
       // 4. Create the referral reward record
-      const rewardRes = await client.query(
-        `INSERT INTO referral_rewards (referrer_id, referee_id, amount, status) 
-         VALUES ($1, $2, $3, 'completed') RETURNING id`,
-        [referrerId, refereeId, rewardAmount]
-      );
+      const rewardRes = existingRewardRes.rows.length > 0 ? existingRewardRes : await client.query(
+        `INSERT INTO referral_rewards (referrer_id, referee_id, amount, status)
+         VALUES ($1, $2, $3, 'completed') RETURNING id, amount`, [referrerId, refereeId, rewardAmount]);
       const rewardId = rewardRes.rows[0].id;
+      rewardAmount = Number(rewardRes.rows[0].amount || rewardAmount);
+
+      const ledgerRes = await client.query(
+        `SELECT id FROM wallet_transactions WHERE reference_type = 'REFERRAL' AND reference_id = $1 FOR UPDATE`, [rewardId]
+      );
+      if (ledgerRes.rows.length > 0) {
+        await client.query('COMMIT');
+        return;
+      }
 
       // 5. Add to wallet securely
       // First ensure the referrer has a wallet
@@ -148,7 +148,8 @@ export class ReferralService {
       await client.query(
         `INSERT INTO wallet_transactions 
          (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
-         VALUES ($1, 'REWARD', $2, $3, $4, 'REFERRAL', $5, 'COMPLETED', $6)`,
+         VALUES ($1, 'REWARD', $2, $3, $4, 'REFERRAL', $5, 'COMPLETED', $6)
+         ON CONFLICT (reference_type, reference_id) WHERE reference_type = 'REFERRAL' DO NOTHING`,
         [
           walletId, 
           rewardAmount, 

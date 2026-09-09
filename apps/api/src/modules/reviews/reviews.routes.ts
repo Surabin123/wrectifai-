@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
 import { ReviewsService } from './reviews.service';
+import { query } from '../../config/database';
 
 export const reviewsRouter = Router();
 
@@ -67,13 +68,14 @@ reviewsRouter.get('/my-reviews', authenticate, async (req, res) => {
     
     // Will implement logic in service if missing, but we can query directly to match pattern of stats
     const { query } = require('../../config/database');
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '50'), 10) || 50));
     const result = await query(
       `SELECT r.id, r.rating, r.comment as text, r.created_at as date, g.name as "garageName"
        FROM garage_reviews r
        JOIN garages g ON r.garage_id = g.id
        WHERE r.customer_id = $1
-       ORDER BY r.created_at DESC`,
-      [userId]
+       ORDER BY r.created_at DESC LIMIT $2`,
+      [userId, limit]
     );
 
     return success(res, result.rows);
@@ -119,9 +121,18 @@ reviewsRouter.post('/:reviewId/reply', authenticate, async (req, res) => {
     }
 
     // Determine if garage owner or regular user
-    const isGarageOwner = userRoles.includes('garage') && !!garageId;
+    let authorizedGarageId: string | null = null;
+    if (userRoles.includes('garage')) {
+      const garageRes = await query('SELECT id FROM garages WHERE owner_user_id = $1 LIMIT 1', [userId]);
+      if (!garageRes.rows[0]) return error(res, 'Garage not found for this user', 'FORBIDDEN', 403);
+      const reviewRes = await query('SELECT garage_id FROM garage_reviews WHERE id = $1', [req.params.reviewId]);
+      if (!reviewRes.rows[0]) return error(res, 'Review not found', 'NOT_FOUND', 404);
+      if (reviewRes.rows[0].garage_id !== garageRes.rows[0].id) return error(res, 'Forbidden', 'FORBIDDEN', 403);
+      authorizedGarageId = garageRes.rows[0].id;
+    }
+    const isGarageOwner = userRoles.includes('garage');
 
-    const reply = await ReviewsService.replyToReview(req.params.reviewId, userId, text, isGarageOwner, garageId || null);
+    const reply = await ReviewsService.replyToReview(req.params.reviewId, userId, text, isGarageOwner, authorizedGarageId);
     return success(res, reply, 201);
   } catch (err: any) {
     console.error('Error replying to review:', err);

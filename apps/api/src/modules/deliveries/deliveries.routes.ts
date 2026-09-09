@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { getDbPool } from '../../config/database';
 import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
+import { getPagination } from '../../utils/pagination';
 
 export const deliveriesRouter = Router();
 
@@ -11,6 +12,7 @@ deliveriesRouter.get('/', authenticate, requireRole(['delivery_agent', 'admin'])
   const agentId = req.user?.userId;
   const pool = getDbPool();
   try {
+    const { limit, offset } = getPagination(req);
     const result = await pool.query(`
       SELECT da.*, 
              o.order_number, o.shipping_address, o.total,
@@ -19,8 +21,8 @@ deliveriesRouter.get('/', authenticate, requireRole(['delivery_agent', 'admin'])
       JOIN orders o ON da.order_id = o.id
       JOIN garages g ON da.garage_id = g.id
       WHERE da.delivery_agent_id = $1
-      ORDER BY da.created_at DESC
-    `, [agentId]);
+      ORDER BY da.created_at DESC LIMIT $2 OFFSET $3
+    `, [agentId, limit, offset]);
     return success(res, result.rows);
   } catch (err) {
     console.error('Failed to fetch deliveries:', err);

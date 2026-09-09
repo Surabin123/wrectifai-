@@ -17,7 +17,9 @@ const storage = multer.diskStorage({
     cb(null, dir);
   },
   filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname) || '.tmp';
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.webm', '.mp3', '.wav', '.ogg']);
+    if (!allowedExts.has(ext)) return cb(new Error('Invalid file extension'), '');
     cb(null, `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${ext}`);
   }
 });
@@ -67,6 +69,29 @@ diagnosisRouter.post('/upload-media', authenticate, (req, res) => {
       }
       if (file.mimetype.startsWith('video/') && file.size > 50 * 1024 * 1024) {
         return error(res, 'Video exceeds 50MB limit', 'VALIDATION_ERROR', 400);
+      }
+
+      const header = fs.readFileSync(file.path).subarray(0, 16);
+      const isJpeg = header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+      const isPng = header.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      const isGif = header.subarray(0, 6).toString('ascii') === 'GIF87a' || header.subarray(0, 6).toString('ascii') === 'GIF89a';
+      const isWebp = header.subarray(0, 4).toString('ascii') === 'RIFF' && header.subarray(8, 12).toString('ascii') === 'WEBP';
+      const isMp4 = header.subarray(4, 8).toString('ascii') === 'ftyp';
+      const isWebm = header.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+      const isMp3 = header.subarray(0, 3).toString('ascii') === 'ID3' || (header[0] === 0xff && (header[1] & 0xe0) === 0xe0);
+      const isWav = header.subarray(0, 4).toString('ascii') === 'RIFF' && header.subarray(8, 12).toString('ascii') === 'WAVE';
+      const isOgg = header.subarray(0, 4).toString('ascii') === 'OggS';
+      const validAudio = (file.mimetype === 'audio/webm' && isWebm) ||
+        ((file.mimetype === 'audio/mp3' || file.mimetype === 'audio/mpeg') && isMp3) ||
+        (file.mimetype === 'audio/wav' && isWav) || (file.mimetype === 'audio/ogg' && isOgg);
+      const validVideo = (file.mimetype === 'video/mp4' && isMp4) || (file.mimetype === 'video/webm' && isWebm);
+      const isAudioOrVideo = file.mimetype.startsWith('audio/') || file.mimetype.startsWith('video/');
+      if ((file.mimetype === 'image/jpeg' && !isJpeg) || (file.mimetype === 'image/png' && !isPng) ||
+          (file.mimetype === 'image/gif' && !isGif) || (file.mimetype === 'image/webp' && !isWebp) ||
+          (file.mimetype.startsWith('audio/') && !validAudio) ||
+          (file.mimetype.startsWith('video/') && !validVideo)) {
+        fs.unlinkSync(file.path);
+        return error(res, 'File content does not match its declared type', 'VALIDATION_ERROR', 400);
       }
 
       // Construct a URL relative to the server so the diagnosis service can read the file
@@ -199,9 +224,8 @@ diagnosisRouter.get('/history/:vehicleId', authenticate, requireRole(['user', 'c
     const messages = await DiagnosisService.getChatHistory(customerId, vehicleId);
     return success(res, { messages }, 200);
   } catch (err: any) {
-    // Suppress error in response to avoid disrupting frontend, return empty array
     console.error('Fetch history error:', err);
-    return success(res, { messages: [] }, 200);
+    return error(res, 'Failed to fetch diagnosis history', 'DATABASE_ERROR', 500);
   }
 });
 
@@ -218,8 +242,7 @@ diagnosisRouter.put('/history/:vehicleId', authenticate, requireRole(['user', 'c
     }
     return success(res, { synced: true }, 200);
   } catch (err: any) {
-    // Suppress error in response to avoid disrupting frontend
     console.error('Save history error:', err);
-    return success(res, { synced: false }, 200);
+    return error(res, 'Failed to save diagnosis history', 'DATABASE_ERROR', 500);
   }
 });

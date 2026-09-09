@@ -2,12 +2,12 @@ import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate } from '../../middleware/auth';
 import { query, getDbPool } from '../../config/database';
+import { getPagination } from '../../utils/pagination';
 
 export const garagesRouter = Router();
 
 // Helper: resolve garageId from token or DB (handles stale tokens without garageId)
 async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<string | null> {
-  if (tokenGarageId) return tokenGarageId;
   const result = await query(
     'SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1',
     [userId]
@@ -63,6 +63,7 @@ function mapGarageDbRow(g: any) {
 
 garagesRouter.get('/', async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const lat = req.query.lat ? parseFloat(req.query.lat as string) : null;
     const lng = req.query.lng ? parseFloat(req.query.lng as string) : null;
     const city = req.query.city ? (req.query.city as string).toLowerCase() : null;
@@ -123,8 +124,8 @@ garagesRouter.get('/', async (req, res) => {
              g.location, g.description, g.business_hours
       FROM garages g
       WHERE ${condition}
-      ORDER BY g.created_at ASC
-    `, params);
+      ORDER BY g.created_at ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+    `, [...params, limit, offset]);
 
     const mapped = result.rows.map(mapGarageDbRow);
     res.setHeader('Cache-Control', 'public, max-age=300');
@@ -138,6 +139,7 @@ garagesRouter.get('/', async (req, res) => {
 // GET /api/v1/garages/:id/inventory
 garagesRouter.get('/:id/inventory', async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const result = await query(
       `SELECT gi.id as inventory_id, p.id as product_id, p.name, p.category, p.description, p.is_diy_kit, p.image,
               p.compatible_vehicle_rules as "compatibleVehicleRules",
@@ -145,8 +147,8 @@ garagesRouter.get('/:id/inventory', async (req, res) => {
        FROM garage_inventory gi
        JOIN products p ON gi.product_id = p.id
        WHERE gi.garage_id = $1 AND gi.is_active = true AND p.is_active = true
-       ORDER BY p.name ASC`,
-      [req.params.id]
+       ORDER BY p.name ASC LIMIT $2 OFFSET $3`,
+      [req.params.id, limit, offset]
     );
     return success(res, result.rows);
   } catch (err) {
@@ -321,7 +323,7 @@ garagesRouter.get('/my-customers', authenticate, async (req, res) => {
        LEFT JOIN customer_orders co ON u.id = co.customer_id
        LEFT JOIN customer_vehicles v ON u.id = v.customer_id
        WHERE cb.customer_id IS NOT NULL OR co.customer_id IS NOT NULL
-       ORDER BY "lastVisit" DESC`,
+       ORDER BY "lastVisit" DESC LIMIT 100`,
       [garageId]
     );
 
@@ -396,7 +398,7 @@ garagesRouter.get('/my-customers/:id', authenticate, async (req, res) => {
        FROM bookings b
        JOIN garages g ON b.garage_id = g.id
        WHERE b.customer_id = $1 AND b.garage_id = $2
-       ORDER BY b.created_at DESC`,
+       ORDER BY b.created_at DESC LIMIT 100`,
       [customerId, garageId]
     );
 
@@ -406,7 +408,7 @@ garagesRouter.get('/my-customers/:id', authenticate, async (req, res) => {
        FROM orders o
        JOIN garages g ON o.garage_id = g.id
        WHERE o.customer_id = $1 AND o.garage_id = $2
-       ORDER BY o.created_at DESC`,
+       ORDER BY o.created_at DESC LIMIT 100`,
       [customerId, garageId]
     );
 
@@ -440,7 +442,7 @@ garagesRouter.get('/my-inventory', authenticate, async (req, res) => {
        FROM garage_inventory gi
        JOIN products p ON gi.product_id = p.id
        WHERE gi.garage_id = $1
-       ORDER BY p.name ASC`,
+       ORDER BY p.name ASC LIMIT 100`,
       [garageId]
     );
 
@@ -604,7 +606,7 @@ garagesRouter.get('/my-services', authenticate, async (req, res) => {
        FROM services s 
        LEFT JOIN platform_services ps ON s.platform_service_id = ps.id 
        WHERE s.garage_id = $1
-       ORDER BY COALESCE(ps.name, s.name) ASC`,
+       ORDER BY COALESCE(ps.name, s.name) ASC LIMIT 100`,
       [garageId]
     );
     return success(res, result.rows);
@@ -847,13 +849,14 @@ garagesRouter.get('/search', async (req, res) => {
 // GET /api/v1/garages/my-requests
 garagesRouter.get('/my-requests', authenticate, async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const [servicesRes, productsRes] = await Promise.all([
-      query(`SELECT *, 'service' as type FROM service_requests WHERE garage_id = $1 ORDER BY created_at DESC`, [garageId]),
-      query(`SELECT *, 'product' as type FROM product_requests WHERE garage_id = $1 ORDER BY created_at DESC`, [garageId])
+      query(`SELECT *, 'service' as type FROM service_requests WHERE garage_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, [garageId, limit, offset]),
+      query(`SELECT *, 'product' as type FROM product_requests WHERE garage_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3`, [garageId, limit, offset])
     ]);
     // added_service_id / added_inventory_id are now included in SELECT * from migration 057
 
@@ -933,7 +936,7 @@ garagesRouter.get('/:id/reviews', async (req, res) => {
          FROM garage_reviews r
          LEFT JOIN users u ON r.customer_id = u.id
          WHERE r.garage_id = $1 AND (r.is_hidden = FALSE OR r.is_hidden IS NULL)
-         ORDER BY r.created_at DESC
+         ORDER BY r.created_at DESC LIMIT 100
          LIMIT $3 OFFSET $4`,
         [req.params.id, currentUserId || null, limit, offset]
       ),
@@ -958,7 +961,7 @@ garagesRouter.get('/:id/reviews', async (req, res) => {
          LEFT JOIN garage_reviews r ON rr.review_id = r.id
          LEFT JOIN garages g ON rr.garage_id = g.id
          WHERE rr.review_id = ANY($1)
-         ORDER BY rr.created_at ASC`,
+         ORDER BY rr.created_at ASC LIMIT 100`,
          [reviewIds]
       );
     }
@@ -1281,6 +1284,7 @@ garagesRouter.post('/my-requests/:type/:id/add-to-catalog', authenticate, async 
 // GET /api/v1/garages/refund-requests
 garagesRouter.get('/refund-requests', authenticate, async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     if (!req.user?.roles?.includes('garage')) return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
@@ -1292,8 +1296,8 @@ garagesRouter.get('/refund-requests', authenticate, async (req, res) => {
        JOIN users u ON r.customer_id = u.id
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        WHERE r.garage_id = $1
-       ORDER BY r.created_at DESC`,
-      [garageId]
+       ORDER BY r.created_at DESC LIMIT $2 OFFSET $3`,
+      [garageId, limit, offset]
     );
 
     return success(res, result.rows);
@@ -1341,7 +1345,9 @@ garagesRouter.post('/refund-requests/:id/approve', authenticate, async (req, res
 
       if (payment.method === 'cash') {
          // Cash refunds not handled via Razorpay
-         await client.query('UPDATE payments SET status = \'refund_pending\', updated_at = NOW() WHERE id = $1', [payment.id]);
+         const reserved = await client.query(`UPDATE payments SET status = 'refund_pending', updated_at = NOW()
+           WHERE id = $1 AND status IN ('paid','succeeded') RETURNING id`, [payment.id]);
+         if (reserved.rows.length === 0) throw new Error('Refund is already being processed');
          await client.query('UPDATE bookings SET payment_status = \'REFUND_PENDING\', updated_at = NOW() WHERE id = $1', [request.booking_id]);
       } else if (payment.provider_payment_id) {
          // Razorpay refund

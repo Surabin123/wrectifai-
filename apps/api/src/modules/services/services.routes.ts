@@ -1,12 +1,14 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { query } from '../../config/database';
+import { getPagination } from '../../utils/pagination';
 
 export const servicesRouter = Router();
 
 // GET /api/v1/services - Fetch services scoped strictly by location (city/country)
 servicesRouter.get('/', async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const city = req.query.city ? (req.query.city as string).toLowerCase() : null;
     const country = req.query.country ? (req.query.country as string).toLowerCase() : null;
     const garageId = req.query.garageId ? (req.query.garageId as string) : null;
@@ -45,8 +47,8 @@ servicesRouter.get('/', async (req, res) => {
        FROM services s
        JOIN garages g ON s.garage_id = g.id
        ${whereClause}
-       ORDER BY s.name ASC, s.price ASC`,
-      params
+       ORDER BY s.name ASC, s.price ASC LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+      [...params, limit, offset]
     );
 
     return success(res, result.rows);
@@ -59,10 +61,12 @@ servicesRouter.get('/', async (req, res) => {
 // GET /api/v1/services/platform - Fetch all active platform services
 servicesRouter.get('/platform', async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const result = await query(
       `SELECT id, name, category, description, icon, base_price as "base_price"
        FROM platform_services
-       ORDER BY name ASC`
+       ORDER BY name ASC LIMIT $1 OFFSET $2`,
+      [limit, offset]
     );
     return success(res, result.rows);
   } catch (err) {

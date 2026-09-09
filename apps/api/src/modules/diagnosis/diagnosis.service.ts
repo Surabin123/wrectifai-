@@ -222,7 +222,7 @@ export class DiagnosisService {
       return res.rows.length > 0 ? res.rows[0].messages : [];
     } catch (err) {
       console.error('Failed to get chat history:', err);
-      return [];
+      throw err;
     }
   }
 
@@ -236,7 +236,7 @@ export class DiagnosisService {
       );
     } catch (err) {
       console.error('Failed to save chat history:', err);
-      // Suppress error to avoid breaking the application
+      throw err;
     }
   }
 

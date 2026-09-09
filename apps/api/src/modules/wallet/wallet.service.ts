@@ -22,6 +22,16 @@ export async function holdWalletBalance(userId: string, amount: number, referenc
     }
 
     const wallet = walletRes.rows[0];
+    const existingRes = await client.query(
+      `SELECT id, status FROM wallet_transactions
+       WHERE wallet_id = $1 AND reference_type = $2 AND reference_id = $3
+       ORDER BY created_at DESC LIMIT 1`,
+      [wallet.id, referenceType, referenceId]
+    );
+    if (existingRes.rows.length > 0 && ['PENDING', 'COMPLETED'].includes(existingRes.rows[0].status)) {
+      await client.query('COMMIT');
+      return existingRes.rows[0].id;
+    }
     const currentBalance = Number(wallet.balance);
 
     if (currentBalance < amount) {

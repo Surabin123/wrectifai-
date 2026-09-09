@@ -2,17 +2,20 @@ import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { query } from '../../config/database';
 import { authenticate } from '../../middleware/auth';
+import { getPagination } from '../../utils/pagination';
 
 export const productsRouter = Router();
 
 // GET /api/v1/products - Fetch all available platform products
 productsRouter.get('/', async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const result = await query(
       `SELECT id, name, category, description, price, is_diy_kit, image, compatible_vehicle_rules 
        FROM products 
        WHERE is_active = true 
-       ORDER BY name ASC`
+       ORDER BY name ASC LIMIT $1 OFFSET $2`,
+      [limit, offset]
     );
 
     return success(res, result.rows);
@@ -47,7 +50,7 @@ productsRouter.get('/:id', async (req, res) => {
        FROM product_reviews r
        JOIN users u ON r.user_id = u.id
        WHERE r.product_id = $1
-       ORDER BY r.created_at DESC`,
+       ORDER BY r.created_at DESC LIMIT 100`,
       [id]
     );
 

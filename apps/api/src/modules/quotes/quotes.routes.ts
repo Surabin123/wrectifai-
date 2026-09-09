@@ -4,6 +4,7 @@ import { authenticate } from '../../middleware/auth';
 import { query } from '../../config/database';
 import { NotificationsService } from '../notifications/notifications.service';
 import { QuoteEstimationService } from './quote-estimation.service';
+import { getPagination } from '../../utils/pagination';
 
 export const quotesRouter = Router();
 
@@ -48,6 +49,7 @@ quotesRouter.post('/:quoteId/view', authenticate, async (req, res) => {
 
 quotesRouter.get('/', authenticate, async (req, res) => {
   try {
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '50'), 10) || 50));
     const customerId = req.user?.userId;
     const userRoles = req.user?.roles || [];
     
@@ -80,7 +82,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
        LEFT JOIN users u ON qr.customer_id = u.id
        LEFT JOIN profiles p ON u.id = p.user_id
        WHERE ${filterCondition}
-       ORDER BY q.created_at DESC`,
+       ORDER BY q.created_at DESC LIMIT ${limit}`,
       params
     );
 
@@ -196,7 +198,7 @@ quotesRouter.get('/garage-requests', authenticate, async (req, res) => {
        LEFT JOIN users u ON qr.customer_id = u.id
        LEFT JOIN garages g ON qr.garage_id = g.id
        WHERE qr.garage_id = $1
-       ORDER BY qr.created_at DESC`,
+       ORDER BY qr.created_at DESC LIMIT 100`,
       [garageId]
     );
 
@@ -271,7 +273,7 @@ quotesRouter.post('/garage-requests/:id/accept', authenticate, async (req, res) 
     if (!garageUserId || !req.user?.roles?.includes('garage')) {
       return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     }
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(garageUserId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
     
     // Check if garage is suspended or deleted
@@ -386,7 +388,7 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
       estimatedTime, remarks, availability, pickupDrop, warranty, validityDays 
     } = req.body;
     
-    const garageId = req.user?.garageId;
+    const garageId = await resolveGarageId(garageUserId, req.user?.garageId);
     if (!garageId) {
       return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
     }
@@ -507,8 +509,8 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
     }
 
     const vehicleRes = await query(
-      'SELECT id, make, model, year FROM vehicles WHERE id = $1',
-      [vehicleId]
+      'SELECT id, make, model, year FROM vehicles WHERE id = $1 AND customer_id = $2',
+      [vehicleId, customerId]
     );
     if (vehicleRes.rows.length === 0) {
       return error(res, 'Vehicle not found', 'BAD_REQUEST', 400);
@@ -519,7 +521,7 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
 
     let validDiagnosisRequestId = null;
     if (diagnosisRequestId) {
-      const diagCheck = await query('SELECT id FROM diagnosis_requests WHERE id = $1', [diagnosisRequestId]);
+      const diagCheck = await query('SELECT id FROM diagnosis_requests WHERE id = $1 AND customer_id = $2', [diagnosisRequestId, customerId]);
       if (diagCheck.rows.length > 0) {
         validDiagnosisRequestId = diagnosisRequestId;
       }
@@ -588,6 +590,7 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
 
 quotesRouter.get('/requests', authenticate, async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const customerId = req.user?.userId;
     if (!customerId) {
       return error(res, 'Authentication failed: no customer ID found', 'UNAUTHORIZED', 401);
@@ -599,8 +602,8 @@ quotesRouter.get('/requests', authenticate, async (req, res) => {
        FROM quote_requests qr
        LEFT JOIN vehicles v ON qr.vehicle_id = v.id
        WHERE qr.customer_id = $1
-       ORDER BY qr.created_at DESC`,
-      [customerId]
+       ORDER BY qr.created_at DESC LIMIT $2 OFFSET $3`,
+      [customerId, limit, offset]
     );
 
     const mapped = result.rows.map((row: any) => ({
@@ -705,7 +708,7 @@ quotesRouter.get('/garage/active-jobs', authenticate, async (req, res) => {
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN users u ON b.customer_id = u.id
        WHERE b.garage_id = $1 AND b.status = 'in_progress'
-       ORDER BY "quoteCreatedAt" DESC`,
+       ORDER BY "quoteCreatedAt" DESC LIMIT 100`,
       [garageId]
     );
     const mapped = result.rows.map(row => ({
@@ -720,6 +723,7 @@ quotesRouter.get('/garage/active-jobs', authenticate, async (req, res) => {
 
 quotesRouter.get('/garage/quotes', authenticate, async (req, res) => {
   try {
+    const { limit, offset } = getPagination(req);
     const garageUserId = req.user?.userId;
     if (!garageUserId || !req.user?.roles?.includes('garage')) {
       return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
@@ -739,8 +743,8 @@ quotesRouter.get('/garage/quotes', authenticate, async (req, res) => {
        LEFT JOIN users u ON qr.customer_id = u.id
        LEFT JOIN garages g ON q.garage_id = g.id
        WHERE q.garage_id = $1
-       ORDER BY q.created_at DESC`,
-      [garageId]
+       ORDER BY q.created_at DESC LIMIT $2 OFFSET $3`,
+      [garageId, limit, offset]
     );
     const mapped = result.rows.map(row => {
       let parsedDetails = row.details || {};
@@ -785,7 +789,7 @@ quotesRouter.get('/garage/completed-jobs', authenticate, async (req, res) => {
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN users u ON b.customer_id = u.id
        WHERE b.garage_id = $1 AND b.status IN ('completed', 'readyForCollection', 'collected')
-       ORDER BY b.updated_at DESC`,
+       ORDER BY b.updated_at DESC LIMIT 100`,
       [garageId]
     );
     const mapped = result.rows.map(row => {
