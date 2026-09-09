@@ -73,11 +73,11 @@ diagnosisRouter.post('/upload-media', authenticate, (req, res) => {
 
       const header = fs.readFileSync(file.path).subarray(0, 16);
       const isJpeg = header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
-      const isPng = header.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      const isPng = header.subarray(0, 8).equals(Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]));
       const isGif = header.subarray(0, 6).toString('ascii') === 'GIF87a' || header.subarray(0, 6).toString('ascii') === 'GIF89a';
       const isWebp = header.subarray(0, 4).toString('ascii') === 'RIFF' && header.subarray(8, 12).toString('ascii') === 'WEBP';
       const isMp4 = header.subarray(4, 8).toString('ascii') === 'ftyp';
-      const isWebm = header.subarray(0, 4).equals(Buffer.from([0x1a, 0x45, 0xdf, 0xa3]));
+      const isWebm = header.subarray(0, 4).equals(Uint8Array.from([0x1a, 0x45, 0xdf, 0xa3]));
       const isMp3 = header.subarray(0, 3).toString('ascii') === 'ID3' || (header[0] === 0xff && (header[1] & 0xe0) === 0xe0);
       const isWav = header.subarray(0, 4).toString('ascii') === 'RIFF' && header.subarray(8, 12).toString('ascii') === 'WAVE';
       const isOgg = header.subarray(0, 4).toString('ascii') === 'OggS';

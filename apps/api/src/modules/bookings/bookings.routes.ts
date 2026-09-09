@@ -651,20 +651,21 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
     const userRoles = req.user?.roles || [];
     let garageCheck = '';
     const params: any[] = [bookingId];
+    let authorizedGarageId: string | null = null;
 
     if (!userRoles.includes('admin')) {
       if (userRoles.includes('garage')) {
-        const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
-        if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
+        authorizedGarageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
+        if (!authorizedGarageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
-        const gCheckResult = await query(`SELECT approval_status FROM garages WHERE id = $1`, [garageId]);
+        const gCheckResult = await query(`SELECT approval_status FROM garages WHERE id = $1`, [authorizedGarageId]);
         const gStatus = gCheckResult.rows[0]?.approval_status;
         if (gStatus === 'suspended' || gStatus === 'deleted' || gStatus === 'inactive') {
           return error(res, 'Your garage account is suspended or inactive.', 'FORBIDDEN', 403);
         }
 
         garageCheck = ' AND garage_id = $2';
-        params.push(garageId);
+        params.push(authorizedGarageId);
       } else {
         // Customer check: Customers can only cancel or mark as collected
         if (status !== 'cancelled' && status !== 'collected') {
@@ -684,7 +685,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
          $4 = true OR customer_id = $2 OR garage_id = $3
        )
        FOR UPDATE`,
-      [bookingId, req.user?.userId, garageId || null, userRoles.includes('admin')]
+      [bookingId, req.user?.userId, authorizedGarageId || null, userRoles.includes('admin')]
     );
     if (currentBookingRes.rows.length === 0) {
       return error(res, 'Booking not found', 'NOT_FOUND', 404);
@@ -809,7 +810,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
     if (status === 'inService' || status === 'completed' || status === 'readyForCollection' || status === 'collected') {
       // Fetch details for comprehensive notification
       const bookingRes = await query(
-        `SELECT b.customer_note as service_type, u.name as customer_name, u.id as customer_id, g.name as garage_name
+        `SELECT b.customer_note as service_type, u.name as customer_name, u.id as customer_id, g.name as garage_name, b.garage_id as garage_id
          FROM bookings b
          JOIN users u ON b.customer_id = u.id
          JOIN garages g ON b.garage_id = g.id
@@ -821,6 +822,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
       const customerStr = bData?.customer_name || 'a customer';
       const garageStr = bData?.garage_name || 'a garage';
       const custId = bData?.customer_id;
+      const garageId = bData?.garage_id;
 
       if (status === 'inService') {
         await NotificationsService.createNotification({
@@ -1065,6 +1067,7 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
     const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     let garageCheck = '';
     const params: any[] = [bookingId];
+    let authorizedGarageId: string | null = null;
     
     if (userRoles.includes('garage') && !userRoles.includes('admin')) {
       if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
