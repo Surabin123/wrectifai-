@@ -40,7 +40,7 @@ import {
 } from '@/components/home/data';
 
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { resolveImageUrl } from '@/lib/utils';
 import { formatCurrency } from '@/lib/currency';
@@ -953,7 +953,8 @@ export function MainContent() {
   const [userPhone, setUserPhone] = useState<string | undefined>(undefined);
   const [garagesList, setGaragesList] = useState<Garage[]>([]);
   const [dealsList, setDealsList] = useState<Deal[]>([]);
-  const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
+  const [isOffersModalOpen, setIsOffersModalOpen] = useState(false);
+  const router = useRouter();
   const [selectedComboDeal, setSelectedComboDeal] = useState<Deal | null>(null);
 
   useEffect(() => {
@@ -1230,6 +1231,10 @@ export function MainContent() {
         garageId={selectedComboDeal?.garageId || ''}
         comboId={selectedComboDeal?.id}
         comboTitle={selectedComboDeal?.title}
+        onSubmitSuccess={() => {
+          setSelectedComboDeal(null);
+          router.push('/customer/bookings');
+        }}
       />
     </>
   );

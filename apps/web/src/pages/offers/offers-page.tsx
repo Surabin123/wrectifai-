@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useMemo } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { ShieldCheck, Tag, Percent, SlidersHorizontal, Package, Wrench } from 'lucide-react';
 import { Card } from '@/components/common/card';
 import { TopNavbar } from '@/components/home/top-navbar';
@@ -54,6 +54,7 @@ export function OffersPage() {
   const [currencyCode, setCurrencyCode] = useState('INR');
   const [selectedCombo, setSelectedCombo] = useState<Offer | null>(null);
   const searchParams = useSearchParams();
+  const router = useRouter();
 
   useEffect(() => {
     if (searchParams?.get('type') === 'combo') setActiveFilter('COMBO');
@@ -266,6 +267,10 @@ export function OffersPage() {
           garageId={selectedCombo?.garageId || ''}
           comboId={selectedCombo?.id}
           comboTitle={selectedCombo?.title}
+          onSubmitSuccess={() => {
+            setSelectedCombo(null);
+            router.push('/customer/bookings');
+          }}
         />
       </DashboardShell>
     </RoleGuard>

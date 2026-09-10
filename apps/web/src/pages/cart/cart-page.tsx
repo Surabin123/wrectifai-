@@ -26,6 +26,8 @@ export function CartPage() {
   const [isVerifyingPromo, setIsVerifyingPromo] = useState(false);
   const [promoErrorMsg, setPromoErrorMsg] = useState<string | null>(null);
   
+  const [step, setStep] = useState<'cart' | 'checkout'>('cart');
+  
   const [address, setAddress] = useState({
     name: '',
     phone: '',
@@ -130,8 +132,14 @@ export function CartPage() {
 
   const handleProceedToCheckout = () => {
     if (cartItems.length === 0) return;
+    setErrorMsg(null);
+    setStep('checkout');
+  };
+
+  const handlePlaceOrderClick = () => {
     if (!address.name || !address.phone || !address.street || !address.zip) {
       setErrorMsg("Please fill in all shipping address fields.");
+      window.scrollTo(0, 0);
       return;
     }
     setErrorMsg(null);
@@ -278,10 +286,10 @@ export function CartPage() {
       <TopNavbar />
       <div className="p-6 md:p-8 max-w-7xl mx-auto space-y-6">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="outline" size="sm" onClick={() => router.back()} className="rounded-full w-10 h-10 p-0 flex items-center justify-center">
+          <Button variant="outline" size="sm" onClick={() => step === 'checkout' ? setStep('cart') : router.back()} className="rounded-full w-10 h-10 p-0 flex items-center justify-center">
             <ArrowLeft className="w-5 h-5" />
           </Button>
-          <h1 className="text-2xl font-bold text-slate-900">Your Cart</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{step === 'checkout' ? 'Checkout' : 'Your Cart'}</h1>
         </div>
 
         {errorMsg && (
@@ -293,15 +301,16 @@ export function CartPage() {
 
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 space-y-4">
-            {cartItems.length === 0 ? (
-              <Card className="p-8 text-center bg-white border-slate-100 rounded-[20px] shadow-sm">
-                <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                <h3 className="text-lg font-bold text-slate-900 mb-2">Your cart is empty</h3>
-                <p className="text-slate-500 mb-6">Looks like you haven&apos;t added any items to your cart yet.</p>
-                <Button onClick={() => router.push('/shop')}>Continue Shopping</Button>
-              </Card>
-            ) : (
-              cartItems.map((item) => (
+            {step === 'cart' ? (
+              cartItems.length === 0 ? (
+                <Card className="p-8 text-center bg-white border-slate-100 rounded-[20px] shadow-sm">
+                  <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                  <h3 className="text-lg font-bold text-slate-900 mb-2">Your cart is empty</h3>
+                  <p className="text-slate-500 mb-6">Looks like you haven&apos;t added any items to your cart yet.</p>
+                  <Button onClick={() => router.push('/shop')}>Continue Shopping</Button>
+                </Card>
+              ) : (
+                cartItems.map((item) => (
                 <Card key={item.id} className="p-4 flex flex-col sm:flex-row items-center gap-4 bg-white border-slate-100 rounded-[20px] shadow-sm">
                   <div className="w-24 h-24 bg-slate-50 rounded-xl flex items-center justify-center shrink-0">
                     {item.img ? (
@@ -332,39 +341,60 @@ export function CartPage() {
                   </div>
                 </Card>
               ))
+            ) : (
+              <div className="space-y-6">
+                <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
+                  <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-blue-600"/> Delivery Details</h3>
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <input type="text" placeholder="Full Name *" value={address.name} onChange={e => setAddress({...address, name: e.target.value})} className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" required />
+                      <input type="text" placeholder="Phone Number *" value={address.phone} onChange={e => setAddress({...address, phone: e.target.value})} className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" required />
+                    </div>
+                    <input type="text" placeholder="Street Address *" value={address.street} onChange={e => setAddress({...address, street: e.target.value})} className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" required />
+                    <div className="grid grid-cols-2 gap-4">
+                      <input type="text" placeholder="City *" value={address.city} onChange={e => setAddress({...address, city: e.target.value})} className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" required />
+                      <input type="text" placeholder="ZIP *" value={address.zip} onChange={e => setAddress({...address, zip: e.target.value})} className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" required />
+                    </div>
+                  </div>
+                </Card>
+
+                <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
+                  <h3 className="font-bold text-lg text-slate-900 mb-4">Order Review</h3>
+                  <div className="space-y-3">
+                    {cartItems.map((item) => (
+                      <div key={item.id} className="flex justify-between items-center py-2 border-b border-slate-50 last:border-0">
+                        <div className="flex-1 pr-4">
+                          <p className="text-sm font-medium text-slate-900">{item.name}</p>
+                          <p className="text-xs text-slate-500">Qty: {item.quantity || 1}</p>
+                        </div>
+                        <span className="text-sm font-bold">{formatCurrencyForCity((item.numericPrice || 0) * (item.quantity || 1), userCity)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
             )}
           </div>
 
           <div className="lg:w-80 shrink-0 space-y-4">
-            <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
-              <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-blue-600"/> Shipping Address</h3>
-              <div className="space-y-3">
-                <input type="text" placeholder="Full Name" value={address.name} onChange={e => setAddress({...address, name: e.target.value})} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
-                <input type="text" placeholder="Phone Number" value={address.phone} onChange={e => setAddress({...address, phone: e.target.value})} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
-                <input type="text" placeholder="Street Address" value={address.street} onChange={e => setAddress({...address, street: e.target.value})} className="w-full text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
-                <div className="flex gap-2">
-                  <input type="text" placeholder="City" value={address.city} onChange={e => setAddress({...address, city: e.target.value})} className="w-1/2 text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
-                  <input type="text" placeholder="ZIP" value={address.zip} onChange={e => setAddress({...address, zip: e.target.value})} className="w-1/2 text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
-              <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2"><Tag className="w-5 h-5 text-blue-600"/> Promo Code</h3>
-              {promoCodeApplied ? (
-                <div className="flex items-center justify-between bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm border border-green-100">
-                  <span className="font-bold">{promoCodeApplied}</span>
-                  <span>{discountPercent}% OFF</span>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <input type="text" placeholder="Enter code" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} className="flex-1 text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
-                  <Button onClick={handleApplyPromo} disabled={isVerifyingPromo || !promoCode} className="px-4 bg-slate-900 text-white rounded-lg hover:bg-slate-800" size="sm">
-                    {isVerifyingPromo ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Apply'}
-                  </Button>
-                </div>
-              )}
-            </Card>
+            {step === 'checkout' && (
+              <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
+                <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2"><Tag className="w-5 h-5 text-blue-600"/> Promo Code</h3>
+                {promoCodeApplied ? (
+                  <div className="flex items-center justify-between bg-green-50 text-green-700 px-3 py-2 rounded-lg text-sm border border-green-100">
+                    <span className="font-bold">{promoCodeApplied}</span>
+                    <span>{discountPercent}% OFF</span>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <input type="text" placeholder="Enter code" value={promoCode} onChange={e => setPromoCode(e.target.value.toUpperCase())} className="flex-1 text-sm rounded-lg border border-slate-200 px-3 py-2 outline-none focus:border-blue-500" />
+                    <Button onClick={handleApplyPromo} disabled={isVerifyingPromo || !promoCode} className="px-4 bg-slate-900 text-white rounded-lg hover:bg-slate-800" size="sm">
+                      {isVerifyingPromo ? <Loader2 className="w-4 h-4 animate-spin"/> : 'Apply'}
+                    </Button>
+                  </div>
+                )}
+              </Card>
+            )}
 
             <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm sticky top-24">
               <h3 className="font-bold text-lg text-slate-900 mb-6">Order Summary</h3>
@@ -392,9 +422,15 @@ export function CartPage() {
                   <span className="font-bold text-xl text-blue-600">{formatCurrencyForCity(total, userCity)}</span>
                 </div>
               </div>
-              <Button onClick={handleProceedToCheckout} disabled={cartItems.length === 0 || isProcessing} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 flex items-center justify-center gap-2">
-                {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Proceed to Checkout'}
-              </Button>
+              {step === 'cart' ? (
+                <Button onClick={handleProceedToCheckout} disabled={cartItems.length === 0 || isProcessing} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 flex items-center justify-center gap-2">
+                  {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Proceed to Checkout'}
+                </Button>
+              ) : (
+                <Button onClick={handlePlaceOrderClick} disabled={cartItems.length === 0 || isProcessing} className="w-full mt-6 bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-3 flex items-center justify-center gap-2">
+                  {isProcessing ? <Loader2 className="h-5 w-5 animate-spin" /> : 'Place Order'}
+                </Button>
+              )}
             </Card>
           </div>
         </div>

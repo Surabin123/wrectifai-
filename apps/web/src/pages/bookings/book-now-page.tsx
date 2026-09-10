@@ -45,15 +45,13 @@ export default function BookNowPage() {
         // Fetch vehicles
         const v = await apiClient.get<any[]>('/vehicles');
         setVehicles(v);
-        if (v.length > 0) setSelectedVehicleId(v[0].id);
+        setSelectedVehicleId(''); // DO NOT preselect to force selection
 
         // Fetch garage details
         const garageDetails = await apiClient.get<any>(`/garages/${garageId}`).catch(() => null);
         
-        // Fetch services
-        const s = await apiClient.get<any[]>(`/services?city=${encodeURIComponent(userCity)}`);
-        // Filter only services belonging to THIS garage
-        const garageServices = s.filter(srv => srv.garageId === garageId);
+        // Fetch services explicitly for this garage
+        const garageServices = await apiClient.get<any[]>(`/services?garageId=${garageId}&limit=1000`);
         setAvailableServices(garageServices);
 
         if (garageDetails) {
@@ -137,6 +135,10 @@ export default function BookNowPage() {
       setErrorMsg('Please select a date and time.');
       return;
     }
+    if (!selectedVehicleId) {
+      setErrorMsg('Please select a vehicle.');
+      return;
+    }
     if (!schedule.isOpen) {
       setErrorMsg(`Booking is unavailable because ${garage?.name || 'the garage'} is closed on ${schedule.dayDisplay}.`);
       return;
@@ -149,7 +151,7 @@ export default function BookNowPage() {
       const scheduledAt = `${preferredDate}T${preferredTime}:00`;
       await apiClient.post('/bookings', {
         garageId,
-        vehicleId: selectedVehicleId || '00000000-0000-0000-0000-000000000002',
+        vehicleId: selectedVehicleId,
         scheduledAt,
         serviceIds: selectedServiceIds,
         totalAmount: 0, // backend overwrites
@@ -240,13 +242,14 @@ export default function BookNowPage() {
               <h2 className="text-lg font-bold mb-4 flex items-center gap-2"><Calendar className="w-5 h-5 text-blue-600"/> Booking Details</h2>
               
               <div>
-                <label className="block text-sm font-semibold mb-1">Select Vehicle</label>
+                <label className="block text-sm font-semibold mb-1">Select Vehicle <span className="text-red-500">*</span></label>
                 <select 
                   value={selectedVehicleId} 
-                  onChange={(e) => setSelectedVehicleId(e.target.value)} 
-                  className="w-full p-3 border border-slate-200 rounded-xl focus:outline-none focus:border-blue-500"
+                  onChange={e => setSelectedVehicleId(e.target.value)} 
+                  className="w-full p-2.5 border rounded-xl bg-white text-sm focus:outline-none focus:border-blue-500"
                   required
                 >
+                  <option value="" disabled>Select a vehicle</option>
                   {vehicles.map(v => (
                     <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plate_number})</option>
                   ))}
@@ -347,7 +350,7 @@ export default function BookNowPage() {
 
               <Button 
                 type="submit" 
-                disabled={submitting || selectedServices.length === 0} 
+                disabled={submitting || selectedServices.length === 0 || !selectedVehicleId || !preferredDate || !preferredTime || !schedule.isOpen} 
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-xl py-4 text-base"
               >
                 {submitting ? 'Confirming...' : 'Confirm Booking'}

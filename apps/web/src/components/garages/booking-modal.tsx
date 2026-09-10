@@ -39,7 +39,8 @@ export function BookingModal({
     if (isOpen) {
       apiClient.get<any[]>('/vehicles').then(data => {
         setVehicles(data || []);
-        if (data && data.length > 0) setSelectedVehicleId(data[0].id);
+        // DO NOT preselect a vehicle to force the user to select one
+        setSelectedVehicleId('');
       }).catch(console.error);
 
       if (garageId) {
@@ -88,6 +89,10 @@ export function BookingModal({
       setErrorMsg('Please enter the issue description before booking.');
       return;
     }
+    if (!selectedVehicleId) {
+      setErrorMsg('Please select a vehicle.');
+      return;
+    }
     if (!preferredDate || !preferredTime) {
       setErrorMsg('Please select a preferred date and time.');
       return;
@@ -104,7 +109,7 @@ export function BookingModal({
       
       await createBooking({
         garageId,
-        vehicleId: selectedVehicleId || '00000000-0000-0000-0000-000000000002',
+        vehicleId: selectedVehicleId,
         scheduledAt,
         serviceType: issueDescription,
         totalAmount: 0,
@@ -133,12 +138,14 @@ export function BookingModal({
         )}
 
         <div>
-          <label className="block text-sm font-semibold mb-1">Select Vehicle</label>
+          <label className="block text-sm font-semibold mb-1">Select Vehicle <span className="text-red-500">*</span></label>
           <select 
             value={selectedVehicleId} 
             onChange={(e) => setSelectedVehicleId(e.target.value)} 
             className="w-full p-2.5 border rounded-xl bg-white text-sm focus:outline-none focus:border-blue-500"
+            required
           >
+            <option value="" disabled>Select a vehicle</option>
             {vehicles.map(v => (
               <option key={v.id} value={v.id}>{v.make} {v.model} ({v.plate_number})</option>
             ))}
@@ -228,7 +235,7 @@ export function BookingModal({
         <div className="flex justify-end pt-2">
           <button 
             type="submit" 
-            disabled={isSubmitting || (preferredDate ? !schedule.isOpen : false)} 
+            disabled={isSubmitting || !selectedVehicleId || !preferredDate || !preferredTime || !schedule.isOpen} 
             className="px-6 py-2.5 bg-[#1a56db] text-white rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors"
           >
             {isSubmitting ? 'Submitting...' : 'Book Now'}
