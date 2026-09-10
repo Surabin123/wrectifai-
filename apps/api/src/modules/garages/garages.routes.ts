@@ -1371,7 +1371,7 @@ garagesRouter.post('/refund-requests/:id/approve', authenticate, async (req, res
          } catch (rzpErr: any) {
            await client.query('ROLLBACK');
            const errorMessage = rzpErr?.error?.description || rzpErr?.message || (typeof rzpErr === 'string' ? rzpErr : JSON.stringify(rzpErr)) || 'Unknown Razorpay Error';
-           return error(res, 'Razorpay refund API failed: ' + errorMessage, 'BAD_REQUEST', 400);
+           return error(res, 'Razorpay refund API failed', 'BAD_REQUEST', 400);
          }
 
          const paymentRefundStatus = refund.status === 'processed' ? 'refunded' : 'refund_pending';
