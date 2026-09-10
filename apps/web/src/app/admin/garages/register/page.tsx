@@ -58,27 +58,37 @@ export default function RegisterGaragePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [platformServices, setPlatformServices] = useState<Array<{ id: string; name: string; category?: string; description?: string; base_price?: number }>>([]);
-  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
-  const [citySearchTimer, setCitySearchTimer] = useState<NodeJS.Timeout | null>(null);
+  const [areaSuggestions, setAreaSuggestions] = useState<string[]>([]);
+  const [areaSearchTimer, setAreaSearchTimer] = useState<NodeJS.Timeout | null>(null);
 
-  const handleCitySearch = (query: string) => {
-    setFormData(prev => ({ ...prev, city: query }));
-    if (citySearchTimer) clearTimeout(citySearchTimer);
-    if (query.length < 3) {
-      setCitySuggestions([]);
+  const handleAreaSearch = (query: string) => {
+    setFormData(prev => ({ ...prev, area: query }));
+    if (areaSearchTimer) clearTimeout(areaSearchTimer);
+    if (query.length < 2) {
+      setAreaSuggestions([]);
       return;
     }
-    setCitySearchTimer(setTimeout(async () => {
+    setAreaSearchTimer(setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&city=${encodeURIComponent(query)}&limit=5`);
+        const cityParam = formData.city ? `&city=${encodeURIComponent(formData.city)}` : '';
+        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}${cityParam}&addressdetails=1&limit=8`;
+        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
         if (res.ok) {
           const data = await res.json();
-          setCitySuggestions(Array.from(new Set(data.map((item: any) => item.name))));
+          const localities = Array.from(new Set(
+            data
+              .map((item: any) => {
+                const a = item.address;
+                return a.suburb || a.neighbourhood || a.quarter || a.village || a.town || a.city_district || a.district || null;
+              })
+              .filter(Boolean)
+          )) as string[];
+          setAreaSuggestions(localities.slice(0, 6));
         }
       } catch (e) {
         console.warn(e);
       }
-    }, 500));
+    }, 400));
   };
 
   useEffect(() => {
@@ -413,22 +423,33 @@ export default function RegisterGaragePage() {
                      <label className="block text-xs font-bold text-slate-700 mb-2">Email Address <span className="text-red-500">*</span></label>
                      <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value.toLowerCase()})} placeholder="autofix@gmail.com" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                    </div>
-                   <div className="relative">
+                   <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">City <span className="text-red-500">*</span></label>
-                     <input type="text" value={formData.city} onChange={e => handleCitySearch(e.target.value)} placeholder="Type to search city..." className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
-                     {citySuggestions.length > 0 && (
+                     <select value={getCitiesForCountry(formData.countryCode).includes(formData.city) || formData.city === '' ? formData.city : 'Other'} onChange={e => {
+                         const val = e.target.value;
+                         setFormData({...formData, city: val === 'Other' ? '' : val, area: ''});
+                         setAreaSuggestions([]);
+                       }} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
+                         <option value="">Select city</option>
+                         {getCitiesForCountry(formData.countryCode).map(c => <option key={c} value={c}>{c}</option>)}
+                         <option value="Other">Other</option>
+                       </select>
+                     {!getCitiesForCountry(formData.countryCode).includes(formData.city) && formData.city !== '' && (
+                       <input type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} placeholder="Enter city name" className="w-full mt-2 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                     )}
+                   </div>
+                   <div className="relative">
+                     <label className="block text-xs font-bold text-slate-700 mb-2">Area / Locality <span className="text-red-500">*</span></label>
+                     <input type="text" value={formData.area} onChange={e => handleAreaSearch(e.target.value)} placeholder="e.g. Koramangala, Bandra, Jumeirah" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                     {areaSuggestions.length > 0 && (
                        <div className="absolute z-10 w-full bg-white border border-slate-200 mt-1 rounded-lg shadow-lg">
-                         {citySuggestions.map((suggestion, idx) => (
-                           <div key={idx} onClick={() => { setFormData(prev => ({...prev, city: suggestion})); setCitySuggestions([]); }} className="px-4 py-2 text-sm hover:bg-blue-50 cursor-pointer">
+                         {areaSuggestions.map((suggestion, idx) => (
+                           <div key={idx} onClick={() => { setFormData(prev => ({...prev, area: suggestion})); setAreaSuggestions([]); }} className="px-4 py-2 text-sm hover:bg-blue-50 cursor-pointer">
                              {suggestion}
                            </div>
                          ))}
                        </div>
                      )}
-                   </div>
-                   <div>
-                     <label className="block text-xs font-bold text-slate-700 mb-2">Area / Locality <span className="text-red-500">*</span></label>
-                     <input type="text" value={formData.area} onChange={e => setFormData({...formData, area: e.target.value})} placeholder="Example: Manhattan" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                    </div>
                 </div>
                 
