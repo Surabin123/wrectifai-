@@ -36,7 +36,7 @@ export default function AllGaragesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const garagesData = await apiClient.get<any[]>('/admin/onboarding/garages');
+      const garagesData = await apiClient.get<any[]>('/admin/onboarding/garages?limit=1000');
       setGarages(garagesData);
     } catch (err) {
       console.error('Failed to load garages', err);
