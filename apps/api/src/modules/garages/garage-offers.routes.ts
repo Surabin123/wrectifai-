@@ -43,7 +43,7 @@ garageOffersRouter.get('/my-offers', authenticate, async (req, res) => {
   }
 });
 
-garageOffersRouter.get('/debug-my-offers', authenticate, async (req, res) => {
+if (process.env.NODE_ENV !== 'production') garageOffersRouter.get('/debug-my-offers', authenticate, async (req, res) => {
   try {
     const userId = req.user!.userId;
     const allGarages = await query('SELECT id, name, owner_user_id FROM garages WHERE owner_user_id = $1 OR name ILIKE \'%torque%\'', [userId]);
