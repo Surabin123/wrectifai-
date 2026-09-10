@@ -61,6 +61,24 @@ export default function RegisterGaragePage() {
   const [areaSuggestions, setAreaSuggestions] = useState<string[]>([]);
   const [areaSearchTimer, setAreaSearchTimer] = useState<NodeJS.Timeout | null>(null);
 
+  const CITY_COORDS: Record<string, { lat: number; lon: number }> = {
+    'Mumbai': { lat: 19.0760, lon: 72.8777 },
+    'Delhi': { lat: 28.7041, lon: 77.1025 },
+    'Bengaluru': { lat: 12.9716, lon: 77.5946 },
+    'Hyderabad': { lat: 17.3850, lon: 78.4867 },
+    'Chennai': { lat: 13.0827, lon: 80.2707 },
+    'New York': { lat: 40.7128, lon: -74.0060 },
+    'Los Angeles': { lat: 34.0522, lon: -118.2437 },
+    'Chicago': { lat: 41.8781, lon: -87.6298 },
+    'Houston': { lat: 29.7604, lon: -95.3698 },
+    'Phoenix': { lat: 33.4484, lon: -112.0740 },
+    'Dubai': { lat: 25.2048, lon: 55.2708 },
+    'Abu Dhabi': { lat: 24.4539, lon: 54.3773 },
+    'Sharjah': { lat: 25.3463, lon: 55.4209 },
+    'Ajman': { lat: 25.4052, lon: 55.5136 },
+    'Fujairah': { lat: 25.1288, lon: 56.3265 },
+  };
+
   const handleAreaSearch = (query: string) => {
     setFormData(prev => ({ ...prev, area: query }));
     if (areaSearchTimer) clearTimeout(areaSearchTimer);
@@ -70,19 +88,22 @@ export default function RegisterGaragePage() {
     }
     setAreaSearchTimer(setTimeout(async () => {
       try {
-        const cityParam = formData.city ? `&city=${encodeURIComponent(formData.city)}` : '';
-        const url = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}${cityParam}&addressdetails=1&limit=8`;
-        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+        const coords = formData.city ? CITY_COORDS[formData.city] : null;
+        const biasPart = coords ? `&lat=${coords.lat}&lon=${coords.lon}` : '';
+        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}${biasPart}&limit=10&lang=en`;
+        const res = await fetch(url, { headers: { 'User-Agent': 'WrectifAI/1.0 (admin@wrectifai.com)' } });
         if (res.ok) {
           const data = await res.json();
-          const localities = Array.from(new Set(
-            data
-              .map((item: any) => {
-                const a = item.address;
-                return a.suburb || a.neighbourhood || a.quarter || a.village || a.town || a.city_district || a.district || null;
-              })
-              .filter(Boolean)
-          )) as string[];
+          const localityOsmValues = new Set(['suburb', 'neighbourhood', 'district', 'quarter', 'locality', 'residential', 'village', 'hamlet']);
+          const seen = new Set<string>();
+          const localities: string[] = [];
+          for (const feature of data.features) {
+            const p = feature.properties;
+            if (p.name && (localityOsmValues.has(p.osm_value) || p.type === 'locality') && !seen.has(p.name)) {
+              seen.add(p.name);
+              localities.push(p.name);
+            }
+          }
           setAreaSuggestions(localities.slice(0, 6));
         }
       } catch (e) {
