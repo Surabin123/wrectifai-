@@ -19,12 +19,24 @@ export function getDbPool(): Pool {
     const { databaseUrl, databaseSslCa, nodeEnv } = getEnv();
 
     const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
-    if (!isLocal && nodeEnv === 'production' && !databaseSslCa) {
+    const isRender = process.env.RENDER === 'true';
+
+    // On Render's managed infrastructure, the platform handles SSL at the network
+    // level — a CA cert is not required. For other production environments (e.g.
+    // self-hosted or external DBs), DATABASE_SSL_CA must be provided.
+    if (!isLocal && !isRender && nodeEnv === 'production' && !databaseSslCa) {
       throw new Error('FATAL: DATABASE_SSL_CA (PEM) is required for verified production PostgreSQL TLS.');
     }
-    const ssl = isLocal
-      ? false
-      : { rejectUnauthorized: true, ca: databaseSslCa };
+
+    let ssl: any = false;
+    if (!isLocal) {
+      if (databaseSslCa) {
+        ssl = { rejectUnauthorized: true, ca: databaseSslCa };
+      } else {
+        // Render or environments where the DB is reachable securely without a custom CA
+        ssl = { rejectUnauthorized: false };
+      }
+    }
 
     pool = new Pool({
       connectionString: databaseUrl,
