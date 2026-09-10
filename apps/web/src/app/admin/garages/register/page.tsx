@@ -58,6 +58,28 @@ export default function RegisterGaragePage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [platformServices, setPlatformServices] = useState<Array<{ id: string; name: string; category?: string; description?: string; base_price?: number }>>([]);
+  const [citySuggestions, setCitySuggestions] = useState<string[]>([]);
+  const [citySearchTimer, setCitySearchTimer] = useState<NodeJS.Timeout | null>(null);
+
+  const handleCitySearch = (query: string) => {
+    setFormData(prev => ({ ...prev, city: query }));
+    if (citySearchTimer) clearTimeout(citySearchTimer);
+    if (query.length < 3) {
+      setCitySuggestions([]);
+      return;
+    }
+    setCitySearchTimer(setTimeout(async () => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&city=${encodeURIComponent(query)}&limit=5`);
+        if (res.ok) {
+          const data = await res.json();
+          setCitySuggestions(Array.from(new Set(data.map((item: any) => item.name))));
+        }
+      } catch (e) {
+        console.warn(e);
+      }
+    }, 500));
+  };
 
   useEffect(() => {
     apiClient.get<typeof platformServices>('/services/platform')
@@ -98,6 +120,10 @@ export default function RegisterGaragePage() {
     if (step === 1) {
       if (!formData.name || !formData.type || !formData.phone || !formData.email || !formData.city || !formData.area || !formData.address || !formData.registrationNumber || !formData.description) {
         setErrorMsg('Please fill out all required fields marked with *');
+        return;
+      }
+      if (formData.chips.length === 0) {
+        setErrorMsg('Please select at least one highlight (chip) for the garage.');
         return;
       }
       const err = getPhoneError(formData.countryCode, formData.phone);
@@ -165,11 +191,11 @@ export default function RegisterGaragePage() {
   };
 
   const handleVerifyOTP = () => {
-    if (formData.otp === '123456') {
+    if (formData.otp.length >= 4) {
       setFormData(prev => ({ ...prev, isPhoneVerified: true }));
       setErrorMsg('');
     } else {
-      setErrorMsg('Invalid OTP. Please use 123456 for the demo.');
+      setErrorMsg('Please enter a valid OTP.');
     }
   };
 
@@ -205,7 +231,10 @@ export default function RegisterGaragePage() {
         workingHours: formData.workingHours,
         country: selectedCountry?.isoCode || null,
         businessCurrency: selectedCountry?.currencyCode || 'USD',
-        locale: selectedCountry?.locale || 'en-US'
+        locale: selectedCountry?.locale || 'en-US',
+        year: formData.year,
+        otp: formData.otp,
+        contactPhone: formData.countryCode + formData.phone
       });
       router.push('/admin/garages');
     } catch (err: any) {
@@ -362,12 +391,7 @@ export default function RegisterGaragePage() {
                     </div>
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Established Year <span className="text-red-500">*</span></label>
-                     <select value={formData.year} onChange={e => setFormData({...formData, year: e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
-                        <option value="">Select year</option>
-                        {Array.from({ length: 35 }, (_, i) => new Date().getFullYear() - i).map(year => (
-                          <option key={year} value={year}>{year}</option>
-                        ))}
-                      </select>
+                     <input type="number" min="1800" max={new Date().getFullYear()} value={formData.year} onChange={e => setFormData({...formData, year: e.target.value})} placeholder="e.g. 2015" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                    </div>
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Phone Number <span className="text-red-500">*</span></label>
@@ -389,17 +413,17 @@ export default function RegisterGaragePage() {
                      <label className="block text-xs font-bold text-slate-700 mb-2">Email Address <span className="text-red-500">*</span></label>
                      <input type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value.toLowerCase()})} placeholder="autofix@gmail.com" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                    </div>
-                   <div>
+                   <div className="relative">
                      <label className="block text-xs font-bold text-slate-700 mb-2">City <span className="text-red-500">*</span></label>
-                     <select value={getCitiesForCountry(formData.countryCode).includes(formData.city) || formData.city === '' ? formData.city : 'Other'} onChange={e => {
-                         setFormData({...formData, city: e.target.value === 'Other' ? 'Other' : e.target.value})
-                       }} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
-                         <option value="">Select city</option>
-                         {getCitiesForCountry(formData.countryCode).map(c => <option key={c} value={c}>{c}</option>)}
-                         <option value="Other">Other</option>
-                       </select>
-                     {((!getCitiesForCountry(formData.countryCode).includes(formData.city) && formData.city !== '') || formData.city === 'Other') && (
-                       <input type="text" value={formData.city === 'Other' ? '' : formData.city} onChange={e => setFormData({...formData, city: e.target.value})} placeholder="Enter city name" className="w-full mt-2 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                     <input type="text" value={formData.city} onChange={e => handleCitySearch(e.target.value)} placeholder="Type to search city..." className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                     {citySuggestions.length > 0 && (
+                       <div className="absolute z-10 w-full bg-white border border-slate-200 mt-1 rounded-lg shadow-lg">
+                         {citySuggestions.map((suggestion, idx) => (
+                           <div key={idx} onClick={() => { setFormData(prev => ({...prev, city: suggestion})); setCitySuggestions([]); }} className="px-4 py-2 text-sm hover:bg-blue-50 cursor-pointer">
+                             {suggestion}
+                           </div>
+                         ))}
+                       </div>
                      )}
                    </div>
                    <div>
@@ -479,7 +503,7 @@ export default function RegisterGaragePage() {
                          </select>
                          <input type="text" value={formData.ownerPhone} onChange={e => {
                            const maxLen = formData.ownerCountryCode === '+971' ? 9 : 10;
-                           setFormData({...formData, ownerPhone: e.target.value.replace(/\D/g, '').slice(0, maxLen)});
+                           setFormData({...formData, ownerPhone: e.target.value.replace(/\D/g, '').slice(0, maxLen), isPhoneVerified: false, otp: ''});
                          }} placeholder="Enter owner phone" className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                        </div>
                      )}

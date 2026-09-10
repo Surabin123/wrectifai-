@@ -211,7 +211,8 @@ garagesRouter.put('/my-profile', authenticate, async (req, res) => {
 
     const { 
       garageName, address, location, specializations, 
-      pickupDropSupported, image, description, businessHours 
+      pickupDropSupported, image, description, businessHours,
+      contactPhone
     } = req.body;
 
     if ((garageName && typeof garageName !== 'string') || (address && typeof address !== 'string') || (description && typeof description !== 'string')) {
@@ -246,16 +247,15 @@ garagesRouter.put('/my-profile', authenticate, async (req, res) => {
            image = COALESCE($6, image), 
            description = COALESCE($7, description), 
            business_hours = COALESCE($8, business_hours), 
+           contact_phone = COALESCE($11, contact_phone),
            updated_at = NOW()
        WHERE id = $9 AND owner_user_id = $10
-       RETURNING id, name as "garageName", address, location, specializations, 
-                 pickup_drop_supported as "pickupDropSupported", approval_status as "approvalStatus", 
-                 image, description, business_hours as "businessHours"`,
+       RETURNING *`,
       [
         garageName, address, location ? JSON.stringify(location) : null, 
         specializations, pickupDropSupported, processedImage, description, 
         businessHours ? JSON.stringify(businessHours) : null, 
-        garageId, garageUserId
+        garageId, garageUserId, contactPhone
       ]
     );
 

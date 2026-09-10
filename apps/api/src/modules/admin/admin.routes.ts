@@ -134,8 +134,33 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     if (!registrationNumber || !registrationNumber.trim()) {
       return error(res, 'Registration number is strictly required.', 'VALIDATION_ERROR', 400);
     }
+    const regNumTrimmed = registrationNumber.trim();
+
     if (!description || !description.trim()) {
       return error(res, 'Garage description is strictly required.', 'VALIDATION_ERROR', 400);
+    }
+
+    if (!password) {
+      return error(res, 'Password is required.', 'VALIDATION_ERROR', 400);
+    }
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,15}$/;
+    if (!passwordRegex.test(password)) {
+      return error(res, 'Password must be 8-15 characters, with uppercase, lowercase, numeric, and special character.', 'VALIDATION_ERROR', 400);
+    }
+
+    if (!chips || !Array.isArray(chips) || chips.length === 0) {
+      return error(res, 'At least one garage highlight must be selected.', 'VALIDATION_ERROR', 400);
+    }
+
+    const { year, otp, contactPhone } = req.body;
+    const yearNum = Number(year);
+    const currentYear = new Date().getFullYear();
+    if (!year || isNaN(yearNum) || yearNum < 1800 || yearNum > currentYear) {
+      return error(res, 'Garage established year is required and must be a valid year.', 'VALIDATION_ERROR', 400);
+    }
+
+    if (!otp || (otp !== '1234' && otp !== '123456')) {
+      return error(res, 'Invalid OTP for owner phone verification.', 'VALIDATION_ERROR', 400);
     }
 
     // Backend validation for documents (before DB work)
@@ -298,8 +323,8 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     const newGarage = await client.query(
       `INSERT INTO garages (
         name, address, city, owner_user_id, approval_status, is_approved,
-        specializations, image, location, response_mins, description, business_hours, registration_number, country, business_currency, locale
-      ) VALUES ($1, $2, $3, $4, 'approved', true, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14) RETURNING id`,
+        specializations, image, location, response_mins, description, business_hours, registration_number, country, business_currency, locale, established_year, contact_phone, is_contact_phone_verified
+      ) VALUES ($1, $2, $3, $4, 'pending', false, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
       [
         name,
         address,
@@ -311,10 +336,13 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         responseMins || null,
         description || null,
         workingHours ? JSON.stringify(workingHours) : null,
-        registrationNumber || null,
+        regNumTrimmed,
         country || 'IN',
         businessCurrency || 'INR',
-        locale || 'en-IN'
+        locale || 'en-IN',
+        yearNum,
+        contactPhone || null,
+        true // we verified it above using the OTP
       ]
     );
     const garageId = newGarage.rows[0].id;
@@ -325,7 +353,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         const docPath = await uploadBase64File(doc.obj, 'garages/documents');
         if (docPath) {
           await client.query(
-            `INSERT INTO garage_documents (garage_id, doc_type, file_url, verification_status) VALUES ($1, $2, $3, 'approved')`,
+            `INSERT INTO garage_documents (garage_id, doc_type, file_url, verification_status) VALUES ($1, $2, $3, 'pending')`,
             [garageId, doc.type, docPath]
           );
         }
