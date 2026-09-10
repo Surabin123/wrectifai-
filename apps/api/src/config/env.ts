@@ -53,7 +53,7 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     jwtRefreshSecret: jwtRefreshSecret ?? (isProd ? '' : 'local-development-refresh-secret'),
     razorpayWebhookSecret: envSource.RAZORPAY_WEBHOOK_SECRET ?? '',
     adminTemporaryPassword: envSource.ADMIN_TEMPORARY_PASSWORD ?? envSource.ADMIN_BOOTSTRAP_PASSWORD,
-    corsOrigins: envSource.WEB_ORIGINS ? envSource.WEB_ORIGINS.split(',') : ['http://localhost:4200', 'http://localhost:3001'],
+    corsOrigins: envSource.WEB_ORIGINS ? envSource.WEB_ORIGINS.split(',') : (isProd ? [] : ['http://localhost:4200', 'http://localhost:3001']),
     googleClientId: envSource.GOOGLE_CLIENT_ID,
     llmProvider: provider,
     llmModel: (envSource.LLM_MODEL?.trim() === 'llama-3.1-70b-versatile' || envSource.LLM_MODEL?.trim() === 'llama-3.3-70b-versatile') ? 'llama3-70b-8192' : (envSource.LLM_MODEL?.trim() || 'llama3-70b-8192'),
