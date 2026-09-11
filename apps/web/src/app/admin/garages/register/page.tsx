@@ -72,6 +72,7 @@ export default function RegisterGaragePage() {
       sunday: { open: false, start: '', end: '', hasBreak: false, breakStart: '', breakEnd: '' }
     }
   });
+  const [otherGarageType, setOtherGarageType] = useState('');
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -159,7 +160,8 @@ export default function RegisterGaragePage() {
     setErrorMsg('');
     if (step === 1) {
       const garageType = formData.type.trim();
-      if (!garageType || garageType === 'Other') {
+      const resolvedGarageType = garageType === 'Other' ? otherGarageType.trim() : garageType;
+      if (!resolvedGarageType) {
         setErrorMsg('Please specify a valid garage type before continuing.');
         return;
       }
@@ -169,7 +171,7 @@ export default function RegisterGaragePage() {
         setErrorMsg(`Please enter a valid 4-digit established year between 1800 and ${currentYear}.`);
         return;
       }
-      if (!formData.name.trim() || !garageType || !formData.phone.trim() || !formData.email.trim() || !formData.city.trim() || !formData.area.trim() || !formData.address.trim() || !formData.registrationNumber.trim() || !formData.description.trim()) {
+      if (!formData.name.trim() || !formData.phone.trim() || !formData.email.trim() || !formData.city.trim() || !formData.area.trim() || !formData.address.trim() || !formData.registrationNumber.trim() || !formData.description.trim()) {
         setErrorMsg('Please fill out all required fields marked with *');
         return;
       }
@@ -193,6 +195,10 @@ export default function RegisterGaragePage() {
       }
       if (!formData.password || formData.password !== formData.confirmPassword) {
         setErrorMsg('Passwords do not match or are empty.');
+        return;
+      }
+      if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,15}$/.test(formData.password)) {
+        setErrorMsg('Password must be 8–15 characters and include uppercase, lowercase, number, and special character.');
         return;
       }
       if (!formData.isPhoneVerified) {
@@ -257,7 +263,7 @@ export default function RegisterGaragePage() {
       const selectedCountry = getCountryByCallingCode(formData.countryCode);
       await apiClient.post('/admin/onboarding/garages', {
         name: formData.name,
-        type: formData.type,
+        type: formData.type.trim() === 'Other' ? otherGarageType.trim() : formData.type.trim(),
         registrationNumber: formData.registrationNumber,
         phone: formData.countryCode + formData.phone,
         email: formData.email,
@@ -421,7 +427,11 @@ export default function RegisterGaragePage() {
                    </div>
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Garage Type <span className="text-red-500">*</span></label>
-                     <select value={['General Service Garage', 'Specialist Workshop', 'Authorized Service Center', 'Body & Paint Shop', 'Tire & Wheel Center', 'EV Service Center', 'Multi-Brand Service Center', ''].includes(formData.type) ? formData.type : 'Other'} onChange={e => setFormData({...formData, type: e.target.value === 'Other' ? 'Other ' : e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700 mb-2">
+                       <select value={['General Service Garage', 'Specialist Workshop', 'Authorized Service Center', 'Body & Paint Shop', 'Tire & Wheel Center', 'EV Service Center', 'Multi-Brand Service Center', ''].includes(formData.type) ? formData.type : 'Other'} onChange={e => {
+                         const value = e.target.value;
+                         setFormData({...formData, type: value});
+                         if (value !== 'Other') setOtherGarageType('');
+                       }} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700 mb-2">
                        <option value="">Select garage type</option>
                        <option value="General Service Garage">General Service Garage</option>
                        <option value="Specialist Workshop">Specialist Workshop</option>
@@ -432,8 +442,8 @@ export default function RegisterGaragePage() {
                        <option value="Multi-Brand Service Center">Multi-Brand Service Center</option>
                        <option value="Other">Other</option>
                      </select>
-                     {(!['General Service Garage', 'Specialist Workshop', 'Authorized Service Center', 'Body & Paint Shop', 'Tire & Wheel Center', 'EV Service Center', 'Multi-Brand Service Center', ''].includes(formData.type)) && (
-                       <input type="text" value={formData.type === 'Other ' ? '' : formData.type} onChange={e => setFormData({...formData, type: e.target.value})} placeholder="Please specify garage type" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                     {formData.type === 'Other' && (
+                       <input type="text" value={otherGarageType} onChange={e => setOtherGarageType(e.target.value)} placeholder="Please specify garage type" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                      )}
                    </div>
                    <div>
