@@ -163,6 +163,12 @@ export default function RegisterGaragePage() {
         setErrorMsg('Please specify a valid garage type before continuing.');
         return;
       }
+      const establishedYear = formData.year.trim();
+      const currentYear = new Date().getFullYear();
+      if (!/^\d{4}$/.test(establishedYear) || Number(establishedYear) < 1800 || Number(establishedYear) > currentYear) {
+        setErrorMsg(`Please enter a valid 4-digit established year between 1800 and ${currentYear}.`);
+        return;
+      }
       if (!formData.name.trim() || !garageType || !formData.phone.trim() || !formData.email.trim() || !formData.city.trim() || !formData.area.trim() || !formData.address.trim() || !formData.registrationNumber.trim() || !formData.description.trim()) {
         setErrorMsg('Please fill out all required fields marked with *');
         return;
