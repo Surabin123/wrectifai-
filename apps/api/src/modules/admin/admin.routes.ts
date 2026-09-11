@@ -125,12 +125,23 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
   const client = await getDbPool().connect();
   try {
     const { 
-      name, phone, email, city, address, area,
+      name, type, phone, email, city, address, area,
       ownerName, ownerPhone, password, 
       services, customServices, servicePrices, customServicePrices, description, workingHours,
       chips, image, country, responseMins,
       registrationNumber, businessCurrency, locale
     } = req.body;
+
+    const garageType = typeof type === 'string' ? type.trim() : '';
+    if (!garageType || garageType === 'Other') {
+      return error(res, 'Please specify a valid garage type.', 'VALIDATION_ERROR', 400);
+    }
+
+    const emailClean = typeof email === 'string' ? email.trim().toLowerCase() : '';
+    const emailPattern = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
+    if (!emailPattern.test(emailClean) || emailClean.includes('..')) {
+      return error(res, 'Please enter a valid email address.', 'VALIDATION_ERROR', 400);
+    }
 
     if (!registrationNumber || !registrationNumber.trim()) {
       return error(res, 'Registration number is strictly required.', 'VALIDATION_ERROR', 400);

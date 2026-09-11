@@ -149,10 +149,21 @@ export default function RegisterGaragePage() {
     return 'Strong';
   };
 
+  const isValidEmail = (email: string) => {
+    const value = email.trim();
+    return /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/.test(value)
+      && !value.includes('..');
+  };
+
   const handleNext = () => {
     setErrorMsg('');
     if (step === 1) {
-      if (!formData.name || !formData.type || !formData.phone || !formData.email || !formData.city || !formData.area || !formData.address || !formData.registrationNumber || !formData.description) {
+      const garageType = formData.type.trim();
+      if (!garageType || garageType === 'Other') {
+        setErrorMsg('Please specify a valid garage type before continuing.');
+        return;
+      }
+      if (!formData.name.trim() || !garageType || !formData.phone.trim() || !formData.email.trim() || !formData.city.trim() || !formData.area.trim() || !formData.address.trim() || !formData.registrationNumber.trim() || !formData.description.trim()) {
         setErrorMsg('Please fill out all required fields marked with *');
         return;
       }
@@ -162,7 +173,7 @@ export default function RegisterGaragePage() {
       }
       const err = getPhoneError(formData.countryCode, formData.phone);
       if (err) { setErrorMsg(err); return; }
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      if (!isValidEmail(formData.email)) {
         setErrorMsg('Please enter a valid email address.');
         return;
       }
