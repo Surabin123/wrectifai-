@@ -302,45 +302,48 @@ export function CartPage() {
         <div className="flex flex-col lg:flex-row gap-6">
           <div className="flex-1 space-y-4">
             {step === 'cart' ? (
-              cartItems.length === 0 ? (
-                <Card className="p-8 text-center bg-white border-slate-100 rounded-[20px] shadow-sm">
-                  <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto mb-4" />
-                  <h3 className="text-lg font-bold text-slate-900 mb-2">Your cart is empty</h3>
-                  <p className="text-slate-500 mb-6">Looks like you haven&apos;t added any items to your cart yet.</p>
-                  <Button onClick={() => router.push('/shop')}>Continue Shopping</Button>
-                </Card>
-              ) : (
-                cartItems.map((item) => (
-                <Card key={item.id} className="p-4 flex flex-col sm:flex-row items-center gap-4 bg-white border-slate-100 rounded-[20px] shadow-sm">
-                  <div className="w-24 h-24 bg-slate-50 rounded-xl flex items-center justify-center shrink-0">
-                    {item.img ? (
-                      <Image src={item.img} alt={item.name} width={80} height={80} className="object-contain" />
-                    ) : (
-                      <ShoppingBag className="w-8 h-8 text-slate-300" />
-                    )}
-                  </div>
-                  <div className="flex-1">
-                    <h4 className="font-bold text-slate-900">{item.name}</h4>
-                    <p className="text-sm text-slate-500 mb-2">{item.category}</p>
-                    <div className="text-sm font-medium text-slate-500">{formatCurrencyForCity(item.numericPrice || 0, userCity)} each</div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2 mt-4 sm:mt-0">
-                    <div className="text-lg font-bold text-blue-600">
-                      {formatCurrencyForCity((item.numericPrice || 0) * (item.quantity || 1), userCity)}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <div className="flex items-center gap-3 border border-slate-200 rounded-full px-3 py-1">
-                        <button onClick={() => updateQuantity(item.id, -1)} className="text-slate-500 hover:text-slate-900 font-bold">-</button>
-                        <span className="font-medium w-4 text-center">{item.quantity || 1}</span>
-                        <button onClick={() => updateQuantity(item.id, 1)} className="text-slate-500 hover:text-slate-900 font-bold">+</button>
+              <>
+                {cartItems.length === 0 ? (
+                  <Card className="p-8 text-center bg-white border-slate-100 rounded-[20px] shadow-sm">
+                    <ShoppingBag className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+                    <h3 className="text-lg font-bold text-slate-900 mb-2">Your cart is empty</h3>
+                    <p className="text-slate-500 mb-6">Looks like you haven&apos;t added any items to your cart yet.</p>
+                    <Button onClick={() => router.push('/shop')}>Continue Shopping</Button>
+                  </Card>
+                ) : (
+                  cartItems.map((item) => (
+                    <Card key={item.id} className="p-4 flex flex-col sm:flex-row items-center gap-4 bg-white border-slate-100 rounded-[20px] shadow-sm">
+                      <div className="w-24 h-24 bg-slate-50 rounded-xl flex items-center justify-center shrink-0">
+                        {item.img ? (
+                          <Image src={item.img} alt={item.name} width={80} height={80} className="object-contain" />
+                        ) : (
+                          <ShoppingBag className="w-8 h-8 text-slate-300" />
+                        )}
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => removeItem(item.id)} className="text-red-500 border-red-100 hover:bg-red-50 p-2">
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </Card>
-              ))
+                      <div className="flex-1">
+                        <h4 className="font-bold text-slate-900">{item.name}</h4>
+                        <p className="text-sm text-slate-500 mb-2">{item.category}</p>
+                        <div className="text-sm font-medium text-slate-500">{formatCurrencyForCity(item.numericPrice || 0, userCity)} each</div>
+                      </div>
+                      <div className="flex flex-col items-end gap-2 mt-4 sm:mt-0">
+                        <div className="text-lg font-bold text-blue-600">
+                          {formatCurrencyForCity((item.numericPrice || 0) * (item.quantity || 1), userCity)}
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-3 border border-slate-200 rounded-full px-3 py-1">
+                            <button onClick={() => updateQuantity(item.id, -1)} className="text-slate-500 hover:text-slate-900 font-bold">-</button>
+                            <span className="font-medium w-4 text-center">{item.quantity || 1}</span>
+                            <button onClick={() => updateQuantity(item.id, 1)} className="text-slate-500 hover:text-slate-900 font-bold">+</button>
+                          </div>
+                          <Button variant="outline" size="sm" onClick={() => removeItem(item.id)} className="text-red-500 border-red-100 hover:bg-red-50 p-2">
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </Card>
+                  ))
+                )}
+              </>
             ) : (
               <div className="space-y-6">
                 <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
