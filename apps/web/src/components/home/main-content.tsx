@@ -954,6 +954,7 @@ export function MainContent() {
   const [garagesList, setGaragesList] = useState<Garage[]>([]);
   const [dealsList, setDealsList] = useState<Deal[]>([]);
   const [isOffersModalOpen, setIsOffersModalOpen] = useState(false);
+  const [isCategoriesModalOpen, setIsCategoriesModalOpen] = useState(false);
   const router = useRouter();
   const [selectedComboDeal, setSelectedComboDeal] = useState<Deal | null>(null);
 
