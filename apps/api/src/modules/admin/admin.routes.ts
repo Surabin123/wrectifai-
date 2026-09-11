@@ -24,7 +24,9 @@ adminRouter.get('/stats', async (req, res) => {
       completedJobsCount
     ] = await Promise.all([
       query(`SELECT COUNT(*) FROM users u JOIN user_roles ur ON u.id = ur.user_id JOIN roles r ON ur.role_id = r.id WHERE r.code = 'customer'`),
-      query(`SELECT COUNT(*) FROM garages WHERE approval_status IN ('active', 'approved')`),
+      // Keep the dashboard total aligned with the All Garages dataset: every
+      // persisted garage except records explicitly marked deleted.
+      query(`SELECT COUNT(*) FROM garages WHERE approval_status != 'deleted'`),
       query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'pending'`),
       query(`SELECT COUNT(*) FROM bookings WHERE status IN ('confirmed', 'inService')`),
       query(`SELECT COUNT(*) FROM quotes`),
@@ -67,14 +69,13 @@ adminRouter.get('/stats', async (req, res) => {
 
 adminRouter.get('/onboarding/garages', async (req, res) => {
   try {
-    const { limit, offset } = getPagination(req);
     const result = await query(
       `SELECT g.id, g.name, g.address, g.approval_status as "approvalStatus", g.created_at as "createdAt", g.city, g.specializations,
               u.name as "ownerName"
        FROM garages g
        LEFT JOIN users u ON g.owner_user_id = u.id
        WHERE g.approval_status != 'deleted'
-       ORDER BY g.created_at DESC LIMIT $1 OFFSET $2`, [limit, offset]
+       ORDER BY g.created_at DESC`
     );
     return success(res, result.rows);
   } catch (err) {
