@@ -4,27 +4,36 @@ import { Search, Eye } from 'lucide-react';
 import { useState, useEffect, Suspense } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
+import { SharedBookingDetailsModal } from '@/components/bookings/SharedBookingDetailsModal';
 import { formatCurrency } from '@/lib/currency';
 
 function AdminServiceHistoryContent() {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [statusFilter, setStatusFilter] = useState('All');
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<any>(null);
 
   const loadData = async () => {
+    setLoading(true);
     try {
-      const data = await apiClient.get<any[]>('/bookings').catch(() => []);
-      const completedBookings = data.filter((b: any) => 
-        ['completed', 'readyForCollection', 'collected'].includes(b.status)
-      ).map((b: any) => ({
+      const queryParams = new URLSearchParams();
+      if (statusFilter !== 'All') queryParams.append('status', statusFilter);
+      if (dateFrom) queryParams.append('dateFrom', dateFrom);
+      if (dateTo) queryParams.append('dateTo', dateTo);
+      if (searchQuery) queryParams.append('search', searchQuery);
+
+      const data = await apiClient.get<any[]>(`/admin/service-history?${queryParams.toString()}`).catch(() => []);
+      
+      const mappedBookings = data.map((b: any) => ({
         ...b,
-        details: b.issueDescription,
-        completedAt: b.updatedAt || b.scheduledAt
+        completedAt: b.completedAt || b.createdAt
       }));
-      setHistory(completedBookings);
+      setHistory(mappedBookings);
     } catch (err) {
       console.error('Failed to load history', err);
     } finally {
@@ -34,9 +43,13 @@ function AdminServiceHistoryContent() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [statusFilter, dateFrom, dateTo]);
 
   const filtered = history.filter(r => {
+    if (statusFilter !== 'All' && r.status !== statusFilter) return false;
+    if (dateFrom && new Date(r.completedAt) < new Date(dateFrom)) return false;
+    if (dateTo && new Date(r.completedAt) > new Date(new Date(dateTo).setHours(23, 59, 59, 999))) return false;
+
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return r.customerName?.toLowerCase().includes(q) || r.customerPhone?.toLowerCase().includes(q) || r.garageName?.toLowerCase().includes(q);
@@ -49,10 +62,31 @@ function AdminServiceHistoryContent() {
       </div>
 
       <Card className="shadow-sm border-slate-200">
-        <div className="p-4 border-b border-slate-100">
+        <div className="p-4 border-b border-slate-100 flex flex-col gap-4">
           <div className="relative w-full max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
             <input type="text" placeholder="Search by customer or garage name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-semibold text-slate-600">Date Range:</span>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-1.5 text-xs border rounded-lg text-slate-700 outline-none focus:border-blue-500" />
+            <span className="text-xs text-slate-400">to</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-1.5 text-xs border rounded-lg text-slate-700 outline-none focus:border-blue-500" />
+            {(dateFrom || dateTo) && (
+              <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="text-xs font-semibold text-blue-600 hover:underline">Clear Dates</button>
+            )}
+            
+            <div className="ml-4 flex gap-2 border-l pl-4">
+               {['All', 'completed', 'readyForCollection', 'collected'].map(mode => (
+                 <button 
+                   key={mode}
+                   onClick={() => setStatusFilter(mode)}
+                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-colors ${statusFilter === mode ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                 >
+                   {mode === 'All' ? 'All Statuses' : mode.replace(/([A-Z])/g, ' $1').trim()}
+                 </button>
+               ))}
+            </div>
           </div>
         </div>
 
@@ -92,49 +126,26 @@ function AdminServiceHistoryContent() {
         </div>
       </Card>
       
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Service History Details">
-         <div className="space-y-4">
-            {selectedJob ? (
-               <div className="grid grid-cols-2 gap-4 text-sm text-slate-700 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Customer Name</p>
-                   <p className="font-semibold text-slate-900">{selectedJob.customerName || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Phone</p>
-                   <p className="font-semibold text-slate-900">{selectedJob.customerPhone || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Vehicle</p>
-                   <p className="font-semibold text-slate-900">{selectedJob.vehicleMake} {selectedJob.vehicleModel}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Completed Date</p>
-                   <p className="font-semibold text-slate-900">{selectedJob.completedAt ? new Date(selectedJob.completedAt).toLocaleDateString() : 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Total Amount</p>
-                   <p className="font-semibold text-slate-900">{formatCurrency(selectedJob.totalAmount || 0, selectedJob.currency)}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Payment Status</p>
-                   <p className="font-semibold text-green-600">Paid / Completed</p>
-                 </div>
-                 <div className="space-y-1 col-span-2">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Service Details</p>
-                   <p className="font-semibold text-slate-900">{selectedJob.details || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1 col-span-2">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Garage Details</p>
-                   <p className="font-semibold text-slate-900">{selectedJob.garageName || 'Not Assigned'}</p>
-                 </div>
-               </div>
-            ) : <p>Loading...</p>}
-            <div className="pt-2">
-               <button onClick={() => setIsModalOpen(false)} className="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-sm font-bold transition-colors">Close Details</button>
-            </div>
-         </div>
-      </Modal>
+      {isModalOpen && selectedJob && (
+        <SharedBookingDetailsModal
+          booking={{
+            id: selectedJob.id,
+            customerName: selectedJob.customerName,
+            customerPhone: selectedJob.customerPhone,
+            garageName: selectedJob.garageName,
+            vehicleMake: selectedJob.vehicleMake,
+            vehicleModel: selectedJob.vehicleModel,
+            issueDescription: selectedJob.details,
+            totalAmount: selectedJob.totalAmount,
+            currency: selectedJob.currency,
+            createdAt: selectedJob.completedAt,
+            status: 'completed',
+            paymentStatus: 'PAID'
+          }}
+          onClose={() => setIsModalOpen(false)}
+          userRole="admin"
+        />
+      )}
     </div>
   );
 }

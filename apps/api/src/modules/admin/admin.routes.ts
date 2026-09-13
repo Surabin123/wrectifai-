@@ -69,14 +69,30 @@ adminRouter.get('/stats', async (req, res) => {
 
 adminRouter.get('/onboarding/garages', async (req, res) => {
   try {
-    const result = await query(
-      `SELECT g.id, g.name, g.address, g.approval_status as "approvalStatus", g.created_at as "createdAt", g.city, g.specializations,
-              u.name as "ownerName"
+    const { city, search } = req.query;
+    let queryStr = `
+       SELECT g.id, g.name, g.address, g.approval_status as "approvalStatus", g.created_at as "createdAt", g.city, g.specializations,
+              u.name as "ownerName", u.email, u.mobile_number as "ownerPhone"
        FROM garages g
        LEFT JOIN users u ON g.owner_user_id = u.id
        WHERE g.approval_status != 'deleted'
-       ORDER BY g.created_at DESC`
-    );
+    `;
+    const params: any[] = [];
+    
+    if (city && city !== 'All') {
+      params.push((city as string).toLowerCase());
+      queryStr += ` AND LOWER(g.city) = $${params.length}`;
+    }
+    
+    if (search) {
+      const q = `%${(search as string).toLowerCase()}%`;
+      params.push(q);
+      queryStr += ` AND (LOWER(g.name) LIKE $${params.length} OR LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(u.mobile_number) LIKE $${params.length})`;
+    }
+    
+    queryStr += ` ORDER BY g.created_at DESC`;
+    
+    const result = await query(queryStr, params);
     return success(res, result.rows);
   } catch (err) {
     return error(res, 'Failed to fetch garages', 'DATABASE_ERROR', 500);
@@ -141,6 +157,14 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     const emailPattern = /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
     if (!emailPattern.test(emailClean) || emailClean.includes('..')) {
       return error(res, 'Please enter a valid email address.', 'VALIDATION_ERROR', 400);
+    }
+
+    if (!city || !city.trim()) {
+      return error(res, 'City (or Custom Location) is required.', 'VALIDATION_ERROR', 400);
+    }
+
+    if (!area || !area.trim()) {
+      return error(res, 'Area/Locality is required.', 'VALIDATION_ERROR', 400);
     }
 
     if (!registrationNumber || !registrationNumber.trim()) {
@@ -817,8 +841,9 @@ adminRouter.post('/service-requests', async (req, res) => {
 
 adminRouter.get('/service-history', async (req, res) => {
   try {
-      const result = await query(
-      `SELECT b.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName",
+      const { search, dateFrom, dateTo, status, garage_id, customer_id } = req.query;
+      
+      let queryStr = `SELECT b.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName",
               COALESCE(b.total_amount, q.amount) as "totalAmount", COALESCE(b.currency, g.business_currency, 'USD') as "currency",
               b.status, b.created_at as "createdAt", b.updated_at as "completedAt",
               v.make as "vehicleMake", v.model as "vehicleModel", v.vin as "vin",
@@ -829,9 +854,50 @@ adminRouter.get('/service-history', async (req, res) => {
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
-       WHERE b.status IN ('completed', 'readyForCollection', 'collected')
-       ORDER BY b.updated_at DESC LIMIT 100`
-      );
+       WHERE b.status IN ('completed', 'readyForCollection', 'collected')`;
+       
+      const params: any[] = [];
+      const conditions: string[] = [];
+      
+      if (status && status !== 'All') {
+        params.push(status);
+        conditions.push(`b.status = $${params.length}`);
+      }
+      
+      if (dateFrom) {
+        params.push(new Date(dateFrom as string));
+        conditions.push(`b.updated_at >= $${params.length}`);
+      }
+      
+      if (dateTo) {
+        params.push(new Date(new Date(dateTo as string).setHours(23, 59, 59, 999)));
+        conditions.push(`b.updated_at <= $${params.length}`);
+      }
+      
+      if (garage_id) {
+        params.push(garage_id);
+        conditions.push(`b.garage_id = $${params.length}`);
+      }
+      
+      if (customer_id) {
+        params.push(customer_id);
+        conditions.push(`b.customer_id = $${params.length}`);
+      }
+      
+      if (search) {
+        const q = `%${(search as string).toLowerCase()}%`;
+        params.push(q);
+        conditions.push(`(LOWER(u.name) LIKE $${params.length} OR LOWER(u.mobile_number) LIKE $${params.length} OR LOWER(g.name) LIKE $${params.length})`);
+      }
+      
+      if (conditions.length > 0) {
+        queryStr += ` AND ` + conditions.join(' AND ');
+      }
+      
+      queryStr += ` ORDER BY b.updated_at DESC LIMIT 100`;
+
+      const result = await query(queryStr, params);
+      
     return success(res, result.rows);
   } catch (err) {
     return error(res, 'Failed to fetch service history', 'DATABASE_ERROR', 500);
@@ -1011,28 +1077,7 @@ adminRouter.post('/service-requests', async (req, res) => {
   }
 });
 
-adminRouter.get('/service-history', async (req, res) => {
-  try {
-      const result = await query(
-      `SELECT b.id, u.name as "customerName", u.mobile_number as "customerPhone", g.name as "garageName",
-              COALESCE(b.total_amount, q.amount) as "totalAmount", COALESCE(b.currency, g.business_currency, 'USD') as "currency",
-              b.status, b.created_at as "createdAt", b.updated_at as "completedAt",
-              v.make as "vehicleMake", v.model as "vehicleModel", v.vin as "vin",
-              COALESCE(qr.issue_summary, b.booking_type, 'General Service') as "details"
-       FROM bookings b
-       LEFT JOIN users u ON b.customer_id = u.id
-       LEFT JOIN garages g ON b.garage_id = g.id
-       LEFT JOIN vehicles v ON b.vehicle_id = v.id
-       LEFT JOIN quotes q ON b.quote_id = q.id
-       LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
-       WHERE b.status IN ('completed', 'readyForCollection', 'collected')
-       ORDER BY b.updated_at DESC LIMIT 100`
-      );
-    return success(res, result.rows);
-  } catch (err) {
-    return error(res, 'Failed to fetch service history', 'DATABASE_ERROR', 500);
-  }
-});
+
 
 
 

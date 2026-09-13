@@ -8,12 +8,15 @@ import { Modal } from '@/components/common/modal';
 const BLANK_FORM = {
   name: '', email: '', phone: '', password: '',
   address: '', city: '', state: '', pincode: '',
+  vehicleMake: '', vehicleModel: '', vehicleYear: '', vehicleVin: '', vehiclePlate: ''
 };
 
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -34,8 +37,12 @@ export default function CustomersPage() {
     setAddError('');
     setAddSuccess('');
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
-    if (!addForm.name.trim() || !addForm.email.trim() || !addForm.password) {
-      setAddError('Name, email, and password are required.');
+    if (!addForm.name.trim() || !addForm.email.trim() || !addForm.password || !addForm.phone.trim()) {
+      setAddError('Name, email, password, and mobile number are required.');
+      return;
+    }
+    if (!/^\+?[1-9]\d{8,14}$/.test(addForm.phone.trim())) {
+      setAddError('Please enter a valid mobile number with country code (e.g. +919876543210).');
       return;
     }
     if (!passwordRegex.test(addForm.password)) {
@@ -54,6 +61,11 @@ export default function CustomersPage() {
         city:           addForm.city.trim()    || undefined,
         state:          addForm.state.trim()   || undefined,
         pincode:        addForm.pincode.trim() || undefined,
+        vehicleMake:    addForm.vehicleMake.trim() || undefined,
+        vehicleModel:   addForm.vehicleModel.trim() || undefined,
+        vehicleYear:    addForm.vehicleYear.trim() || undefined,
+        vehicleVin:     addForm.vehicleVin.trim() || undefined,
+        vehiclePlate:   addForm.vehiclePlate.trim() || undefined,
       });
       setAddSuccess('Customer created successfully.');
       setAddForm(BLANK_FORM);
@@ -115,6 +127,9 @@ export default function CustomersPage() {
   };
 
   const filtered = customers.filter(c => {
+    if (dateFrom && new Date(c.joined || c.createdAt) < new Date(dateFrom)) return false;
+    if (dateTo && new Date(c.joined || c.createdAt) > new Date(new Date(dateTo).setHours(23, 59, 59, 999))) return false;
+
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return c.name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q);
@@ -134,8 +149,8 @@ export default function CustomersPage() {
       </div>
 
       <Card className="shadow-sm border-slate-200">
-        <div className="p-4 border-b border-slate-100">
-          <div className="relative w-full">
+        <div className="p-4 border-b border-slate-100 flex flex-col gap-4">
+          <div className="relative w-full md:w-80">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
             <input 
               type="text" 
@@ -144,6 +159,15 @@ export default function CustomersPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" 
             />
+          </div>
+          <div className="flex flex-wrap gap-2 items-center">
+            <span className="text-xs font-semibold text-slate-600">Date Range:</span>
+            <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-1.5 text-xs border rounded-lg text-slate-700 outline-none focus:border-blue-500" />
+            <span className="text-xs text-slate-400">to</span>
+            <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-1.5 text-xs border rounded-lg text-slate-700 outline-none focus:border-blue-500" />
+            {(dateFrom || dateTo) && (
+              <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="text-xs font-semibold text-blue-600 hover:underline">Clear Dates</button>
+            )}
           </div>
         </div>
 
@@ -401,7 +425,42 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          {/* Section 3 removed */}
+          {/* ── Section 3: Vehicle Details (Optional) ── */}
+          <div className="space-y-3">
+            <h3 className="text-xs font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 pb-1">3. Vehicle Details (Optional)</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-600">Make</label>
+                <input id="add-v-make" type="text" value={addForm.vehicleMake} onChange={e => setField('vehicleMake', e.target.value)}
+                  placeholder="e.g. Toyota"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-600">Model</label>
+                <input id="add-v-model" type="text" value={addForm.vehicleModel} onChange={e => setField('vehicleModel', e.target.value)}
+                  placeholder="e.g. Camry"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-600">Year</label>
+                <input id="add-v-year" type="text" value={addForm.vehicleYear} onChange={e => setField('vehicleYear', e.target.value)}
+                  placeholder="e.g. 2021"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-slate-600">VIN Number</label>
+                <input id="add-v-vin" type="text" value={addForm.vehicleVin} onChange={e => setField('vehicleVin', e.target.value)}
+                  placeholder="e.g. JT123..."
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <label className="text-xs font-semibold text-slate-600">License Plate</label>
+                <input id="add-v-plate" type="text" value={addForm.vehiclePlate} onChange={e => setField('vehiclePlate', e.target.value)}
+                  placeholder="e.g. KA-01-AB-1234"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
+              </div>
+            </div>
+          </div>
 
           <div className="flex justify-end gap-3 pt-3 border-t border-slate-100">
             <button type="button" onClick={() => { setAddOpen(false); setAddError(''); setAddSuccess(''); }}

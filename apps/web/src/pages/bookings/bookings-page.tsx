@@ -3,6 +3,9 @@
 import { useEffect, useState, useMemo } from 'react';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
+import { GarageMoreMenu } from '@/components/quotes/garage-more-menu';
+import { SharedBookingDetailsModal } from '@/components/bookings/SharedBookingDetailsModal';
+import { useAuth } from '@/components/auth/auth-provider';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { Modal } from '@/components/common/modal';
@@ -605,65 +608,22 @@ export function BookingsPage() {
       </div>
 
       {viewDetailsBooking && (
-        <Modal isOpen={true} onClose={() => setViewDetailsBooking(null)} title="Booking Details" className="max-w-2xl">
-          <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm text-slate-700">
-            <div>
-              <span className="block font-bold text-slate-500 mb-1">Garage Name</span>
-              <p className="font-semibold">{viewDetailsBooking.garageName}</p>
-            </div>
-            <div>
-              <span className="block font-bold text-slate-500 mb-1">Vehicle</span>
-              <p className="font-semibold">
-                {viewDetailsBooking.vehicleMake ? `${viewDetailsBooking.vehicleMake} ${viewDetailsBooking.vehicleModel} ${viewDetailsBooking.vehicleYear}` : 'N/A'}
-              </p>
-            </div>
-            <div>
-              <span className="block font-bold text-slate-500 mb-1">Vehicle Number / VIN</span>
-              <p className="font-semibold">{viewDetailsBooking.vehicleVin || 'N/A'}</p>
-            </div>
-            <div className="col-span-2">
-              <span className="block font-bold text-slate-500 mb-1">Issue Description</span>
-              <p className="bg-slate-50 p-3 rounded border border-slate-200">
-                {viewDetailsBooking.issueDescription || 'N/A'}
-              </p>
-            </div>
-
-            <div>
-              <span className="block font-bold text-slate-500 mb-1">Preferred Date</span>
-              <p className="font-semibold">
-                {viewDetailsBooking.preferredDate ? new Date(viewDetailsBooking.preferredDate).toLocaleDateString() : 'N/A'}
-              </p>
-            </div>
-            <div>
-              <span className="block font-bold text-slate-500 mb-1">Preferred Time</span>
-              <p className="font-semibold">
-                {viewDetailsBooking.preferredDate ? new Date(viewDetailsBooking.preferredDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
-              </p>
-            </div>
-            <div>
-              <span className="block font-bold text-slate-500 mb-1">Booking Status</span>
-              <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 font-bold text-xs rounded uppercase">
-                {viewDetailsBooking.status}
-              </span>
-            </div>
-            <div>
-              <span className="block font-bold text-slate-500 mb-1">Payment Status</span>
-              <span className={`inline-block px-2 py-1 font-bold text-xs rounded uppercase ${
-                viewDetailsBooking.paymentStatus === 'PAID' ? 'bg-green-50 text-green-700' : 'bg-orange-50 text-orange-700'
-              }`}>
-                {viewDetailsBooking.paymentStatus || 'pending'}
-              </span>
-            </div>
-          </div>
-          <div className="mt-6 flex justify-end">
-            <button 
-              onClick={() => setViewDetailsBooking(null)}
-              className="px-4 py-2 bg-slate-100 text-slate-700 rounded font-bold hover:bg-slate-200 transition-colors"
-            >
-              Close
-            </button>
-          </div>
-        </Modal>
+        <SharedBookingDetailsModal
+          booking={{
+            id: viewDetailsBooking.id,
+            garageName: viewDetailsBooking.garageName,
+            vehicleMake: viewDetailsBooking.vehicleMake,
+            vehicleModel: viewDetailsBooking.vehicleModel,
+            vehicleYear: viewDetailsBooking.vehicleYear,
+            vin: viewDetailsBooking.vehicleVin,
+            issueDescription: viewDetailsBooking.issueDescription,
+            scheduledAt: viewDetailsBooking.preferredDate || viewDetailsBooking.scheduledAt,
+            status: viewDetailsBooking.status,
+            paymentStatus: viewDetailsBooking.paymentStatus,
+          }}
+          onClose={() => setViewDetailsBooking(null)}
+          userRole="customer"
+        />
       )}
 
       <Modal 
@@ -778,136 +738,12 @@ export function BookingsPage() {
               <div>
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Billed To</p>
                 <p className="font-semibold">{invoiceData.customerName || 'Customer'}</p>
-                <p className="text-sm text-slate-600">{invoiceData.customerPhone || 'N/A'}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Vehicle</p>
-                <p className="font-semibold">{invoiceData.vehicleMake} {invoiceData.vehicleModel}</p>
-                <p className="text-sm text-slate-600">{invoiceData.vehicleVin || 'N/A'}</p>
-              </div>
-            </div>
-            
-            <div className="bg-slate-50 rounded-lg p-4 mb-6 border border-slate-100">
-              <div className="flex justify-between mb-2 pb-2 border-b border-slate-200">
-                <p className="font-bold text-slate-700">Description</p>
-                <p className="font-bold text-slate-700">Amount</p>
-              </div>
-              <div className="flex justify-between py-2">
-                <p className="text-slate-600">{invoiceData.serviceType || 'Vehicle Service'}</p>
-                <p className="font-medium">{formatCurrency(invoiceData.subtotal, invoiceData.currency)}</p>
-              </div>
-              
-              {/* Detailed Breakdown from Quote if available */}
-              {invoiceData.quoteDetails && (
-                <div className="ml-4 mt-2 space-y-1 text-sm">
-                  {invoiceData.quoteDetails.laborCost !== undefined && (
-                    <div className="flex justify-between text-slate-500">
-                      <span>Labour Cost</span>
-                      <span>{formatCurrency(invoiceData.quoteDetails.laborCost, invoiceData.currency)}</span>
-                    </div>
-                  )}
-                  {invoiceData.quoteDetails.partsCost !== undefined && (
-                    <div className="flex justify-between text-slate-500">
-                      <span>Parts Cost</span>
-                      <span>{formatCurrency(invoiceData.quoteDetails.partsCost, invoiceData.currency)}</span>
-                    </div>
-                  )}
-                  {invoiceData.quoteDetails.consumablesCost !== undefined && (
-                    <div className="flex justify-between text-slate-500">
-                      <span>Consumables</span>
-                      <span>{formatCurrency(invoiceData.quoteDetails.consumablesCost, invoiceData.currency)}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {Number(invoiceData.discountAmount) > 0 && (
-                <div className="flex justify-between py-2 text-green-600">
-                  <p>Discount Applied</p>
-                  <p>- {formatCurrency(invoiceData.discountAmount, invoiceData.currency)}</p>
-                </div>
-              )}
-            </div>
-            
-            <div className="flex justify-end mb-8">
-              <div className="w-64 space-y-3">
-                <div className="flex justify-between text-sm">
-                  <p className="text-slate-500 font-medium">Subtotal</p>
-                  <p className="font-semibold">{formatCurrency(invoiceData.subtotal, invoiceData.currency)}</p>
-                </div>
-                {Number(invoiceData.taxAmount) > 0 && (
-                  <div className="flex justify-between text-sm">
-                    <p className="text-slate-500 font-medium">Tax</p>
-                    <p className="font-semibold">{formatCurrency(invoiceData.taxAmount, invoiceData.currency)}</p>
-                  </div>
-                )}
-                <div className="flex justify-between items-center border-t border-slate-200 pt-3 mt-3">
-                  <p className="font-bold text-slate-800 uppercase tracking-wider">Total</p>
-                  <p className="text-xl font-bold text-[#17307a]">{formatCurrency(invoiceData.totalAmount, invoiceData.currency)}</p>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex justify-between items-center border-t border-slate-200 pt-6">
-              <div>
-                <p className="text-xs text-slate-500 mb-1">Payment Status</p>
-                <span className={`inline-block px-3 py-1 font-bold text-xs rounded uppercase ${
-                  invoiceData.paymentStatus === 'PAID' ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
-                }`}>
-                  {invoiceData.paymentStatus}
-                </span>
-              </div>
-              <div className="flex gap-2">
-                <Button 
-                  onClick={() => window.print()}
-                  variant="outline"
-                  className="bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
-                >
-                  Print
-                </Button>
-                <Button 
-                  onClick={async () => {
-                    const jsPDF = (await import('jspdf')).default;
-                    const autoTable = (await import('jspdf-autotable')).default;
-                    const doc = new jsPDF();
-                    doc.setFontSize(16);
-                    doc.text('Invoice', 14, 20);
-                    doc.setFontSize(10);
-                    doc.text(`Booking ID: ${invoiceData.bookingId}`, 14, 28);
-                    
-                    const tableData = [];
-                    if (invoiceData.quoteDetails) {
-                      if (invoiceData.quoteDetails.laborCost) tableData.push(['Labour Cost', invoiceData.quoteDetails.laborCost]);
-                      if (invoiceData.quoteDetails.partsCost) tableData.push(['Parts Cost', invoiceData.quoteDetails.partsCost]);
-                      if (invoiceData.quoteDetails.consumablesCost) tableData.push(['Consumables', invoiceData.quoteDetails.consumablesCost]);
-                    }
-                    if (Number(invoiceData.discountAmount) > 0) tableData.push(['Discount Applied', `- ${invoiceData.discountAmount}`]);
-                    tableData.push(['Subtotal', invoiceData.subtotal]);
-                    if (Number(invoiceData.taxAmount) > 0) tableData.push(['Tax', invoiceData.taxAmount]);
-                    tableData.push(['Total', invoiceData.totalAmount]);
-
-                    autoTable(doc, {
-                      startY: 35,
-                      head: [['Description', 'Amount']],
-                      body: tableData,
-                    });
-                    doc.save(`invoice_${invoiceData.bookingId}.pdf`);
-                  }}
-                  variant="outline"
-                  className="bg-[#1a56db] text-white hover:bg-blue-700 hover:text-white"
-                >
-                  Save PDF
-                </Button>
-                <Button 
-                  onClick={() => setInvoiceModalOpen(false)}
-                  className="bg-slate-100 text-slate-700 hover:bg-slate-200"
-                >
-                  Close
-                </Button>
-              </div>
-            </div>
-          </div>
-        </Modal>
+      {invoiceModalOpen && invoiceData && (
+        <SharedInvoiceDetailsModal
+          invoiceData={invoiceData}
+          onClose={() => setInvoiceModalOpen(false)}
+          userRole="customer"
+        />
       )}
 
       {paymentSelectionBooking && (

@@ -12,6 +12,7 @@ import { fetchGarageCompletedJobs, GarageCompletedJob } from '@/lib/quotes-api';
 import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
 import { Button } from '@/components/common/button';
+import { SharedBookingDetailsModal } from '@/components/bookings/SharedBookingDetailsModal';
 
 export default function ServiceHistoryPage() {
   const [history, setHistory] = useState<GarageCompletedJob[]>([]);
@@ -160,35 +161,34 @@ export default function ServiceHistoryPage() {
         </div>
       </DashboardShell>
 
-      {selectedBookingId && (
-        <Modal isOpen={true} onClose={() => setSelectedBookingId(null)} title="Booking Details" className="max-w-lg">
-          {detailsLoading ? (
-             <div className="p-8 text-center text-sm font-semibold text-slate-500">Loading details...</div>
-          ) : bookingDetails ? (
-            <div className="space-y-4 text-sm text-slate-700">
-              <div className="grid grid-cols-2 gap-4">
-                <div><span className="font-bold">Status:</span> {bookingDetails.status}</div>
-                <div><span className="font-bold">Customer Name:</span> {bookingDetails.customerName || 'N/A'}</div>
-                <div><span className="font-bold">Garage:</span> {bookingDetails.garageName}</div>
-                <div><span className="font-bold">Vehicle:</span> {bookingDetails.vehicleMake} {bookingDetails.vehicleModel}</div>
-                <div><span className="font-bold">Quote Amount:</span> {(bookingDetails as any).currency || 'USD'} {bookingDetails.totalAmount}</div>
-                <div><span className="font-bold">Appointment:</span> {new Date(bookingDetails.scheduledAt).toLocaleString()}</div>
-                <div><span className="font-bold">Completion Date:</span> {new Date(bookingDetails.updatedAt).toLocaleString()}</div>
-              </div>
-              <div>
-                <span className="font-bold block mb-1">Issue Description:</span>
-                <div className="bg-slate-50 p-3 rounded border border-slate-200">
-                   {bookingDetails.bookingType === 'quoteBased' ? bookingDetails.issueDescription || bookingDetails.issueSummary || bookingDetails.serviceType || 'N/A' : bookingDetails.bookingType}
-                </div>
-              </div>
-              <div className="flex justify-end pt-4">
-                <Button onClick={() => setSelectedBookingId(null)}>Close</Button>
-              </div>
-            </div>
-          ) : (
-            <div className="p-8 text-center text-sm font-semibold text-red-500">Failed to load booking details</div>
-          )}
-        </Modal>
+      {selectedBookingId && bookingDetails && (
+        <SharedBookingDetailsModal
+          booking={{
+            id: bookingDetails.id,
+            customerName: bookingDetails.customerName,
+            customerPhone: bookingDetails.customerPhone,
+            customerEmail: bookingDetails.customerEmail,
+            garageName: bookingDetails.garageName,
+            vehicleMake: bookingDetails.vehicleMake,
+            vehicleModel: bookingDetails.vehicleModel,
+            vehicleYear: bookingDetails.vehicleYear,
+            vin: bookingDetails.vin || bookingDetails.vehicleVin,
+            issueDescription: bookingDetails.issueDescription || bookingDetails.issueSummary || bookingDetails.serviceType,
+            totalAmount: bookingDetails.totalAmount,
+            currency: bookingDetails.currency,
+            estimatedDays: bookingDetails.estimatedDays,
+            scheduledAt: bookingDetails.scheduledAt,
+            createdAt: bookingDetails.createdAt,
+            status: bookingDetails.status,
+            paymentStatus: bookingDetails.paymentStatus,
+            laborCost: bookingDetails.laborCost,
+            partsCost: bookingDetails.partsCost,
+            otherCost: bookingDetails.otherCost,
+            remarks: bookingDetails.remarks
+          }}
+          onClose={() => setSelectedBookingId(null)}
+          userRole="garage"
+        />
       )}
     </RoleGuard>
   );

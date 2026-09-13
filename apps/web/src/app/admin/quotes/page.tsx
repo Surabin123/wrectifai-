@@ -4,7 +4,9 @@ import { Search, Eye } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
+import { SharedQuoteDetailsModal } from '@/components/quotes/SharedQuoteDetailsModal';
 import { formatCurrency } from '@/lib/currency';
+import { formatDate } from '@/lib/utils';
 
 export default function AdminQuotesPage() {
   const [quotes, setQuotes] = useState<any[]>([]);
@@ -127,69 +129,35 @@ export default function AdminQuotesPage() {
         </div>
       </Card>
       
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Quote Details" className="max-w-2xl">
-         <div className="space-y-4">
-            {selectedQuote ? (
-               <div className="grid grid-cols-2 gap-4 text-sm text-slate-700 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Customer Name</p>
-                   <p className="font-semibold text-slate-900">{selectedQuote.customerName || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Customer Phone / Email</p>
-                   <p className="font-semibold text-slate-900">{selectedQuote.customerEmail || selectedQuote.customerPhone || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Customer City</p>
-                   <p className="font-semibold text-slate-900">{selectedQuote.customerCity || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Garage City</p>
-                   <p className="font-semibold text-slate-900">{selectedQuote.garageCity || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Garage Name</p>
-                   <p className="font-semibold text-slate-900">{selectedQuote.garageName || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Preferred Date</p>
-                   <p className="font-semibold text-slate-900">{selectedQuote.preferredDate ? new Date(selectedQuote.preferredDate).toLocaleDateString() : 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Created At</p>
-                   <p className="font-semibold text-slate-900">{selectedQuote.createdAt ? new Date(selectedQuote.createdAt).toLocaleDateString() : 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Vehicle (VIN / Plate)</p>
-                   <p className="font-semibold text-slate-900">{selectedQuote.vehicleMake || 'N/A'} {selectedQuote.vehicleModel || ''} ({selectedQuote.vin || 'N/A'})</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Preferred Date & Time</p>
-                   <p className="font-semibold text-slate-900">
-                     {selectedQuote.preferredDate ? new Date(selectedQuote.preferredDate).toLocaleDateString() : 'N/A'}
-                     {' '}
-                     {selectedQuote.preferredDate ? new Date(selectedQuote.preferredDate).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : ''}
-                   </p>
-                 </div>
-                 <div className="space-y-1 col-span-2">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Estimated Days</p>
-                   <p className="font-semibold text-slate-900">{selectedQuote.estimatedDays || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1 col-span-2">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Issue Description</p>
-                   <p className="font-semibold text-slate-900">{selectedQuote.issueDescription || 'No description provided.'}</p>
-                 </div>
-
-                 <div className="space-y-1 col-span-2 text-lg border-t pt-3 mt-1 font-bold text-[#17307a]">
-                   Total Amount: {formatCurrency(selectedQuote.totalAmount || 0, selectedQuote.currency || 'USD')}
-                 </div>
-               </div>
-            ) : <p>Loading...</p>}
-            <div className="pt-2">
-               <button onClick={() => setIsModalOpen(false)} className="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-sm font-bold transition-colors">Close Details</button>
-            </div>
-         </div>
-      </Modal>
+      {isModalOpen && selectedQuote && (
+        <SharedQuoteDetailsModal
+          quote={{
+            id: selectedQuote.id,
+            customerName: selectedQuote.customerName,
+            customerPhone: selectedQuote.customerPhone,
+            customerEmail: selectedQuote.customerEmail,
+            customerCity: selectedQuote.customerCity,
+            garageName: selectedQuote.garageName,
+            garageCity: selectedQuote.garageCity,
+            vehicleMake: selectedQuote.vehicleMake,
+            vehicleModel: selectedQuote.vehicleModel,
+            vin: selectedQuote.vin,
+            issueDescription: selectedQuote.issueDescription,
+            totalAmount: selectedQuote.totalAmount,
+            currency: selectedQuote.currency,
+            estimatedDays: selectedQuote.estimatedDays,
+            preferredDate: selectedQuote.preferredDate,
+            createdAt: selectedQuote.createdAt,
+            status: selectedQuote.status,
+            remarks: selectedQuote.remarks,
+            laborCost: selectedQuote.laborCost,
+            partsCost: selectedQuote.partsCost,
+            otherCost: selectedQuote.otherCost
+          }}
+          onClose={() => setIsModalOpen(false)}
+          userRole="admin"
+        />
+      )}
     </div>
   );
 }

@@ -604,7 +604,9 @@ ordersRouter.get('/:id', authenticate, async (req, res) => {
 ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req, res) => {
   const pool = getDbPool();
   try {
-    const ordersRes = await pool.query(`
+    const { search, fulfillment_mode } = req.query;
+    
+    let queryStr = `
       SELECT o.*, 
         o.payment_status as payment_status,
         COALESCE(p_pay.method, 'online') as payment_method,
@@ -633,9 +635,32 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
       LEFT JOIN payments p_pay ON o.id = p_pay.order_id
       LEFT JOIN delivery_assignments da ON o.id = da.order_id
       LEFT JOIN users agent ON da.delivery_agent_id = agent.id
+    `;
+    
+    const conditions: string[] = [];
+    const params: any[] = [];
+    
+    if (fulfillment_mode && fulfillment_mode !== 'All') {
+      params.push((fulfillment_mode as string).toLowerCase());
+      conditions.push(`o.fulfillment_mode = $${params.length}`);
+    }
+    
+    if (search) {
+      const q = `%${(search as string).toLowerCase()}%`;
+      params.push(q);
+      conditions.push(`(LOWER(g.name) LIKE $${params.length} OR LOWER(u.name) LIKE $${params.length} OR LOWER(o.order_number) LIKE $${params.length})`);
+    }
+    
+    if (conditions.length > 0) {
+      queryStr += ` WHERE ` + conditions.join(' AND ');
+    }
+    
+    queryStr += `
       GROUP BY o.id, da.id, g.name, u.name, agent.name, p_pay.method, p_pay.provider_payment_id
       ORDER BY o.created_at DESC
-    `);
+    `;
+
+    const ordersRes = await pool.query(queryStr, params);
 
     return success(res, ordersRes.rows);
   } catch (err) {

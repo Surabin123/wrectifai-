@@ -71,7 +71,7 @@ export function AdminSidebar({
           )}
         >
           {collapsed ? (
-            <div className="relative h-[28px] w-[45px] overflow-hidden">
+            <div className="relative h-[32px] w-[50px] overflow-hidden bg-white rounded-md flex items-center justify-center shadow-sm">
               <Image
                 src="/fin_logo.png"
                 alt="WrectifAI"
@@ -83,7 +83,7 @@ export function AdminSidebar({
               />
             </div>
           ) : (
-            <div className="relative h-[62px] w-full overflow-hidden">
+            <div className="relative h-[62px] w-full overflow-hidden bg-white rounded-lg flex items-center justify-center shadow-sm p-1">
               <Image
                 src="/fin_logo.png"
                 alt="WrectifAI"

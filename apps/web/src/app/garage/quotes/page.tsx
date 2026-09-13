@@ -7,6 +7,7 @@ import { useState, useEffect } from 'react';
 import { getGarageIncomingRequests, QuoteRequestResponse, submitGarageQuote, fetchGarageQuotes, GarageQuote } from '@/lib/quotes-api';
 import Link from 'next/link';
 import { formatCurrency } from '@/lib/currency';
+import { SharedQuoteDetailsModal } from '@/components/quotes/SharedQuoteDetailsModal';
 
 export default function QuotesPage() {
   const [requests, setRequests] = useState<QuoteRequestResponse[]>([]);
@@ -409,91 +410,31 @@ export default function QuotesPage() {
 
         {/* View Sent Quote Modal */}
         {viewDetailsQuote && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
-              <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
-                <h2 className="font-bold text-slate-800">Sent Quote Details</h2>
-                <button onClick={() => setViewDetailsQuote(null)} className="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
-              </div>
-              <div className="p-6 overflow-y-auto space-y-4 text-sm">
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="font-bold text-slate-600 block">Customer Name:</span>
-                    <p className="text-slate-800">{viewDetailsQuote.request.customerName || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Garage Name:</span>
-                    <p className="text-slate-800">{(viewDetailsQuote.quote as any).garageName || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Customer Phone:</span>
-                    <p className="text-slate-800">{(viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Customer Email:</span>
-                    <p className="text-slate-800">{(viewDetailsQuote.quote as any).customerEmail || (viewDetailsQuote.request as any).customerEmail || 'N/A'}</p>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <span className="font-bold text-slate-600 block">Vehicle:</span>
-                    <p className="text-slate-800">{viewDetailsQuote.request.vehicle?.make} {viewDetailsQuote.request.vehicle?.model} {viewDetailsQuote.request.vehicle?.year}</p>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Vehicle Number / VIN:</span>
-                    <p className="text-slate-800">{viewDetailsQuote.request.vehicle?.vin || 'N/A'}</p>
-                  </div>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-600 block">Issue Description:</span>
-                  <p className="text-slate-800 bg-slate-50 p-3 mt-1 rounded border border-slate-200">{viewDetailsQuote.request.issueSummary || 'N/A'}</p>
-                </div>
-                <div>
-                  <span className="font-bold text-slate-600 block">Garage Notes:</span>
-                  <p className="text-slate-800 bg-slate-50 p-3 mt-1 rounded border border-slate-200">{viewDetailsQuote.quote.details?.remarks || 'None'}</p>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4 mt-4 pt-4 border-t border-slate-200">
-                  <div>
-                    <span className="font-bold text-slate-600 block">Labour Cost:</span>
-                    <span className="text-slate-800">{formatCurrency(viewDetailsQuote.quote.laborCost || 0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Parts Cost:</span>
-                    <span className="text-slate-800">{formatCurrency(viewDetailsQuote.quote.partsCost || 0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
-                  </div>
-                  <div>
-                    <span className="font-bold text-slate-600 block">Other Charges:</span>
-                    <span className="text-slate-800">{formatCurrency(0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
-                  </div>
-                  <div className="col-span-2 bg-slate-50 p-3 rounded mt-2 border border-slate-200 flex justify-between items-center">
-                    <span className="font-bold text-slate-700">Total Amount:</span>
-                    <span className="font-bold text-blue-700 text-lg">{formatCurrency(viewDetailsQuote.quote.totalCost || 0, (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone)}</span>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 mt-4">
-                  <div>
-                    <span className="font-bold text-slate-600 block">Estimated Days:</span>
-                    <span className="text-slate-800">{viewDetailsQuote.quote.etaNote || (viewDetailsQuote.quote.etaDays ? `${viewDetailsQuote.quote.etaDays} days` : 'N/A')}</span>
-                  </div>
-                  <div className="col-span-2">
-                    <span className="font-bold text-slate-600 block">Quote Created Date:</span>
-                    <span className="text-slate-800">{formatTime(viewDetailsQuote.quote.createdAt)}</span>
-                  </div>
-                </div>
-              </div>
-              <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end">
-                <button 
-                  onClick={() => setViewDetailsQuote(null)}
-                  className="px-4 py-2 bg-slate-200 rounded text-sm font-bold text-slate-700 hover:bg-slate-300"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
+          <SharedQuoteDetailsModal
+            quote={{
+              id: viewDetailsQuote.quote.id,
+              customerName: viewDetailsQuote.request.customerName,
+              customerPhone: (viewDetailsQuote.quote as any).customerPhone || (viewDetailsQuote.request as any).customerPhone,
+              customerEmail: (viewDetailsQuote.quote as any).customerEmail || (viewDetailsQuote.request as any).customerEmail,
+              garageName: (viewDetailsQuote.quote as any).garageName,
+              vehicleMake: viewDetailsQuote.request.vehicle?.make,
+              vehicleModel: viewDetailsQuote.request.vehicle?.model,
+              vehicleYear: viewDetailsQuote.request.vehicle?.year,
+              vin: viewDetailsQuote.request.vehicle?.vin,
+              issueDescription: viewDetailsQuote.request.issueSummary,
+              remarks: viewDetailsQuote.quote.details?.remarks,
+              laborCost: viewDetailsQuote.quote.laborCost,
+              partsCost: viewDetailsQuote.quote.partsCost,
+              otherCost: 0,
+              totalAmount: viewDetailsQuote.quote.totalCost,
+              currency: (viewDetailsQuote.quote as any).currency || 'USD',
+              estimatedDays: viewDetailsQuote.quote.etaNote || viewDetailsQuote.quote.etaDays,
+              createdAt: viewDetailsQuote.quote.createdAt,
+              status: viewDetailsQuote.quote.status
+            }}
+            onClose={() => setViewDetailsQuote(null)}
+            userRole="garage"
+          />
         )}
 
       </DashboardShell>

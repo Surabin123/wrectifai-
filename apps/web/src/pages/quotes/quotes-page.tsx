@@ -26,6 +26,7 @@ import { TopNavbar } from '@/components/home/top-navbar';
 import { Modal } from '@/components/common/modal';
 import { BookingDialog } from '@/components/customer/booking-dialog';
 import { GarageMoreMenu } from '@/components/quotes/garage-more-menu';
+import { SharedQuoteDetailsModal } from '@/components/quotes/SharedQuoteDetailsModal';
 import { fetchQuotes, acceptQuoteRequest, fetchQuoteRequests, fetchAiEstimate, markQuoteViewed } from '@/lib/quotes-api';
 import type { QuoteItem } from '@/components/quotes/quotes-shared';
 import { formatCurrency, convertCurrency } from '@/lib/currency';
@@ -216,67 +217,36 @@ function ServicesModal({ quote, onClose }: { quote: QuoteItem; onClose: () => vo
 
 function QuoteDetailsModal({ quote, onClose, onBookNow }: { quote: QuoteItem; onClose: () => void; onBookNow?: () => void }) {
   return (
-    <Modal isOpen onClose={onClose} title="Quote Details" className="max-w-2xl">
-      <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm text-slate-700">
-        <div>
-          <span className="block font-bold text-slate-500 mb-1">Garage</span>
-          <p className="font-semibold">{quote.garage}</p>
-          {quote.garageAddress && <p className="text-xs text-slate-500 mt-0.5">{quote.garageAddress}</p>}
-        </div>
-        <div>
-          <span className="block font-bold text-slate-500 mb-1">Created</span>
-          <p className="font-semibold">{quote.requestCreatedAt ? new Date(quote.requestCreatedAt).toLocaleString() : 'N/A'}</p>
-        </div>
-        <div>
-          <span className="block font-bold text-slate-500 mb-1">Vehicle</span>
-          <p className="font-semibold">
-            {quote.vehicle ? `${quote.vehicle.make} ${quote.vehicle.model} ${quote.vehicle.year}` : 'N/A'}
-          </p>
-        </div>
-        <div>
-          <span className="block font-bold text-slate-500 mb-1">Estimated Time</span>
-          <p className="font-semibold">{quote.time || 'N/A'}</p>
-        </div>
-        <div className="col-span-2">
-          <span className="block font-bold text-slate-500 mb-1">Issue Description</span>
-          <p className="bg-slate-50 p-3 rounded border border-slate-200">{quote.requestIssueSummary || 'N/A'}</p>
-        </div>
-        <div>
-          <span className="block font-bold text-slate-500 mb-1">Labour Cost</span>
-          <p className="font-semibold">{formatCurrency(quote.details?.labour ?? 0)}</p>
-        </div>
-        <div>
-          <span className="block font-bold text-slate-500 mb-1">Parts Cost</span>
-          <p className="font-semibold">{formatCurrency(quote.details?.parts ?? 0)}</p>
-        </div>
-        {(quote.details?.other ?? 0) > 0 && (
-          <div>
-            <span className="block font-bold text-slate-500 mb-1">Other Charges</span>
-            <p className="font-semibold">{formatCurrency(quote.details?.other ?? 0)}</p>
-          </div>
-        )}
-        <div>
-          <span className="block font-bold text-slate-500 mb-1">Total Amount</span>
-          <p className="font-bold text-[#2451f6] text-base">{formatCurrency(safePrice(quote))}</p>
-        </div>
-        {quote.details?.remarks && (
-          <div className="col-span-2">
-            <span className="block font-bold text-slate-500 mb-1">Garage Notes</span>
-            <p className="bg-slate-50 p-3 rounded border border-slate-200">{quote.details.remarks}</p>
-          </div>
-        )}
-      </div>
-      <div className="mt-6 flex justify-end gap-3">
-        <button onClick={onClose} className="px-4 py-2 bg-slate-100 text-slate-700 rounded font-bold hover:bg-slate-200 transition-colors">
-          Close
-        </button>
-        {!quote.isBooked && quote.status !== 'rejected' && quote.status !== 'cancelled' && onBookNow && (
+    <SharedQuoteDetailsModal
+      quote={{
+        id: quote.id,
+        garageName: quote.garage,
+        garageCity: quote.garageAddress, // Mocking city as address for now
+        vehicleMake: quote.vehicle?.make,
+        vehicleModel: quote.vehicle?.model,
+        vehicleYear: quote.vehicle?.year,
+        vin: quote.vehicle?.vin,
+        issueDescription: quote.requestIssueSummary,
+        remarks: quote.details?.remarks,
+        laborCost: quote.details?.labour,
+        partsCost: quote.details?.parts,
+        otherCost: quote.details?.other,
+        totalAmount: safePrice(quote),
+        currency: quote.currency || 'USD',
+        estimatedDays: quote.time,
+        createdAt: quote.requestCreatedAt,
+        status: quote.status,
+      }}
+      onClose={onClose}
+      userRole="customer"
+      actions={
+        !quote.isBooked && quote.status !== 'rejected' && quote.status !== 'cancelled' && onBookNow && (
           <button onClick={onBookNow} className="px-4 py-2 bg-[#2451f6] text-white rounded font-bold hover:bg-[#1a3ecc] transition-colors">
             Book Now
           </button>
-        )}
-      </div>
-    </Modal>
+        )
+      }
+    />
   );
 }
 

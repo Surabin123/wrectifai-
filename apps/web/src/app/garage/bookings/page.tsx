@@ -1,20 +1,24 @@
 'use client';
 import { RoleGuard } from '@/components/common/role-guard';
-import { DashboardShell } from '@/components/home/dashboard-shell';
-import { DashboardHeader } from '@/components/common/dashboard-header';
-import { garageNavItems } from '@/lib/garage-config';
-import { fetchBookings } from '@/lib/bookings-api';
+import { DashboardShell } from '@/components/garage/dashboard-shell';
+import { DashboardHeader } from '@/components/garage/dashboard-header';
+import { garageNavItems } from '@/config/garage-nav';
+import { Card } from '@/components/common/card';
+import { Button } from '@/components/common/button';
+import { fetchBookings, updateBookingStatus, confirmCashPayment } from '@/lib/bookings-api';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Card } from '@/components/common/card';
 import { Modal } from '@/components/common/modal';
-import { updateBookingStatus, confirmCashPayment } from '@/lib/bookings-api';
+import { SharedBookingDetailsModal } from '@/components/bookings/SharedBookingDetailsModal';
+import { CreateBookingModal } from '@/components/bookings/CreateBookingModal';
+import { useAuth } from '@/lib/auth-context';
 
 export default function BookingsPage() {
   const router = useRouter();
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedBooking, setSelectedBooking] = useState<any | null>(null);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [bookingForCollection, setBookingForCollection] = useState<string | null>(null);
   const [collectionTime, setCollectionTime] = useState('');
@@ -102,6 +106,7 @@ export default function BookingsPage() {
               <h1 className="text-2xl font-bold text-[#17307a] mb-1">Bookings</h1>
               <p className="text-sm text-slate-500">Manage all your bookings and workshop schedules.</p>
             </div>
+            <Button onClick={() => setIsCreateModalOpen(true)}>Create Booking</Button>
           </div>
           
           <Card className="p-6">
@@ -188,81 +193,40 @@ export default function BookingsPage() {
         </div>
 
         {selectedBooking && (
-          <Modal isOpen={true} onClose={() => setSelectedBooking(null)} title="Booking Details" className="max-w-2xl">
-            <div className="grid grid-cols-2 gap-y-4 gap-x-6 text-sm text-slate-700">
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Garage Name</span>
-                <p className="font-semibold">{selectedBooking.garageName || 'N/A'}</p>
-              </div>
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Created Date</span>
-                <p className="font-semibold">
-                  {selectedBooking.createdAt ? new Date(selectedBooking.createdAt).toLocaleString() : 'N/A'}
-                </p>
-              </div>
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Customer Name</span>
-                <p className="font-semibold">{selectedBooking.customerName || 'N/A'}</p>
-              </div>
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Customer Phone</span>
-                <p className="font-semibold">{selectedBooking.customerPhone || 'N/A'}</p>
-              </div>
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Customer Email</span>
-                <p className="font-semibold">{selectedBooking.customerEmail || 'N/A'}</p>
-              </div>
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Vehicle</span>
-                <p className="font-semibold">
-                  {selectedBooking.vehicleMake ? `${selectedBooking.vehicleMake} ${selectedBooking.vehicleModel} ${selectedBooking.vehicleYear}` : 'N/A'}
-                </p>
-              </div>
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Vehicle Number / VIN</span>
-                <p className="font-semibold">{selectedBooking.vehicleVin || 'N/A'}</p>
-              </div>
-              <div className="col-span-2">
-                <span className="block font-bold text-slate-500 mb-1">Issue Description</span>
-                <p className="bg-slate-50 p-3 rounded border border-slate-200">
-                  {selectedBooking.issueDescription || 'N/A'}
-                </p>
-              </div>
+          <SharedBookingDetailsModal
+            booking={{
+              id: selectedBooking.id,
+              customerName: selectedBooking.customerName,
+              customerPhone: selectedBooking.customerPhone,
+              customerEmail: selectedBooking.customerEmail,
+              garageName: selectedBooking.garageName,
+              vehicleMake: selectedBooking.vehicleMake,
+              vehicleModel: selectedBooking.vehicleModel,
+              vehicleYear: selectedBooking.vehicleYear,
+              vin: selectedBooking.vehicleVin,
+              issueDescription: selectedBooking.issueDescription,
+              totalAmount: selectedBooking.totalAmount,
+              currency: selectedBooking.currency,
+              scheduledAt: selectedBooking.scheduledAt,
+              createdAt: selectedBooking.createdAt,
+              status: selectedBooking.status,
+              paymentStatus: selectedBooking.paymentStatus,
+            }}
+            onClose={() => setSelectedBooking(null)}
+            userRole="garage"
+          />
+        )}
 
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Quote Amount</span>
-                <p className="font-semibold text-blue-700">
-                  {selectedBooking.currency} {selectedBooking.totalAmount}
-                </p>
-              </div>
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Preferred Date</span>
-                <p className="font-semibold">
-                  {selectedBooking.scheduledAt ? new Date(selectedBooking.scheduledAt).toLocaleDateString() : 'N/A'}
-                </p>
-              </div>
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Preferred Time</span>
-                <p className="font-semibold">
-                  {selectedBooking.scheduledAt ? new Date(selectedBooking.scheduledAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'N/A'}
-                </p>
-              </div>
-              <div>
-                <span className="block font-bold text-slate-500 mb-1">Current Status</span>
-                <span className="inline-block px-2 py-1 bg-blue-50 text-blue-700 font-bold text-xs rounded uppercase">
-                  {selectedBooking.status === 'requested' ? 'Pending' : selectedBooking.status === 'in_progress' ? 'In Progress' : selectedBooking.status === 'readyForCollection' ? 'Ready for Collection' : selectedBooking.status === 'collected' ? 'Collected' : selectedBooking.status}
-                </span>
-              </div>
-            </div>
-            <div className="mt-6 flex justify-end">
-              <button 
-                onClick={() => setSelectedBooking(null)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded font-bold hover:bg-slate-200 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </Modal>
+        {isCreateModalOpen && (
+          <CreateBookingModal 
+            userRole="garage"
+            prefilledGarageId={user?.garageId}
+            onClose={() => setIsCreateModalOpen(false)}
+            onSuccess={() => {
+              setIsCreateModalOpen(false);
+              fetchBookings().then(data => setBookings(data));
+            }}
+          />
         )}
 
         <Modal 

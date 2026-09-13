@@ -22,6 +22,9 @@ export default function AllGaragesPage() {
   const [editModal, setEditModal] = useState<{isOpen: boolean, data: any}>({ isOpen: false, data: null });
   const [isUpdating, setIsUpdating] = useState(false);
 
+  const [searchQuery, setSearchQuery] = useState('');
+  const [activeCity, setActiveCity] = useState('All');
+
   const handleDropdownClick = (e: React.MouseEvent, id: string) => {
     if (openDropdownId === id) {
       setOpenDropdownId(null);
@@ -36,7 +39,11 @@ export default function AllGaragesPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const garagesData = await apiClient.get<any[]>('/admin/onboarding/garages');
+      const queryParams = new URLSearchParams();
+      if (activeCity && activeCity !== 'All') queryParams.append('city', activeCity);
+      if (searchQuery) queryParams.append('search', searchQuery);
+      
+      const garagesData = await apiClient.get<any[]>(`/admin/onboarding/garages?${queryParams.toString()}`);
       setGarages(garagesData);
     } catch (err) {
       console.error('Failed to load garages', err);
@@ -47,7 +54,10 @@ export default function AllGaragesPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [activeCity, searchQuery]); // Reload data when filters change
+
+  // Remove local filtering since it is now done in the backend
+  const filteredGarages = garages;
 
   const handleVerify = async (id: string, action: string) => {
     try {
@@ -111,9 +121,11 @@ export default function AllGaragesPage() {
     }
   };
 
-  const totalGarages = garages.length;
-  const activeGarages = garages.filter(g => g.approvalStatus === 'active' || g.approvalStatus === 'approved').length;
-  const inactiveGarages = garages.filter(g => g.approvalStatus !== 'active' && g.approvalStatus !== 'approved').length;
+  // Local filtering is now done in backend, we already have filteredGarages = garages
+
+  const totalGarages = filteredGarages.length;
+  const activeGarages = filteredGarages.filter(g => g.approvalStatus === 'active' || g.approvalStatus === 'approved').length;
+  const inactiveGarages = filteredGarages.filter(g => g.approvalStatus !== 'active' && g.approvalStatus !== 'approved').length;
 
   const formatTime = (isoString: string) => {
     if (!isoString) return 'N/A';
@@ -155,10 +167,21 @@ export default function AllGaragesPage() {
       </div>
 
       <Card className="p-0 shadow-sm">
-        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white">
-           <div className="relative w-80">
+        <div className="p-4 border-b border-slate-100 flex flex-col gap-4 bg-white">
+           <div className="relative w-full md:w-80">
              <Search className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
-             <input type="text" placeholder="Search by garage name, owner, email or phone..." className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500" />
+             <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search by garage name, owner, email or phone..." className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500" />
+           </div>
+           <div className="flex flex-wrap gap-2">
+             {['All', ...Array.from(new Set(garages.map(g => g.city).filter(Boolean)))].map(city => (
+               <button 
+                 key={city}
+                 onClick={() => setActiveCity(city)}
+                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-colors ${activeCity === city ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+               >
+                 {city}
+               </button>
+             ))}
            </div>
         </div>
         <table className="w-full text-left border-collapse">
@@ -177,12 +200,12 @@ export default function AllGaragesPage() {
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-slate-500 text-sm">Loading garages...</td>
                 </tr>
-            ) : garages.length === 0 ? (
+            ) : filteredGarages.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="p-8 text-center text-slate-500 text-sm">No garages registered yet.</td>
+                  <td colSpan={6} className="p-8 text-center text-slate-500 text-sm">No garages found.</td>
                 </tr>
             ) : (
-                garages.map(g => (
+                filteredGarages.map(g => (
                 <tr key={g.id} className="hover:bg-slate-50 bg-white transition-colors relative">
                     <td className="p-4">
                         <button onClick={() => handleViewDetails(g.id)} className="text-sm font-bold text-blue-600 hover:text-blue-800 hover:underline leading-tight text-left text-ellipsis overflow-hidden whitespace-nowrap max-w-[200px]">{g.name}</button>

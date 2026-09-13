@@ -1,9 +1,13 @@
 'use client';
 import { Card } from '@/components/common/card';
+import { Button } from '@/components/common/button';
 import { Search, Eye } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
+import { SharedBookingDetailsModal } from '@/components/bookings/SharedBookingDetailsModal';
+import { CreateBookingModal } from '@/components/bookings/CreateBookingModal';
+import { useAuth } from '@/lib/auth-context';
 import { formatAdminStatus } from '@/utils/admin-status';
 import { formatCurrency } from '@/lib/currency';
 
@@ -17,11 +21,14 @@ export default function AdminBookingsPage() {
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const { user } = useAuth();
 
-  const loadData = async () => {
+  const loadBookings = async () => {
     try {
-      const data = await apiClient.get<any[]>('/bookings').catch(() => []);
-      setBookings(data);
+      setLoading(true);
+      const data = await apiClient.get<any[]>('/admin/bookings').catch(() => []);
+      setBookings(Array.isArray(data) ? data : []);
     } catch (err) {
       console.warn('Failed to load bookings', err);
     } finally {
@@ -30,7 +37,7 @@ export default function AdminBookingsPage() {
   };
 
   useEffect(() => {
-    loadData();
+    loadBookings();
   }, []);
 
   const statuses = ['All', 'pending', 'confirmed', 'completed', 'cancelled', 'in-progress'];
@@ -42,14 +49,14 @@ export default function AdminBookingsPage() {
       let match = false;
       if (f === 'pending' && (s === 'pending' || s === 'pendingpayment')) match = true;
       else if (f === 'confirmed' && (s === 'confirmed' || s === 'accepted')) match = true;
-      else if (f === 'in-progress' && s === 'in_progress') match = true;
+      else if (f === 'in-progress' && (s === 'in_progress' || s === 'inservice')) match = true;
       else if (f === s) match = true;
       if (!match) return false;
     }
     
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
-    return b.customerName?.toLowerCase().includes(q) || b.garageName?.toLowerCase().includes(q) || b.customerPhone?.toLowerCase().includes(q);
+    return b.customerName?.toLowerCase().includes(q) || b.garageName?.toLowerCase().includes(q) || b.customerPhone?.toLowerCase().includes(q) || b.vehicleMake?.toLowerCase().includes(q) || b.vehicleModel?.toLowerCase().includes(q);
   });
 
   const totalPages = Math.ceil(filteredBookings.length / itemsPerPage) || 1;
@@ -59,6 +66,7 @@ export default function AdminBookingsPage() {
     <div className="p-6 bg-slate-50 min-h-screen">
       <div className="mb-6 flex justify-between items-center">
         <h1 className="text-2xl font-bold text-slate-900">Bookings</h1>
+        <Button onClick={() => setIsCreateModalOpen(true)}>Create Booking</Button>
       </div>
 
       <Card className="shadow-sm border-slate-200">
@@ -135,59 +143,47 @@ export default function AdminBookingsPage() {
         </div>
       </Card>
       
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Booking Details" className="max-w-2xl">
-         <div className="space-y-4">
-             {selectedBooking ? (
-               <div className="grid grid-cols-2 gap-4 text-sm text-slate-700 bg-slate-50 p-4 rounded-lg border border-slate-100">
-
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Payment Status</p>
-                   <p className="font-semibold text-slate-900 uppercase">{selectedBooking.paymentStatus || 'UNPAID'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Customer Name</p>
-                   <p className="font-semibold text-slate-900">{selectedBooking.customerName || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Customer Email / Phone</p>
-                   <p className="font-semibold text-slate-900">{selectedBooking.customerEmail || selectedBooking.customerPhone || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">City / Address</p>
-                   <p className="font-semibold text-slate-900">{selectedBooking.customerCity || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Garage Details</p>
-                   <p className="font-semibold text-slate-900">{selectedBooking.garageName || 'N/A'}</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Vehicle (VIN / Plate)</p>
-                   <p className="font-semibold text-slate-900">{selectedBooking.vehicleMake || 'N/A'} {selectedBooking.vehicleModel || ''} ({selectedBooking.vin || 'N/A'})</p>
-                 </div>
-                 <div className="space-y-1">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Scheduled Date & Time</p>
-                   <p className="font-semibold text-slate-900">
-                     {selectedBooking.scheduledAt ? new Date(selectedBooking.scheduledAt).toLocaleDateString('en-IN', {day:'2-digit', month:'short', year:'numeric'}) : 'N/A'}
-                     {' '}
-                     {selectedBooking.scheduledAt ? new Date(selectedBooking.scheduledAt).toLocaleTimeString('en-IN', {hour:'2-digit', minute:'2-digit'}) : ''}
-                   </p>
-                 </div>
-
-                 <div className="space-y-1 col-span-2">
-                   <p className="text-[10px] uppercase font-bold text-slate-500">Issue Description</p>
-                   <p className="font-semibold text-slate-900">{selectedBooking.issueDescription || 'No description provided.'}</p>
-                 </div>
-
-                 <div className="space-y-1 col-span-2 text-lg border-t pt-3 mt-1 font-bold text-[#17307a]">
-                   Total Amount: {formatCurrency(selectedBooking.totalAmount || 0, selectedBooking.currency || 'USD')}
-                 </div>
-               </div>
-            ) : <p>Loading...</p>}
-            <div className="pt-2">
-               <button onClick={() => setIsModalOpen(false)} className="w-full py-2 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-lg text-sm font-bold transition-colors">Close Details</button>
-            </div>
-         </div>
-      </Modal>
+      {isModalOpen && selectedBooking && (
+        <SharedBookingDetailsModal
+          booking={{
+            id: selectedBooking.id,
+            customerName: selectedBooking.customerName,
+            customerPhone: selectedBooking.customerPhone,
+            customerEmail: selectedBooking.customerEmail,
+            customerCity: selectedBooking.customerCity,
+            garageName: selectedBooking.garageName,
+            garageCity: selectedBooking.garageCity,
+            vehicleMake: selectedBooking.vehicleMake,
+            vehicleModel: selectedBooking.vehicleModel,
+            vehicleYear: selectedBooking.vehicleYear,
+            vin: selectedBooking.vin,
+            issueDescription: selectedBooking.issueDescription,
+            totalAmount: selectedBooking.totalAmount,
+            currency: selectedBooking.currency,
+            estimatedDays: selectedBooking.estimatedDays,
+            scheduledAt: selectedBooking.scheduledAt,
+            createdAt: selectedBooking.createdAt,
+            status: selectedBooking.status,
+            paymentStatus: selectedBooking.paymentStatus,
+            laborCost: selectedBooking.laborCost,
+            partsCost: selectedBooking.partsCost,
+            otherCost: selectedBooking.otherCost,
+            remarks: selectedBooking.remarks
+          }}
+          onClose={() => setIsModalOpen(false)}
+          userRole="admin"
+        />
+      )}
+      {isCreateModalOpen && (
+        <CreateBookingModal 
+          userRole="admin" 
+          onClose={() => setIsCreateModalOpen(false)}
+          onSuccess={() => {
+            setIsCreateModalOpen(false);
+            loadBookings();
+          }}
+        />
+      )}
     </div>
   );
 }

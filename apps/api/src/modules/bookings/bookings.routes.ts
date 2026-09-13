@@ -121,6 +121,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
 
   return hours * 60 + minutes;
 }async function createBookingInternal(req: any, res: any, data: {
+  customerId?: string;
   garageId?: string;
   vehicleId: string;
   scheduledAt: string;
@@ -137,7 +138,10 @@ function parseTimeToMinutes(timeStr: any): number | null {
   paymentMethod?: string;
   serviceIds?: string[];
 }) {
-  const customerId = req.user?.userId;
+  let customerId = req.user?.userId;
+  if ((req.user?.roles?.includes('admin') || req.user?.roles?.includes('garage')) && data.customerId) {
+    customerId = data.customerId;
+  }
   let { garageId } = data;
   const { vehicleId, scheduledAt, bookingType, quoteId, currency, serviceType, issueDescription, notes, offerCode, comboId, walletAmountToUse, paymentMethod, serviceIds } = data;
   
