@@ -23,7 +23,8 @@
     "test": "nx run-many -t test",
     "test:api": "nx test api",
     "test:api:unit": "nx test api unit",
-    "test:web": "nx test web"
+    "test:web": "nx test web",
+    "type-check": "npx tsc --noEmit"
   },
   "private": true,
   "devDependencies": {

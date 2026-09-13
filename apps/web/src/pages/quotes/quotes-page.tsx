@@ -221,7 +221,7 @@ function QuoteDetailsModal({ quote, onClose, onBookNow }: { quote: QuoteItem; on
       quote={{
         id: quote.id,
         garageName: quote.garage,
-        garageCity: quote.garageAddress, // Mocking city as address for now
+        garageCity: quote.garageAddress || undefined, // Mocking city as address for now
         vehicleMake: quote.vehicle?.make,
         vehicleModel: quote.vehicle?.model,
         vehicleYear: quote.vehicle?.year,

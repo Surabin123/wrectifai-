@@ -5,7 +5,9 @@ import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { GarageMoreMenu } from '@/components/quotes/garage-more-menu';
 import { SharedBookingDetailsModal } from '@/components/bookings/SharedBookingDetailsModal';
-import { useAuth } from '@/components/auth/auth-provider';
+import { SharedInvoiceDetailsModal } from '@/components/invoices/SharedInvoiceDetailsModal';
+import { CreateBookingModal } from '@/components/bookings/CreateBookingModal';
+import { useAuth } from '@/lib/auth-context';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { Modal } from '@/components/common/modal';
@@ -719,25 +721,7 @@ export function BookingsPage() {
         </div>
       </Modal>
 
-      {invoiceData && (
-        <Modal isOpen={invoiceModalOpen} onClose={() => setInvoiceModalOpen(false)} title="Invoice" className="max-w-2xl">
-          <div className="p-4 bg-white text-slate-800">
-            <div className="flex justify-between items-start border-b pb-4 mb-4">
-              <div>
-                <h2 className="text-2xl font-bold text-slate-900">INVOICE</h2>
-                <p className="text-sm font-medium text-slate-500 mt-1">{invoiceData.invoiceNumber}</p>
-              </div>
-              <div className="text-right">
-                <p className="font-bold text-slate-800">{invoiceData.garageName}</p>
-                <p className="text-sm text-slate-600">{invoiceData.garageAddress}</p>
-                <p className="text-sm text-slate-600">{invoiceData.garageCity}</p>
-              </div>
-            </div>
-            
-            <div className="flex justify-between mb-8">
-              <div>
-                <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1">Billed To</p>
-                <p className="font-semibold">{invoiceData.customerName || 'Customer'}</p>
+
       {invoiceModalOpen && invoiceData && (
         <SharedInvoiceDetailsModal
           invoiceData={invoiceData}

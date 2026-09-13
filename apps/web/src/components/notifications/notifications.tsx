@@ -264,8 +264,8 @@ export function Notifications() {
       )}
       {selectedInvoiceId && detailsData && (
         <SharedInvoiceDetailsModal
-          invoice={detailsData}
-          onClose={() => { setSelectedInvoiceId(null); setDetailsData(null); }}
+          invoiceData={detailsData}
+          onClose={() => { setDetailsData(null); setSelectedInvoiceId(null); }}
           userRole={user?.roles?.includes('admin') ? 'admin' : user?.roles?.includes('garage') ? 'garage' : 'customer'}
         />
       )}

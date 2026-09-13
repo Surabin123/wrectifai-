@@ -1,8 +1,8 @@
 'use client';
 import { RoleGuard } from '@/components/common/role-guard';
-import { DashboardShell } from '@/components/garage/dashboard-shell';
-import { DashboardHeader } from '@/components/garage/dashboard-header';
-import { garageNavItems } from '@/config/garage-nav';
+import { DashboardShell } from '@/components/home/dashboard-shell';
+import { DashboardHeader } from '@/components/common/dashboard-header';
+import { garageNavItems } from '@/lib/garage-config';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
 import { fetchBookings, updateBookingStatus, confirmCashPayment } from '@/lib/bookings-api';
@@ -21,6 +21,7 @@ export default function BookingsPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [collectionModalOpen, setCollectionModalOpen] = useState(false);
   const [bookingForCollection, setBookingForCollection] = useState<string | null>(null);
+  const { user } = useAuth();
   const [collectionTime, setCollectionTime] = useState('');
 
   useEffect(() => {

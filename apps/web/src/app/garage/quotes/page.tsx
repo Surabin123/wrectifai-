@@ -430,7 +430,7 @@ export default function QuotesPage() {
               currency: (viewDetailsQuote.quote as any).currency || 'USD',
               estimatedDays: viewDetailsQuote.quote.etaNote || viewDetailsQuote.quote.etaDays,
               createdAt: viewDetailsQuote.quote.createdAt,
-              status: viewDetailsQuote.quote.status
+              status: (viewDetailsQuote.quote as any).status
             }}
             onClose={() => setViewDetailsQuote(null)}
             userRole="garage"
