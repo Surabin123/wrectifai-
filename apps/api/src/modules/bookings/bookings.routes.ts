@@ -137,6 +137,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
   walletAmountToUse?: number;
   paymentMethod?: string;
   serviceIds?: string[];
+  source?: string;
 }) {
   let customerId = req.user?.userId;
   if ((req.user?.roles?.includes('admin') || req.user?.roles?.includes('garage')) && data.customerId) {
@@ -266,7 +267,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
     }
 
     let finalServiceType = extractedNotes || 'General Service';
-    let serviceDetailsJSON: any = null;
+    let serviceDetailsJSON: any = data.source ? { source: data.source } : null;
 
     if (serviceIds && serviceIds.length > 0) {
       const servicesCheck = await query(
@@ -289,6 +290,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
         finalServiceType = laborItems.map(l => l.name).join(', ');
       }
       serviceDetailsJSON = {
+        ...(serviceDetailsJSON || {}),
         breakdown: { labor: laborItems, parts: [] },
         parts_cost: 0,
         labor_cost: computedTotal,
@@ -321,6 +323,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
       
       // Do NOT classify entire price as labor_cost to preserve financial integrity.
       serviceDetailsJSON = {
+        ...(serviceDetailsJSON || {}),
         combo_id: comboId,
         combo_name: combo.title,
         parts_cost: 0,

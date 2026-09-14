@@ -13,12 +13,14 @@ export default function AdminOrdersPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [fulfillmentFilter, setFulfillmentFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
 
   async function loadData() {
     setLoading(true);
     try {
       const queryParams = new URLSearchParams();
       if (fulfillmentFilter !== 'All') queryParams.append('fulfillment_mode', fulfillmentFilter);
+      if (statusFilter !== 'All') queryParams.append('status', statusFilter);
       if (searchQuery) queryParams.append('search', searchQuery);
       const data = await apiClient<any>(`/orders/admin/all?${queryParams.toString()}`);
       setOrders(data || []);
@@ -29,13 +31,11 @@ export default function AdminOrdersPage() {
     }
   }
 
-  // Refetch when filters change (debounce not implemented here, but standard behavior)
   useEffect(() => {
     loadData();
-  }, [fulfillmentFilter]); // only refetch on fulfillmentFilter change to prevent API spam on search typing
+  }, [fulfillmentFilter, statusFilter]); 
 
   const filteredOrders = orders.filter(o => {
-    if (fulfillmentFilter !== 'All' && o.fulfillment_mode !== fulfillmentFilter.toLowerCase()) return false;
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
@@ -57,16 +57,31 @@ export default function AdminOrdersPage() {
                  <svg className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
                  <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search by garage, customer, order number..." className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500" />
                </div>
-               <div className="flex flex-wrap gap-2">
-                 {['All', 'Pickup', 'Delivery'].map(mode => (
-                   <button 
-                     key={mode}
-                     onClick={() => setFulfillmentFilter(mode)}
-                     className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-colors ${fulfillmentFilter === mode ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                   >
-                     {mode}
-                   </button>
-                 ))}
+               <div className="flex flex-col gap-3">
+                 <div className="flex flex-wrap items-center gap-2">
+                   <span className="text-xs font-bold text-slate-500 mr-2">Fulfillment:</span>
+                   {['All', 'inHouse', 'thirdParty'].map(mode => (
+                     <button 
+                       key={mode}
+                       onClick={() => setFulfillmentFilter(mode)}
+                       className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${fulfillmentFilter === mode ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                     >
+                       {mode === 'All' ? 'All' : mode === 'inHouse' ? 'In-House' : 'Third-Party'}
+                     </button>
+                   ))}
+                 </div>
+                 <div className="flex flex-wrap items-center gap-2">
+                   <span className="text-xs font-bold text-slate-500 mr-2">Status:</span>
+                   {['All', 'PENDING_ACCEPTANCE', 'ACCEPTED', 'PACKING', 'PACKED', 'SHIPPED', 'OUT_FOR_DELIVERY', 'DELIVERED', 'CANCELLED'].map(mode => (
+                     <button 
+                       key={mode}
+                       onClick={() => setStatusFilter(mode)}
+                       className={`px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors ${statusFilter === mode ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                     >
+                       {mode === 'All' ? 'All' : mode.replace(/_/g, ' ')}
+                     </button>
+                   ))}
+                 </div>
                </div>
              </div>
              

@@ -68,7 +68,7 @@ function AdminServiceHistoryContent() {
             <input type="text" placeholder="Search by customer or garage name..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-10 pr-4 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
           </div>
           <div className="flex flex-wrap gap-2 items-center">
-            <span className="text-xs font-semibold text-slate-600">Date Range:</span>
+            <span className="text-xs font-semibold text-slate-600">Service Date:</span>
             <input type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} className="px-3 py-1.5 text-xs border rounded-lg text-slate-700 outline-none focus:border-blue-500" />
             <span className="text-xs text-slate-400">to</span>
             <input type="date" value={dateTo} onChange={e => setDateTo(e.target.value)} className="px-3 py-1.5 text-xs border rounded-lg text-slate-700 outline-none focus:border-blue-500" />
@@ -76,16 +76,18 @@ function AdminServiceHistoryContent() {
               <button onClick={() => { setDateFrom(''); setDateTo(''); }} className="text-xs font-semibold text-blue-600 hover:underline">Clear Dates</button>
             )}
             
-            <div className="ml-4 flex gap-2 border-l pl-4">
-               {['All', 'completed', 'readyForCollection', 'collected'].map(mode => (
-                 <button 
-                   key={mode}
-                   onClick={() => setStatusFilter(mode)}
-                   className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-colors ${statusFilter === mode ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-                 >
-                   {mode === 'All' ? 'All Statuses' : mode.replace(/([A-Z])/g, ' $1').trim()}
-                 </button>
-               ))}
+            <div className="ml-4 flex items-center gap-2 border-l pl-4">
+               <span className="text-xs font-semibold text-slate-600">Status:</span>
+               <select 
+                 value={statusFilter} 
+                 onChange={e => setStatusFilter(e.target.value)}
+                 className="px-3 py-1.5 text-xs border rounded-lg text-slate-700 outline-none focus:border-blue-500 bg-white"
+               >
+                 <option value="All">All Statuses</option>
+                 <option value="completed">Completed</option>
+                 <option value="readyForCollection">Ready For Collection</option>
+                 <option value="collected">Collected</option>
+               </select>
             </div>
           </div>
         </div>

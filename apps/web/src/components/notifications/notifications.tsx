@@ -160,7 +160,8 @@ export function Notifications() {
 
         <Card className="p-0 overflow-hidden border-slate-100 shadow-sm rounded-[16px]">
           <div className="p-4 border-b border-slate-100 space-y-4 bg-white">
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 items-center">
+              <span className="text-xs font-semibold text-slate-600">Filter:</span>
               {['All', 'Unread', 'Read', 'Booking', 'Quote', 'System'].map(s => (
                 <button 
                   key={s}
@@ -195,7 +196,15 @@ export function Notifications() {
                 <div 
                   key={notification.id} 
                   className={cn("p-4 flex gap-4 items-center transition-colors group relative cursor-pointer", !notification.is_read ? "bg-blue-50/30" : "hover:bg-slate-50", selectedIds.includes(notification.id) ? "bg-red-50/20" : "")}
-                  onClick={() => markAsRead(notification.id)}
+                  onClick={() => {
+                    markAsRead(notification.id);
+                    if (notification.description?.match(/\[ID:([^\]]+)\]/)) {
+                      const id = notification.description.match(/\[ID:([^\]]+)\]/)[1];
+                      if (notification.type === 'Booking') setSelectedBookingId(id);
+                      else if (notification.type === 'Quote') setSelectedQuoteId(id);
+                      else if (notification.type === 'Invoice') setSelectedInvoiceId(id);
+                    }
+                  }}
                 >
                   <div onClick={(e) => toggleSelection(e, notification.id)} className="flex items-center justify-center h-full mr-2">
                     <input type="checkbox" checked={selectedIds.includes(notification.id)} readOnly className="w-4 h-4 cursor-pointer" />
@@ -215,28 +224,6 @@ export function Notifications() {
                     <p className={cn("text-xs line-clamp-2", !notification.is_read ? "text-slate-700 font-medium" : "text-slate-500")}>
                       {notification.description?.replace(/\[ID:[^\]]+\]/, '')}
                     </p>
-                    {notification.description?.match(/\[ID:([^\]]+)\]/) && (
-                      <div className="mt-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          className="text-[10px] h-6 px-2 text-blue-600 border-blue-200 hover:bg-blue-50"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const id = notification.description.match(/\[ID:([^\]]+)\]/)[1];
-                            if (notification.type === 'Booking') {
-                               setSelectedBookingId(id);
-                            } else if (notification.type === 'Quote') {
-                               setSelectedQuoteId(id);
-                            } else if (notification.type === 'Invoice') {
-                               setSelectedInvoiceId(id);
-                            }
-                          }}
-                        >
-                          View {notification.type} Details
-                        </Button>
-                      </div>
-                    )}
                   </div>
                   {!notification.is_read && (
                     <div className="w-2 h-2 rounded-full bg-blue-600 absolute top-5 right-4"></div>

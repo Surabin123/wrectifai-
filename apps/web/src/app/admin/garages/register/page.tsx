@@ -124,7 +124,7 @@ export default function RegisterGaragePage() {
   
   const getCitiesForCountry = (code: string): string[] => {
     switch (code) {
-      case '+91': return ['Mumbai', 'Delhi', 'Bengaluru', 'Hyderabad', 'Chennai'];
+      case '+91': return ['Bengaluru', 'Hyderabad', 'Mumbai', 'Chennai', 'Pune'];
       case '+1': return ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'];
       case '+971': return ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Fujairah'];
       default: return [];
@@ -476,18 +476,15 @@ export default function RegisterGaragePage() {
                    </div>
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">City <span className="text-red-500">*</span></label>
-                     <select value={getCitiesForCountry(formData.countryCode).includes(formData.city) || formData.city === '' ? formData.city : 'Other'} onChange={e => {
+                     <select value={formData.city} onChange={e => {
                          const val = e.target.value;
-                         setFormData({...formData, city: val === 'Other' ? '' : val, area: ''});
+                         setFormData({...formData, city: val, area: ''});
                          setAreaSuggestions([]);
                        }} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
                          <option value="">Select city</option>
                          {getCitiesForCountry(formData.countryCode).map(c => <option key={c} value={c}>{c}</option>)}
                          <option value="Other">Other</option>
                        </select>
-                     {!getCitiesForCountry(formData.countryCode).includes(formData.city) && formData.city !== '' && (
-                       <input type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} placeholder="Enter city name" className="w-full mt-2 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
-                     )}
                    </div>
                    <div className="relative">
                      <label className="block text-xs font-bold text-slate-700 mb-2">Area / Locality <span className="text-red-500">*</span></label>

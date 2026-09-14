@@ -641,8 +641,17 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
     const params: any[] = [];
     
     if (fulfillment_mode && fulfillment_mode !== 'All') {
-      params.push((fulfillment_mode as string).toLowerCase());
+      let mode = (fulfillment_mode as string).toLowerCase();
+      // Handle the exact camelCase expected by backend schema
+      if (mode === 'inhouse') mode = 'inHouse';
+      if (mode === 'thirdparty') mode = 'thirdParty';
+      params.push(mode);
       conditions.push(`o.fulfillment_mode = $${params.length}`);
+    }
+    
+    if (req.query.status && req.query.status !== 'All') {
+      params.push(req.query.status as string);
+      conditions.push(`o.status = $${params.length}`);
     }
     
     if (search) {

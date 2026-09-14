@@ -62,7 +62,8 @@ export function CreateBookingModal({ onClose, onSuccess, userRole, prefilledGara
 
     setIsLoading(true);
     try {
-      const endpoint = userRole === 'admin' ? '/admin/bookings' : '/bookings';
+      // Use /bookings for both admin and garage, as the backend uses roles inside the handler
+      const endpoint = '/bookings';
       await apiClient.post(endpoint, {
         customerId: selectedCustomerId,
         garageId: selectedGarageId,
@@ -71,7 +72,8 @@ export function CreateBookingModal({ onClose, onSuccess, userRole, prefilledGara
         totalAmount: Number(totalAmount),
         bookingType: 'direct',
         serviceType,
-        issueDescription
+        issueDescription,
+        source: userRole === 'admin' ? 'booked_by_admin' : 'booked_by_garage'
       });
       onSuccess();
     } catch (err: any) {
