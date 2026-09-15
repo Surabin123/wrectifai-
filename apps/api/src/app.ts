@@ -9,7 +9,7 @@ import { getEnv } from './config/env';
 import { rateLimiter } from './middleware/rate-limiter';
 import { authenticate } from './middleware/auth';
 import { query } from './config/database';
-
+import { error } from './utils/response';
 export function createApp() {
   const app = express();
   const env = getEnv();
@@ -69,6 +69,54 @@ export function createApp() {
 
   // Cookie parser
   app.use(cookieParser());
+
+  // CSRF Protection
+  app.use((req, res, next) => {
+    if (['GET', 'HEAD', 'OPTIONS', 'TRACE'].includes(req.method)) {
+      return next();
+    }
+    
+    // Only apply CSRF protection if potentially authenticated via cookies.
+    if (!req.cookies?.accessToken) {
+      return next();
+    }
+
+    const allowedOrigins = env.corsOrigins.map(o => o.replace(/\/$/, ''));
+    const origin = req.headers.origin;
+    const referer = req.headers.referer;
+
+    const isValidOrigin = (checkOrigin: string) => {
+      const normalizedOrigin = checkOrigin.replace(/\/$/, '');
+      return allowedOrigins.includes(normalizedOrigin) || 
+        (env.nodeEnv !== 'production' && (
+          normalizedOrigin.startsWith('http://localhost:') || 
+          normalizedOrigin.startsWith('http://127.0.0.1:') ||
+          normalizedOrigin === 'http://localhost' ||
+          normalizedOrigin === 'http://127.0.0.1'
+        ));
+    };
+
+    if (origin) {
+      if (!isValidOrigin(origin)) {
+        return error(res, 'CSRF violation: Invalid Origin', 'FORBIDDEN', 403);
+      }
+      return next();
+    }
+
+    if (referer) {
+      try {
+        const refererOrigin = new URL(referer).origin;
+        if (!isValidOrigin(refererOrigin)) {
+          return error(res, 'CSRF violation: Invalid Referer', 'FORBIDDEN', 403);
+        }
+        return next();
+      } catch (err) {
+        return error(res, 'CSRF violation: Malformed Referer', 'FORBIDDEN', 403);
+      }
+    }
+
+    return error(res, 'CSRF violation: Missing Origin and Referer', 'FORBIDDEN', 403);
+  });
 
   // Body parsing middlewares.
   // rawBody is retained ONLY for Razorpay webhook routes where HMAC signature verification requires it.

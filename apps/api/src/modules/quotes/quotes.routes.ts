@@ -308,9 +308,9 @@ quotesRouter.post('/requests/:id/estimate', authenticate, async (req, res) => {
     const { city } = req.body as { city?: string };
 
     // 1. Get request details
-    const reqDetails = await query(`SELECT vehicle_id, issue_summary, ai_estimate FROM quote_requests WHERE id = $1`, [id]);
+    const reqDetails = await query(`SELECT vehicle_id, issue_summary, ai_estimate FROM quote_requests WHERE id = $1 AND customer_id = $2`, [id, customerId]);
     if (reqDetails.rows.length === 0) {
-      return error(res, 'Quote request not found', 'NOT_FOUND', 404);
+      return error(res, 'Quote request not found or unauthorized', 'NOT_FOUND', 404);
     }
 
     // 2. Check if this exact request already has a cached estimate in the CORRECT currency.
