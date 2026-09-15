@@ -112,10 +112,10 @@ ordersRouter.post('/', authenticate, async (req, res) => {
     }
 
     const discountedSubtotal = subtotal - discountApplied;
-    const tax = discountedSubtotal * 0.18; // 18% tax on discounted amount
+    const tax = Math.round(discountedSubtotal * 0.18 * 100) / 100; // 18% tax on discounted amount
     const shippingCost = discountedSubtotal > 0 ? 10.0 : 0; // Flat shipping cost if cart not empty
     
-    const total = discountedSubtotal + tax + shippingCost;
+    const total = Math.round((discountedSubtotal + tax + shippingCost) * 100) / 100;
     const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     // Attach checkoutSessionId to shippingAddress for idempotency tracking

@@ -23,8 +23,13 @@ export function rateLimiter(options: {
       return next();
     }
 
-    // Determine client IP. Express securely handles X-Forwarded-For when 'trust proxy' is set.
-    const ip = req.ip || req.socket.remoteAddress || 'unknown';
+    // Determine client IP safely. Express handles X-Forwarded-For when 'trust proxy' is set.
+    let ip = 'unknown';
+    try {
+      ip = req.ip || req.socket?.remoteAddress || 'unknown';
+    } catch {
+      ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+    }
     const now = Date.now();
 
     let limitInfo = ipLimits.get(ip);

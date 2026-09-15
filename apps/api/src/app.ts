@@ -17,26 +17,33 @@ export function createApp() {
   // Trust proxies to correctly resolve client IPs (essential for rate limiting behind load balancers/Render/Cloudflare)
   app.set('trust proxy', 1);
 
+  // Helper to validate origin against configured allowed origins, local dev environments, and Render subdomains
+  const isOriginAllowed = (origin: string): boolean => {
+    if (!origin) return false;
+    const normalizedOrigin = origin.replace(/\/$/, '');
+    const allowedOrigins = env.corsOrigins.map((o) => o.replace(/\/$/, ''));
+    if (allowedOrigins.includes(normalizedOrigin)) return true;
+    if (
+      env.nodeEnv !== 'production' &&
+      (normalizedOrigin.startsWith('http://localhost:') ||
+        normalizedOrigin.startsWith('http://127.0.0.1:') ||
+        normalizedOrigin === 'http://localhost' ||
+        normalizedOrigin === 'http://127.0.0.1')
+    ) {
+      return true;
+    }
+    // Safely support HTTPS Render subdomains (*.onrender.com)
+    if (/^https:\/\/[a-zA-Z0-9-]+\.onrender\.com$/.test(normalizedOrigin)) {
+      return true;
+    }
+    return false;
+  };
+
   // CORS configuration must be first so that rate limiters and error handlers get CORS headers
-  const allowedOrigins = env.corsOrigins.map((o) => o.replace(/\/$/, ''));
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin) {
-          return callback(null, false);
-        }
-        const normalizedOrigin = origin.replace(/\/$/, '');
-        // Production origins must be explicitly configured. Local origins are development-only.
-        const isAllowed =
-          allowedOrigins.includes(normalizedOrigin) ||
-          (env.nodeEnv !== 'production' && (
-            normalizedOrigin.startsWith('http://localhost:') ||
-            normalizedOrigin.startsWith('http://127.0.0.1:') ||
-            normalizedOrigin === 'http://localhost' ||
-            normalizedOrigin === 'http://127.0.0.1'
-          ));
-
-        if (isAllowed) {
+        if (!origin || isOriginAllowed(origin)) {
           callback(null, true);
         } else {
           callback(null, false);
@@ -81,23 +88,11 @@ export function createApp() {
       return next();
     }
 
-    const allowedOrigins = env.corsOrigins.map(o => o.replace(/\/$/, ''));
     const origin = req.headers.origin;
     const referer = req.headers.referer;
 
-    const isValidOrigin = (checkOrigin: string) => {
-      const normalizedOrigin = checkOrigin.replace(/\/$/, '');
-      return allowedOrigins.includes(normalizedOrigin) || 
-        (env.nodeEnv !== 'production' && (
-          normalizedOrigin.startsWith('http://localhost:') || 
-          normalizedOrigin.startsWith('http://127.0.0.1:') ||
-          normalizedOrigin === 'http://localhost' ||
-          normalizedOrigin === 'http://127.0.0.1'
-        ));
-    };
-
     if (origin) {
-      if (!isValidOrigin(origin)) {
+      if (!isOriginAllowed(origin)) {
         return error(res, 'CSRF violation: Invalid Origin', 'FORBIDDEN', 403);
       }
       return next();
@@ -106,7 +101,7 @@ export function createApp() {
     if (referer) {
       try {
         const refererOrigin = new URL(referer).origin;
-        if (!isValidOrigin(refererOrigin)) {
+        if (!isOriginAllowed(refererOrigin)) {
           return error(res, 'CSRF violation: Invalid Referer', 'FORBIDDEN', 403);
         }
         return next();

@@ -89,11 +89,11 @@ quotesRouter.get('/', authenticate, async (req, res) => {
     const mapped = result.rows.map((row: Record<string, any>) => {
       let details = row.details || {};
       if (typeof details === 'string') {
-        try { details = JSON.parse(details); } catch(e) {}
+        try { details = JSON.parse(details); } catch(e) { /* ignore JSON parse error */ }
       }
       const amountNum = Number(row.amount || row.totalCost || 0);
-      const laborCostNum = Number(row.laborCost || 0);
-      const partsCostNum = Number(row.partsCost || 0);
+      const laborCostNum = Number(row.laborCost || details.laborCost || details.labour || 0);
+      const partsCostNum = Number(row.partsCost || details.partsCost || details.parts || 0);
 
       let timeStr = row.etaNote || (row.etaDays ? `${row.etaDays} days` : 'TBD');
       if (timeStr && /^\d+$/.test(timeStr.trim())) {
@@ -135,7 +135,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
         metaSecondary: details.warranty || '6 Months warranty',
         price: `${amountNum}`,
         currency: safeCurrency,
-        savings: undefined,
+        savings: details.savings !== undefined ? Number(details.savings) : undefined,
         time: timeStr,
         tag: undefined,
         expiresAt: row.expiresAt,
@@ -762,7 +762,7 @@ quotesRouter.get('/garage/quotes', authenticate, async (req, res) => {
     const mapped = result.rows.map(row => {
       let parsedDetails = row.details || {};
       if (typeof parsedDetails === 'string') {
-        try { parsedDetails = JSON.parse(parsedDetails); } catch(e) {}
+        try { parsedDetails = JSON.parse(parsedDetails); } catch(e) { /* ignore JSON parse error */ }
       }
       return {
         ...row,
@@ -817,7 +817,7 @@ quotesRouter.get('/garage/completed-jobs', authenticate, async (req, res) => {
     const mapped = result.rows.map(row => {
       let parsedDetails = row.details || {};
       if (typeof parsedDetails === 'string') {
-        try { parsedDetails = JSON.parse(parsedDetails); } catch(e) {}
+        try { parsedDetails = JSON.parse(parsedDetails); } catch(e) { /* ignore JSON parse error */ }
       }
       return {
         ...row,
@@ -862,11 +862,11 @@ quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
 
     let details = row.details || {};
     if (typeof details === 'string') {
-      try { details = JSON.parse(details); } catch(e) {}
+      try { details = JSON.parse(details); } catch(e) { /* ignore JSON parse error */ }
     }
     const amountNum = Number(row.amount || row.totalCost || 0);
-    const laborCostNum = Number(row.laborCost || 0);
-    const partsCostNum = Number(row.partsCost || 0);
+    const laborCostNum = Number(row.laborCost || details.laborCost || details.labour || 0);
+    const partsCostNum = Number(row.partsCost || details.partsCost || details.parts || 0);
 
     const mapped = {
       id: row.id,

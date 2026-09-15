@@ -1438,16 +1438,20 @@ garagesRouter.post('/refund-requests/:id/approve', authenticate, async (req, res
          await client.query('UPDATE payments SET status = \'refunded\', updated_at = NOW() WHERE id = $1', [payment.id]);
          await client.query('UPDATE bookings SET payment_status = \'REFUNDED\', updated_at = NOW() WHERE id = $1', [request.booking_id]);
          
-         // Insert wallet refund transaction
-         const walletRes = await client.query('SELECT id FROM wallets WHERE user_id = $1', [request.customer_id]);
+         // Insert wallet refund transaction atomically
+         const walletRes = await client.query('SELECT id, balance FROM wallets WHERE user_id = $1 FOR UPDATE', [request.customer_id]);
          if (walletRes.rows.length > 0) {
             const walletId = walletRes.rows[0].id;
+            const balanceBefore = Number(walletRes.rows[0].balance);
+            const refundAmount = Number(request.calculated_refund_amount);
+            const balanceAfter = balanceBefore + refundAmount;
+            
             await client.query(`
               INSERT INTO wallet_transactions 
               (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
-              VALUES ($1, 'REFUND', $2, (SELECT balance FROM wallets WHERE id = $1), (SELECT balance FROM wallets WHERE id = $1) + $2, 'BOOKING', $3, 'COMPLETED', 'Refund for Booking')
-            `, [walletId, request.calculated_refund_amount, request.booking_id]);
-            await client.query('UPDATE wallets SET balance = balance + $1 WHERE id = $2', [request.calculated_refund_amount, walletId]);
+              VALUES ($1, 'REFUND', $2, $3, $4, 'BOOKING', $5, 'COMPLETED', 'Refund for Booking')
+            `, [walletId, refundAmount, balanceBefore, balanceAfter, request.booking_id]);
+            await client.query('UPDATE wallets SET balance = $1 WHERE id = $2', [balanceAfter, walletId]);
          }
 
          // Create credit note
