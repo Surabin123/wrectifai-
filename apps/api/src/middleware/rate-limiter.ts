@@ -23,8 +23,8 @@ export function rateLimiter(options: {
       return next();
     }
 
-    // Determine client IP. Prioritize X-Forwarded-For to get the original client IP behind edge proxies (like Cloudflare/Render LB)
-    const ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0].trim() || req.ip || req.socket.remoteAddress || 'unknown';
+    // Determine client IP. Express securely handles X-Forwarded-For when 'trust proxy' is set.
+    const ip = req.ip || req.socket.remoteAddress || 'unknown';
     const now = Date.now();
 
     let limitInfo = ipLimits.get(ip);

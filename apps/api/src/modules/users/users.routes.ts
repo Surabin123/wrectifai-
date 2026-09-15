@@ -88,6 +88,7 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
     let imageToSave = image && typeof image === 'string' && image.trim() !== '' ? image.trim() : null;
     
     if (imageToSave && imageToSave.startsWith('data:image')) {
+      if (imageToSave.length > 7 * 1024 * 1024) return error(res, 'Image too large, max ~5MB', 'VALIDATION_ERROR', 400);
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
@@ -97,10 +98,9 @@ usersRouter.put('/profile', authenticate, async (req, res) => {
           imageToSave = uploadResult.secure_url;
         } catch (uploadErr) {
           console.error('Failed to upload image to cloudinary:', uploadErr);
+          return error(res, 'Failed to upload image', 'UPLOAD_ERROR', 500);
         }
-      }
-      
-      if (imageToSave === image) {
+      } else {
         // Fallback to local
         const fs = require('fs');
         const path = require('path');

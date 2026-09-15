@@ -46,6 +46,16 @@ export function createApp() {
     })
   );
 
+  // Security Headers
+  app.use((_req, res, next) => {
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    if (env.nodeEnv === 'production') {
+      res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    }
+    next();
+  });
+
   // Global rate limiter: 1000 requests per 15 minutes
   app.use(
     rateLimiter({
@@ -55,16 +65,7 @@ export function createApp() {
     })
   );
 
-  // Authentication rate limiter: 100 requests per 1 minute
-  // Excludes /me and /refresh — these are session-restore calls, not brute-force targets.
-  const authRateLimiter = rateLimiter({
-    windowMs: 60 * 1000,
-    max: 100,
-    message: 'Too many authentication attempts. Please try again after 1 minute.',
-    skipPaths: ['/me', '/refresh'],
-  });
-  app.use('/api/v1/auth', authRateLimiter);
-  app.use('/api/auth', authRateLimiter);
+  // Specific authentication rate limits are applied internally within auth.routes.ts
 
   // Cookie parser
   app.use(cookieParser());
@@ -80,8 +81,18 @@ export function createApp() {
     limit: '1mb',
     verify: (req, _res, buf) => { (req as any).rawBody = buf.toString('utf8'); }
   }));
-  app.use(express.json({ limit: '20mb' }));
-  app.use(express.urlencoded({ extended: true, limit: '20mb' }));
+
+  // Route-specific parser limits for legitimate base64 image uploads
+  const base64Parser = express.json({ limit: '10mb' });
+  app.use('/api/v1/garages', base64Parser);
+  app.use('/api/garages', base64Parser);
+  app.use('/api/v1/garages-offers', base64Parser);
+  app.use('/api/garages-offers', base64Parser);
+  app.use('/api/v1/users', base64Parser);
+  app.use('/api/users', base64Parser);
+
+  app.use(express.json({ limit: '512kb' }));
+  app.use(express.urlencoded({ extended: true, limit: '512kb' }));
 
   // Request logger middleware
   app.use(requestLogger);

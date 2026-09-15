@@ -96,7 +96,8 @@ garageOffersRouter.post('/my-offers', authenticate, async (req, res) => {
     }
 
     let processedImage = image;
-    if (image && image.startsWith('data:image')) {
+    if (image && typeof image === 'string' && image.startsWith('data:image')) {
+      if (image.length > 7 * 1024 * 1024) return error(res, 'Image too large, max ~5MB', 'VALIDATION_ERROR', 400);
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
@@ -106,6 +107,7 @@ garageOffersRouter.post('/my-offers', authenticate, async (req, res) => {
           processedImage = uploadResult.secure_url;
         } catch (uploadErr) {
           console.error('Failed to upload image to cloudinary:', uploadErr);
+          return error(res, 'Failed to upload image', 'UPLOAD_ERROR', 500);
         }
       }
       
@@ -113,7 +115,7 @@ garageOffersRouter.post('/my-offers', authenticate, async (req, res) => {
         // Fallback to local
         const fs = require('fs');
         const path = require('path');
-        const match = image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        const match = image.match(/^data:([A-Za-z-+/]+);base64,(.+)$/);
         if (match && match.length === 3) {
           const ext = match[1].split('/')[1] || 'png';
           const filename = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
@@ -181,7 +183,8 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
     }
 
     let processedImage = image;
-    if (image && image.startsWith('data:image')) {
+    if (image && typeof image === 'string' && image.startsWith('data:image')) {
+      if (image.length > 7 * 1024 * 1024) return error(res, 'Image too large, max ~5MB', 'VALIDATION_ERROR', 400);
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
@@ -191,6 +194,7 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
           processedImage = uploadResult.secure_url;
         } catch (uploadErr) {
           console.error('Failed to upload image to cloudinary:', uploadErr);
+          return error(res, 'Failed to upload image', 'UPLOAD_ERROR', 500);
         }
       }
       
@@ -316,7 +320,8 @@ garageOffersRouter.post('/my-deals', authenticate, async (req, res) => {
     }
 
     let processedImage = image;
-    if (image && image.startsWith('data:image')) {
+    if (image && typeof image === 'string' && image.startsWith('data:image')) {
+      if (image.length > 7 * 1024 * 1024) return error(res, 'Image too large, max ~5MB', 'VALIDATION_ERROR', 400);
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
@@ -326,7 +331,10 @@ garageOffersRouter.post('/my-deals', authenticate, async (req, res) => {
           processedImage = uploadResult.secure_url;
         } catch (err) {
           console.error('Cloudinary Upload Error:', err);
+          return error(res, 'Failed to upload image', 'UPLOAD_ERROR', 500);
         }
+      } else {
+        return error(res, 'Image upload not configured', 'CONFIG_ERROR', 500);
       }
     }
 
@@ -363,7 +371,8 @@ garageOffersRouter.put('/my-deals/:id', authenticate, async (req, res) => {
     } = req.body;
 
     let processedImage = image;
-    if (image && image.startsWith('data:image')) {
+    if (image && typeof image === 'string' && image.startsWith('data:image')) {
+      if (image.length > 7 * 1024 * 1024) return error(res, 'Image too large, max ~5MB', 'VALIDATION_ERROR', 400);
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
@@ -373,7 +382,10 @@ garageOffersRouter.put('/my-deals/:id', authenticate, async (req, res) => {
           processedImage = uploadResult.secure_url;
         } catch (err) {
           console.error('Cloudinary Upload Error:', err);
+          return error(res, 'Failed to upload image', 'UPLOAD_ERROR', 500);
         }
+      } else {
+        return error(res, 'Image upload not configured', 'CONFIG_ERROR', 500);
       }
     }
 

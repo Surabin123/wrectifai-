@@ -221,7 +221,8 @@ garagesRouter.put('/my-profile', authenticate, async (req, res) => {
 
     let processedImage = image;
     
-    if (image && image.startsWith('data:image')) {
+    if (image && typeof image === 'string' && image.startsWith('data:image')) {
+      if (image.length > 7 * 1024 * 1024) return error(res, 'Image too large, max ~5MB', 'VALIDATION_ERROR', 400);
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
@@ -232,8 +233,10 @@ garagesRouter.put('/my-profile', authenticate, async (req, res) => {
           processedImage = uploadResult.secure_url;
         } catch (err) {
           console.error('Cloudinary Upload Error:', err);
-          // If cloudinary fails, keep the base64 or fallback (could be too large for DB)
+          return error(res, 'Failed to upload image', 'UPLOAD_ERROR', 500);
         }
+      } else {
+        return error(res, 'Image upload not configured', 'CONFIG_ERROR', 500);
       }
     }
 
@@ -569,7 +572,8 @@ garagesRouter.post('/my-inventory/request', authenticate, async (req, res) => {
     }
     
     let processedImage = image;
-    if (image && image.startsWith('data:image')) {
+    if (image && typeof image === 'string' && image.startsWith('data:image')) {
+      if (image.length > 7 * 1024 * 1024) return error(res, 'Image too large, max ~5MB', 'VALIDATION_ERROR', 400);
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
@@ -577,7 +581,12 @@ garagesRouter.post('/my-inventory/request', authenticate, async (req, res) => {
             folder: `wrectifai/requests`,
           });
           processedImage = uploadResult.secure_url;
-        } catch (err) {}
+        } catch (err) {
+          console.error('Cloudinary Upload Error:', err);
+          return error(res, 'Failed to upload image', 'UPLOAD_ERROR', 500);
+        }
+      } else {
+        return error(res, 'Image upload not configured', 'CONFIG_ERROR', 500);
       }
     }
 
@@ -690,6 +699,7 @@ garagesRouter.put('/my-services/:serviceId', authenticate, async (req, res) => {
 
     let processedImage = undefined;
     if (image && typeof image === 'string' && image.startsWith('data:image')) {
+      if (image.length > 7 * 1024 * 1024) return error(res, 'Image too large, max ~5MB', 'VALIDATION_ERROR', 400);
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
@@ -699,7 +709,10 @@ garagesRouter.put('/my-services/:serviceId', authenticate, async (req, res) => {
           processedImage = uploadResult.secure_url;
         } catch (err) {
           console.error('Cloudinary Upload Error:', err);
+          return error(res, 'Failed to upload image', 'UPLOAD_ERROR', 500);
         }
+      } else {
+        return error(res, 'Image upload not configured', 'CONFIG_ERROR', 500);
       }
     } else if (image !== undefined) {
       processedImage = image; // Could be a URL or null
@@ -763,6 +776,7 @@ garagesRouter.post('/my-services/request', authenticate, async (req, res) => {
     
     let processedImage = null;
     if (image && typeof image === 'string' && image.startsWith('data:image')) {
+      if (image.length > 7 * 1024 * 1024) return error(res, 'Image too large, max ~5MB', 'VALIDATION_ERROR', 400);
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
@@ -772,7 +786,10 @@ garagesRouter.post('/my-services/request', authenticate, async (req, res) => {
           processedImage = uploadResult.secure_url;
         } catch (err) {
           console.error('Cloudinary Upload Error:', err);
+          return error(res, 'Failed to upload image', 'UPLOAD_ERROR', 500);
         }
+      } else {
+        return error(res, 'Image upload not configured', 'CONFIG_ERROR', 500);
       }
     } else if (image) {
       processedImage = image;
@@ -1061,13 +1078,19 @@ garagesRouter.put('/my-requests/:type/:id/resubmit', authenticate, async (req, r
     
     // Process image if provided
     let processedImage = image;
-    if (image && image.startsWith('data:image')) {
+    if (image && typeof image === 'string' && image.startsWith('data:image')) {
+      if (image.length > 7 * 1024 * 1024) return error(res, 'Image too large, max ~5MB', 'VALIDATION_ERROR', 400);
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
           const uploadResult = await cloudinary.uploader.upload(image, { folder: `wrectifai/requests` });
           processedImage = uploadResult.secure_url;
-        } catch (err) {}
+        } catch (err) {
+          console.error('Cloudinary Upload Error:', err);
+          return error(res, 'Failed to upload image', 'UPLOAD_ERROR', 500);
+        }
+      } else {
+        return error(res, 'Image upload not configured', 'CONFIG_ERROR', 500);
       }
     }
 

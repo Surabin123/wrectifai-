@@ -16,8 +16,16 @@ import { authenticate, requireRole } from '../../middleware/auth';
 import { CookieOptions, Response } from 'express';
 import { NotificationsService } from '../notifications/notifications.service';
 import { getEnv } from '../../config/env';
+import { rateLimiter } from '../../middleware/rate-limiter';
 
 export const authRouter = Router();
+
+const loginLimiter = rateLimiter({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many login attempts, please try again after 15 minutes' });
+const registerLimiter = rateLimiter({ windowMs: 15 * 60 * 1000, max: 10, message: 'Too many registration attempts, please try again after 15 minutes' });
+const googleLimiter = rateLimiter({ windowMs: 15 * 60 * 1000, max: 20, message: 'Too many Google login attempts, please try again after 15 minutes' });
+const checkUserLimiter = rateLimiter({ windowMs: 15 * 60 * 1000, max: 30, message: 'Too many user lookup attempts, please try again after 15 minutes' });
+const forgotPasswordLimiter = rateLimiter({ windowMs: 60 * 60 * 1000, max: 5, message: 'Too many password reset requests, please try again after 1 hour' });
+const resetPasswordLimiter = rateLimiter({ windowMs: 60 * 60 * 1000, max: 5, message: 'Too many password reset attempts, please try again after 1 hour' });
 
 const cookieConfig: CookieOptions = {
   httpOnly: true,
@@ -133,7 +141,7 @@ export async function handleUserLoginOrRegister(email: string, name: string, dev
 }
 
 // POST /auth/google
-authRouter.post('/google', async (req, res) => {
+authRouter.post('/google', googleLimiter, async (req, res) => {
   const token = req.body.idToken || req.body.credential;
   if (!token) {
     return error(res, 'Google ID Token (idToken/credential) is required', 'BAD_REQUEST', 400);
@@ -157,7 +165,7 @@ authRouter.post('/google', async (req, res) => {
   }
 });
 
-authRouter.post('/check-user', async (req, res, next) => {
+authRouter.post('/check-user', checkUserLimiter, async (req, res, next) => {
   const { mobileNumber } = req.body;
   if (mobileNumber && typeof mobileNumber !== 'string') return error(res, 'Invalid phone number format', 'BAD_REQUEST', 400);
   if (!mobileNumber) {
@@ -174,7 +182,7 @@ authRouter.post('/check-user', async (req, res, next) => {
   }
 });
 
-authRouter.post('/register', async (req, res, next) => {
+authRouter.post('/register', registerLimiter, async (req, res, next) => {
   const { mobileNumber, name, otp, password, country, referralCode } = req.body;
   let { email } = req.body;
   if ((email && typeof email !== 'string') || (password && typeof password !== 'string') || (name && typeof name !== 'string') || (mobileNumber && typeof mobileNumber !== 'string') || (otp && typeof otp !== 'string')) {
@@ -311,7 +319,7 @@ authRouter.post('/register', async (req, res, next) => {
   }
 });
 
-authRouter.post('/login', async (req, res, next) => {
+authRouter.post('/login', loginLimiter, async (req, res, next) => {
   const { mobileNumber, otp, provider, password } = req.body;
   let { email } = req.body;
   if ((email && typeof email !== 'string') || (password && typeof password !== 'string') || (mobileNumber && typeof mobileNumber !== 'string') || (otp && typeof otp !== 'string') || (provider && typeof provider !== 'string')) {
@@ -644,7 +652,7 @@ function getResendClient() {
 }
 
 // Forgot Password - Send Reset Link
-authRouter.post('/forgot-password', async (req, res) => {
+authRouter.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
   try {
     const { email } = req.body;
     if (!email || typeof email !== 'string') {
@@ -720,7 +728,7 @@ authRouter.post('/forgot-password', async (req, res) => {
 });
 
 // Reset Password
-authRouter.post('/reset-password', async (req, res) => {
+authRouter.post('/reset-password', resetPasswordLimiter, async (req, res) => {
   const client = await getDbPool().connect();
   try {
     const { token, newPassword } = req.body;
