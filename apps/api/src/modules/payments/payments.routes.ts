@@ -15,6 +15,8 @@ const env = getEnv();
 // POST /api/v1/payments/orders - Generate Razorpay Order
 paymentsRouter.post('/orders', authenticate, async (req, res) => {
   const { amount, bookingId } = req.body;
+  const userId = req.user!.userId;
+  
   if (!bookingId || amount === undefined) {
     return error(res, 'Booking ID and amount are required', 'BAD_REQUEST', 400);
   }
