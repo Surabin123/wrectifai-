@@ -633,7 +633,7 @@ export default function RegisterGaragePage() {
             {step === 3 && (
               <>
                 <h2 className="text-xl font-bold text-[#17307a] mb-1">Business Documents</h2>
-                <p className="text-xs text-slate-500 mb-8">Upload the documents required to verify and maintain the garage's business records.</p>
+                <p className="text-xs text-slate-500 mb-8">Upload the documents required to verify and maintain the garage&apos;s business records.</p>
                 
                 <div className="space-y-6">
                   {/* Document Box Component */}
@@ -785,7 +785,7 @@ export default function RegisterGaragePage() {
             {step === 5 && (
               <>
                 <h2 className="text-xl font-bold text-[#17307a] mb-1">Working Hours</h2>
-                <p className="text-xs text-slate-500 mb-8">Set the garage's operating hours and weekly availability.</p>
+                <p className="text-xs text-slate-500 mb-8">Set the garage&apos;s operating hours and weekly availability.</p>
                 
                 <div className="border border-slate-200 rounded-lg overflow-hidden">
                   <div className="bg-slate-50 px-6 py-3 grid grid-cols-12 gap-4 border-b text-xs font-bold text-slate-600">

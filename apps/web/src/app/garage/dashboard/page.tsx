@@ -81,7 +81,7 @@ export default function GarageDashboard() {
           <div className="flex justify-between items-center">
             <div>
               <h1 className="text-2xl font-bold text-[#17307a]">Welcome back, {user?.name || 'Garage'}</h1>
-              <p className="text-sm text-slate-500">Here's what's happening in your garage today.</p>
+              <p className="text-sm text-slate-500">Here&apos;s what&apos;s happening in your garage today.</p>
             </div>
             <div className="flex gap-3">
               <Link href="/garage/incoming-requests" className="bg-[#17307a] text-white px-4 py-2 rounded-lg font-medium flex items-center gap-2 text-sm hover:bg-[#12245c] transition-colors">

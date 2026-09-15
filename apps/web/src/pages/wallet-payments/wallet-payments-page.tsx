@@ -31,7 +31,7 @@ export function WalletPaymentsPage() {
         if (user && user.mobile_number) setUserPhone(user.mobile_number);
         else if (user && user.phone) setUserPhone(user.phone);
       }
-    } catch(e) {}
+    } catch(e) { /* Ignore user storage parse error */ }
   }, []);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -456,7 +456,7 @@ export function WalletPaymentsPage() {
       <Modal isOpen={isAddMethodOpen} onClose={() => setIsAddMethodOpen(false)} title="Add Payment Method">
         <div className="space-y-4 py-4 text-slate-700">
            <p className="text-sm">Razorpay Tokenization and standalone Saved Cards require a verified Business Account.</p>
-           <p className="text-sm font-semibold">To securely save a card, please complete a transaction (such as Adding Money to your wallet) and select "Save Card" during the Razorpay checkout.</p>
+           <p className="text-sm font-semibold">To securely save a card, please complete a transaction (such as Adding Money to your wallet) and select &quot;Save Card&quot; during the Razorpay checkout.</p>
            <Button className="w-full mt-2 bg-blue-600 text-white" onClick={() => setIsAddMethodOpen(false)}>Understood</Button>
         </div>
       </Modal>

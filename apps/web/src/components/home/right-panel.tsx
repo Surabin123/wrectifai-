@@ -312,7 +312,7 @@ function OffersPanel() {
         if (user && user.mobile_number) setUserPhone(user.mobile_number);
         else if (user && user.phone) setUserPhone(user.phone);
       }
-    } catch(e) {}
+    } catch(e) { /* Ignore user storage parse error */ }
   }, []);
 
   useEffect(() => {

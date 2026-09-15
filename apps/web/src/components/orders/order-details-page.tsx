@@ -68,7 +68,7 @@ export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
         <DashboardShell hideBottomWidget={true} header={<TopNavbar />}>
           <div className="max-w-4xl mx-auto p-6 text-center py-20 space-y-4">
             <h3 className="text-xl font-bold text-red-600">{error || 'Order Not Found'}</h3>
-            <p className="text-slate-500 text-sm">We couldn't retrieve the details for this order.</p>
+            <p className="text-slate-500 text-sm">We couldn&apos;t retrieve the details for this order.</p>
             <Button onClick={() => router.push('/orders')} variant="outline">
               <ArrowLeft className="w-4 h-4 mr-2" /> Back to My Orders
             </Button>

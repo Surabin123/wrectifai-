@@ -50,7 +50,7 @@ export function Sidebar({
           });
         }
       })
-      .catch(() => {});
+      .catch(() => { /* Ignore non-critical background fetch failure */ });
     return () => { active = false; };
   }, []);
 

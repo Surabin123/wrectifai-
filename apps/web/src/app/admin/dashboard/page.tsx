@@ -52,7 +52,7 @@ export default function AdminDashboardPage() {
         <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-6 mb-6 flex justify-between items-center bg-gradient-to-r from-blue-50 to-white">
           <div>
              <h1 className="text-2xl font-bold text-[#17307a] mb-1 flex items-center gap-2">Welcome back, Admin!</h1>
-             <p className="text-sm text-slate-500">Here's what's happening on WrectifAI today.</p>
+             <p className="text-sm text-slate-500">Here&apos;s what&apos;s happening on WrectifAI today.</p>
           </div>
           <div className="flex gap-4">
              <Link href="/admin/garages/register" className="bg-blue-600 text-white px-5 py-2.5 rounded-lg text-sm font-bold shadow-sm flex items-center gap-2 hover:bg-blue-700 transition-colors"><Plus className="w-4 h-4"/> Register Garage</Link>

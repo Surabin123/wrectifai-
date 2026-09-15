@@ -362,7 +362,7 @@ export function ProfileContent() {
               ) : (
                 <div className="text-center py-8 text-slate-500 text-sm">
                   <Star className="w-8 h-8 text-slate-200 mx-auto mb-2" />
-                  You haven't written any reviews yet.
+                  You haven&apos;t written any reviews yet.
                 </div>
               )}
             </Card>

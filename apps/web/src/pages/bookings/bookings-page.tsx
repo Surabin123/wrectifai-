@@ -474,7 +474,7 @@ export function BookingsPage() {
           <Card className="p-8 flex flex-col items-center justify-center text-center">
             <Calendar className="h-10 w-10 text-[#8a99ad] mb-2" />
             <p className="text-[13.5px] font-bold text-[#17307a]">No bookings found</p>
-            <p className="text-slate-500 mt-2">You don't have any {activeTab !== 'all' ? activeTab : ''} bookings yet.</p>
+            <p className="text-slate-500 mt-2">You don&apos;t have any {activeTab !== 'all' ? activeTab : ''} bookings yet.</p>
           </Card>
         ) : (
           <div className="space-y-3">
@@ -656,7 +656,7 @@ export function BookingsPage() {
           
           <p className="text-slate-600 mb-8 max-w-sm">
             {cancelError ? (
-              <>We couldn't cancel your booking right now.<br/><br/>Please try again in a few moments.</>
+              <>We couldn&apos;t cancel your booking right now.<br/><br/>Please try again in a few moments.</>
             ) : (
               <>Are you sure you want to cancel this booking? This action cannot be undone.</>
             )}

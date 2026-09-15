@@ -7,10 +7,10 @@ export function getDbPool(): Pool {
   if (process.env.MOCK_DB === 'true') {
     return {
       query: async () => ({ rows: [] }),
-      on: () => {},
+      on: () => { /* Mock DB pool listener no-op */ },
       connect: async () => ({
         query: async () => ({ rows: [] }),
-        release: () => {},
+        release: () => { /* Mock DB client release no-op */ },
       }),
     } as any;
   }

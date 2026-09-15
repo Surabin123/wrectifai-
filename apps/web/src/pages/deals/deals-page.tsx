@@ -821,7 +821,7 @@ function DealsPageContent() {
         if (user && user.mobile_number) setUserPhone(user.mobile_number);
         else if (user && user.phone) setUserPhone(user.phone);
       }
-    } catch(e) {}
+    } catch(e) { /* Ignore user storage parse error */ }
   }, []);
 
   useEffect(() => {
@@ -1261,7 +1261,7 @@ function DealsPageContent() {
             </div>
             
             <div className="border-t border-[#e4ecff] pt-4">
-              <h4 className="text-[14px] font-semibold mb-2">What's included:</h4>
+              <h4 className="text-[14px] font-semibold mb-2">What&apos;s included:</h4>
               <ul className="flex flex-col gap-1.5">
                 {selectedDeal.bullets.map((bullet, idx) => (
                   <li key={idx} className="flex items-start gap-2 text-[13px] text-[#4f67a2]">

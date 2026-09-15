@@ -104,7 +104,7 @@ export function OrdersPage() {
             <Card className="p-12 text-center bg-white border-slate-100 rounded-2xl flex flex-col items-center">
               <Package className="w-12 h-12 text-slate-300 mb-4" />
               <h3 className="text-lg font-bold text-slate-900 mb-1">No Orders Yet</h3>
-              <p className="text-sm text-slate-500 mb-6">You haven't placed any product orders yet.</p>
+              <p className="text-sm text-slate-500 mb-6">You haven&apos;t placed any product orders yet.</p>
               <Button onClick={() => router.push('/shop')} className="bg-blue-600 hover:bg-blue-700">
                 Browse Shop
               </Button>

@@ -65,7 +65,7 @@ export function CarTipsPage() {
           
           {searchQuery && (
             <div className="text-sm font-medium text-slate-600">
-              Searching articles for: <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded">"{searchQuery}"</span>
+              Searching articles for: <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded">&quot;{searchQuery}&quot;</span>
             </div>
           )}
 
@@ -143,7 +143,7 @@ export function CarTipsPage() {
           <Card className="p-5 shadow-sm border-slate-100 rounded-[20px] bg-gradient-to-br from-blue-900 to-blue-800 text-white relative overflow-hidden">
              <div className="relative z-10">
                <h3 className="font-bold mb-2">Got a Car Problem?</h3>
-               <p className="text-xs text-blue-100 mb-5">Try our AI diagnostic tool to find out what's wrong with your vehicle instantly.</p>
+               <p className="text-xs text-blue-100 mb-5">Try our AI diagnostic tool to find out what&apos;s wrong with your vehicle instantly.</p>
                <Button onClick={() => router.push('/ai-diagnose')} className="w-full bg-white text-blue-900 hover:bg-blue-50 font-bold shadow-sm">Diagnose Issue</Button>
              </div>
              <div className="absolute -right-4 -bottom-4 opacity-10 w-32 h-32">

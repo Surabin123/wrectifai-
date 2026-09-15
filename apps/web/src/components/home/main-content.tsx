@@ -259,7 +259,7 @@ function HeroBanner() {
       if (stored) {
         try {
           setSelectedVehicle(JSON.parse(stored));
-        } catch (e) {}
+        } catch (e) { /* Ignore vehicle parse error */ }
       }
 
       // 2. Fetch latest from API to ensure we have the most up-to-date details
@@ -296,7 +296,7 @@ function HeroBanner() {
     const handleStorage = () => {
       const stored = localStorage.getItem('wrectifai_selected_vehicle');
       if (stored) {
-        try { setSelectedVehicle(JSON.parse(stored)); } catch (e) {}
+        try { setSelectedVehicle(JSON.parse(stored)); } catch (e) { /* Ignore storage event parse error */ }
       } else {
         setSelectedVehicle(null);
       }
@@ -966,7 +966,7 @@ export function MainContent() {
         if (user && user.mobile_number) setUserPhone(user.mobile_number);
         else if (user && user.phone) setUserPhone(user.phone);
       }
-    } catch(e) {}
+    } catch(e) { /* Ignore user storage parse error */ }
   }, []);
 
   useEffect(() => {

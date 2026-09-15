@@ -718,7 +718,7 @@ export function CompareQuotesPage({ ids }: { ids?: string }) {
                                 .getElementById('price-breakup')
                                 ?.scrollIntoView({ behavior: 'smooth' });
                             }}
-                            onSaveGarage={() => {}}
+                            onSaveGarage={() => { /* Optional callback default */ }}
                             onShareGarage={() => handleShareGarage(quote)}
                           />
                         );

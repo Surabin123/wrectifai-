@@ -621,7 +621,7 @@ export function QuotesPage() {
       try {
         const items = JSON.parse(localStorage.getItem('shopWishlist') || '[]');
         setSavedGarages(items.filter((i: any) => i.type === 'garage').map((i: any) => i.id || i.name));
-      } catch {}
+      } catch { /* Ignore wishlist storage parse error */ }
     };
 
     window.addEventListener('quote-updated', handleSync);
@@ -862,7 +862,7 @@ export function QuotesPage() {
                     const gName = quote.garage;
                     const url = `${window.location.origin}/garages?garage=${encodeURIComponent(gName)}`;
                     if (navigator.share) {
-                      navigator.share({ title: quote.garage, url }).catch(() => {});
+                      navigator.share({ title: quote.garage, url }).catch(() => { /* Ignore native share dismissal */ });
                     } else {
                       navigator.clipboard.writeText(url).then(() => alert('Garage link copied to clipboard!'));
                     }

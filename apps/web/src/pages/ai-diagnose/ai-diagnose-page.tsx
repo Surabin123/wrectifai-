@@ -138,7 +138,7 @@ function mapLlmIssueToDiagnosticResult(llmIssue: LlmIssue, index: number, overal
     const userStr = typeof window !== 'undefined' ? localStorage.getItem('user_profile') : null;
     const user = userStr ? JSON.parse(userStr) : null;
     userPhone = user?.phone || '';
-  } catch(e) {}
+  } catch(e) { /* Ignore profile parse error */ }
   
   const minCost = formatCurrency(priceRange.min, userPhone);
   const maxCost = formatCurrency(priceRange.max, userPhone);

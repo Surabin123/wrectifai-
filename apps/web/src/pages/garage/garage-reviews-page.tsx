@@ -225,7 +225,7 @@ export function GarageReviewsPage() {
           <div className="flex flex-col items-center justify-center rounded-[24px] border border-dashed border-[#cbd4e6] bg-[#f8fbff] py-16">
             <MessageCircle className="h-12 w-12 text-[#cbd4e6] mb-4" />
             <h3 className="text-[16px] font-bold text-[#17307a]">No reviews yet</h3>
-            <p className="mt-1 text-[13px] font-medium text-[#8a99ad]">When customers review your garage, they'll appear here.</p>
+            <p className="mt-1 text-[13px] font-medium text-[#8a99ad]">When customers review your garage, they&apos;ll appear here.</p>
           </div>
         ) : (
           <div className="space-y-4">

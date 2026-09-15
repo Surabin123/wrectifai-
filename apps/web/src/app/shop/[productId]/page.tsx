@@ -53,7 +53,7 @@ export default function ProductDetailsPage() {
     // Simulate slight delay for UX
     setTimeout(() => {
       const stored = localStorage.getItem('shopCart');
-      let cart = stored ? JSON.parse(stored) : [];
+      const cart = stored ? JSON.parse(stored) : [];
       
       const existingIdx = cart.findIndex((i: any) => i.id === product.id);
       if (existingIdx >= 0) {

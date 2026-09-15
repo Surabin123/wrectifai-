@@ -108,7 +108,7 @@ export function GarageDetailPage({
         setWishlistItems(parsed);
         const exists = parsed.find((i: any) => (i.id === initialGarage.id || i.name === initialGarage.name));
         setFavorite(!!exists);
-      } catch (e) {}
+      } catch (e) { /* Ignore localStorage parse errors */ }
     }
 
     const handleUpdate = () => {
@@ -119,7 +119,7 @@ export function GarageDetailPage({
           setWishlistItems(parsed);
           const exists = parsed.find((i: any) => (i.id === initialGarage.id || i.name === initialGarage.name));
           setFavorite(!!exists);
-        } catch (e) {}
+        } catch (e) { /* Ignore localStorage parse errors */ }
       }
     };
 
@@ -1289,9 +1289,9 @@ export function GarageDetailPage({
               ) : requestStatus === 'booking_success' ? (
                 <>Your booking request has been sent successfully to {garage.name}.<br/><br/>The garage will review your request and confirm your appointment shortly.</>
               ) : requestStatus === 'booking_error' ? (
-                <>We couldn't confirm your booking at this time.<br/><br/>Please try again or contact support.</>
+                <>We couldn&apos;t confirm your booking at this time.<br/><br/>Please try again or contact support.</>
               ) : (
-                <>We couldn't send your quote request right now.<br/><br/>Please try again in a few moments.</>
+                <>We couldn&apos;t send your quote request right now.<br/><br/>Please try again in a few moments.</>
               )}
             </p>
             

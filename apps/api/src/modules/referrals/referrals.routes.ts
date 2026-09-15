@@ -25,7 +25,7 @@ referralsRouter.get('/stats', authenticate, async (req, res) => {
   try {
     // Get user's referral code
     const userRes = await query('SELECT referral_code, preferred_currency, country FROM users WHERE id = $1', [userId]);
-    let user = userRes.rows[0];
+    const user = userRes.rows[0];
 
     // Auto-generate referral code if it's missing (e.g. users from OAuth or old records)
     if (!user.referral_code) {

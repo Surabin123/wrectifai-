@@ -12,7 +12,7 @@ export default function ComingSoonPage() {
           <Sparkles className="w-10 h-10" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold text-[#17307a] mb-3">We're working on it!</h1>
+          <h1 className="text-2xl font-bold text-[#17307a] mb-3">We&apos;re working on it!</h1>
           <p className="text-slate-500">
             This feature is currently under development and will be available in our upcoming release. We appreciate your patience.
           </p>

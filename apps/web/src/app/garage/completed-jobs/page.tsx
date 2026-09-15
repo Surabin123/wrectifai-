@@ -48,7 +48,7 @@ export default function CompletedJobsPage() {
                 </svg>
               </div>
               <h3 className="text-lg font-semibold text-[#17307a] mb-2">No Completed Jobs</h3>
-              <p className="text-sm text-gray-500">You haven't completed any jobs yet.</p>
+              <p className="text-sm text-gray-500">You haven&apos;t completed any jobs yet.</p>
             </Card>
           ) : (
             <div className="bg-white rounded-xl shadow-sm border border-[#e4ecff] overflow-hidden">

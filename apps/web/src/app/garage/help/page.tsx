@@ -14,7 +14,7 @@ export default function HelpPage() {
           <div className="flex-1 flex flex-col gap-6">
             <div>
                <h1 className="text-2xl font-bold text-[#17307a] mb-1">Help & Support</h1>
-               <p className="text-sm text-slate-500">We're here to help you. Find answers or get in touch with our support team.</p>
+               <p className="text-sm text-slate-500">We&apos;re here to help you. Find answers or get in touch with our support team.</p>
             </div>
             
             <div className="bg-white rounded-xl shadow-sm border border-slate-100 p-2 relative">
