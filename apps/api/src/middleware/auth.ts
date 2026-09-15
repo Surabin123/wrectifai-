@@ -1,8 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
 import { verifyAccessToken } from '../services/jwt.service';
 import { error } from '../utils/response';
+import { query } from '../config/database';
 
-export function authenticate(req: Request, res: Response, next: NextFunction) {
+export async function authenticate(req: Request, res: Response, next: NextFunction) {
   let token = req.cookies?.accessToken;
 
   if (!token) {
@@ -18,6 +19,26 @@ export function authenticate(req: Request, res: Response, next: NextFunction) {
 
   try {
     const decoded = verifyAccessToken(token);
+    
+    // Authoritative check against the database
+    const userResult = await query('SELECT status FROM users WHERE id = $1 LIMIT 1', [decoded.userId]);
+    
+    if (userResult.rows.length === 0) {
+      return error(res, 'User not found', 'UNAUTHORIZED', 401);
+    }
+    
+    if (userResult.rows[0].status !== 'active') {
+      return error(res, 'Account is not active', 'FORBIDDEN', 403);
+    }
+    
+    const roleResult = await query(
+      `SELECT r.code FROM roles r 
+       JOIN user_roles ur ON r.id = ur.role_id 
+       WHERE ur.user_id = $1`,
+      [decoded.userId]
+    );
+    
+    decoded.roles = roleResult.rows.map(r => r.code);
     req.user = decoded;
     next();
   } catch (err) {
