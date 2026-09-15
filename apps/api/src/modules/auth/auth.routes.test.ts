@@ -4,7 +4,10 @@ import { Pool } from 'pg';
 
 // Setup Mock DB responses
 let dbQueryResults: any = { rows: [] };
-mock.method(Pool.prototype, 'query', async (text: string, params?: any[]) => {
+const handleQuery = async (text: string, params?: any[]) => {
+  if (text.includes('SELECT status FROM users')) {
+    return { rows: [{ status: 'active' }] };
+  }
   if (text.includes('SELECT * FROM users')) {
     return { rows: dbQueryResults.users || [] };
   }
@@ -38,7 +41,15 @@ mock.method(Pool.prototype, 'query', async (text: string, params?: any[]) => {
     };
   }
   return { rows: [] };
-});
+};
+
+mock.method(Pool.prototype, 'query', handleQuery);
+mock.method(Pool.prototype, 'connect', async () => ({
+  query: handleQuery,
+  release: () => {
+    // mock release
+  },
+}));
 
 import express from 'express';
 import { authRouter } from './auth.routes';
@@ -61,8 +72,29 @@ function request(method: string, path: string, body?: any): Promise<{ status: nu
     const res: any = {
       statusCode: 200,
       headers: {},
+      getHeader(name: string) {
+        return this.headers[name.toLowerCase()];
+      },
       setHeader(name: string, value: string) {
-        this.headers[name] = value;
+        this.headers[name.toLowerCase()] = value;
+      },
+      append(name: string, value: string) {
+        const key = name.toLowerCase();
+        if (this.headers[key]) {
+          if (Array.isArray(this.headers[key])) {
+            this.headers[key].push(value);
+          } else {
+            this.headers[key] = [this.headers[key], value];
+          }
+        } else {
+          this.headers[key] = value;
+        }
+      },
+      cookie(name: string, value: string) {
+        this.append('set-cookie', `${name}=${value}`);
+      },
+      clearCookie(name: string) {
+        this.append('set-cookie', `${name}=; Max-Age=0`);
       },
       status(code: number) {
         this.statusCode = code;

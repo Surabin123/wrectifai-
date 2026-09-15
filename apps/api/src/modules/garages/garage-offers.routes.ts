@@ -202,7 +202,7 @@ garageOffersRouter.put('/my-offers/:id', authenticate, async (req, res) => {
         // Fallback to local
         const fs = require('fs');
         const path = require('path');
-        const match = image.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        const match = image.match(/^data:([A-Za-z-+/]+);base64,(.+)$/);
         if (match && match.length === 3) {
           const ext = match[1].split('/')[1] || 'png';
           const filename = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;

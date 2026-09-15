@@ -13,9 +13,21 @@ export function rateLimiter(options: {
   /** Paths that should be excluded from this limiter (e.g. /me, /refresh) */
   skipPaths?: string[];
 }) {
-  // Each rateLimiter() call gets its own isolated Map — critical so that
-  // the global limiter and auth limiter don't share counters.
+  const MAX_KEYS = 10000;
   const ipLimits = new Map<string, RateLimitInfo>();
+
+  // Periodically clean up expired entries
+  const cleanupTimer = setInterval(() => {
+    const now = Date.now();
+    for (const [key, value] of ipLimits.entries()) {
+      if (now > value.resetTime) {
+        ipLimits.delete(key);
+      }
+    }
+  }, 60000);
+
+  // Unref the timer so it doesn't hold open the Node process
+  if (cleanupTimer.unref) cleanupTimer.unref();
 
   return (req: Request, res: Response, next: NextFunction) => {
     // Skip paths that shouldn't be rate-limited by this instance (e.g. /auth/me, /auth/refresh)
@@ -31,6 +43,12 @@ export function rateLimiter(options: {
       ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
     }
     const now = Date.now();
+
+    // If map exceeds max keys, evict oldest entries to prevent memory exhaustion
+    if (ipLimits.size >= MAX_KEYS) {
+      const firstKey = ipLimits.keys().next().value;
+      if (firstKey) ipLimits.delete(firstKey);
+    }
 
     let limitInfo = ipLimits.get(ip);
 

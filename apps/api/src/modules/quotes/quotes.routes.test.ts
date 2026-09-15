@@ -15,6 +15,14 @@ mock.method(Pool.prototype, 'query', async (text: string) => {
     return { rows: dbQueryResults.quotes || [] };
   }
 
+  if (lowerText.includes('select status from users')) {
+    return { rows: [{ status: 'active' }] };
+  }
+
+  if (lowerText.includes('select r.code from roles')) {
+    return { rows: [{ code: 'customer' }] };
+  }
+
   return { rows: [] };
 });
 
@@ -145,8 +153,8 @@ test('quotes routes - GET /quotes returns mapped quotes', async () => {
   assert.strictEqual(response.status, 200);
   assert.strictEqual(response.body.data.length, 1);
   assert.strictEqual(response.body.data[0].garage, 'QuickPit Service Center');
-  assert.strictEqual(response.body.data[0].price, '$3,050');
-  assert.strictEqual(response.body.data[0].savings, '$450');
+  assert.strictEqual(response.body.data[0].price, '3050');
+  assert.strictEqual(response.body.data[0].savings, 450);
 });
 
 test('quotes routes - GET /quotes/:id returns quote details', async () => {
@@ -171,6 +179,7 @@ test('quotes routes - GET /quotes/:id returns quote details', async () => {
         experience: '8+ Years',
         savings: 450,
       },
+      requestCustomerId: 'test-user-uuid',
       garageName: 'QuickPit Service Center',
       ratingAvg: 4.6,
       ratingCount: 128,

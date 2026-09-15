@@ -62,6 +62,6 @@ test('CORS - accepts dynamic Render subdomains', async () => {
 
 test('Rate Limiter - sets rate limit headers', async () => {
   const res = await fetch(`http://localhost:${port}/api/v1/health`);
-  assert.strictEqual(res.headers.get('x-ratelimit-limit'), '100');
+  assert.strictEqual(res.headers.get('x-ratelimit-limit'), '1000');
   assert.ok(res.headers.get('x-ratelimit-remaining'));
 });

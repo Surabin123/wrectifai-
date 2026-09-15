@@ -12,6 +12,18 @@ mock.method(Pool.prototype, 'query', async (text: string, params?: any[]) => {
 
   const lowerText = text.toLowerCase();
 
+  if (lowerText.includes('payment_status, customer_id') || lowerText.includes('for update')) {
+    return { rows: [{ payment_status: 'unpaid', customer_id: 'test-user-uuid', old_status: 'in_progress', total_amount: 150.0, currency: 'INR' }] };
+  }
+
+  if (lowerText.includes('select id from vehicles where id =')) {
+    return { rows: [{ id: 'v1' }] };
+  }
+
+  if (lowerText.includes('select approval_status, name')) {
+    return { rows: [{ approval_status: 'approved', name: 'Test Garage', business_hours: null, business_currency: 'INR' }] };
+  }
+
   if (lowerText.includes('select') && lowerText.includes('bookings')) {
     if (lowerText.includes('where b.id =')) {
       return { rows: dbQueryResults.booking ? [dbQueryResults.booking] : [] };
@@ -40,11 +52,12 @@ mock.method(Pool.prototype, 'query', async (text: string, params?: any[]) => {
   }
 
   if (text.includes('UPDATE bookings')) {
+    const statusParam = params?.find(p => ['requested', 'confirmed', 'in_progress', 'completed', 'readyForCollection', 'collected', 'cancelled'].includes(p));
     return {
       rows: [
         {
-          id: params?.[1], // bookingId
-          status: params?.[0], // new status
+          id: params?.[0], // bookingId
+          status: statusParam || 'completed',
           updatedAt: new Date().toISOString(),
         },
       ],
@@ -65,6 +78,14 @@ mock.method(Pool.prototype, 'query', async (text: string, params?: any[]) => {
     return { rows: [] };
   }
 
+  if (lowerText.includes('select status from users')) {
+    return { rows: [{ status: 'active' }] };
+  }
+
+  if (lowerText.includes('select r.code from roles')) {
+    return { rows: [{ code: 'garage' }] };
+  }
+
   return { rows: [] };
 });
 
@@ -76,7 +97,8 @@ const token = generateAccessToken({
   userId: 'test-user-uuid',
   email: 'test@wrectifai.com',
   name: 'Test Tester',
-  roles: ['customer'],
+  roles: ['customer', 'garage'],
+  garageId: 'g1',
 });
 
 const app = express();
@@ -185,7 +207,8 @@ test('bookings routes - POST /bookings creates an instant booking', async () => 
 });
 
 test('bookings routes - PATCH /bookings/:id/status updates status', async () => {
-  const response = await request('PATCH', '/bookings/b1/status', { status: 'completed' });
+  const validUuid = '12345678-1234-1234-1234-123456789012';
+  const response = await request('PATCH', `/bookings/${validUuid}/status`, { status: 'completed' });
   assert.strictEqual(response.status, 200);
   assert.strictEqual(response.body.data.status, 'completed');
 });

@@ -5,6 +5,9 @@ let pool: Pool | null = null;
 
 export function getDbPool(): Pool {
   if (process.env.MOCK_DB === 'true') {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FATAL: Mock DB cannot be used in production.');
+    }
     return {
       query: async () => ({ rows: [] }),
       on: () => { /* Mock DB pool listener no-op */ },
@@ -21,19 +24,21 @@ export function getDbPool(): Pool {
     const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
     const isRender = process.env.RENDER === 'true';
 
-    // On Render's managed infrastructure, the platform handles SSL at the network
-    // level — a CA cert is not required. For other production environments (e.g.
-    // self-hosted or external DBs), DATABASE_SSL_CA must be provided.
-    if (!isLocal && !isRender && nodeEnv === 'production' && !databaseSslCa) {
-      throw new Error('FATAL: DATABASE_SSL_CA (PEM) is required for verified production PostgreSQL TLS.');
+    // Require DATABASE_SSL_CA or PGSSLROOTCERT in production when non-local unless connection string already manages it safely
+    if (!isLocal && nodeEnv === 'production' && !databaseSslCa) {
+      // If deployed on Render or external cloud DB with external TLS, custom CA bundle or system CA validation is mandatory
+      // Node's default root CAs will validate standard CA-signed certs if rejectUnauthorized=true.
+      // If a self-signed or private CA is used, databaseSslCa must be provided.
     }
 
     let ssl: any = false;
     if (!isLocal) {
       if (databaseSslCa) {
         ssl = { rejectUnauthorized: true, ca: databaseSslCa };
+      } else if (nodeEnv === 'production') {
+        // Enforce strict certificate validation in production using standard root CAs
+        ssl = { rejectUnauthorized: true };
       } else {
-        // Render or environments where the DB is reachable securely without a custom CA
         ssl = { rejectUnauthorized: false };
       }
     }
@@ -62,8 +67,9 @@ export async function query(text: string, params?: any[]) {
       console.log(`[db] executed query: ${text.slice(0, 100).replace(/\s+/g, ' ')}... (${duration}ms)`);
     }
     return res;
-  } catch (error) {
-    console.error(`[db] query execution error: ${text}`, error);
+  } catch (error: any) {
+    const errorCode = error?.code || 'UNKNOWN';
+    console.error(`[db] query execution error. Error Code: ${errorCode}`);
     throw error;
   }
 }

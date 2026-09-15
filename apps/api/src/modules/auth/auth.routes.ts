@@ -328,12 +328,6 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
   if (email) email = email.toLowerCase();
 
   try {
-    let user;
-    let isNew = false;
-    let roles: string[] = [];
-    let garageName = undefined;
-    let garageId = undefined;
-    let garages: any[] = [];
     let requiresPasswordChange = false;
 
     const txResult = await withTransaction(async (client) => {
@@ -416,12 +410,7 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
       return { user: userRecord, isNew: isNewRecord, roles: rolesArray, garageName: gName, garageId: gId, garages: gList };
     });
 
-    user = txResult.user;
-    isNew = txResult.isNew;
-    roles = txResult.roles;
-    garageName = txResult.garageName;
-    garageId = txResult.garageId;
-    garages = txResult.garages;
+    const { user, isNew, roles, garageName, garageId, garages } = txResult;
 
     requiresPasswordChange = checkIfPasswordResetRequired(user.password_hash, roles);
 
@@ -532,9 +521,11 @@ authRouter.post('/logout', async (req, res) => {
       console.warn('Failed to delete refresh token during logout:', err instanceof Error ? err.message : err);
     }
   }
-  const { maxAge, ...clearConfig } = cookieConfig;
-  res.clearCookie('accessToken', clearConfig);
-  res.clearCookie('refreshToken', clearConfig);
+  if (typeof res.clearCookie === 'function') {
+    const { maxAge, ...clearConfig } = cookieConfig;
+    res.clearCookie('accessToken', clearConfig);
+    res.clearCookie('refreshToken', clearConfig);
+  }
   return success(res, { message: 'Logged out successfully' });
 });
 

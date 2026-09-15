@@ -7,10 +7,10 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
 
   if (isProd) {
     if (!jwtSecret) {
-      throw new Error('FATAL: JWT_SECRET and JWT_REFRESH_SECRET environment variables must be set outside of development/test.');
+      throw new Error('FATAL: JWT_SECRET environment variable is not set in production.');
     }
     if (!jwtRefreshSecret) {
-      throw new Error('FATAL: JWT_SECRET and JWT_REFRESH_SECRET environment variables must be set outside of development/test.');
+      throw new Error('FATAL: JWT_REFRESH_SECRET environment variable is not set in production.');
     }
     if (jwtSecret.length < 32 || jwtRefreshSecret.length < 32) {
       throw new Error('FATAL: JWT secrets must be at least 32 characters in production.');

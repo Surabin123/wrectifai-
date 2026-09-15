@@ -224,7 +224,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     // Helper to save base64 files locally (fallback for dev)
     const saveBase64File = (fileObj: any, folder: string) => {
       if (!fileObj || !fileObj.data) return null;
-      const match = fileObj.data.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      const match = fileObj.data.match(/^data:([A-Za-z-+/]+);base64,(.+)$/);
       if (!match || match.length !== 3) return null;
       const ext = fileObj.name.split('.').pop() || 'png';
       const filename = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;

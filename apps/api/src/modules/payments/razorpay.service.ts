@@ -2,8 +2,6 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { getEnv } from '../../config/env';
 
-const env = getEnv();
-
 // Initialize Razorpay strictly from env variables
 let razorpayClient: Razorpay;
 try {
@@ -11,7 +9,7 @@ try {
     key_id: process.env.RAZORPAY_KEY_ID || '',
     key_secret: process.env.RAZORPAY_KEY_SECRET || '',
   });
-} catch (err) {
+} catch {
   console.warn('Razorpay keys not configured fully.');
 }
 
@@ -27,7 +25,15 @@ export function verifyWebhookSignature(webhookBody: string, signature: string, s
       .createHmac('sha256', secret)
       .update(webhookBody)
       .digest('hex');
-    return expectedSignature === signature;
+      
+    const sigBuffer = Buffer.from(signature, 'utf8');
+    const expectedBuffer = Buffer.from(expectedSignature, 'utf8');
+    
+    if (sigBuffer.length !== expectedBuffer.length) {
+      return false;
+    }
+    
+    return crypto.timingSafeEqual(new Uint8Array(sigBuffer), new Uint8Array(expectedBuffer));
   } catch (error) {
     return false;
   }

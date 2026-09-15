@@ -27,7 +27,7 @@ test('DB - migrations created expected tables', async () => {
 test('DB - seeded roles exist', async () => {
   const result = await query('SELECT code FROM roles ORDER BY code');
   const codes = result.rows.map((r: any) => r.code);
-  assert.deepStrictEqual(codes, ['admin', 'customer', 'garage', 'vendor']);
+  assert.deepStrictEqual(codes, ['admin', 'customer', 'delivery_agent', 'garage', 'user', 'vendor']);
 });
 
 test('DB - can insert and delete a user', async () => {

@@ -5,6 +5,9 @@ import { Pool } from 'pg';
 // Mock DB pool queries
 const mockRows: any[] = [];
 mock.method(Pool.prototype, 'query', async (text: string, params?: any[]) => {
+  if (text.includes('status FROM users')) {
+    return { rows: [{ status: 'active' }] };
+  }
   if (text.includes('user_roles')) {
     return { rows: mockRows };
   }
@@ -35,7 +38,7 @@ test('auth middleware - authenticate valid token', async () => {
   let nextCalled = false;
   const next = () => { nextCalled = true; };
 
-  authenticate(req as Request, res, next);
+  await authenticate(req as Request, res, next);
   assert.ok(nextCalled);
   assert.strictEqual(req.user?.userId, 'user-123');
   assert.strictEqual(req.user?.email, 'test@example.com');
@@ -47,7 +50,7 @@ test('auth middleware - authenticate missing token', async () => {
   let nextCalled = false;
   const next = () => { nextCalled = true; };
 
-  authenticate(req as Request, res, next);
+  await authenticate(req as Request, res, next);
   assert.ok(!nextCalled);
   assert.strictEqual(res.statusCode, 401);
   assert.strictEqual(res.body.error.code, 'UNAUTHORIZED');
@@ -60,7 +63,7 @@ test('auth middleware - authenticate expired token', async () => {
   let nextCalled = false;
   const next = () => { nextCalled = true; };
 
-  authenticate(req as Request, res, next);
+  await authenticate(req as Request, res, next);
   assert.ok(!nextCalled);
   assert.strictEqual(res.statusCode, 401);
   assert.strictEqual(res.body.error.code, 'UNAUTHORIZED');
