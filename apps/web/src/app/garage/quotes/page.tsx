@@ -99,12 +99,6 @@ export default function QuotesPage() {
       setEstimatedTime('');
       setRemarks('');
       localStorage.setItem('wrectifai_sync_quotes', Date.now().toString());
-      // Dispatch Notifications
-      const notifs = JSON.parse(localStorage.getItem('wrectifai_notifications') || '[]');
-      notifs.unshift({ id: Date.now(), type: 'Quote', title: 'Quote Received', desc: `A garage has sent you a quote for your request.`, time: 'Just now', read: false, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'Customer' });
-      notifs.unshift({ id: Date.now() + 1, type: 'Quote', title: 'Quote Sent', desc: `A garage has responded to a quote request.`, time: 'Just now', read: false, icon: 'FileText', color: 'text-purple-500', bg: 'bg-purple-50', audience: 'Garage' });
-      localStorage.setItem('wrectifai_notifications', JSON.stringify(notifs));
-      window.dispatchEvent(new Event('notifications-updated'));
       await loadData();
     } catch (err: any) {
       setErrorMsg(err.message || 'Failed to send quote');

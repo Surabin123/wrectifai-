@@ -192,6 +192,22 @@ function parseTimeToMinutes(timeStr: any): number | null {
     return error(res, 'Garage ID is required to create a booking', 'BAD_REQUEST', 400);
   }
 
+  // Never trust client supplied ownership identifiers. Customers may only book
+  // their own vehicle; garage users may only create bookings for their garage.
+  const vehicleCheck = await query(
+    `SELECT id FROM vehicles WHERE id = $1 AND customer_id = $2`,
+    [vehicleId, customerId]
+  );
+  if (vehicleCheck.rows.length === 0) {
+    return error(res, 'Vehicle not found or does not belong to this customer.', 'BAD_REQUEST', 400);
+  }
+  if (req.user?.roles?.includes('garage') && !req.user?.roles?.includes('admin')) {
+    const ownedGarage = await resolveGarageId(req.user.userId, req.user.garageId);
+    if (!ownedGarage || ownedGarage !== garageId) {
+      return error(res, 'You can only create bookings for your own garage.', 'FORBIDDEN', 403);
+    }
+  }
+
   try {
     // Check if garage is suspended or deleted & fetch business hours
     const garageCheck = await query(`SELECT approval_status, name, business_hours, business_currency FROM garages WHERE id = $1`, [garageId]);
@@ -202,6 +218,20 @@ function parseTimeToMinutes(timeStr: any): number | null {
     const garageStatus = garageData.approval_status;
     if (garageStatus === 'suspended' || garageStatus === 'deleted' || garageStatus === 'inactive') {
       return error(res, 'This garage is not available for new bookings.', 'FORBIDDEN', 403);
+    }
+
+    // Calendar-day uniqueness is also enforced by a unique database index;
+    // this check provides the friendly validation response before insertion.
+    const duplicateBooking = await query(
+      `SELECT id FROM bookings
+       WHERE vehicle_id = $1
+         AND (scheduled_at AT TIME ZONE 'Asia/Kolkata')::date = ($2::timestamptz AT TIME ZONE 'Asia/Kolkata')::date
+         AND status <> 'cancelled'
+       LIMIT 1`,
+      [vehicleId, scheduledAt]
+    );
+    if (duplicateBooking.rows.length > 0) {
+      return error(res, 'This vehicle already has a booking for this date. Please select another date.', 'DUPLICATE_BOOKING_DATE', 409);
     }
 
     // Backend Working Hours Validation
@@ -426,6 +456,9 @@ function parseTimeToMinutes(timeStr: any): number | null {
     );
   } catch (err) {
     console.error('Booking creation error:', err);
+    if ((err as any)?.code === '23505') {
+      return error(res, 'This vehicle already has a booking for this date. Please select another date.', 'DUPLICATE_BOOKING_DATE', 409);
+    }
     return error(
       res,
       err instanceof Error ? err.message : 'Failed to create booking',

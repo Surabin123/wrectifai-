@@ -178,8 +178,9 @@ export interface GarageCompletedJob {
   currency?: string;
 }
 
-export async function fetchGarageCompletedJobs(): Promise<GarageCompletedJob[]> {
-  return apiClient.get('/quotes/garage/completed-jobs');
+export async function fetchGarageCompletedJobs(filters: Record<string, string> = {}): Promise<GarageCompletedJob[]> {
+  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => value));
+  return apiClient.get(`/quotes/garage/completed-jobs${query.toString() ? `?${query}` : ''}`);
 }
 
 export async function getGarageIncomingBookings(): Promise<any[]> {

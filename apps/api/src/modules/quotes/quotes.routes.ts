@@ -408,6 +408,19 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
       return error(res, 'Quote already submitted for this request', 'BAD_REQUEST', 400);
     }
 
+    const requestOwnership = await query(
+      `SELECT customer_id, vehicle_id, garage_id FROM quote_requests WHERE id = $1`,
+      [req.params.quoteRequestId]
+    );
+    if (requestOwnership.rows.length === 0) {
+      return error(res, 'Quote request not found', 'NOT_FOUND', 404);
+    }
+    // A garage can only quote requests explicitly routed to it (legacy
+    // broadcast requests have a NULL garage_id).
+    if (requestOwnership.rows[0].garage_id && requestOwnership.rows[0].garage_id !== garageId) {
+      return error(res, 'This quote request is not assigned to your garage.', 'FORBIDDEN', 403);
+    }
+
     const amount = Number(labourCost || 0) + Number(partsCost || 0) + Number(consumablesCost || 0) + Number(gstCost || 0) + Number(otherCost || 0);
 
     const currencyRequestRes = await query('SELECT customer_id FROM quote_requests WHERE id = $1', [req.params.quoteRequestId]);
@@ -777,6 +790,15 @@ quotesRouter.get('/garage/completed-jobs', authenticate, async (req, res) => {
     const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
+    const { status, customerId, vehicleId, from, to } = req.query as Record<string, string | undefined>;
+    const filters = ['b.garage_id = $1', "b.status IN ('completed', 'readyForCollection', 'collected')"];
+    const params: any[] = [garageId];
+    if (status) { params.push(status); filters.push(`b.status = $${params.length}`); }
+    if (customerId) { params.push(customerId); filters.push(`b.customer_id = $${params.length}`); }
+    if (vehicleId) { params.push(vehicleId); filters.push(`b.vehicle_id = $${params.length}`); }
+    if (from) { params.push(from); filters.push(`b.scheduled_at >= $${params.length}::timestamptz`); }
+    if (to) { params.push(to); filters.push(`b.scheduled_at < ($${params.length}::date + INTERVAL '1 day')`); }
+
     const result = await query(
       `SELECT b.id, b.status as "bookingStatus", b.created_at as "completionDate", b.currency as "currency",
               COALESCE(b.total_amount, q.amount) as "quoteAmount", q.details,
@@ -788,9 +810,9 @@ quotesRouter.get('/garage/completed-jobs', authenticate, async (req, res) => {
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN users u ON b.customer_id = u.id
-       WHERE b.garage_id = $1 AND b.status IN ('completed', 'readyForCollection', 'collected')
+       WHERE ${filters.join(' AND ')}
        ORDER BY b.updated_at DESC LIMIT 100`,
-      [garageId]
+      params
     );
     const mapped = result.rows.map(row => {
       let parsedDetails = row.details || {};

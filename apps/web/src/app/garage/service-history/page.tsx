@@ -18,6 +18,7 @@ export default function ServiceHistoryPage() {
   const [history, setHistory] = useState<GarageCompletedJob[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [selectedBookingId, setSelectedBookingId] = useState<string | null>(null);
   const [bookingDetails, setBookingDetails] = useState<any>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -43,7 +44,7 @@ export default function ServiceHistoryPage() {
   useEffect(() => {
     async function loadData() {
       try {
-        const data = await fetchGarageCompletedJobs();
+        const data = await fetchGarageCompletedJobs({ status: statusFilter });
         setHistory(data || []);
       } catch (err) {
         console.error('Failed to load completed jobs', err);
@@ -52,7 +53,7 @@ export default function ServiceHistoryPage() {
       }
     }
     loadData();
-  }, []);
+  }, [statusFilter]);
 
   const filteredHistory = history.filter((h) => {
     if (!searchQuery) return true;
@@ -100,6 +101,12 @@ export default function ServiceHistoryPage() {
                    className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm bg-slate-50 outline-none focus:ring-1 focus:ring-blue-500" 
                  />
                </div>
+               <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="border rounded-lg px-3 py-2 text-sm bg-slate-50">
+                 <option value="">All statuses</option>
+                 <option value="completed">Completed</option>
+                 <option value="readyForCollection">Ready for collection</option>
+                 <option value="collected">Collected</option>
+               </select>
              </div>
              <div className="flex-1 overflow-auto">
                <table className="w-full text-left border-collapse">

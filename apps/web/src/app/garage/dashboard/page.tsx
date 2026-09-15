@@ -94,9 +94,9 @@ export default function GarageDashboard() {
           </div>
 
           <div className="grid grid-cols-3 gap-4">
-            <GarageStatCard title="Booking Requests" value={stats.incoming.toString()} icon={<Inbox className="w-5 h-5 text-orange-500"/>} trend="" color="orange" />
-            <GarageStatCard title="Active Jobs" value={stats.activeJobs.toString()} icon={<Calendar className="w-5 h-5 text-blue-500"/>} trend="" color="blue" />
-            <GarageStatCard title="Quotes Submitted" value={stats.generatedQuotes.toString()} icon={<FileText className="w-5 h-5 text-green-500"/>} trend="" color="green" />
+            <GarageStatCard title="Booking Requests" value={stats.incoming.toString()} icon={<Inbox className="w-5 h-5 text-orange-500"/>} trend="" color="orange" href="/garage/incoming-requests" />
+            <GarageStatCard title="Active Jobs" value={stats.activeJobs.toString()} icon={<Calendar className="w-5 h-5 text-blue-500"/>} trend="" color="blue" href="/garage/active-jobs" />
+            <GarageStatCard title="Quotes Submitted" value={stats.generatedQuotes.toString()} icon={<FileText className="w-5 h-5 text-green-500"/>} trend="" color="green" href="/garage/quotes" />
           </div>
 
           <div className="grid grid-cols-12 gap-6">

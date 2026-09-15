@@ -1,8 +1,9 @@
 import React from 'react';
 import { Card } from '@/components/common/card';
 
-export const GarageStatCard = ({title, value, icon, trend, color}: any) => (
-  <Card className="p-5 flex flex-col justify-between border-l-4 hover:shadow-md transition-shadow" style={{borderLeftColor: color === 'blue' ? '#3b82f6' : color === 'orange' ? '#f97316' : color === 'purple' ? '#a855f7' : color === 'green' ? '#22c55e' : '#10b981'}}>
+export const GarageStatCard = ({title, value, icon, trend, color, href}: any) => (
+  <Card className="relative p-5 flex flex-col justify-between border-l-4 hover:shadow-md transition-shadow" style={{borderLeftColor: color === 'blue' ? '#3b82f6' : color === 'orange' ? '#f97316' : color === 'purple' ? '#a855f7' : color === 'green' ? '#22c55e' : '#10b981'}}>
+    {href && <a href={href} aria-label={`View ${title}`} className="absolute inset-0 rounded-lg" />}
     <div className="flex justify-between items-start mb-4">
       <div className={`p-2 rounded-lg bg-${color}-50`}>{icon}</div>
       <span className={`text-[10px] font-bold px-2 py-1 rounded bg-${color}-50 text-${color}-600`}>{trend}</span>

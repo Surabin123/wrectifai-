@@ -60,7 +60,7 @@ export function RequestQuoteModal({ isOpen, onClose, garageId, onSubmitSuccess }
       }
       const { createQuoteRequest } = await import('@/lib/quotes-api');
       await createQuoteRequest({
-        vehicleId: vId || '00000000-0000-0000-0000-000000000002', 
+        vehicleId: vId,
         issueSummary: issueDescription || serviceType,
         garageId
       });
