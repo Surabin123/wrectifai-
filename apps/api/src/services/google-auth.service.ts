@@ -9,9 +9,16 @@ export interface GoogleUserPayload {
 
 export async function verifyGoogleIdToken(token: string): Promise<GoogleUserPayload> {
   const { googleClientId } = getEnv();
+  const isProduction = process.env.NODE_ENV === 'production';
+  const hasPlaceholderClientId = !googleClientId || googleClientId === 'your-google-client-id-here';
 
-  // Support development bypass/mock mode if client ID is default/missing, or token starts with "mock_"
-  if (!googleClientId || googleClientId === 'your-google-client-id-here' || token.startsWith('mock_')) {
+  // Mock OAuth is strictly development-only. Production must fail closed when
+  // OAuth is not configured or a mock token is supplied.
+  if (isProduction && (hasPlaceholderClientId || token.startsWith('mock_'))) {
+    throw new Error('Google OAuth is not configured for production');
+  }
+
+  if (!isProduction && (hasPlaceholderClientId || token.startsWith('mock_'))) {
     console.warn('[auth] Using Google OAuth ID Token verification MOCK mode.');
     let email = 'google-user@wrectifai.com';
     let name = 'Google User';

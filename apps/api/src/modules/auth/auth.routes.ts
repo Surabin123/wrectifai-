@@ -34,6 +34,12 @@ function setTokensInCookies(res: Response, accessToken: string, refreshToken: st
 
 const HARDCODED_PHONES = ['9876543210', '1234567890'];
 
+function normalizedPhone(value: string): string {
+  return value.replace(/\D/g, '');
+}
+
+const normalizedPhoneSql = "regexp_replace(mobile_number, '[^0-9]', '', 'g')";
+
 function checkIfPasswordResetRequired(passwordHash: string, userRoles: string[]): boolean {
   const temporaryPassword = getEnv().adminTemporaryPassword;
   return userRoles.includes('admin') && !!passwordHash && !!temporaryPassword && bcrypt.compareSync(temporaryPassword, passwordHash);
@@ -152,7 +158,9 @@ authRouter.post('/check-user', async (req, res, next) => {
   }
 
   try {
-    const existingUser = await query("SELECT id FROM users WHERE mobile_number LIKE '%' || $1", [mobileNumber]);
+    const phone = normalizedPhone(mobileNumber);
+    if (!phone) return error(res, 'Invalid phone number format', 'BAD_REQUEST', 400);
+    const existingUser = await query(`SELECT id FROM users WHERE ${normalizedPhoneSql} = $1`, [phone]);
     return success(res, { exists: existingUser.rows.length > 0 }, 200);
   } catch (err) {
     next(err);
@@ -216,7 +224,7 @@ authRouter.post('/register', async (req, res, next) => {
         return error(res, 'Invalid phone number or OTP', 'UNAUTHORIZED', 401);
       }
 
-      const existingUser = await query("SELECT * FROM users WHERE mobile_number LIKE '%' || $1", [mobileNumber]);
+      const existingUser = await query(`SELECT * FROM users WHERE ${normalizedPhoneSql} = $1`, [normalizedPhone(mobileNumber)]);
       if (existingUser.rows.length > 0) {
         return error(res, 'Account already exists with this phone number. Please sign in.', 'CONFLICT', 409);
       }
@@ -330,7 +338,7 @@ authRouter.post('/login', async (req, res, next) => {
       }
       
       if (otp === '1234' || otp === '123456') {
-        const existingUser = await query("SELECT * FROM users WHERE mobile_number LIKE '%' || $1", [mobileNumber]);
+        const existingUser = await query(`SELECT * FROM users WHERE ${normalizedPhoneSql} = $1`, [normalizedPhone(mobileNumber)]);
         
         if (existingUser.rows.length > 0) {
           user = existingUser.rows[0];
