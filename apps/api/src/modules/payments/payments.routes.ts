@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
-import { getDbPool } from '../../config/database';
+import { getDbPool, withTransaction } from '../../config/database';
 import { createRazorpayOrder, verifyWebhookSignature, fetchRazorpayPayment } from './razorpay.service';
 import { getEnv } from '../../config/env';
 import Razorpay from 'razorpay';
@@ -23,41 +23,58 @@ paymentsRouter.post('/orders', authenticate, async (req, res) => {
   }
 
   try {
-    const bookingResult = await getDbPool().query(
-      `SELECT b.id, b.total_amount, b.discount_applied, b.wallet_used, b.payment_status, b.customer_id
-       FROM bookings b WHERE b.id = $1`, [bookingId]
-    );
-    const booking = bookingResult.rows[0];
-    const userId = req.user?.userId;
-    const roles = req.user?.roles || [];
-    if (!booking || (!roles.includes('admin') && booking.customer_id !== userId)) {
-      return error(res, 'Booking not found or unauthorized', 'NOT_FOUND', 404);
-    }
-    if (booking.payment_status === 'PAID') {
-      return error(res, 'Booking is already paid', 'BAD_REQUEST', 400);
-    }
-    const payable = Number(booking.total_amount) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
-    const requestedAmount = Number(amount);
-    if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || Math.abs(requestedAmount - payable) > 0.01) {
-      return error(res, 'Payment amount does not match the booking balance', 'BAD_REQUEST', 400);
-    }
-    const amountInPaise = Math.round(payable * 100);
-    const receiptId = bookingId ? bookingId.substring(0, 40) : `rcpt_${Date.now()}`;
-    const existingIntent = await getDbPool().query(
-      `SELECT provider_order_id FROM payments WHERE booking_id = $1 AND status = 'created' AND provider_order_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`, [bookingId]
-    );
-    if (existingIntent.rows[0]?.provider_order_id) {
-      return success(res, { id: existingIntent.rows[0].provider_order_id, amount: amountInPaise, currency: 'INR', status: 'created' }, 201);
+    let payable = 0;
+    let customerId = userId;
+    let existingOrderId = null;
+
+    try {
+      const intentResult = await withTransaction(async (client) => {
+        const bookingResult = await client.query(
+          `SELECT b.id, b.total_amount, b.discount_applied, b.wallet_used, b.payment_status, b.customer_id
+           FROM bookings b WHERE b.id = $1 FOR UPDATE`, [bookingId]
+        );
+        const booking = bookingResult.rows[0];
+        const roles = req.user?.roles || [];
+        if (!booking || (!roles.includes('admin') && booking.customer_id !== userId)) {
+          throw new Error('NOT_FOUND:Booking not found or unauthorized');
+        }
+        if (booking.payment_status === 'PAID') {
+          throw new Error('BAD_REQUEST:Booking is already paid');
+        }
+        const calcPayable = Number(booking.total_amount) - Number(booking.discount_applied || 0) - Number(booking.wallet_used || 0);
+        const requestedAmount = Number(amount);
+        if (!Number.isFinite(requestedAmount) || requestedAmount <= 0 || Math.abs(requestedAmount - calcPayable) > 0.01) {
+          throw new Error('BAD_REQUEST:Payment amount does not match the booking balance');
+        }
+        const existingIntent = await client.query(
+          `SELECT provider_order_id FROM payments WHERE booking_id = $1 AND status = 'created' AND provider_order_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`, [bookingId]
+        );
+        if (existingIntent.rows[0]?.provider_order_id) {
+          return { existingOrderId: existingIntent.rows[0].provider_order_id, payable: calcPayable, customerId: booking.customer_id };
+        }
+
+        await client.query(
+          `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, amount, currency, status)
+           VALUES ($1, $2, 'razorpay', $3, $4, 'INR', 'created')
+           ON CONFLICT (transaction_id) DO NOTHING`,
+          [booking.customer_id, bookingId, `booking_intent_${bookingId}`, calcPayable]
+        );
+        return { existingOrderId: null, payable: calcPayable, customerId: booking.customer_id };
+      });
+      payable = intentResult.payable;
+      customerId = intentResult.customerId;
+      existingOrderId = intentResult.existingOrderId;
+    } catch (err: any) {
+      if (err.message.startsWith('NOT_FOUND:')) return error(res, err.message.substring(10), 'NOT_FOUND', 404);
+      if (err.message.startsWith('BAD_REQUEST:')) return error(res, err.message.substring(12), 'BAD_REQUEST', 400);
+      throw err;
     }
 
-    // Persist the local intent before contacting Razorpay. The notes carry the
-    // same stable identifiers so a webhook can recover after a later DB error.
-    await getDbPool().query(
-      `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, amount, currency, status)
-       VALUES ($1, $2, 'razorpay', $3, $4, 'INR', 'created')
-       ON CONFLICT (transaction_id) DO NOTHING`,
-      [booking.customer_id, bookingId, `booking_intent_${bookingId}`, payable]
-    );
+    const amountInPaise = Math.round(payable * 100);
+    if (existingOrderId) {
+      return success(res, { id: existingOrderId, amount: amountInPaise, currency: 'INR', status: 'created' }, 201);
+    }
+    const receiptId = bookingId ? bookingId.substring(0, 40) : `rcpt_${Date.now()}`;
     
     const order = await createRazorpayOrder(amountInPaise, receiptId, {
       userId,
@@ -65,7 +82,7 @@ paymentsRouter.post('/orders', authenticate, async (req, res) => {
     });
 
     const pool = getDbPool();
-    await pool.query('UPDATE bookings SET payment_intent_id = $1 WHERE id = $2 AND customer_id = $3', [order.id, bookingId, userId]);
+    await pool.query('UPDATE bookings SET payment_intent_id = $1 WHERE id = $2 AND customer_id = $3', [order.id, bookingId, customerId]);
     await pool.query('UPDATE payments SET provider_order_id = $1 WHERE booking_id = $2 AND transaction_id = $3', [order.id, bookingId, `booking_intent_${bookingId}`]);
 
     return success(
@@ -467,8 +484,13 @@ paymentsRouter.post('/webhook', async (req, res) => {
             WHERE id=$1 AND payment_status NOT IN ('PAID','REFUNDED')`, [notes.order_id]);
         }
         if (notes.type === 'wallet_topup' && notes.userId) {
-          await client.query(`UPDATE payments SET provider_order_id=$1, provider_payment_id=$2, transaction_id=$1, status='succeeded'
-            WHERE customer_user_id=$3 AND amount=$4 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.userId, amount]);
+          if (notes.intentToken) {
+            await client.query(`UPDATE payments SET provider_order_id=$1, provider_payment_id=$2, transaction_id=$1, status='succeeded'
+              WHERE transaction_id=$3 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.intentToken]);
+          } else {
+            await client.query(`UPDATE payments SET provider_order_id=$1, provider_payment_id=$2, transaction_id=$1, status='succeeded'
+              WHERE customer_user_id=$3 AND amount=$4 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.userId, amount]);
+          }
         }
       }
     } else if (webhookBody.event === 'payment.failed') {

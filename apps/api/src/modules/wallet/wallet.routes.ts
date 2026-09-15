@@ -103,22 +103,29 @@ walletRouter.post('/add-funds', authenticate, async (req, res) => {
 
     const amountInPaise = Math.round(numericAmount * 100);
     const { createRazorpayOrder } = require('../payments/razorpay.service');
-    await query('INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING', [userId]);
     const intentToken = `wallet_intent_${userId}_${Date.now()}`;
-    await query(`INSERT INTO payments (customer_user_id, method, transaction_id, amount, currency, status)
-      VALUES ($1, 'razorpay', $2, $3, 'INR', 'created') ON CONFLICT (transaction_id) DO NOTHING`, [userId, intentToken, numericAmount]);
-    await query(
-      `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
-       SELECT id, 'HOLD', $2, balance, balance, 'WALLET_TOPUP', $3, 'PENDING', 'Pending Razorpay wallet top-up'
-       FROM wallets WHERE user_id = $1`, [userId, numericAmount, intentToken]
-    );
-    const order = await createRazorpayOrder(amountInPaise, `wallet_topup_${Date.now()}`, {
-      userId,
-      type: 'wallet_topup'
+    
+    await withTransaction(async (client) => {
+      await client.query('INSERT INTO wallets (user_id, balance) VALUES ($1, 0) ON CONFLICT (user_id) DO NOTHING', [userId]);
+      await client.query(`INSERT INTO payments (customer_user_id, method, transaction_id, amount, currency, status)
+        VALUES ($1, 'razorpay', $2, $3, 'INR', 'created') ON CONFLICT (transaction_id) DO NOTHING`, [userId, intentToken, numericAmount]);
+      await client.query(
+        `INSERT INTO wallet_transactions (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
+         SELECT id, 'HOLD', $2, balance, balance, 'WALLET_TOPUP', $3, 'PENDING', 'Pending Razorpay wallet top-up'
+         FROM wallets WHERE user_id = $1`, [userId, numericAmount, intentToken]
+      );
     });
 
-    await query('UPDATE wallet_transactions SET reference_id = $1 WHERE reference_type = $2 AND reference_id = $3 AND status = $4', [order.id, 'WALLET_TOPUP', intentToken, 'PENDING']);
-    await query('UPDATE payments SET provider_order_id = $1, transaction_id = $1 WHERE transaction_id = $2 AND status = $3', [order.id, intentToken, 'created']);
+    const order = await createRazorpayOrder(amountInPaise, `wallet_topup_${Date.now()}`, {
+      userId,
+      type: 'wallet_topup',
+      intentToken
+    });
+
+    await withTransaction(async (client) => {
+      await client.query('UPDATE wallet_transactions SET reference_id = $1 WHERE reference_type = $2 AND reference_id = $3 AND status = $4', [order.id, 'WALLET_TOPUP', intentToken, 'PENDING']);
+      await client.query('UPDATE payments SET provider_order_id = $1, transaction_id = $1 WHERE transaction_id = $2 AND status = $3', [order.id, intentToken, 'created']);
+    });
 
     return success(res, { 
       razorpayOrderId: order.id,

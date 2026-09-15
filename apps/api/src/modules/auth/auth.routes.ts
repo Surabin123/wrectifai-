@@ -9,7 +9,7 @@ import {
   deleteRefreshTokenInDb,
 } from '../../services/jwt.service';
 import { verifyGoogleIdToken } from '../../services/google-auth.service';
-import { query } from '../../config/database';
+import { query, withTransaction } from '../../config/database';
 import * as bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { authenticate, requireRole } from '../../middleware/auth';
@@ -48,52 +48,55 @@ function checkIfPasswordResetRequired(passwordHash: string, userRoles: string[])
 // Helper to register/login a user from a verified OAuth profile (Google, Apple, etc.)
 export async function handleUserLoginOrRegister(email: string, name: string, deviceInfo?: string, ipAddress?: string) {
   if (email) email = email.toLowerCase();
-  let user;
-  let isNew = false;
+  
+  const { user, roles, isNew, garageId } = await withTransaction(async (client) => {
+    let userRecord;
+    let isNewRecord = false;
 
-  const existingUser = await query('SELECT * FROM users WHERE email = $1', [email]);
-  if (existingUser.rows.length > 0) {
-    user = existingUser.rows[0];
-  } else {
-    const userResult = await query(
-      "INSERT INTO users (email, name, status) VALUES ($1, $2, 'active') RETURNING id, email, name, mobile_number, status",
-      [email, name]
+    const existingUser = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+    if (existingUser.rows.length > 0) {
+      userRecord = existingUser.rows[0];
+    } else {
+      const userResult = await client.query(
+        "INSERT INTO users (email, name, status) VALUES ($1, $2, 'active') RETURNING id, email, name, mobile_number, status, country",
+        [email, name]
+      );
+      userRecord = userResult.rows[0];
+      isNewRecord = true;
+    }
+
+    if (isNewRecord) {
+      const roleResult = await client.query("SELECT id FROM roles WHERE code = 'customer'");
+      if (roleResult.rows.length > 0) {
+        const roleId = roleResult.rows[0].id;
+        await client.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userRecord.id, roleId]);
+      }
+    }
+
+    const rolesResult = await client.query(
+      'SELECT r.code FROM roles r JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id = $1',
+      [userRecord.id]
     );
-    user = userResult.rows[0];
-    isNew = true;
-  }
+    const rolesArray = rolesResult.rows.map((row) => row.code);
 
-  if (isNew) {
-    const roleResult = await query("SELECT id FROM roles WHERE code = 'customer'");
-    if (roleResult.rows.length > 0) {
-      const roleId = roleResult.rows[0].id;
-      await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleId]);
+    if (rolesArray.length === 0) {
+      const defaultRole = await client.query("SELECT id, code FROM roles WHERE code = 'customer'");
+      if (defaultRole.rows.length > 0) {
+        await client.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userRecord.id, defaultRole.rows[0].id]);
+        rolesArray.push(defaultRole.rows[0].code);
+      }
     }
-  }
 
-  const rolesResult = await query(
-    'SELECT r.code FROM roles r JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id = $1',
-    [user.id]
-  );
-  const roles = rolesResult.rows.map((row) => row.code);
-
-  // Fallback: If existing user has no roles (e.g. DB was reset or user pre-dates RBAC),
-  // auto-assign the 'user' role so they are never locked out.
-  if (roles.length === 0) {
-    const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'customer'");
-    if (defaultRole.rows.length > 0) {
-      await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, defaultRole.rows[0].id]);
-      roles.push(defaultRole.rows[0].code);
+    let gId = undefined;
+    if (rolesArray.includes('garage')) {
+      const garageResult = await client.query('SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1', [userRecord.id]);
+      if (garageResult.rows.length > 0) {
+        gId = garageResult.rows[0].id;
+      }
     }
-  }
-
-  let garageId = undefined;
-  if (roles.includes('garage')) {
-    const garageResult = await query('SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1', [user.id]);
-    if (garageResult.rows.length > 0) {
-      garageId = garageResult.rows[0].id;
-    }
-  }
+    
+    return { user: userRecord, roles: rolesArray, isNew: isNewRecord, garageId: gId };
+  });
 
   const accessToken = generateAccessToken({ userId: user.id, email: user.email, name: user.name, roles, garageId });
   const refreshToken = generateRefreshToken({ userId: user.id });
@@ -184,97 +187,92 @@ authRouter.post('/register', async (req, res, next) => {
   }
 
   try {
-    let user;
-    let isNew = false;
-    
-    if (email && password) {
-      // Email/Password Registration Flow
-      const existingUser = await query('SELECT * FROM users WHERE email = $1', [email]);
-      if (existingUser.rows.length > 0) {
-        return error(res, 'Account already exists with this email. Please sign in.', 'CONFLICT', 409);
-      }
+    const { user, roles, garageId, isNew } = await withTransaction(async (client) => {
+      let userRecord;
+      let isNewRecord = false;
       
-      if (mobileNumber) {
-        const existingPhone = await query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
-        if (existingPhone.rows.length > 0) {
-          return error(res, 'Account already exists with this phone number. Please sign in.', 'CONFLICT', 409);
+      if (email && password) {
+        const existingUser = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+        if (existingUser.rows.length > 0) {
+          throw new Error('Account already exists with this email. Please sign in.');
+        }
+        
+        if (mobileNumber) {
+          const existingPhone = await client.query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
+          if (existingPhone.rows.length > 0) {
+            throw new Error('Account already exists with this phone number. Please sign in.');
+          }
+        }
+        
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const newRefCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+        let referredById = null;
+        if (referralCode) {
+          const referrerRes = await client.query('SELECT id FROM users WHERE referral_code = $1', [referralCode.toUpperCase()]);
+          if (referrerRes.rows.length > 0) {
+            referredById = referrerRes.rows[0].id;
+          }
+        }
+        
+        const userResult = await client.query(
+          "INSERT INTO users (email, name, password_hash, mobile_number, status, referral_code, referred_by) VALUES ($1, $2, $3, $4, 'active', $5, $6) RETURNING id, email, name, mobile_number, status, referral_code, country",
+          [email, name, hashedPassword, mobileNumber || null, newRefCode, referredById]
+        );
+        userRecord = userResult.rows[0];
+        isNewRecord = true;
+      } else {
+        if (!mobileNumber || !otp) {
+          throw new Error('Phone number and OTP are required');
+        }
+        if (otp !== '1234' && otp !== '123456') {
+          throw new Error('Invalid phone number or OTP');
+        }
+        const existingUser = await client.query(`SELECT * FROM users WHERE ${normalizedPhoneSql} = $1`, [normalizedPhone(mobileNumber)]);
+        if (existingUser.rows.length > 0) {
+          throw new Error('Account already exists with this phone number. Please sign in.');
+        }
+        
+        const newRefCode = crypto.randomBytes(4).toString('hex').toUpperCase();
+        let referredById = null;
+        if (referralCode) {
+          const referrerRes = await client.query('SELECT id FROM users WHERE referral_code = $1', [referralCode.toUpperCase()]);
+          if (referrerRes.rows.length > 0) {
+            referredById = referrerRes.rows[0].id;
+          }
+        }
+        
+        const userResult = await client.query(
+          "INSERT INTO users (mobile_number, name, status, referral_code, referred_by) VALUES ($1, $2, 'active', $3, $4) RETURNING id, email, name, mobile_number, status, referral_code, country",
+          [mobileNumber, name, newRefCode, referredById]
+        );
+        userRecord = userResult.rows[0];
+        isNewRecord = true;
+      }
+
+      if (isNewRecord) {
+        const roleResult = await client.query("SELECT id FROM roles WHERE code = 'customer'");
+        if (roleResult.rows.length > 0) {
+          const roleId = roleResult.rows[0].id;
+          await client.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userRecord.id, roleId]);
         }
       }
-      
-      const hashedPassword = await bcrypt.hash(password, 10);
-      
-      // Referral Logic
-      const newRefCode = crypto.randomBytes(4).toString('hex').toUpperCase();
-      let referredById = null;
-      if (referralCode) {
-        const referrerRes = await query('SELECT id FROM users WHERE referral_code = $1', [referralCode.toUpperCase()]);
-        if (referrerRes.rows.length > 0) {
-          referredById = referrerRes.rows[0].id;
-        }
-      }
-      
-      const userResult = await query(
-        "INSERT INTO users (email, name, password_hash, mobile_number, status, referral_code, referred_by) VALUES ($1, $2, $3, $4, 'active', $5, $6) RETURNING id, email, name, mobile_number, status, referral_code",
-        [email, name, hashedPassword, mobileNumber || null, newRefCode, referredById]
+
+      const rolesResult = await client.query(
+        'SELECT r.code FROM roles r JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id = $1',
+        [userRecord.id]
       );
-      user = userResult.rows[0];
-      isNew = true;
-    } else {
-      // Phone OTP Registration Flow
-      if (!mobileNumber || !otp) {
-        return error(res, 'Phone number and OTP are required', 'BAD_REQUEST', 400);
-      }
+      const rolesArray = rolesResult.rows.map((row) => row.code);
 
-      if (otp !== '1234' && otp !== '123456') {
-        return error(res, 'Invalid phone number or OTP', 'UNAUTHORIZED', 401);
-      }
-
-      const existingUser = await query(`SELECT * FROM users WHERE ${normalizedPhoneSql} = $1`, [normalizedPhone(mobileNumber)]);
-      if (existingUser.rows.length > 0) {
-        return error(res, 'Account already exists with this phone number. Please sign in.', 'CONFLICT', 409);
-      }
-      
-      // Referral Logic
-      const newRefCode = crypto.randomBytes(4).toString('hex').toUpperCase();
-      let referredById = null;
-      if (referralCode) {
-        const referrerRes = await query('SELECT id FROM users WHERE referral_code = $1', [referralCode.toUpperCase()]);
-        if (referrerRes.rows.length > 0) {
-          referredById = referrerRes.rows[0].id;
+      let gId = undefined;
+      if (rolesArray.includes('garage')) {
+        const garageResult = await client.query('SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1', [userRecord.id]);
+        if (garageResult.rows.length > 0) {
+          gId = garageResult.rows[0].id;
         }
       }
-      
-      const userResult = await query(
-        "INSERT INTO users (mobile_number, name, status, referral_code, referred_by) VALUES ($1, $2, 'active', $3, $4) RETURNING id, email, name, mobile_number, status, referral_code",
-        [mobileNumber, name, newRefCode, referredById]
-      );
-      user = userResult.rows[0];
-      isNew = true;
-    }
 
-    if (isNew) {
-      // SECURITY: Public registration always assigns 'customer'. Privileged roles
-      // (admin, garage) are only assigned through authenticated admin workflows.
-      const roleResult = await query("SELECT id FROM roles WHERE code = 'customer'");
-      if (roleResult.rows.length > 0) {
-        const roleId = roleResult.rows[0].id;
-        await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [user.id, roleId]);
-      }
-    }
-
-    const rolesResult = await query(
-      'SELECT r.code FROM roles r JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id = $1',
-      [user.id]
-    );
-    const roles = rolesResult.rows.map((row) => row.code);
-
-    let garageId = undefined;
-    if (roles.includes('garage')) {
-      const garageResult = await query('SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1', [user.id]);
-      if (garageResult.rows.length > 0) {
-        garageId = garageResult.rows[0].id;
-      }
-    }
+      return { user: userRecord, roles: rolesArray, garageId: gId, isNew: isNewRecord };
+    });
 
     const accessToken = generateAccessToken({ userId: user.id, name: user.name, roles, garageId });
     const refreshToken = generateRefreshToken({ userId: user.id });
@@ -302,7 +300,13 @@ authRouter.post('/register', async (req, res, next) => {
         country: user.country,
       }
     }, 201);
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message.includes('Account already exists')) {
+      return error(res, err.message, 'CONFLICT', 409);
+    }
+    if (err.message.includes('required') || err.message.includes('Invalid')) {
+      return error(res, err.message, 'BAD_REQUEST', 400);
+    }
     next(err);
   }
 });
@@ -318,92 +322,100 @@ authRouter.post('/login', async (req, res, next) => {
   try {
     let user;
     let isNew = false;
-
-    if (provider) {
-      if (provider !== 'google' && provider !== 'apple') {
-        return error(res, 'Invalid OAuth provider', 'BAD_REQUEST', 400);
-      }
-
-      // For a production app, verify OAuth token against provider (Google/Apple)
-      // For now, if no real provider verification is passed via /google endpoint, reject it.
-      return error(res, 'Direct provider mock login is disabled in production.', 'UNAUTHORIZED', 401);
-    } else if (email && password) {
-      // Email/Password login (primarily for Admin)
-      const existingUser = await query('SELECT * FROM users WHERE email = $1', [email]);
-      if (existingUser.rows.length === 0) {
-        return error(res, 'Invalid email or password', 'UNAUTHORIZED', 401);
-      }
-      user = existingUser.rows[0];
-      
-      if (!user.password_hash || !bcrypt.compareSync(password, user.password_hash)) {
-        return error(res, 'Invalid email or password', 'UNAUTHORIZED', 401);
-      }
-    } else {
-      if (!mobileNumber || !otp) {
-        return error(res, 'Phone number and OTP are required', 'BAD_REQUEST', 400);
-      }
-      
-      if (otp === '1234' || otp === '123456') {
-        const existingUser = await query(`SELECT * FROM users WHERE ${normalizedPhoneSql} = $1`, [normalizedPhone(mobileNumber)]);
-        
-        if (existingUser.rows.length > 0) {
-          user = existingUser.rows[0];
-          // Update name if they login with the special demo number
-          if (mobileNumber === '9876543210') {
-            user.name = user.name || 'User';
-          }
-          // Sync the selected country from the login form
-          const countryToSave = req.body.country || 'IN';
-          if (user.country !== countryToSave) {
-            await query('UPDATE users SET country = $1 WHERE id = $2', [countryToSave, user.id]);
-            user.country = countryToSave;
-          }
-        } else {
-          // If user doesn't exist, auto-register them
-          isNew = true;
-          const userResult = await query(
-            "INSERT INTO users (mobile_number, name, status, country) VALUES ($1, $2, 'active', $3) RETURNING id, mobile_number, name, status, country",
-            [mobileNumber, mobileNumber === '9876543210' ? 'User' : 'Customer', req.body.country || 'IN']
-          );
-          user = userResult.rows[0];
-          const roleResult = await query("SELECT id FROM roles WHERE code = 'customer'");
-          if (roleResult.rows.length > 0) {
-            await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, roleResult.rows[0].id]);
-          }
-        }
-      } else {
-        return error(res, 'Invalid phone number or OTP', 'UNAUTHORIZED', 401);
-      }
-    }
-
-    const rolesResult = await query(
-      'SELECT r.code FROM roles r JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id = $1',
-      [user.id]
-    );
-    const roles = rolesResult.rows.map((row) => row.code);
-
-    // Fallback: If user has no roles (e.g. created before RBAC enforcement), assign 'customer' role
-    if (roles.length === 0) {
-      const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'customer'");
-      if (defaultRole.rows.length > 0) {
-        await query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2)', [user.id, defaultRole.rows[0].id]);
-        roles.push(defaultRole.rows[0].code);
-      }
-    }
-
+    let roles: string[] = [];
     let garageName = undefined;
     let garageId = undefined;
     let garages: any[] = [];
-    if (roles.includes('garage')) {
-      const garageResult = await query('SELECT id, name FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 100', [user.id]);
-      if (garageResult.rows.length > 0) {
-        garages = garageResult.rows.map(g => ({ id: g.id, name: g.name }));
-        garageId = garageResult.rows[0].id;
-        garageName = garageResult.rows[0].name;
-      }
-    }
+    let requiresPasswordChange = false;
 
-    const requiresPasswordChange = checkIfPasswordResetRequired(user.password_hash, roles);
+    const txResult = await withTransaction(async (client) => {
+      let userRecord;
+      let isNewRecord = false;
+      
+      if (provider) {
+        if (provider !== 'google' && provider !== 'apple') {
+          throw new Error('Invalid OAuth provider');
+        }
+        throw new Error('Direct provider mock login is disabled in production.');
+      } else if (email && password) {
+        const existingUser = await client.query('SELECT * FROM users WHERE email = $1', [email]);
+        if (existingUser.rows.length === 0) {
+          throw new Error('Invalid email or password');
+        }
+        userRecord = existingUser.rows[0];
+        if (!userRecord.password_hash || !bcrypt.compareSync(password, userRecord.password_hash)) {
+          throw new Error('Invalid email or password');
+        }
+      } else {
+        if (!mobileNumber || !otp) {
+          throw new Error('Phone number and OTP are required');
+        }
+        if (otp === '1234' || otp === '123456') {
+          const existingUser = await client.query(`SELECT * FROM users WHERE ${normalizedPhoneSql} = $1`, [normalizedPhone(mobileNumber)]);
+          if (existingUser.rows.length > 0) {
+            userRecord = existingUser.rows[0];
+            if (mobileNumber === '9876543210') {
+              userRecord.name = userRecord.name || 'User';
+            }
+            const countryToSave = req.body.country || 'IN';
+            if (userRecord.country !== countryToSave) {
+              await client.query('UPDATE users SET country = $1 WHERE id = $2', [countryToSave, userRecord.id]);
+              userRecord.country = countryToSave;
+            }
+          } else {
+            isNewRecord = true;
+            const userResult = await client.query(
+              "INSERT INTO users (mobile_number, name, status, country) VALUES ($1, $2, 'active', $3) RETURNING id, mobile_number, name, status, country, email",
+              [mobileNumber, mobileNumber === '9876543210' ? 'User' : 'Customer', req.body.country || 'IN']
+            );
+            userRecord = userResult.rows[0];
+            const roleResult = await client.query("SELECT id FROM roles WHERE code = 'customer'");
+            if (roleResult.rows.length > 0) {
+              await client.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userRecord.id, roleResult.rows[0].id]);
+            }
+          }
+        } else {
+          throw new Error('Invalid phone number or OTP');
+        }
+      }
+
+      const rolesResult = await client.query(
+        'SELECT r.code FROM roles r JOIN user_roles ur ON r.id = ur.role_id WHERE ur.user_id = $1',
+        [userRecord.id]
+      );
+      const rolesArray = rolesResult.rows.map((row) => row.code);
+
+      if (rolesArray.length === 0) {
+        const defaultRole = await client.query("SELECT id, code FROM roles WHERE code = 'customer'");
+        if (defaultRole.rows.length > 0) {
+          await client.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userRecord.id, defaultRole.rows[0].id]);
+          rolesArray.push(defaultRole.rows[0].code);
+        }
+      }
+
+      let gName = undefined;
+      let gId = undefined;
+      let gList: any[] = [];
+      if (rolesArray.includes('garage')) {
+        const garageResult = await client.query('SELECT id, name FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 100', [userRecord.id]);
+        if (garageResult.rows.length > 0) {
+          gList = garageResult.rows.map((g: any) => ({ id: g.id, name: g.name }));
+          gId = garageResult.rows[0].id;
+          gName = garageResult.rows[0].name;
+        }
+      }
+
+      return { user: userRecord, isNew: isNewRecord, roles: rolesArray, garageName: gName, garageId: gId, garages: gList };
+    });
+
+    user = txResult.user;
+    isNew = txResult.isNew;
+    roles = txResult.roles;
+    garageName = txResult.garageName;
+    garageId = txResult.garageId;
+    garages = txResult.garages;
+
+    requiresPasswordChange = checkIfPasswordResetRequired(user.password_hash, roles);
 
     const accessToken = generateAccessToken({ userId: user.id, email: user.email, name: user.name, roles, garageId });
     const refreshToken = generateRefreshToken({ userId: user.id });
@@ -444,7 +456,13 @@ authRouter.post('/login', async (req, res, next) => {
       },
       requiresPasswordChange
     });
-  } catch (err) {
+  } catch (err: any) {
+    if (err.message === 'Invalid email or password' || err.message === 'Invalid phone number or OTP' || err.message === 'Direct provider mock login is disabled in production.') {
+      return error(res, err.message, 'UNAUTHORIZED', 401);
+    }
+    if (err.message.includes('required') || err.message.includes('Invalid')) {
+      return error(res, err.message, 'BAD_REQUEST', 400);
+    }
     next(err);
   }
 });
