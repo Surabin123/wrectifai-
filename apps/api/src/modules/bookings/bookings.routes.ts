@@ -13,6 +13,7 @@ export const bookingsRouter = Router();
 
 // Helper: resolve garageId from token or DB
 async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<string | null> {
+  if (tokenGarageId) return tokenGarageId;
   const result = await query(
     'SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1',
     [userId]
@@ -955,7 +956,7 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
     }
 
     let currentWalletUsed = Number(booking.wallet_used || 0);
-    let finalAmount = Number(booking.total_amount) - Number(booking.discount_applied || 0);
+    const finalAmount = Number(booking.total_amount) - Number(booking.discount_applied || 0);
 
     if (walletAmountToUse !== undefined && walletAmountToUse > currentWalletUsed) {
        const additionalWallet = walletAmountToUse - currentWalletUsed;
@@ -1107,7 +1108,7 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
     const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     let garageCheck = '';
     const params: any[] = [bookingId];
-    let authorizedGarageId: string | null = null;
+    const authorizedGarageId: string | null = null;
     
     if (userRoles.includes('garage') && !userRoles.includes('admin')) {
       if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);

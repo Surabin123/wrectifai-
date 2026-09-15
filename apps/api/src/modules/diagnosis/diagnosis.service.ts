@@ -500,6 +500,36 @@ Rules:
 
     // Validate and process uploaded media files
     const validatedMedia = mediaInputs.map(input => {
+      if (input.url.startsWith('data:')) {
+        const matches = input.url.match(/^data:([^;]+);base64,(.*)$/s);
+        if (!matches) {
+          throw new Error(`Invalid data URL format for ${input.mediaType}`);
+        }
+        const mime = matches[1];
+        const base64Data = matches[2];
+        const sizeInBytes = (base64Data.length * 3) / 4;
+
+        if (input.mediaType === 'image' && !mime.startsWith('image/')) {
+          throw new Error(`Unsupported or invalid MIME type for image: ${mime}`);
+        }
+        if (input.mediaType === 'audio' && !mime.startsWith('audio/')) {
+          throw new Error(`Unsupported or invalid MIME type for audio: ${mime}`);
+        }
+
+        const maxImageBytes = 10 * 1024 * 1024;
+        const maxAudioBytes = 25 * 1024 * 1024;
+        if (input.mediaType === 'image' && sizeInBytes > maxImageBytes) {
+          throw new Error(`File size exceeds the limit of 10MB for image`);
+        }
+        if (input.mediaType === 'audio' && sizeInBytes > maxAudioBytes) {
+          throw new Error(`File size exceeds the limit of 25MB for audio`);
+        }
+
+        const buffer = Buffer.from(base64Data, 'base64');
+        const ext = mime.split('/')[1] || 'tmp';
+        return { mediaType: input.mediaType, buffer, extension: ext, url: input.url };
+      }
+
       // The file is already uploaded to the provided url (e.g., /uploads/diagnosis/filename.ext)
       const relativePath = input.url.replace(/^\//, ''); // remove leading slash
       const absolutePath = path.join(process.cwd(), relativePath);
@@ -557,7 +587,6 @@ Rules:
       url: m.url
     }));
 
-    let result: DiagnosisResult;
     let finalSymptomText = symptomText;
 
     // 3. Call LLM (Vercel AI SDK OpenAI or Groq)
@@ -788,7 +817,7 @@ The required JSON schema is:
       // This should theoretically not be reached now because of the fallback above
       throw new Error(`Failed to generate LLM response: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
     }
-    result = DiagnosisService.applySafetyGuardrail(llmResponseObj, symptomText, matchedIssues);
+    const result = DiagnosisService.applySafetyGuardrail(llmResponseObj, symptomText, matchedIssues);
 
     // 5. Database Transaction Persistence
     const pool = getDbPool();

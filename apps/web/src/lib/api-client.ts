@@ -18,6 +18,7 @@ const getBaseUrl = (): string => {
   
   if (url.endsWith('/api/v1')) return url;
   if (url.endsWith('/api')) return `${url}/v1`;
+  if (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL) return url;
   return `${url}/api/v1`;
 };
 
@@ -52,13 +53,21 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
   const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
 
+  let token: string | null = null;
+  if (typeof localStorage !== 'undefined') {
+    token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+  }
+
+  const defaultHeaders: Record<string, string> = {
+    ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+    ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(options.headers as Record<string, string>),
+  };
+
   let config: RequestOptions = {
     ...options,
     credentials: 'include', // Send HttpOnly cookies automatically
-    headers: {
-      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
-      ...options.headers,
-    },
+    headers: defaultHeaders,
   };
 
   // 2. Run request interceptors
@@ -68,7 +77,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
   let response: Response;
   try {
-    response = await fetch(url, config);
+    response = await fetch(url, { ...config, headers: { ...config.headers } });
   } catch (err) {
     throw new ApiError(err instanceof Error ? err.message : 'Network error', 0);
   }
@@ -85,14 +94,22 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
       if (!refreshPromise) {
         refreshPromise = (async () => {
           try {
+            const storedRefreshToken = typeof localStorage !== 'undefined' ? localStorage.getItem('refreshToken') : null;
             const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
               method: 'POST',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
+              body: storedRefreshToken ? JSON.stringify({ refreshToken: storedRefreshToken }) : undefined,
             });
 
             if (!refreshRes.ok) {
               throw new Error('Refresh failed');
+            }
+
+            const refreshJson = await refreshRes.json();
+            const newAccessToken = refreshJson?.data?.accessToken || refreshJson?.accessToken;
+            if (newAccessToken && typeof localStorage !== 'undefined') {
+              localStorage.setItem('accessToken', newAccessToken);
             }
 
             return 'REFRESHED';
@@ -107,7 +124,13 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
       await refreshPromise;
       
-      const retryRes = await fetch(url, config);
+      const retryToken = typeof localStorage !== 'undefined' ? (localStorage.getItem('accessToken') || localStorage.getItem('token')) : null;
+      const retryHeaders = {
+        ...(config.headers as Record<string, string>),
+        ...(retryToken ? { 'Authorization': `Bearer ${retryToken}` } : {}),
+      };
+
+      const retryRes = await fetch(url, { ...config, headers: retryHeaders });
       return handleResponse<T>(retryRes);
     }
   }

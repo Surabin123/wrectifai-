@@ -139,12 +139,16 @@ authRouter.post('/google', async (req, res) => {
   try {
     const googlePayload = await verifyGoogleIdToken(token);
     const deviceInfo = req.headers['user-agent'];
-    const ipAddress = req.ip || (req.headers['x-forwarded-for'] as string) || '';
+    const ipAddress = (req.socket ? req.ip : undefined) || (req.headers['x-forwarded-for'] as string) || '';
     const authResult = await handleUserLoginOrRegister(googlePayload.email, googlePayload.name, deviceInfo, ipAddress);
     
     setTokensInCookies(res, authResult.accessToken, authResult.refreshToken);
     
-    return success(res, { user: authResult.user }, 200);
+    return success(res, {
+      user: authResult.user,
+      accessToken: authResult.accessToken,
+      refreshToken: authResult.refreshToken,
+    }, 200);
   } catch (err) {
     return error(res, err instanceof Error ? err.message : 'Google authentication failed', 'UNAUTHORIZED', 401);
   }
@@ -168,7 +172,8 @@ authRouter.post('/check-user', async (req, res, next) => {
 });
 
 authRouter.post('/register', async (req, res, next) => {
-  let { mobileNumber, name, otp, email, password, country, referralCode } = req.body;
+  const { mobileNumber, name, otp, password, country, referralCode } = req.body;
+  let { email } = req.body;
   if ((email && typeof email !== 'string') || (password && typeof password !== 'string') || (name && typeof name !== 'string') || (mobileNumber && typeof mobileNumber !== 'string') || (otp && typeof otp !== 'string')) {
     return error(res, 'Invalid input format', 'BAD_REQUEST', 400);
   }
@@ -303,7 +308,8 @@ authRouter.post('/register', async (req, res, next) => {
 });
 
 authRouter.post('/login', async (req, res, next) => {
-  let { mobileNumber, otp, provider, email, password } = req.body;
+  const { mobileNumber, otp, provider, password } = req.body;
+  let { email } = req.body;
   if ((email && typeof email !== 'string') || (password && typeof password !== 'string') || (mobileNumber && typeof mobileNumber !== 'string') || (otp && typeof otp !== 'string') || (provider && typeof provider !== 'string')) {
     return error(res, 'Invalid input format', 'BAD_REQUEST', 400);
   }
@@ -403,7 +409,7 @@ authRouter.post('/login', async (req, res, next) => {
     const refreshToken = generateRefreshToken({ userId: user.id });
 
     const deviceInfo = req.headers['user-agent'];
-    const ipAddress = req.ip || (req.headers['x-forwarded-for'] as string) || '';
+    const ipAddress = (req.socket ? req.ip : undefined) || (req.headers['x-forwarded-for'] as string) || '';
 
     await storeRefreshToken(user.id, refreshToken, deviceInfo, ipAddress);
 
@@ -444,7 +450,7 @@ authRouter.post('/login', async (req, res, next) => {
 });
 
 authRouter.post('/refresh', async (req, res) => {
-  const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+  const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
   if (!refreshToken) {
     return error(res, 'Refresh token is required', 'BAD_REQUEST', 400);
   }
@@ -485,14 +491,14 @@ authRouter.post('/refresh', async (req, res) => {
 
     setTokensInCookies(res, newAccessToken, refreshToken);
 
-    return success(res, { message: 'Token refreshed successfully' });
+    return success(res, { accessToken: newAccessToken, refreshToken, message: 'Token refreshed successfully' });
   } catch (err) {
     return error(res, err instanceof Error ? err.message : 'Invalid refresh token', 'UNAUTHORIZED', 401);
   }
 });
 
 authRouter.post('/logout', async (req, res) => {
-  const refreshToken = req.cookies.refreshToken || req.body.refreshToken;
+  const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
   if (refreshToken) {
     try {
       await deleteRefreshTokenInDb(refreshToken);

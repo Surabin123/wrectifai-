@@ -469,15 +469,6 @@ paymentsRouter.post('/webhook', async (req, res) => {
         if (notes.type === 'wallet_topup' && notes.userId) {
           await client.query(`UPDATE payments SET provider_order_id=$1, provider_payment_id=$2, transaction_id=$1, status='succeeded'
             WHERE customer_user_id=$3 AND amount=$4 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.userId, amount]);
-          const wt = await client.query(`SELECT wt.id, wt.wallet_id, wt.amount FROM wallet_transactions wt JOIN wallets w ON w.id=wt.wallet_id
-            WHERE w.user_id=$1 AND wt.reference_type='WALLET_TOPUP' AND wt.status='PENDING' AND wt.reference_id <> $2
-            ORDER BY wt.created_at DESC LIMIT 1 FOR UPDATE`, [notes.userId, providerIntentId]);
-          if (wt.rows.length) {
-            const row=wt.rows[0]; const w=await client.query('SELECT balance FROM wallets WHERE id=$1 FOR UPDATE',[row.wallet_id]);
-            const before=Number(w.rows[0].balance), after=before+Number(row.amount);
-            await client.query('UPDATE wallets SET balance=$1,updated_at=NOW() WHERE id=$2',[after,row.wallet_id]);
-            await client.query(`UPDATE wallet_transactions SET type='CREDIT',status='COMPLETED',reference_type='TOPUP',reference_id=$1,balance_before=$2,balance_after=$3 WHERE id=$4 AND status='PENDING'`,[paymentEntity.id,before,after,row.id]);
-          }
         }
       }
     } else if (webhookBody.event === 'payment.failed') {

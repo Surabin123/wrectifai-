@@ -218,9 +218,15 @@ export function BookingsPage() {
         setPaymentProcessingId(null);
         return;
       }
+      const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+      if (!razorpayKey) {
+        setPaymentError('Razorpay is not configured. Please contact support.');
+        setPaymentProcessingId(null);
+        return;
+      }
 
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_mock123',
+        key: razorpayKey,
         amount: Math.round(finalAmountToPay * 100),
         currency: 'INR',
         name: 'WrectifAI Services',

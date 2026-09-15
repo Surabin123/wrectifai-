@@ -205,8 +205,12 @@ export function CartPage() {
       const loaded = await loadRazorpayScript();
       if (!loaded) throw new Error("Razorpay script failed to load");
       
+      const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;
+      if (!razorpayKey) {
+        throw new Error("Razorpay is not configured. Please contact support.");
+      }
       const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_mock123',
+        key: razorpayKey,
         amount: payRes.amount,
         currency: payRes.currency,
         name: 'WrectifAI Shop',

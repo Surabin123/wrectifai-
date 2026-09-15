@@ -7,7 +7,16 @@ export function errorHandler(
   res: Response,
   _next: NextFunction
 ) {
-  console.error(err);
+  if (err instanceof Error) {
+    const safeError: any = { message: err.message, name: err.name, stack: err.stack };
+    const status = (err as any).status;
+    const code = (err as any).code;
+    if (status) safeError.status = status;
+    if (code) safeError.code = code;
+    console.error('[SafeError]', safeError);
+  } else {
+    console.error('[Error]', String(err));
+  }
 
   const status = (err as any).status || 500;
   const code = (err as any).code || 'INTERNAL_SERVER_ERROR';
