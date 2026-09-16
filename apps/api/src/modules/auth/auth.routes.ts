@@ -15,6 +15,7 @@ import crypto from 'crypto';
 import { authenticate, requireRole } from '../../middleware/auth';
 import { CookieOptions, Response } from 'express';
 import { NotificationsService } from '../notifications/notifications.service';
+import { AuditLogService } from '../../services/audit.service';
 import { getEnv } from '../../config/env';
 import { rateLimiter } from '../../middleware/rate-limiter';
 
@@ -778,6 +779,7 @@ authRouter.post('/forgot-password', forgotPasswordLimiter, async (req, res) => {
 
 // Reset Password
 authRouter.post('/reset-password', resetPasswordLimiter, async (req, res) => {
+  res.setHeader('Referrer-Policy', 'no-referrer');
   const client = await getDbPool().connect();
   try {
     const { token, newPassword } = req.body;
@@ -815,7 +817,21 @@ authRouter.post('/reset-password', resetPasswordLimiter, async (req, res) => {
     await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [newHash, userId]);
     await client.query('UPDATE password_resets SET used = true WHERE user_id = $1', [userId]);
 
+    // Finding #8 Fix: Revoke all active refresh tokens for the user upon password reset
+    await client.query('DELETE FROM refresh_tokens WHERE user_id = $1', [userId]);
+
     await client.query('COMMIT');
+
+    // Finding #10 Fix: Record security audit log
+    AuditLogService.logAction({
+      userId,
+      action: 'PASSWORD_RESET_SUCCESS',
+      resourceType: 'user',
+      resourceId: userId,
+      ipAddress: req.ip || req.socket?.remoteAddress || null,
+      userAgent: req.headers['user-agent'] || null,
+    });
+
     return success(res, { message: 'Password has been successfully reset. You can now login.' });
   } catch (err) {
     await client.query('ROLLBACK');

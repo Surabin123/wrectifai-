@@ -11,14 +11,15 @@ export async function verifyGoogleIdToken(token: string): Promise<GoogleUserPayl
   const { googleClientId } = getEnv();
   const isProduction = process.env.NODE_ENV === 'production';
   const hasPlaceholderClientId = !googleClientId || googleClientId === 'your-google-client-id-here';
+  const isMockAuthAllowed = !isProduction && (process.env.ENABLE_MOCK_AUTH === 'true' || process.env.NODE_ENV === 'test');
 
-  // Mock OAuth is strictly development-only. Production must fail closed when
-  // OAuth is not configured or a mock token is supplied.
-  if (isProduction && (hasPlaceholderClientId || token.startsWith('mock_'))) {
+  // Mock OAuth is strictly development/test-only and requires explicit ENABLE_MOCK_AUTH=true flag or test environment.
+  // Production must fail closed when OAuth is not configured or a mock token is supplied.
+  if (!isMockAuthAllowed && (hasPlaceholderClientId || token.startsWith('mock_'))) {
     throw new Error('Google OAuth is not configured for production');
   }
 
-  if (!isProduction && (hasPlaceholderClientId || token.startsWith('mock_'))) {
+  if (isMockAuthAllowed && (hasPlaceholderClientId || token.startsWith('mock_'))) {
     console.warn('[auth] Using Google OAuth ID Token verification MOCK mode.');
     let email = 'google-user@wrectifai.com';
     let name = 'Google User';

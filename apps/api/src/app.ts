@@ -59,7 +59,13 @@ export function createApp() {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
-    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.razorpay.com https://api.groq.com; frame-src https://api.razorpay.com;");
+    
+    // Finding #9 Fix: Remove 'unsafe-inline' from script-src in production builds
+    const cspScriptSrc = env.nodeEnv === 'production'
+      ? "default-src 'self'; script-src 'self' https://checkout.razorpay.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.razorpay.com https://api.groq.com; frame-src https://api.razorpay.com;"
+      : "default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.razorpay.com https://api.groq.com; frame-src https://api.razorpay.com;";
+    res.setHeader('Content-Security-Policy', cspScriptSrc);
+
     if (env.nodeEnv === 'production') {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
@@ -76,7 +82,16 @@ export function createApp() {
     }
   });
 
-  // Global rate limiter: 1000 requests per 15 minutes
+  // Tiered Rate Limiters (Finding #3 Fix)
+  // Sensitive endpoints (Payments, Diagnosis/AI, Uploads) capped to 100 req/15min per IP
+  const sensitiveEndpointLimiter = rateLimiter({
+    windowMs: 15 * 60 * 1000,
+    max: 100,
+    message: 'Too many requests to sensitive operation, please try again after 15 minutes',
+  });
+  app.use(['/api/v1/payments', '/api/payments', '/api/v1/diagnosis', '/api/diagnosis', '/api/v1/garages/upload-image', '/api/garages/upload-image'], sensitiveEndpointLimiter);
+
+  // Global rate limiter for general endpoints: 1000 requests per 15 minutes
   app.use(
     rateLimiter({
       windowMs: 15 * 60 * 1000,
