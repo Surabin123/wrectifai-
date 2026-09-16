@@ -83,23 +83,15 @@ export function createApp() {
       return next();
     }
     
-    // Only apply CSRF protection if potentially authenticated via cookies.
-    if (!req.cookies?.accessToken) {
+    // Apply CSRF protection if potentially authenticated via cookies (access or refresh token).
+    const hasAuthCookie = Boolean(req.cookies?.accessToken) || Boolean(req.cookies?.refreshToken);
+    if (!hasAuthCookie) {
       return next();
     }
 
-    // Exempt public auth endpoints from CSRF checks (needed when an expired accessToken cookie is still present)
-    const publicAuthRoutes = [
-      '/api/v1/auth/login',
-      '/api/v1/auth/register',
-      '/api/v1/auth/verify-otp',
-      '/api/v1/auth/google',
-      '/api/v1/auth/check-user',
-      '/api/v1/auth/refresh',
-      '/api/v1/auth/forgot-password',
-      '/api/v1/auth/reset-password'
-    ];
-    if (publicAuthRoutes.some(route => req.path === route || req.path === route.replace('/api/v1', '/api'))) {
+    // Exempt public auth endpoints from CSRF checks (needed when an expired cookie is still present)
+    const isPublicAuthRoute = /^\/api(?:\/v1)?\/auth\/(?:login|register|verify-otp|google|check-user)$/.test(req.path);
+    if (isPublicAuthRoute) {
       return next();
     }
 

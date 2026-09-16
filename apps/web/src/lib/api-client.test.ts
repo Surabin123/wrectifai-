@@ -73,7 +73,7 @@ test('apiClient - Base URL construction', async () => {
   process.env.NEXT_PUBLIC_API_URL = 'https://custom-api.example.com/v2';
   setupMockFetch([{ status: 200, statusText: 'OK', json: { data: { success: true } } }]);
   await apiClient('/test-endpoint');
-  assert.strictEqual(fetchCalls[1].url, 'https://custom-api.example.com/v2/test-endpoint');
+  assert.strictEqual(fetchCalls[1].url, 'https://custom-api.example.com/v2/api/v1/test-endpoint');
 });
 
 test('apiClient - Auth header injection', async () => {

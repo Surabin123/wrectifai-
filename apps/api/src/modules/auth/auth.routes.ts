@@ -36,6 +36,29 @@ const cookieConfig: CookieOptions = {
 };
 
 function setTokensInCookies(res: Response, accessToken: string, refreshToken: string) {
+  // Clear legacy SameSite=None cookies to prevent session confusion
+  const legacyCookieConfig: CookieOptions = {
+    httpOnly: true,
+    secure: true,
+    sameSite: 'none',
+    path: '/',
+  };
+  res.clearCookie('accessToken', legacyCookieConfig);
+  res.clearCookie('refreshToken', legacyCookieConfig);
+  res.clearCookie('XSRF-TOKEN', { ...legacyCookieConfig, httpOnly: false });
+
+  // Clear Lax variants as well before establishing new session
+  const laxCookieConfig: CookieOptions = {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+  };
+  res.clearCookie('accessToken', laxCookieConfig);
+  res.clearCookie('refreshToken', laxCookieConfig);
+  res.clearCookie('XSRF-TOKEN', { ...laxCookieConfig, httpOnly: false });
+
+  // Set the new cookies using the configured SameSite=None (kept for cross-site Render deployment)
   res.cookie('accessToken', accessToken, cookieConfig);
   res.cookie('refreshToken', refreshToken, cookieConfig);
   const csrfToken = crypto.randomBytes(32).toString('hex');

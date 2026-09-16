@@ -13,13 +13,17 @@ export class ApiError extends Error {
 }
 
 const getBaseUrl = (): string => {
-  let url = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
-  url = url.replace(/\/+$/, ''); // Remove trailing slashes
-  
-  if (url.endsWith('/api/v1')) return url;
-  if (url.endsWith('/api')) return `${url}/v1`;
-  if (process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL) return url;
-  return `${url}/api/v1`;
+  const configured =
+    process.env.NEXT_PUBLIC_API_URL ||
+    process.env.NEXT_PUBLIC_API_BASE_URL;
+
+  if (!configured) {
+    return 'http://localhost:3000/api/v1';
+  }
+
+  return configured.replace(/\/+$/, '').endsWith('/api/v1')
+    ? configured.replace(/\/+$/, '')
+    : `${configured.replace(/\/+$/, '')}/api/v1`;
 };
 
 export interface RequestOptions extends RequestInit {
