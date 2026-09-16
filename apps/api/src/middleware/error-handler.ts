@@ -18,8 +18,8 @@ export function errorHandler(
     console.error('[Error]', String(err));
   }
 
-  const status = (err as any).status || 500;
-  const code = (err as any).code || 'INTERNAL_SERVER_ERROR';
+  const status = (err as any).statusCode || (err as any).status || 500;
+  const code = (err as any).errorCode || (err as any).code || 'INTERNAL_SERVER_ERROR';
   const details = (err as any).details;
 
   // In production, never leak raw exception messages to the client.

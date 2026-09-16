@@ -53,14 +53,27 @@ export function createApp() {
     })
   );
 
-  // Security Headers
+  // Security Headers (CSP, Referrer-Policy, Permissions-Policy, HSTS)
   app.use((_req, res, next) => {
     res.setHeader('X-Frame-Options', 'SAMEORIGIN');
     res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Content-Security-Policy', "default-src 'self'; script-src 'self' 'unsafe-inline' https://checkout.razorpay.com; img-src 'self' data: https:; style-src 'self' 'unsafe-inline'; connect-src 'self' https://api.razorpay.com https://api.groq.com; frame-src https://api.razorpay.com;");
     if (env.nodeEnv === 'production') {
       res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
     }
     next();
+  });
+
+  // Readiness Probe Endpoint (/ready) - Phase 15 deliverable
+  app.get(['/ready', '/api/v1/ready'], async (_req, res) => {
+    try {
+      await query('SELECT 1');
+      return res.status(200).json({ status: 'ready', database: 'connected', timestamp: new Date().toISOString() });
+    } catch (err) {
+      return res.status(503).json({ status: 'unready', database: 'disconnected', timestamp: new Date().toISOString() });
+    }
   });
 
   // Global rate limiter: 1000 requests per 15 minutes
