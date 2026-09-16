@@ -253,7 +253,7 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
         }
         
         const userResult = await client.query(
-          "INSERT INTO users (email, name, password_hash, mobile_number, status, referral_code, referred_by) VALUES ($1, $2, $3, $4, 'active', $5, $6) RETURNING id, email, name, mobile_number, status, referral_code, country",
+          "INSERT INTO users (email, name, password_hash, mobile_number, status, referral_code, referred_by) VALUES ($1, $2, $3, $4, 'active', $5, $6) RETURNING id, email, name, mobile_number, status, referral_code",
           [email, name, hashedPassword, mobileNumber || null, newRefCode, referredById]
         );
         userRecord = userResult.rows[0];
@@ -280,7 +280,7 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
         }
         
         const userResult = await client.query(
-          "INSERT INTO users (mobile_number, name, status, referral_code, referred_by) VALUES ($1, $2, 'active', $3, $4) RETURNING id, email, name, mobile_number, status, referral_code, country",
+          "INSERT INTO users (mobile_number, name, status, referral_code, referred_by) VALUES ($1, $2, 'active', $3, $4) RETURNING id, email, name, mobile_number, status, referral_code",
           [mobileNumber, name, newRefCode, referredById]
         );
         userRecord = userResult.rows[0];
@@ -339,11 +339,13 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
       }
     }, 201);
   } catch (err: any) {
-    if (err.message.includes('Account already exists')) {
-      return error(res, err.message, 'CONFLICT', 409);
+    console.error('[Login Route Error]', err);
+    const msg = err?.message || '';
+    if (msg.includes('Account already exists')) {
+      return error(res, msg, 'CONFLICT', 409);
     }
-    if (err.message.includes('required') || err.message.includes('Invalid')) {
-      return error(res, err.message, 'BAD_REQUEST', 400);
+    if (msg.includes('required') || msg.includes('Invalid')) {
+      return error(res, msg, 'BAD_REQUEST', 400);
     }
     next(err);
   }
@@ -389,16 +391,11 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
             if (mobileNumber === '9876543210') {
               userRecord.name = userRecord.name || 'User';
             }
-            const countryToSave = req.body.country || 'IN';
-            if (userRecord.country !== countryToSave) {
-              await client.query('UPDATE users SET country = $1 WHERE id = $2', [countryToSave, userRecord.id]);
-              userRecord.country = countryToSave;
-            }
           } else {
             isNewRecord = true;
             const userResult = await client.query(
-              "INSERT INTO users (mobile_number, name, status, country) VALUES ($1, $2, 'active', $3) RETURNING id, mobile_number, name, status, country, email",
-              [mobileNumber, mobileNumber === '9876543210' ? 'User' : 'Customer', req.body.country || 'IN']
+              "INSERT INTO users (mobile_number, name, status) VALUES ($1, $2, 'active') RETURNING id, mobile_number, name, status, email",
+              [mobileNumber, mobileNumber === '9876543210' ? 'User' : 'Customer']
             );
             userRecord = userResult.rows[0];
             const roleResult = await client.query("SELECT id FROM roles WHERE code = 'customer'");
@@ -484,11 +481,13 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
       requiresPasswordChange
     });
   } catch (err: any) {
-    if (err.message === 'Invalid email or password' || err.message === 'Invalid phone number or OTP' || err.message === 'Direct provider mock login is disabled in production.') {
-      return error(res, err.message, 'UNAUTHORIZED', 401);
+    console.error('[Login Route Error]', err);
+    const msg = err?.message || String(err);
+    if (msg === 'Invalid email or password' || msg === 'Invalid phone number or OTP' || msg === 'Direct provider mock login is disabled in production.') {
+      return error(res, msg, 'UNAUTHORIZED', 401);
     }
-    if (err.message.includes('required') || err.message.includes('Invalid')) {
-      return error(res, err.message, 'BAD_REQUEST', 400);
+    if (msg.includes('required') || msg.includes('Invalid')) {
+      return error(res, msg, 'BAD_REQUEST', 400);
     }
     next(err);
   }
