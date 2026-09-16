@@ -131,7 +131,9 @@ export default function LoginPage() {
 
     setIsSubmitting(true);
 
-    if (sanitizedPhone === '9876543210' || sanitizedPhone === '1234567890' || sanitizedPhone === '0000000000') {
+    const isTestFixturesEnabled = process.env.NEXT_PUBLIC_ENABLE_TEST_FIXTURES === 'true';
+
+    if (isTestFixturesEnabled && (sanitizedPhone === '9876543210' || sanitizedPhone === '1234567890')) {
       setTimeout(() => {
         setIsOtpSent(true);
         setIsSubmitting(false);
@@ -154,7 +156,7 @@ export default function LoginPage() {
     }
 
     if (!auth) {
-      setErrorMsg('Firebase is not configured. Please check your .env file and restart the server.');
+      setErrorMsg('Authentication service is not configured properly.');
       setIsSubmitting(false);
       return;
     }
@@ -182,25 +184,12 @@ export default function LoginPage() {
           setSuccessMsg('OTP code sent successfully to ' + fullPhone + '!');
         })
         .catch((error) => {
-          // SILENT FALLBACK FOR DEMO: If billing or region fails, seamlessly mock it
-          if (error.code === 'auth/billing-not-enabled' || error.code === 'auth/operation-not-allowed' || error.code === 'auth/internal-error') {
-            setTimeout(() => {
-              setIsOtpSent(true);
-              setIsSubmitting(false);
-              setSuccessMsg('OTP code sent successfully to ' + fullPhone + '!');
-            }, 600);
-          } else {
-            setErrorMsg('Failed to send OTP: ' + (error.message || 'Check if Phone Auth is enabled.'));
-            setIsSubmitting(false);
-          }
+          setErrorMsg('Failed to send OTP: ' + (error.message || 'Authentication error.'));
+          setIsSubmitting(false);
         });
     } catch (err: any) {
-      // Fallback if Recaptcha absolutely fails to render in demo
-      setTimeout(() => {
-        setIsOtpSent(true);
-        setIsSubmitting(false);
-        setSuccessMsg('OTP code sent successfully to ' + fullPhone + '!');
-      }, 600);
+      setErrorMsg('Failed to initialize phone verification.');
+      setIsSubmitting(false);
     }
   };
 
@@ -210,22 +199,20 @@ export default function LoginPage() {
     setSuccessMsg('');
     setIsSubmitting(true);
 
+    const isTestFixturesEnabled = process.env.NEXT_PUBLIC_ENABLE_TEST_FIXTURES === 'true';
+
     try {
-      if (confirmationResult && otp !== '1234' && otp !== '123456') {
-        // Real Firebase Flow
+      if (confirmationResult) {
         const result = await confirmationResult.confirm(otp);
         const idToken = await result.user.getIdToken();
         
-        // Pass to backend to issue our JWT
         const data = await apiClient.post<AuthResponse>('/auth/login', {
-          idToken, // Custom endpoint if you build it, otherwise fallback to existing
+          idToken,
           mobileNumber: mobileNumber.replace(/\s+/g, ''),
-          otp: '1234' // Bypass backend check since firebase already verified
         });
         setLocationCookie('wrectifai_country_code', countryCode);
         login(data.accessToken, data.refreshToken, data.user);
-      } else {
-        // Mock Flow (for test accounts and dummy numbers)
+      } else if (isTestFixturesEnabled) {
         const data = await apiClient.post<AuthResponse>('/auth/login', {
           mobileNumber: mobileNumber.replace(/\s+/g, ''),
           otp,
@@ -233,6 +220,8 @@ export default function LoginPage() {
         });
         setLocationCookie('wrectifai_country_code', countryCode);
         login(data.accessToken, data.refreshToken, data.user);
+      } else {
+        throw new Error('Verification session expired. Please request a new OTP.');
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Verification failed. Please check the OTP code.';
