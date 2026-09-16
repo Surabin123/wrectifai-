@@ -11,7 +11,7 @@ export class PaymentReconciliationService {
   /**
    * Reconciles orphan or stuck payments, pending wallet top-ups, and out-of-order webhook states.
    */
-  static async reconcile(): PromiseReconciliationSummary> {
+  static async reconcile(): Promise<ReconciliationSummary> {
     let reconciledPayments = 0;
     let reconciledTopups = 0;
     let reconciledBookings = 0;
