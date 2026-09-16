@@ -22,7 +22,10 @@ export function getDbPool(): Pool {
     const { databaseUrl, databaseSslCa, nodeEnv } = getEnv();
 
     const isLocal = databaseUrl.includes('localhost') || databaseUrl.includes('127.0.0.1');
-    const isRender = process.env.RENDER === 'true';
+    // Render's internal PostgreSQL endpoint uses an encrypted connection with
+    // a self-signed certificate. `require` is an explicit opt-in for that
+    // documented deployment mode; it must never be inferred or used globally.
+    const sslMode = process.env.DATABASE_SSL_MODE?.trim().toLowerCase();
 
     // Require DATABASE_SSL_CA or PGSSLROOTCERT in production when non-local unless connection string already manages it safely
     if (!isLocal && nodeEnv === 'production' && !databaseSslCa) {
@@ -35,6 +38,10 @@ export function getDbPool(): Pool {
     if (!isLocal) {
       if (databaseSslCa) {
         ssl = { rejectUnauthorized: true, ca: databaseSslCa };
+      } else if (sslMode === 'require') {
+        // Encrypt the connection while accepting Render's self-signed
+        // internal certificate. This is intentionally opt-in via env config.
+        ssl = { rejectUnauthorized: false };
       } else if (nodeEnv === 'production') {
         // Enforce strict certificate validation in production using standard root CAs
         ssl = { rejectUnauthorized: true };
