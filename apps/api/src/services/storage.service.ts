@@ -107,8 +107,20 @@ export class LocalStorageProvider implements FileStorage {
 }
 
 export function createStorageProvider(): FileStorage {
-  if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+  const isProd = process.env.NODE_ENV === 'production';
+  const hasCloudinaryConfig = Boolean(
+    process.env.CLOUDINARY_CLOUD_NAME &&
+    process.env.CLOUDINARY_API_KEY &&
+    process.env.CLOUDINARY_API_SECRET
+  );
+
+  if (hasCloudinaryConfig) {
     return new CloudinaryStorage();
   }
+
+  if (isProd) {
+    throw new Error('FATAL CONFIGURATION ERROR: Object storage (Cloudinary) is mandatory in production. Local disk storage is forbidden.');
+  }
+
   return new LocalStorageProvider();
 }

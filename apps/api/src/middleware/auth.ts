@@ -3,6 +3,8 @@ import { verifyAccessToken } from '../services/jwt.service';
 import { error } from '../utils/response';
 import { query } from '../config/database';
 
+const authStateCache = new Map<string, { status: string; roles: string[]; expiresAt: number }>();
+
 export async function authenticate(req: Request, res: Response, next: NextFunction) {
   let token = req.cookies?.accessToken;
 
@@ -20,25 +22,47 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
   try {
     const decoded = verifyAccessToken(token);
     
-    // Authoritative check against the database
-    const userResult = await query('SELECT status FROM users WHERE id = $1 LIMIT 1', [decoded.userId]);
-    
-    if (userResult.rows.length === 0) {
+    const userId = decoded.userId;
+
+    // Check short-lived cache (30s TTL) to prevent query spam on every request
+    const cacheKey = `user_auth_${userId}`;
+    const cached = authStateCache.get(cacheKey);
+    const now = Date.now();
+
+    if (cached && now < cached.expiresAt) {
+      if (cached.status !== 'active') {
+        return error(res, 'Account is not active', 'FORBIDDEN', 403);
+      }
+      decoded.roles = cached.roles;
+      req.user = decoded;
+      return next();
+    }
+
+    // Single combined query joining users and user_roles
+    const result = await query(
+      `SELECT u.status, COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles
+       FROM users u
+       LEFT JOIN user_roles ur ON u.id = ur.user_id
+       LEFT JOIN roles r ON r.id = ur.role_id
+       WHERE u.id = $1
+       GROUP BY u.id, u.status
+       LIMIT 1`,
+      [userId]
+    );
+
+    if (result.rows.length === 0) {
       return error(res, 'User not found', 'UNAUTHORIZED', 401);
     }
-    
-    if (userResult.rows[0].status !== 'active') {
+
+    const { status, roles } = result.rows[0];
+    if (status !== 'active') {
       return error(res, 'Account is not active', 'FORBIDDEN', 403);
     }
-    
-    const roleResult = await query(
-      `SELECT r.code FROM roles r 
-       JOIN user_roles ur ON r.id = ur.role_id 
-       WHERE ur.user_id = $1`,
-      [decoded.userId]
-    );
-    
-    decoded.roles = roleResult.rows.map(r => r.code);
+
+    // Cache valid user status and roles for 30 seconds
+    authStateCache.set(cacheKey, { status, roles, expiresAt: now + 30000 });
+
+    decoded.roles = roles;
     req.user = decoded;
     next();
   } catch (err) {

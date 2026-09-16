@@ -38,15 +38,14 @@ export function getDbPool(): Pool {
     if (!isLocal) {
       if (databaseSslCa) {
         ssl = { rejectUnauthorized: true, ca: databaseSslCa };
-      } else if (sslMode === 'require') {
-        // Encrypt the connection while accepting Render's self-signed
-        // internal certificate. This is intentionally opt-in via env config.
-        ssl = { rejectUnauthorized: false };
       } else if (nodeEnv === 'production') {
-        // Enforce strict certificate validation in production using standard root CAs
+        if (sslMode === 'disable' || sslMode === 'insecure') {
+          throw new Error('FATAL SECURITY VIOLATION: Disabling TLS verification in production is forbidden.');
+        }
+        // Strict production TLS verification using trusted root CAs
         ssl = { rejectUnauthorized: true };
       } else {
-        ssl = { rejectUnauthorized: false };
+        ssl = { rejectUnauthorized: sslMode === 'require' ? false : true };
       }
     }
 

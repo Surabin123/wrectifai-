@@ -2,6 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import * as path from 'path';
 import * as fs from 'fs';
+import crypto from 'crypto';
 import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
 import { DiagnosisService } from './diagnosis.service';
@@ -9,25 +10,15 @@ import { query } from '../../config/database';
 
 export const diagnosisRouter = Router();
 
-// Multer storage config
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    const dir = path.join(process.cwd(), 'uploads', 'diagnosis');
-    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-    cb(null, dir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.webm', '.mp3', '.wav', '.ogg']);
-    if (!allowedExts.has(ext)) return cb(new Error('Invalid file extension'), '');
-    cb(null, `${Date.now()}-${Math.random().toString(36).substring(2, 9)}${ext}`);
-  }
-});
+// Use memory storage to inspect and upload safely without arbitrary disk writes
+const storage = multer.memoryStorage();
 
 const upload = multer({
   storage,
   limits: { fileSize: 50 * 1024 * 1024 }, // 50MB max overall
   fileFilter: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const allowedExts = new Set(['.jpg', '.jpeg', '.png', '.webp', '.gif', '.mp4', '.webm', '.mp3', '.wav', '.ogg']);
     const allowedMimes = [
       'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/gif',
       'video/mp4', 'video/webm',
