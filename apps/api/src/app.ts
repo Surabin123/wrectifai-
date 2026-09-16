@@ -88,6 +88,21 @@ export function createApp() {
       return next();
     }
 
+    // Exempt public auth endpoints from CSRF checks (needed when an expired accessToken cookie is still present)
+    const publicAuthRoutes = [
+      '/api/v1/auth/login',
+      '/api/v1/auth/register',
+      '/api/v1/auth/verify-otp',
+      '/api/v1/auth/google',
+      '/api/v1/auth/check-user',
+      '/api/v1/auth/refresh',
+      '/api/v1/auth/forgot-password',
+      '/api/v1/auth/reset-password'
+    ];
+    if (publicAuthRoutes.some(route => req.path === route || req.path === route.replace('/api/v1', '/api'))) {
+      return next();
+    }
+
     const origin = req.headers.origin;
     const referer = req.headers.referer;
 
