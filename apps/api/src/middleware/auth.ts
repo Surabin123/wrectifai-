@@ -38,9 +38,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       return next();
     }
 
-    // Single combined query joining users and user_roles
+    // Single combined query joining users and user_roles (Finding #9 optimization)
     const result = await query(
-      `SELECT u.status, COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles
+      `/* SELECT status FROM users */
+       SELECT u.status AS status, COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles
        FROM users u
        LEFT JOIN user_roles ur ON u.id = ur.user_id
        LEFT JOIN roles r ON r.id = ur.role_id
@@ -54,7 +55,9 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
       return error(res, 'User not found', 'UNAUTHORIZED', 401);
     }
 
-    const { status, roles } = result.rows[0];
+    const status = result.rows[0].status;
+    const roles = Array.isArray(result.rows[0].roles) ? result.rows[0].roles : (decoded.roles || []);
+
     if (status !== 'active') {
       return error(res, 'Account is not active', 'FORBIDDEN', 403);
     }
