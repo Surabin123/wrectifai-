@@ -42,8 +42,9 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     req.user = decoded;
     next();
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Invalid token';
-    return error(res, `Authentication failed: ${message}`, 'UNAUTHORIZED', 401);
+    const requestId = Array.isArray(req.headers['x-request-id']) ? req.headers['x-request-id'][0] : req.headers['x-request-id'] || 'unknown';
+    console.warn(`[${requestId}] Authentication failed:`, err instanceof Error ? err.message : 'Invalid token');
+    return error(res, 'Authentication failed', 'UNAUTHORIZED', 401);
   }
 }
 

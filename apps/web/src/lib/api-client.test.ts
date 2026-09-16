@@ -152,9 +152,9 @@ test('apiClient - 401 silent retry token refresh logic', async () => {
   assert.strictEqual(fetchCalls[0].url, 'http://localhost:3000/api/v1/protected-resource');
   assert.strictEqual(fetchCalls[0].config.headers['Authorization'], 'Bearer expired-token');
   
-  // Call 2: Refresh token request
+  // Call 2: Refresh token request uses HttpOnly cookie credentials
   assert.strictEqual(fetchCalls[1].url, 'http://localhost:3000/api/v1/auth/refresh');
-  assert.strictEqual(JSON.parse(fetchCalls[1].config.body).refreshToken, 'valid-refresh-token');
+  assert.strictEqual(fetchCalls[1].config.credentials, 'include');
   
   // Call 3: Retried original request with new token
   assert.strictEqual(fetchCalls[2].url, 'http://localhost:3000/api/v1/protected-resource');

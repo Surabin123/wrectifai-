@@ -143,7 +143,6 @@ test('auth routes - POST /auth/refresh rotates tokens', async () => {
 
   assert.strictEqual(response.status, 200);
   assert.ok(response.body.data.accessToken);
-  assert.ok(response.body.data.refreshToken);
 });
 
 test('auth routes - POST /auth/logout invalidates refresh token', async () => {

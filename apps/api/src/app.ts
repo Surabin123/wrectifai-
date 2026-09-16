@@ -95,27 +95,32 @@ export function createApp() {
       if (!isOriginAllowed(origin)) {
         return error(res, 'CSRF violation: Invalid Origin', 'FORBIDDEN', 403);
       }
-      return next();
-    }
-
-    if (referer) {
+    } else if (referer) {
       try {
         const refererOrigin = new URL(referer).origin;
         if (!isOriginAllowed(refererOrigin)) {
           return error(res, 'CSRF violation: Invalid Referer', 'FORBIDDEN', 403);
         }
-        return next();
       } catch (err) {
         return error(res, 'CSRF violation: Malformed Referer', 'FORBIDDEN', 403);
       }
+    } else {
+      return error(res, 'CSRF violation: Missing Origin and Referer', 'FORBIDDEN', 403);
     }
 
-    return error(res, 'CSRF violation: Missing Origin and Referer', 'FORBIDDEN', 403);
+    // Double-submit CSRF token validation for cookie-authenticated state-changing requests
+    const csrfHeader = (req.headers['x-csrf-token'] || req.headers['x-xsrf-token']) as string | undefined;
+    const csrfCookie = req.cookies?.['XSRF-TOKEN'] || req.cookies?.['_csrf'];
+
+    if (!csrfHeader || !csrfCookie || csrfHeader !== csrfCookie) {
+      return error(res, 'CSRF violation: Missing or mismatched CSRF token', 'FORBIDDEN', 403);
+    }
+
+    return next();
   });
 
   // Body parsing middlewares.
   // rawBody is retained ONLY for Razorpay webhook routes where HMAC signature verification requires it.
-  // All other routes use standard JSON parsing without rawBody overhead.
   app.use('/api/v1/payments/webhook', express.json({
     limit: '1mb',
     verify: (req, _res, buf) => { (req as any).rawBody = buf.toString('utf8'); }
@@ -127,12 +132,14 @@ export function createApp() {
 
   // Route-specific parser limits for legitimate base64 image uploads
   const base64Parser = express.json({ limit: '10mb' });
-  app.use('/api/v1/garages', base64Parser);
-  app.use('/api/garages', base64Parser);
-  app.use('/api/v1/garages-offers', base64Parser);
-  app.use('/api/garages-offers', base64Parser);
-  app.use('/api/v1/users', base64Parser);
-  app.use('/api/users', base64Parser);
+  app.use('/api/v1/garages/upload-image', base64Parser);
+  app.use('/api/garages/upload-image', base64Parser);
+  app.use('/api/v1/garages/documents', base64Parser);
+  app.use('/api/garages/documents', base64Parser);
+  app.use('/api/v1/diagnosis/upload-media', base64Parser);
+  app.use('/api/diagnosis/upload-media', base64Parser);
+  app.use('/api/v1/users/avatar', base64Parser);
+  app.use('/api/users/avatar', base64Parser);
 
   app.use(express.json({ limit: '512kb' }));
   app.use(express.urlencoded({ extended: true, limit: '512kb' }));

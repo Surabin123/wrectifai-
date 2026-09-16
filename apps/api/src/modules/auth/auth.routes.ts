@@ -38,6 +38,13 @@ const cookieConfig: CookieOptions = {
 function setTokensInCookies(res: Response, accessToken: string, refreshToken: string) {
   res.cookie('accessToken', accessToken, cookieConfig);
   res.cookie('refreshToken', refreshToken, cookieConfig);
+  const csrfToken = crypto.randomBytes(32).toString('hex');
+  res.cookie('XSRF-TOKEN', csrfToken, {
+    httpOnly: false,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    path: '/',
+  });
 }
 
 const HARDCODED_PHONES = ['9876543210', '1234567890'];
@@ -506,7 +513,7 @@ authRouter.post('/refresh', async (req, res) => {
 
     setTokensInCookies(res, newAccessToken, refreshToken);
 
-    return success(res, { accessToken: newAccessToken, refreshToken, message: 'Token refreshed successfully' });
+    return success(res, { accessToken: newAccessToken, message: 'Token refreshed successfully' });
   } catch (err) {
     return error(res, err instanceof Error ? err.message : 'Invalid refresh token', 'UNAUTHORIZED', 401);
   }
@@ -531,6 +538,20 @@ authRouter.post('/logout', async (req, res) => {
 
 authRouter.get('/status', (_req, res) => {
   return success(res, { feature: 'auth', status: 'ready' });
+});
+
+authRouter.get('/csrf-token', (req, res) => {
+  let csrfToken = req.cookies?.['XSRF-TOKEN'];
+  if (!csrfToken) {
+    csrfToken = crypto.randomBytes(32).toString('hex');
+    res.cookie('XSRF-TOKEN', csrfToken, {
+      httpOnly: false,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      path: '/',
+    });
+  }
+  return success(res, { csrfToken });
 });
 
 authRouter.get('/me', authenticate, async (req, res) => {

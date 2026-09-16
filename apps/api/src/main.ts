@@ -13,9 +13,34 @@ const { host, port } = getEnv();
 async function startServer() {
   try {
     const app = createApp();
-    app.listen(port, host, () => {
+    const server = app.listen(port, host, () => {
       console.log(`[api] listening on http://${host}:${port}`);
     });
+
+    const shutdown = async (signal: string) => {
+      console.log(`\n${signal} received. Starting graceful shutdown...`);
+      server.close(async () => {
+        console.log('HTTP server closed.');
+        try {
+          const { pool } = require('./config/database');
+          await pool.end();
+          console.log('Database pool closed.');
+          process.exit(0);
+        } catch (err) {
+          console.error('Error closing database pool', err);
+          process.exit(1);
+        }
+      });
+      
+      // Force shutdown after 10s if graceful fails
+      setTimeout(() => {
+        console.error('Could not close connections in time, forcefully shutting down');
+        process.exit(1);
+      }, 10000);
+    };
+
+    process.on('SIGTERM', () => shutdown('SIGTERM'));
+    process.on('SIGINT', () => shutdown('SIGINT'));
   } catch (error) {
     console.error('Fatal error during startup, server not started:', error);
     process.exit(1);

@@ -1,9 +1,7 @@
-let warnLogged = false;
-
 export function getEnv(envSource: Record<string, string | undefined> = process.env) {
   const isProd = envSource.NODE_ENV === 'production';
-  const jwtSecret = envSource.JWT_SECRET;
-  const jwtRefreshSecret = envSource.JWT_REFRESH_SECRET;
+  const jwtSecret = envSource.JWT_SECRET || (isProd ? '' : 'local-development-jwt-secret');
+  const jwtRefreshSecret = envSource.JWT_REFRESH_SECRET || (isProd ? '' : 'local-development-refresh-secret');
 
   if (isProd) {
     if (!jwtSecret) {
@@ -21,22 +19,11 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     if (!envSource.RAZORPAY_WEBHOOK_SECRET) {
       console.warn('WARNING: RAZORPAY_WEBHOOK_SECRET environment variable is not set in production. Webhooks will fail verification.');
     }
-  } else if (!warnLogged) {
-    if (!jwtSecret || !jwtRefreshSecret) {
-      if (!jwtSecret) {
-        console.warn('WARNING: JWT_SECRET is not set. Falling back to default weak key. Do not use this in production.');
-      }
-      if (!jwtRefreshSecret) {
-        console.warn('WARNING: JWT_REFRESH_SECRET is not set. Falling back to default weak key. Do not use this in production.');
-      }
-      warnLogged = true;
-    }
   }
 
   const anyKey = envSource.GROQ_API_KEY || envSource.OPENAI_API_KEY || envSource.open_api_key || envSource.OPEN_API_KEY || '';
   let provider = envSource.LLM_PROVIDER || 'groq';
   
-  // Auto-detect provider to fix misconfigured environment variables
   if (anyKey.startsWith('sk-') || anyKey.startsWith('proj-')) {
     provider = 'openai';
   } else if (anyKey.startsWith('gsk_')) {
@@ -49,12 +36,12 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     port: envSource.PORT ? Number(envSource.PORT) : 3000,
     databaseUrl: envSource.DATABASE_URL ?? 'postgresql://postgres:password@localhost:5432/wrectifai',
     databaseSslCa: envSource.DATABASE_SSL_CA || envSource.PGSSLROOTCERT,
-    jwtSecret: jwtSecret ?? (isProd ? '' : 'local-development-jwt-secret'),
-    jwtRefreshSecret: jwtRefreshSecret ?? (isProd ? '' : 'local-development-refresh-secret'),
+    jwtSecret,
+    jwtRefreshSecret,
     razorpayWebhookSecret: envSource.RAZORPAY_WEBHOOK_SECRET ?? '',
     adminTemporaryPassword: envSource.ADMIN_TEMPORARY_PASSWORD ?? envSource.ADMIN_BOOTSTRAP_PASSWORD,
     corsOrigins: envSource.WEB_ORIGINS ? envSource.WEB_ORIGINS.split(',') : (isProd ? [] : ['http://localhost:4200', 'http://localhost:3001']),
-    googleClientId: envSource.GOOGLE_CLIENT_ID,
+    googleClientId: envSource.GOOGLE_CLIENT_ID || '',
     llmProvider: provider,
     llmModel: (envSource.LLM_MODEL?.trim() === 'llama-3.1-70b-versatile' || envSource.LLM_MODEL?.trim() === 'llama-3.3-70b-versatile') ? 'llama3-70b-8192' : (envSource.LLM_MODEL?.trim() || 'llama3-70b-8192'),
     groqApiKey: anyKey,

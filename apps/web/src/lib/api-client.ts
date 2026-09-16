@@ -58,9 +58,17 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
     token = localStorage.getItem('accessToken') || localStorage.getItem('token');
   }
 
+  const method = (options.method || 'GET').toUpperCase();
+  let csrfToken: string | null = null;
+  if (typeof document !== 'undefined' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    const match = document.cookie.match(/(?:^|; )\s*XSRF-TOKEN\s*=\s*([^;]+)/);
+    if (match) csrfToken = decodeURIComponent(match[1]);
+  }
+
   const defaultHeaders: Record<string, string> = {
     ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
     ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
     ...(options.headers as Record<string, string>),
   };
 
@@ -94,12 +102,10 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
       if (!refreshPromise) {
         refreshPromise = (async () => {
           try {
-            const storedRefreshToken = typeof localStorage !== 'undefined' ? localStorage.getItem('refreshToken') : null;
             const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
               method: 'POST',
               credentials: 'include',
               headers: { 'Content-Type': 'application/json' },
-              body: storedRefreshToken ? JSON.stringify({ refreshToken: storedRefreshToken }) : undefined,
             });
 
             if (!refreshRes.ok) {

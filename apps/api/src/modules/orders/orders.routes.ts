@@ -8,11 +8,12 @@ import { validateOffer, recordOfferRedemption } from '../offers/offers.service';
 
 export const ordersRouter = Router();
 
-// Initialize Razorpay
-const rzp = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID ?? '',
-  key_secret: process.env.RAZORPAY_KEY_SECRET ?? ''
-});
+function getRazorpayClient(): Razorpay {
+  return new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_placeholder',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'placeholder_secret',
+  });
+}
 
 // POST /api/v1/orders - Create a new order (Checkout)
 ordersRouter.post('/', authenticate, async (req, res) => {
@@ -228,7 +229,7 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
       [customerId, orderId, intentToken, parseFloat(order.total)]
     );
     
-    const rzpOrder = await rzp.orders.create({
+    const rzpOrder = await getRazorpayClient().orders.create({
       amount: amountInPaise,
       currency: 'INR',
       receipt: order.order_number,
