@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
- * Simple migration runner for Render (or any environment without Docker init).
- * Reads all *.sql files from db/migrations/ in sort order and executes them.
+ * Migration runner for WrectifAI.
+ * Reads all *.sql files from db/migrations/ in deterministic sort order and executes them.
+ * Records SHA-256 checksums and execution times in _migrations table.
  *
  * Usage:  node db/migrate.js
  * Env:    DATABASE_URL (required)
@@ -10,6 +11,7 @@
 const { readdirSync, readFileSync } = require('fs');
 const { join } = require('path');
 const { Client } = require('pg');
+const { createHash } = require('crypto');
 
 async function main() {
   const databaseUrl = process.env.DATABASE_URL;
@@ -32,7 +34,7 @@ async function main() {
     ? files.filter((file) => !fixtureMigrations.has(file))
     : files;
 
-  if (files.length === 0) {
+  if (filesToApply.length === 0) {
     console.log('No migration files found.');
     return;
   }
@@ -43,46 +45,60 @@ async function main() {
   const client = new Client({ connectionString: databaseUrl, ssl });
   await client.connect();
 
-  // Ensure migrations tracking table exists (_migrations)
-  await client.query(`
-    CREATE TABLE IF NOT EXISTS _migrations (
-      id SERIAL PRIMARY KEY,
-      filename VARCHAR(255) NOT NULL UNIQUE,
-      applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  await client.query('BEGIN');
   try {
+    // Ensure migrations tracking table exists (_migrations) with checksum metadata
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS _migrations (
+        id SERIAL PRIMARY KEY,
+        filename VARCHAR(255) NOT NULL UNIQUE,
+        checksum VARCHAR(64),
+        execution_time_ms INT,
+        applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+      )
+    `);
+
+    await client.query('BEGIN');
     // Acquire transaction-level advisory lock to prevent concurrent runs
     await client.query('SELECT pg_advisory_xact_lock(54321)');
 
-    const applied = await client.query('SELECT filename FROM _migrations');
-    const appliedSet = new Set(applied.rows.map((r) => r.filename));
+    const applied = await client.query('SELECT filename, checksum FROM _migrations');
+    const appliedMap = new Map(applied.rows.map((r) => [r.filename, r.checksum]));
 
     let ran = 0;
     for (const file of filesToApply) {
-      if (appliedSet.has(file)) {
+      const filePath = join(migrationsDir, file);
+      const sql = readFileSync(filePath, 'utf-8');
+      const fileChecksum = createHash('sha256').update(sql).digest('hex');
+
+      if (appliedMap.has(file)) {
+        const storedChecksum = appliedMap.get(file);
+        if (storedChecksum && storedChecksum !== fileChecksum) {
+          console.warn(`[WARNING] Migration ${file} has been modified since it was applied! Stored: ${storedChecksum}, Current: ${fileChecksum}.`);
+        }
         continue;
       }
 
-      const sql = readFileSync(join(migrationsDir, file), 'utf-8');
       console.log(`Applying ${file}...`);
+      const startTime = Date.now();
       await client.query(sql);
-      await client.query('INSERT INTO _migrations (filename) VALUES ($1)', [file]);
+      const executionTimeMs = Date.now() - startTime;
+
+      await client.query(
+        'INSERT INTO _migrations (filename, checksum, execution_time_ms) VALUES ($1, $2, $3)',
+        [file, fileChecksum, executionTimeMs]
+      );
       ran++;
-      console.log(`  ✓ ${file}`);
+      console.log(`  ✓ ${file} (${executionTimeMs}ms)`);
     }
     await client.query('COMMIT');
     console.log(`\nDone. ${ran} migration(s) applied, ${filesToApply.length - ran} already applied.`);
   } catch (err) {
-    await client.query('ROLLBACK');
+    await client.query('ROLLBACK').catch(() => {});
     console.error(`Migration failed:`, err.message);
-    await client.end();
     process.exit(1);
+  } finally {
+    await client.end();
   }
-
-  await client.end();
 }
 
 main().catch((err) => {
