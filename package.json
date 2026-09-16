@@ -24,7 +24,7 @@
     "test:api": "nx test api",
     "test:api:unit": "nx test api unit",
     "test:web": "nx test web",
-    "type-check": "npx tsc --noEmit"
+    "type-check": "npx tsc -p apps/api/tsconfig.json --noEmit && npx tsc -p apps/web/tsconfig.json --noEmit"
   },
   "private": true,
   "devDependencies": {

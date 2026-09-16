@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, requireRole } from '../../middleware/auth';
 import { query } from '../../config/database';
 import { validateOffer, recordOfferRedemption, processCashback } from '../offers/offers.service';
 import { holdWalletBalance } from '../wallet/wallet.service';
@@ -674,7 +674,7 @@ bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
 });
 
 // PATCH /bookings/:bookingId/status — update status
-bookingsRouter.patch('/:bookingId/status', authenticate, async (req, res) => {
+bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 'admin', 'customer', 'user']), async (req, res) => {
   try {
     const { bookingId } = req.params;
     const { status, collectionTime } = req.body;

@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, requireRole } from '../../middleware/auth';
 import { query } from '../../config/database';
 import { NotificationsService } from '../notifications/notifications.service';
 import { QuoteEstimationService } from './quote-estimation.service';
@@ -267,7 +267,7 @@ quotesRouter.get('/garage/stats', authenticate, async (req, res) => {
   }
 });
 
-quotesRouter.post('/garage-requests/:id/accept', authenticate, async (req, res) => {
+quotesRouter.post('/garage-requests/:id/accept', authenticate, requireRole(['garage', 'admin']), async (req, res) => {
   try {
     const garageUserId = req.user?.userId;
     if (!garageUserId || !req.user?.roles?.includes('garage')) {

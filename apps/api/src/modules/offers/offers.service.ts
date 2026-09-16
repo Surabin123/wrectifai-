@@ -62,17 +62,12 @@ export async function validateOffer(code: string, userId: string, subtotal: numb
       discount = Number(offer.discount_value);
     } else if (offer.discount_type === 'CASHBACK') {
       cashback = Number(offer.discount_value);
-      // Percentage cashback check?
-      if (offer.discount_value < 100 && String(offer.discount_value).includes('.')) { 
-        // Or if there's a field for percentage, but let's assume it's fixed amount for now, or just calculate %
-        // If the schema allows percentage cashback, we'd calculate it here. Assuming fixed for now.
-      }
     }
 
     return {
       isValid: true,
       offerId: offer.id,
-      discount: Math.min(discount, subtotal), // Discount cannot exceed subtotal
+      discount: Math.min(discount, subtotal),
       cashback: cashback,
       offerDetails: offer
     };
@@ -90,12 +85,13 @@ export async function recordOfferRedemption(offerId: string, userId: string, boo
   );
 }
 
-export async function processCashback(bookingId: string) {
+export async function processCashback(bookingId: string, externalClient?: any) {
+  const isExternal = !!externalClient;
   const pool = getDbPool();
-  const client = await pool.connect();
+  const client = externalClient || (await pool.connect());
   
   try {
-    await client.query('BEGIN');
+    if (!isExternal) await client.query('BEGIN');
     
     // Get booking and offer info
     const bookingRes = await client.query(
@@ -107,14 +103,14 @@ export async function processCashback(bookingId: string) {
     );
     
     if (bookingRes.rows.length === 0) {
-      await client.query('ROLLBACK');
+      if (!isExternal) await client.query('ROLLBACK');
       return;
     }
     
     const b = bookingRes.rows[0];
     
     if (b.discount_type !== 'CASHBACK' || b.payment_status !== 'PAID' || (b.status !== 'completed' && b.status !== 'collected')) {
-      await client.query('ROLLBACK');
+      if (!isExternal) await client.query('ROLLBACK');
       return;
     }
     
@@ -127,7 +123,7 @@ export async function processCashback(bookingId: string) {
     );
     
     if (txCheck.rows.length > 0) {
-      await client.query('ROLLBACK');
+      if (!isExternal) await client.query('ROLLBACK');
       return;
     }
     
@@ -142,11 +138,11 @@ export async function processCashback(bookingId: string) {
       [bookingId]
     );
     if (lockedTxCheck.rows.length > 0) {
-      await client.query('ROLLBACK');
+      if (!isExternal) await client.query('ROLLBACK');
       return;
     }
     const balanceBefore = Number(walletRes.rows[0].balance);
-    const balanceAfter = balanceBefore + cashbackAmount;
+    const balanceAfter = Math.round((balanceBefore + cashbackAmount + Number.EPSILON) * 100) / 100;
     
     // Update balance
     await client.query('UPDATE wallets SET balance = $1, updated_at = NOW() WHERE id = $2', [balanceAfter, walletId]);
@@ -159,11 +155,11 @@ export async function processCashback(bookingId: string) {
       [walletId, cashbackAmount, balanceBefore, balanceAfter, bookingId]
     );
     
-    await client.query('COMMIT');
+    if (!isExternal) await client.query('COMMIT');
   } catch (err) {
-    await client.query('ROLLBACK');
+    if (!isExternal) await client.query('ROLLBACK');
     console.error('Failed to process cashback for booking:', bookingId, err);
   } finally {
-    client.release();
+    if (!isExternal) client.release();
   }
 }

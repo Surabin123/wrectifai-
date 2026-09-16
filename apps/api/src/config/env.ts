@@ -40,6 +40,7 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     jwtRefreshSecret,
     razorpayWebhookSecret: envSource.RAZORPAY_WEBHOOK_SECRET ?? '',
     adminTemporaryPassword: envSource.ADMIN_TEMPORARY_PASSWORD ?? envSource.ADMIN_BOOTSTRAP_PASSWORD,
+    trustProxy: envSource.TRUST_PROXY !== undefined ? (isNaN(Number(envSource.TRUST_PROXY)) ? envSource.TRUST_PROXY : Number(envSource.TRUST_PROXY)) : 1,
     corsOrigins: envSource.WEB_ORIGINS ? envSource.WEB_ORIGINS.split(',') : (isProd ? [] : ['http://localhost:4200', 'http://localhost:3001']),
     googleClientId: envSource.GOOGLE_CLIENT_ID || '',
     llmProvider: provider,

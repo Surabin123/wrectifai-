@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
-import { authenticate } from '../../middleware/auth';
+import { authenticate, requireRole } from '../../middleware/auth';
 import { query, getDbPool } from '../../config/database';
 import { getPagination } from '../../utils/pagination';
 
@@ -200,7 +200,7 @@ garagesRouter.get('/my-profile', authenticate, async (req, res) => {
   }
 });
 
-garagesRouter.put('/my-profile', authenticate, async (req, res) => {
+garagesRouter.put('/my-profile', authenticate, requireRole(['garage', 'admin']), async (req, res) => {
   try {
     const garageUserId = req.user?.userId;
     if (!garageUserId || !req.user?.roles?.includes('garage')) {

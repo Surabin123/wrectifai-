@@ -15,7 +15,7 @@ export function createApp() {
   const env = getEnv();
 
   // Trust proxies to correctly resolve client IPs (essential for rate limiting behind load balancers/Render/Cloudflare)
-  app.set('trust proxy', 1);
+  app.set('trust proxy', env.trustProxy);
 
   // Helper to validate origin against configured allowed origins, local dev environments, and Render subdomains
   const isOriginAllowed = (origin: string): boolean => {
@@ -186,7 +186,12 @@ export function createApp() {
       return res.status(500).end();
     }
   });
-  app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
+
+  // Serve ONLY public subdirectories statically; private files (diagnosis media, garage documents) require authenticated endpoints above
+  app.use('/uploads/public', express.static(path.join(process.cwd(), 'uploads', 'public')));
+  app.use('/uploads/garages/photos', express.static(path.join(process.cwd(), 'uploads', 'garages', 'photos')));
+  app.use('/uploads/vehicles', express.static(path.join(process.cwd(), 'uploads', 'vehicles')));
+  app.use('/uploads/services', express.static(path.join(process.cwd(), 'uploads', 'services')));
 
   // Mount API routers under versioned endpoint /api/v1 and fallback /api
   app.use('/api/v1', apiRouter);
