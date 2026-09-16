@@ -12,7 +12,9 @@ function decodeJwt(token: string) {
 }
 
 export function proxy(request: NextRequest) {
-  const token = request.cookies.get('accessToken')?.value || request.cookies.get('refreshToken')?.value;
+  // Phase 3 Requirement: Decoded JWT claims in middleware/proxy are UI-routing hints ONLY.
+  // The backend API is authoritative for security and resource ownership.
+  const accessToken = request.cookies.get('accessToken')?.value;
   const path = request.nextUrl.pathname;
 
   const isProtected = 
@@ -24,16 +26,13 @@ export function proxy(request: NextRequest) {
     path.startsWith('/shop') ||
     path === '/dashboard';
 
-  // If no token exists
-  if (!token) {
+  // If no accessToken exists, rely on backend authorization or client-side auth guard
+  if (!accessToken) {
     if (path === '/') {
       return NextResponse.redirect(new URL('/login', request.url));
     }
     
     if (isProtected) {
-      // In cross-origin production environments (like Render), HttpOnly cookies are stored on the API domain.
-      // Next.js middleware running on the web domain cannot read them, so we bypass this check in production
-      // and let the client-side RoleGuard / useAuth context handle authentication and authorization.
       if (process.env.NODE_ENV === 'production') {
         return NextResponse.next();
       }
@@ -43,7 +42,7 @@ export function proxy(request: NextRequest) {
   }
 
   // Token exists, parse roles
-  const decoded = decodeJwt(token);
+  const decoded = decodeJwt(accessToken);
   const roles = decoded?.roles || [];
 
   // If token exists and path is root "/", redirect based on role

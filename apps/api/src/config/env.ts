@@ -3,21 +3,33 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
   const jwtSecret = envSource.JWT_SECRET || (isProd ? '' : 'local-development-jwt-secret');
   const jwtRefreshSecret = envSource.JWT_REFRESH_SECRET || (isProd ? '' : 'local-development-refresh-secret');
 
-  if (isProd) {
+  if (isProd || envSource.APP_ENV === 'staging') {
     if (!jwtSecret) {
-      throw new Error('FATAL: JWT_SECRET environment variable is not set in production.');
+      throw new Error('FATAL: JWT_SECRET environment variable is not set in production/staging.');
     }
     if (!jwtRefreshSecret) {
-      throw new Error('FATAL: JWT_REFRESH_SECRET environment variable is not set in production.');
+      throw new Error('FATAL: JWT_REFRESH_SECRET environment variable is not set in production/staging.');
     }
     if (jwtSecret.length < 32 || jwtRefreshSecret.length < 32) {
-      throw new Error('FATAL: JWT secrets must be at least 32 characters in production.');
+      throw new Error('FATAL: JWT secrets must be at least 32 characters in production/staging.');
     }
     if (!envSource.DATABASE_URL) {
-      throw new Error('FATAL: DATABASE_URL environment variable is not set in production.');
+      throw new Error('FATAL: DATABASE_URL environment variable is not set in production/staging.');
     }
     if (!envSource.RAZORPAY_WEBHOOK_SECRET) {
-      console.warn('WARNING: RAZORPAY_WEBHOOK_SECRET environment variable is not set in production. Webhooks will fail verification.');
+      console.warn('WARNING: RAZORPAY_WEBHOOK_SECRET environment variable is not set. Webhooks will fail verification.');
+    }
+  }
+
+  // Anti-crossover checks for staging environment
+  if (envSource.APP_ENV === 'staging') {
+    const prodDatabaseUrl = envSource.PROD_DATABASE_URL || '';
+    if (prodDatabaseUrl && envSource.DATABASE_URL === prodDatabaseUrl) {
+      throw new Error('FATAL STAGING CROSSOVER: DATABASE_URL matches production database URL.');
+    }
+    const razorpayKey = envSource.RAZORPAY_KEY_ID || '';
+    if (razorpayKey.startsWith('rzp_live_')) {
+      throw new Error('FATAL STAGING CROSSOVER: RAZORPAY_KEY_ID is set to a live production key in staging.');
     }
   }
 

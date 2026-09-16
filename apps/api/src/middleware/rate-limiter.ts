@@ -35,12 +35,14 @@ export function rateLimiter(options: {
       return next();
     }
 
-    // Determine client IP safely. Express handles X-Forwarded-For when 'trust proxy' is set.
-    let ip = 'unknown';
+    // Key rate limiter by IP, or by user account ID when authenticated
+    let clientKey = 'unknown';
     try {
-      ip = req.ip || req.socket?.remoteAddress || 'unknown';
+      const authUser = (req as any).user?.userId;
+      const clientIp = req.ip || req.socket?.remoteAddress || 'unknown';
+      clientKey = authUser ? `usr_${authUser}` : `ip_${clientIp}`;
     } catch {
-      ip = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
+      clientKey = (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() || req.socket?.remoteAddress || 'unknown';
     }
     const now = Date.now();
 
@@ -50,14 +52,14 @@ export function rateLimiter(options: {
       if (firstKey) ipLimits.delete(firstKey);
     }
 
-    let limitInfo = ipLimits.get(ip);
+    let limitInfo = ipLimits.get(clientKey);
 
     if (!limitInfo || now > limitInfo.resetTime) {
       limitInfo = {
         count: 1,
         resetTime: now + options.windowMs,
       };
-      ipLimits.set(ip, limitInfo);
+      ipLimits.set(clientKey, limitInfo);
       res.setHeader('X-RateLimit-Limit', options.max);
       res.setHeader('X-RateLimit-Remaining', options.max - 1);
       res.setHeader('X-RateLimit-Reset', new Date(limitInfo.resetTime).toISOString());
@@ -72,6 +74,7 @@ export function rateLimiter(options: {
     res.setHeader('X-RateLimit-Reset', new Date(limitInfo.resetTime).toISOString());
 
     if (limitInfo.count > options.max) {
+      res.setHeader('Retry-After', Math.ceil((limitInfo.resetTime - now) / 1000));
       return error(res, options.message, 'TOO_MANY_REQUESTS', 429);
     }
 

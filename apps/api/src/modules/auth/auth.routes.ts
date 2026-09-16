@@ -499,8 +499,13 @@ authRouter.post('/refresh', async (req, res) => {
     return error(res, 'Refresh token is required', 'BAD_REQUEST', 400);
   }
   try {
-    verifyRefreshToken(refreshToken);
+    const payload = verifyRefreshToken(refreshToken);
     const userId = await validateRefreshTokenInDb(refreshToken);
+
+    // Revoke old refresh token (token rotation step 1 & 2)
+    await deleteRefreshTokenInDb(refreshToken).catch(err => {
+      console.warn('Failed to delete used refresh token during rotation:', err);
+    });
 
     const userResult = await query('SELECT * FROM users WHERE id = $1', [userId]);
     if (userResult.rows.length === 0) {
@@ -513,8 +518,6 @@ authRouter.post('/refresh', async (req, res) => {
     );
     const roles = rolesResult.rows.map((row) => row.code);
 
-    // Fallback: auto-heal sessions for users who have no roles in user_roles
-    // (e.g. existing accounts created before RBAC, or after a DB reset/migration)
     if (roles.length === 0) {
       const defaultRole = await query("SELECT id, code FROM roles WHERE code = 'customer'");
       if (defaultRole.rows.length > 0) {
@@ -532,10 +535,22 @@ authRouter.post('/refresh', async (req, res) => {
     }
 
     const newAccessToken = generateAccessToken({ userId, email: user.email, name: user.name, roles, garageId });
+    const newRefreshToken = generateRefreshToken({ userId, jti: crypto.randomUUID() });
 
-    setTokensInCookies(res, newAccessToken, refreshToken);
+    const deviceInfo = req.headers['user-agent'];
+    const ipAddress = (req.socket ? req.ip : undefined) || (req.headers['x-forwarded-for'] as string) || '';
 
-    return success(res, { accessToken: newAccessToken, message: 'Token refreshed successfully' });
+    // Store only token hash for new refresh token (token rotation step 3 & 4)
+    await storeRefreshToken(userId, newRefreshToken, deviceInfo, ipAddress);
+
+    // Set replacement cookie (token rotation step 5)
+    setTokensInCookies(res, newAccessToken, newRefreshToken);
+
+    return success(res, {
+      accessToken: newAccessToken,
+      // Keep returning accessToken temporarily for backwards compatibility with legacy clients
+      message: 'Token refreshed successfully'
+    });
   } catch (err) {
     return error(res, err instanceof Error ? err.message : 'Invalid refresh token', 'UNAUTHORIZED', 401);
   }

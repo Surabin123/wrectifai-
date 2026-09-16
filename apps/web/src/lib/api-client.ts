@@ -118,12 +118,19 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
             const refreshJson = await refreshRes.json();
             const newAccessToken = refreshJson?.data?.accessToken || refreshJson?.accessToken;
+            // Stop writing refresh tokens to localStorage (Phase 2 requirement)
             if (newAccessToken && typeof localStorage !== 'undefined') {
               localStorage.setItem('accessToken', newAccessToken);
+              localStorage.removeItem('refreshToken');
             }
 
             return 'REFRESHED';
           } catch (_refreshErr) {
+            if (typeof localStorage !== 'undefined') {
+              localStorage.removeItem('accessToken');
+              localStorage.removeItem('refreshToken');
+              localStorage.removeItem('token');
+            }
             window.dispatchEvent(new CustomEvent('auth-logout'));
             throw new ApiError('Session expired. Please log in again.', 401, 'UNAUTHORIZED_EXPIRED');
           } finally {

@@ -13,6 +13,7 @@ export interface UserTokenPayload {
 
 export interface RefreshTokenPayload {
   userId: string;
+  jti?: string;
 }
 
 export function generateAccessToken(payload: UserTokenPayload): string {
@@ -23,7 +24,8 @@ export function generateAccessToken(payload: UserTokenPayload): string {
 
 export function generateRefreshToken(payload: RefreshTokenPayload): string {
   const { jwtRefreshSecret } = getEnv();
-  return jwt.sign(payload, jwtRefreshSecret, { expiresIn: '7d' });
+  const jti = payload.jti || crypto.randomUUID();
+  return jwt.sign({ ...payload, jti }, jwtRefreshSecret, { expiresIn: '7d' });
 }
 
 export function verifyAccessToken(token: string): UserTokenPayload {

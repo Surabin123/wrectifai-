@@ -119,27 +119,37 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
     return error(res, 'Razorpay key secret is not configured on the server', 'CONFIGURATION_ERROR', 500);
   }
 
-  // Step 1: Verify HMAC signature — only Razorpay can produce this with the shared secret
-  const crypto = require('crypto');
+  // Step 1: Verify HMAC signature using constant-time comparison
   const generated_signature = crypto
     .createHmac('sha256', secret)
     .update(razorpay_order_id + '|' + razorpay_payment_id)
     .digest('hex');
 
-    // Step 1.5: Perform independent provider-side validation if API credentials are active
-    if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-      try {
-        const providerPayment: any = await fetchRazorpayPayment(razorpay_payment_id);
-        if (providerPayment && providerPayment.order_id && providerPayment.order_id !== razorpay_order_id) {
-          return error(res, 'Payment verification failed: Provider order ID mismatch', 'BAD_REQUEST', 400);
-        }
-        if (providerPayment && providerPayment.status && !['captured', 'authorized'].includes(providerPayment.status)) {
-          return error(res, 'Payment verification failed: Payment is not captured', 'BAD_REQUEST', 400);
-        }
-      } catch (providerErr) {
-        // Fall back to signature verification if provider fetch is offline in test
+  const sigBuffer = Buffer.from(razorpay_signature, 'utf8');
+  const expectedBuffer = Buffer.from(generated_signature, 'utf8');
+
+  if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+    return error(res, 'Invalid payment signature', 'BAD_REQUEST', 400);
+  }
+
+  // Step 1.5: Perform mandatory fail-closed provider-side validation if API keys are configured
+  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    try {
+      const providerPayment: any = await fetchRazorpayPayment(razorpay_payment_id);
+      if (!providerPayment) {
+        return error(res, 'Payment verification failed: Provider record not found', 'BAD_REQUEST', 400);
       }
+      if (providerPayment.order_id && providerPayment.order_id !== razorpay_order_id) {
+        return error(res, 'Payment verification failed: Provider order ID mismatch', 'BAD_REQUEST', 400);
+      }
+      if (providerPayment.status !== 'captured' && providerPayment.status !== 'authorized') {
+        return error(res, 'Payment verification failed: Payment is not captured', 'BAD_REQUEST', 400);
+      }
+    } catch (providerErr: any) {
+      console.error('[payments/verify] Razorpay provider fetch failed:', providerErr?.message);
+      return error(res, 'Payment verification fail-closed: Unable to verify payment status with payment provider. Please retry shortly.', 'SERVICE_UNAVAILABLE', 503);
     }
+  }
 
     // Step 2: Update database — signature is authoritative proof of Razorpay success
     const pool = getDbPool();
