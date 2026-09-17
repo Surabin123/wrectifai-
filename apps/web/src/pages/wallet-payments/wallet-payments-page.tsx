@@ -18,6 +18,7 @@ import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { formatCurrency } from '@/lib/currency';
 import { fetchWalletBalance, fetchWalletTransactions, addWalletFunds, fetchSavedPaymentMethods, addSavedPaymentMethod, removeSavedPaymentMethod, setSavedPaymentMethodDefault } from '@/lib/wallet-api';
+import { loadRazorpaySdk } from '@/lib/razorpay';
 
 export function WalletPaymentsPage() {
   const router = useRouter();
@@ -123,19 +124,7 @@ export function WalletPaymentsPage() {
 
   const [isConfirmRemoveOpen, setIsConfirmRemoveOpen] = useState(false);
 
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      if ((window as any).Razorpay) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
+
 
   // Hydration fallback removed since states are lazily initialized
 
@@ -190,7 +179,7 @@ export function WalletPaymentsPage() {
     try {
       const { razorpayOrderId, amount: orderAmount, currency } = await addWalletFunds(amount, `via ${method}`);
       
-      const loaded = await loadRazorpayScript();
+      const loaded = await loadRazorpaySdk();
       if (!loaded) {
         setPaymentError('Razorpay SDK failed to load. Are you online?');
         return;

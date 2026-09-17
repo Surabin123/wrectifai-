@@ -11,8 +11,8 @@ import { Modal } from '@/components/common/modal';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { apiClient } from '@/lib/api-client';
-
 import { getSavedCity, formatCurrencyForCity } from '@/utils/location';
+import { loadRazorpaySdk } from '@/lib/razorpay';
 
 export function CartPage() {
   const router = useRouter();
@@ -116,19 +116,7 @@ export function CartPage() {
   const [isPaymentSelectionOpen, setIsPaymentSelectionOpen] = useState(false);
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'online' | 'cod'>('online');
 
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      if ((window as any).Razorpay) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
+
 
   const handleProceedToCheckout = () => {
     if (cartItems.length === 0) return;
@@ -202,7 +190,7 @@ export function CartPage() {
       // 2. Init Payment (Online)
       const payRes = await apiClient.post<any>(`/orders/${orderRes.orderId}/pay`, {});
       
-      const loaded = await loadRazorpayScript();
+      const loaded = await loadRazorpaySdk();
       if (!loaded) throw new Error("Razorpay script failed to load");
       
       const razorpayKey = process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID;

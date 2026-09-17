@@ -1275,7 +1275,7 @@ function DealsPageContent() {
             <div className="border-t border-[#e4ecff] pt-4 flex flex-col gap-2 text-[12px] text-[#6b7da5]">
               <p><strong>Valid till:</strong> {selectedDeal.validTill}</p>
               <p><strong>Purchased:</strong> {selectedDeal.usedCount}</p>
-              <p><strong>Terms:</strong> Standard mock terms apply. Not clubbable with other offers.</p>
+              <p><strong>Terms:</strong> Standard terms &amp; conditions apply. Cannot be combined with other promotional offers.</p>
             </div>
             
             <Button className="w-full mt-2 font-bold bg-[#1a56db] hover:bg-[#1a56db]/90" onClick={() => setSelectedDeal(null)}>

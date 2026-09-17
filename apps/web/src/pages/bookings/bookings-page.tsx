@@ -19,6 +19,7 @@ import { Input } from '@/components/common/input';
 import { formatCurrency } from '@/lib/currency';
 import { useUserPhone } from '@/lib/user-phone';
 import { PaymentSuccessModal } from '@/components/common/payment-success-modal';
+import { loadRazorpaySdk } from '@/lib/razorpay';
 
 type TabKey = 'all' | 'upcoming' | 'accepted' | 'inProgress' | 'completed' | 'cancelled';
 
@@ -129,19 +130,7 @@ export function BookingsPage() {
     setCollectionModalOpen(true);
   };
 
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      if ((window as any).Razorpay) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
+
 
   const [paymentProcessingId, setPaymentProcessingId] = useState<string | null>(null);
 
@@ -212,7 +201,7 @@ export function BookingsPage() {
           return;
       }
       
-      const loaded = await loadRazorpayScript();
+      const loaded = await loadRazorpaySdk();
       if (!loaded) {
         setPaymentError('Failed to load Razorpay payment SDK.');
         setPaymentProcessingId(null);
