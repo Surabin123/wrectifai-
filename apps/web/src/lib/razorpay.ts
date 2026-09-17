@@ -4,6 +4,7 @@ const processedPaymentIds = new Set<string>();
 /**
  * Loads the Razorpay Checkout script dynamically in an idempotent manner.
  * Prevents duplicate script elements in the DOM and memoizes the loading promise.
+ * Resets memoized failure state on timeout or network error to allow retries.
  */
 export function loadRazorpaySdk(): Promise<boolean> {
   if (typeof window === 'undefined') {
@@ -21,8 +22,29 @@ export function loadRazorpaySdk(): Promise<boolean> {
   razorpayScriptPromise = new Promise<boolean>((resolve) => {
     const existingScript = document.querySelector('script[src="https://checkout.razorpay.com/v1/checkout.js"]');
     if (existingScript) {
-      existingScript.addEventListener('load', () => resolve(true), { once: true });
-      existingScript.addEventListener('error', () => resolve(false), { once: true });
+      if ((window as any).Razorpay) {
+        resolve(true);
+        return;
+      }
+
+      const existingTimeoutId = setTimeout(() => {
+        console.warn('[Razorpay] Existing script load timed out.');
+        razorpayScriptPromise = null;
+        resolve(false);
+      }, 10000);
+
+      existingScript.addEventListener('load', () => {
+        clearTimeout(existingTimeoutId);
+        resolve(true);
+      }, { once: true });
+
+      existingScript.addEventListener('error', () => {
+        clearTimeout(existingTimeoutId);
+        console.error('[Razorpay] Existing script load failed.');
+        razorpayScriptPromise = null;
+        resolve(false);
+      }, { once: true });
+
       return;
     }
 
@@ -32,6 +54,7 @@ export function loadRazorpaySdk(): Promise<boolean> {
 
     const timeoutId = setTimeout(() => {
       console.warn('[Razorpay] Script loading timed out after 10 seconds.');
+      razorpayScriptPromise = null;
       resolve(false);
     }, 10000);
 
@@ -43,6 +66,7 @@ export function loadRazorpaySdk(): Promise<boolean> {
     script.onerror = () => {
       clearTimeout(timeoutId);
       console.error('[Razorpay] Failed to load Razorpay SDK.');
+      razorpayScriptPromise = null;
       resolve(false);
     };
 
