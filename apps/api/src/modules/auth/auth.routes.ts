@@ -599,6 +599,10 @@ authRouter.post('/refresh', async (req, res) => {
 
     return success(res, {
       accessToken: newAccessToken,
+      // Cross-origin clients may not receive the replacement HttpOnly cookie.
+      // Return the rotated token so their in-memory/session fallback remains
+      // valid for the next refresh cycle.
+      refreshToken: newRefreshToken,
       // Keep returning accessToken temporarily for backwards compatibility with legacy clients
       message: 'Token refreshed successfully',
       csrfToken

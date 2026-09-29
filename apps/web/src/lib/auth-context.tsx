@@ -142,17 +142,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(true);
     setIsLoading(false);
 
-    // The temporary demo deployment runs on Vercel while the API runs on
-    // Render, where browser third-party-cookie policies can block the session
-    // cookies. Keep the demo session in sessionStorage only; production auth
-    // continues to use HttpOnly cookies.
-    if (process.env.NEXT_PUBLIC_DEMO_AUTH_ENABLED === 'true') {
-      sessionStorage.setItem('wrectifai_demo_access_token', accessToken);
-      if (refreshToken) sessionStorage.setItem('wrectifai_demo_refresh_token', refreshToken);
-    }
-
-    // Tokens are securely stored as HttpOnly cookies by the backend.
-    // We intentionally avoid exposing them to localStorage or client JS.
+    // The web app and API are commonly deployed on different origins. Some
+    // browsers block the API's cross-site cookies, so keep this tab's token as
+    // a bearer-session fallback. It is sessionStorage-only (never persistent
+    // localStorage) and the API cookies remain the preferred credential path.
+    sessionStorage.setItem('wrectifai_session_access_token', accessToken);
+    if (refreshToken) sessionStorage.setItem('wrectifai_session_refresh_token', refreshToken);
+    // Remove tokens from older releases so a malformed legacy bearer token
+    // cannot override the newly authenticated session.
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('token');
   }, []);
 
   const logout = useCallback(async () => {
@@ -166,14 +166,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
         const csrfPayload = csrfResponse.ok ? await csrfResponse.json() : null;
         const csrfToken = csrfPayload?.data?.csrfToken || csrfPayload?.csrfToken;
+        const accessToken = sessionStorage.getItem('wrectifai_session_access_token') ||
+          sessionStorage.getItem('wrectifai_demo_access_token');
+        const refreshToken = sessionStorage.getItem('wrectifai_session_refresh_token') ||
+          sessionStorage.getItem('wrectifai_demo_refresh_token');
         await fetch(`${baseUrl}/auth/logout`, {
           method: 'POST',
           credentials: 'include',
           cache: 'no-store',
           headers: {
             'Content-Type': 'application/json',
+            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
             ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
           },
+          body: JSON.stringify(refreshToken ? { refreshToken } : {}),
         });
       } catch (err) {
         console.warn('Logout API failed', err);
@@ -187,6 +193,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       sessionStorage.removeItem('wrectifai_demo_access_token');
       sessionStorage.removeItem('wrectifai_demo_refresh_token');
+      sessionStorage.removeItem('wrectifai_session_access_token');
+      sessionStorage.removeItem('wrectifai_session_refresh_token');
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      localStorage.removeItem('token');
     }
 
     setUser(null);

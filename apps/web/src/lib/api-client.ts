@@ -101,7 +101,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
   let token: string | null = null;
   if (typeof localStorage !== 'undefined') {
     token =
-      (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('wrectifai_demo_access_token') : null) ||
+      (typeof sessionStorage !== 'undefined' ? (sessionStorage.getItem('wrectifai_session_access_token') || sessionStorage.getItem('wrectifai_demo_access_token')) : null) ||
       localStorage.getItem('accessToken') ||
       localStorage.getItem('token');
   }
@@ -153,8 +153,8 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
         refreshPromise = (async () => {
           try {
             const refreshCsrfToken = await ensureXsrfToken(baseUrl);
-            const demoRefreshToken = typeof sessionStorage !== 'undefined'
-              ? sessionStorage.getItem('wrectifai_demo_refresh_token')
+            const sessionRefreshToken = typeof sessionStorage !== 'undefined'
+              ? (sessionStorage.getItem('wrectifai_session_refresh_token') || sessionStorage.getItem('wrectifai_demo_refresh_token'))
               : null;
             const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
               method: 'POST',
@@ -163,7 +163,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
                 'Content-Type': 'application/json',
                 ...(refreshCsrfToken ? { 'X-XSRF-TOKEN': refreshCsrfToken } : {}),
               },
-              ...(demoRefreshToken ? { body: JSON.stringify({ refreshToken: demoRefreshToken }) } : {}),
+              ...(sessionRefreshToken ? { body: JSON.stringify({ refreshToken: sessionRefreshToken }) } : {}),
             });
 
             if (!refreshRes.ok) {
@@ -172,13 +172,12 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
             const refreshJson = await refreshRes.json();
             const newAccessToken = refreshJson?.data?.accessToken || refreshJson?.accessToken;
-            if (newAccessToken && typeof sessionStorage !== 'undefined' && process.env.NEXT_PUBLIC_DEMO_AUTH_ENABLED === 'true') {
-              sessionStorage.setItem('wrectifai_demo_access_token', newAccessToken);
+            if (newAccessToken && typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem('wrectifai_session_access_token', newAccessToken);
             }
-            // Stop writing refresh tokens to localStorage (Phase 2 requirement)
-            if (newAccessToken && typeof localStorage !== 'undefined') {
-              localStorage.setItem('accessToken', newAccessToken);
-              localStorage.removeItem('refreshToken');
+            const newRefreshToken = refreshJson?.data?.refreshToken || refreshJson?.refreshToken;
+            if (newRefreshToken && typeof sessionStorage !== 'undefined') {
+              sessionStorage.setItem('wrectifai_session_refresh_token', newRefreshToken);
             }
 
             return 'REFRESHED';
@@ -191,6 +190,8 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
             if (typeof sessionStorage !== 'undefined') {
               sessionStorage.removeItem('wrectifai_demo_access_token');
               sessionStorage.removeItem('wrectifai_demo_refresh_token');
+              sessionStorage.removeItem('wrectifai_session_access_token');
+              sessionStorage.removeItem('wrectifai_session_refresh_token');
             }
             window.dispatchEvent(new CustomEvent('auth-logout'));
             throw new ApiError('Session expired. Please log in again.', 401, 'UNAUTHORIZED_EXPIRED');

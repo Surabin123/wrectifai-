@@ -6,13 +6,15 @@ import { query } from '../config/database';
 const authStateCache = new Map<string, { status: string; roles: string[]; expiresAt: number }>();
 
 export async function authenticate(req: Request, res: Response, next: NextFunction) {
-  let token = req.cookies?.accessToken;
-
-  if (!token) {
-    const authHeader = req.headers.authorization;
-    if (authHeader && authHeader.startsWith('Bearer ')) {
-      token = authHeader.split(' ')[1];
-    }
+  // Prefer an explicitly supplied bearer token. This lets the web client
+  // recover from an expired/stale cross-site cookie using its current
+  // sessionStorage token instead of having the stale cookie win silently.
+  let token: string | undefined;
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    token = authHeader.slice('Bearer '.length).trim();
+  } else {
+    token = req.cookies?.accessToken;
   }
 
   if (!token) {
