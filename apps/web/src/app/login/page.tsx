@@ -144,7 +144,7 @@ export default function LoginPage() {
 
     try {
       const checkRes = await apiClient.post<{ exists: boolean }>('/auth/check-user', { mobileNumber: sanitizedPhone });
-      if (!checkRes.exists) {
+      if (!checkRes.exists && !isDemoAuthEnabled) {
         setErrorMsg('Account not found. Please sign up first.');
         setIsSubmitting(false);
         return;
@@ -159,7 +159,6 @@ export default function LoginPage() {
     if (isDemoAuthEnabled) {
       setIsOtpSent(true);
       setIsSubmitting(false);
-      setSuccessMsg('Demo OTP ready. Enter 123456 to continue.');
       return;
     }
 

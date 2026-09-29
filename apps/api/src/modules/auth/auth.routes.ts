@@ -29,10 +29,15 @@ const checkUserLimiter = rateLimiter({ windowMs: 15 * 60 * 1000, max: 30, messag
 const forgotPasswordLimiter = rateLimiter({ windowMs: 60 * 60 * 1000, max: 5, message: 'Too many password reset requests, please try again after 1 hour' });
 const resetPasswordLimiter = rateLimiter({ windowMs: 60 * 60 * 1000, max: 5, message: 'Too many password reset attempts, please try again after 1 hour' });
 
+// Render and Vercel run on different sites. Treat an HTTPS WEB_ORIGINS
+// deployment as secure even if the host has not explicitly set NODE_ENV.
+const secureDeployment = process.env.NODE_ENV === 'production' ||
+  (process.env.WEB_ORIGINS || '').split(',').some((origin) => origin.trim().startsWith('https://'));
+
 const cookieConfig: CookieOptions = {
   httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  secure: secureDeployment,
+  sameSite: secureDeployment ? 'none' : 'lax',
   path: '/',
   maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
 };
@@ -52,7 +57,7 @@ function setTokensInCookies(res: Response, accessToken: string, refreshToken: st
   // Clear Lax variants as well before establishing new session
   const laxCookieConfig: CookieOptions = {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: secureDeployment,
     sameSite: 'lax',
     path: '/',
   };
@@ -66,8 +71,8 @@ function setTokensInCookies(res: Response, accessToken: string, refreshToken: st
   const csrfToken = existingCsrfToken || crypto.randomBytes(32).toString('hex');
   res.cookie('XSRF-TOKEN', csrfToken, {
     httpOnly: false,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+    secure: secureDeployment,
+    sameSite: secureDeployment ? 'none' : 'lax',
     path: '/',
   });
   return csrfToken;
@@ -614,8 +619,8 @@ authRouter.get('/csrf-token', (req, res) => {
     csrfToken = crypto.randomBytes(32).toString('hex');
     res.cookie('XSRF-TOKEN', csrfToken, {
       httpOnly: false,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+      secure: secureDeployment,
+      sameSite: secureDeployment ? 'none' : 'lax',
       path: '/',
     });
   }
