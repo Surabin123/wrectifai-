@@ -142,6 +142,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsAuthenticated(true);
     setIsLoading(false);
 
+    // The temporary demo deployment runs on Vercel while the API runs on
+    // Render, where browser third-party-cookie policies can block the session
+    // cookies. Keep the demo session in sessionStorage only; production auth
+    // continues to use HttpOnly cookies.
+    if (process.env.NEXT_PUBLIC_DEMO_AUTH_ENABLED === 'true') {
+      sessionStorage.setItem('wrectifai_demo_access_token', accessToken);
+      if (refreshToken) sessionStorage.setItem('wrectifai_demo_refresh_token', refreshToken);
+    }
+
     // Tokens are securely stored as HttpOnly cookies by the backend.
     // We intentionally avoid exposing them to localStorage or client JS.
   }, []);
@@ -176,6 +185,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           localStorage.removeItem(key);
         }
       }
+      sessionStorage.removeItem('wrectifai_demo_access_token');
+      sessionStorage.removeItem('wrectifai_demo_refresh_token');
     }
 
     setUser(null);

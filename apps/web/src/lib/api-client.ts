@@ -99,7 +99,10 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
   let token: string | null = null;
   if (typeof localStorage !== 'undefined') {
-    token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+    token =
+      (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('wrectifai_demo_access_token') : null) ||
+      localStorage.getItem('accessToken') ||
+      localStorage.getItem('token');
   }
 
   const method = (options.method || 'GET').toUpperCase();
@@ -146,6 +149,9 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
         refreshPromise = (async () => {
           try {
             const refreshCsrfToken = await ensureXsrfToken(baseUrl);
+            const demoRefreshToken = typeof sessionStorage !== 'undefined'
+              ? sessionStorage.getItem('wrectifai_demo_refresh_token')
+              : null;
             const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
               method: 'POST',
               credentials: 'include',
@@ -153,6 +159,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
                 'Content-Type': 'application/json',
                 ...(refreshCsrfToken ? { 'X-XSRF-TOKEN': refreshCsrfToken } : {}),
               },
+              ...(demoRefreshToken ? { body: JSON.stringify({ refreshToken: demoRefreshToken }) } : {}),
             });
 
             if (!refreshRes.ok) {
@@ -161,6 +168,9 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
             const refreshJson = await refreshRes.json();
             const newAccessToken = refreshJson?.data?.accessToken || refreshJson?.accessToken;
+            if (newAccessToken && typeof sessionStorage !== 'undefined' && process.env.NEXT_PUBLIC_DEMO_AUTH_ENABLED === 'true') {
+              sessionStorage.setItem('wrectifai_demo_access_token', newAccessToken);
+            }
             // Stop writing refresh tokens to localStorage (Phase 2 requirement)
             if (newAccessToken && typeof localStorage !== 'undefined') {
               localStorage.setItem('accessToken', newAccessToken);
@@ -174,6 +184,10 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
               localStorage.removeItem('refreshToken');
               localStorage.removeItem('token');
             }
+            if (typeof sessionStorage !== 'undefined') {
+              sessionStorage.removeItem('wrectifai_demo_access_token');
+              sessionStorage.removeItem('wrectifai_demo_refresh_token');
+            }
             window.dispatchEvent(new CustomEvent('auth-logout'));
             throw new ApiError('Session expired. Please log in again.', 401, 'UNAUTHORIZED_EXPIRED');
           } finally {
@@ -184,7 +198,9 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
       await refreshPromise;
       
-      const retryToken = typeof localStorage !== 'undefined' ? (localStorage.getItem('accessToken') || localStorage.getItem('token')) : null;
+      const retryToken = typeof sessionStorage !== 'undefined'
+        ? (sessionStorage.getItem('wrectifai_demo_access_token') || localStorage.getItem('accessToken') || localStorage.getItem('token'))
+        : null;
       const retryHeaders = {
         ...(config.headers as Record<string, string>),
         ...(retryToken ? { 'Authorization': `Bearer ${retryToken}` } : {}),
