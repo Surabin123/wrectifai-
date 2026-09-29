@@ -234,7 +234,9 @@ export default function LoginPage() {
     try {
       if (isDemoAuthEnabled) {
         const data = await apiClient.post<AuthResponse>('/auth/login', {
-          mobileNumber: `${countryCode}${mobileNumber.replace(/\s+/g, '')}`,
+          // Demo/seeded accounts are stored with their local number (for example,
+          // the admin is 9000000001), not the E.164 country-prefixed value.
+          mobileNumber: mobileNumber.replace(/\s+/g, ''),
           otp,
         });
         completeLogin(data);
