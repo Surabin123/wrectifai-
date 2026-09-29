@@ -166,10 +166,13 @@ garagesRouter.get('/my-profile', authenticate, async (req, res) => {
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(
-      `SELECT g.id, g.name as "garageName", g.address, g.location, g.specializations, 
+      `SELECT g.id, g.name as "garageName", g.address, g.city, g.location, g.specializations,
               g.pickup_drop_supported as "pickupDropSupported", g.approval_status as "approvalStatus", 
               g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", 
-              g.image, g.description, g.business_hours as "businessHours",
+              g.image, g.description, g.business_hours as "businessHours", g.garage_type as "garageType",
+              g.registration_number as "registrationNumber", g.country, g.business_currency as "businessCurrency",
+              g.pricing_currency as "pricingCurrency", g.established_year as "establishedYear", g.response_mins as "responseMins",
+              g.state_region as "stateRegion", g.postal_code as "postalCode", g.timezone, g.owner_designation as "ownerDesignation",
               u.name as "ownerName", u.email as "ownerEmail", u.mobile_number as "ownerPhone",
               (SELECT COUNT(*) FROM services WHERE garage_id = g.id) as "servicesCount",
               (SELECT COUNT(*) FROM garage_inventory WHERE garage_id = g.id) as "inventoryCount"
@@ -209,13 +212,13 @@ garagesRouter.put('/my-profile', authenticate, requireRole(['garage', 'admin']),
     const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
-    const { 
+    const {
       garageName, address, location, specializations, 
       pickupDropSupported, image, description, businessHours,
-      contactPhone
+      contactPhone, garageType, stateRegion, postalCode, timezone, ownerName, ownerDesignation
     } = req.body;
 
-    if ((garageName && typeof garageName !== 'string') || (address && typeof address !== 'string') || (description && typeof description !== 'string')) {
+    if ((garageName && typeof garageName !== 'string') || (address && typeof address !== 'string') || (description && typeof description !== 'string') || (ownerDesignation && typeof ownerDesignation !== 'string')) {
       return error(res, 'Invalid profile data format', 'BAD_REQUEST', 400);
     }
 
@@ -251,6 +254,11 @@ garagesRouter.put('/my-profile', authenticate, requireRole(['garage', 'admin']),
            description = COALESCE($7, description), 
            business_hours = COALESCE($8, business_hours), 
            contact_phone = COALESCE($11, contact_phone),
+           garage_type = COALESCE($12, garage_type),
+           state_region = COALESCE($13, state_region),
+           postal_code = COALESCE($14, postal_code),
+           timezone = COALESCE($15, timezone),
+           owner_designation = COALESCE($16, owner_designation),
            updated_at = NOW()
        WHERE id = $9 AND owner_user_id = $10
        RETURNING *`,
@@ -258,7 +266,7 @@ garagesRouter.put('/my-profile', authenticate, requireRole(['garage', 'admin']),
         garageName, address, location ? JSON.stringify(location) : null, 
         specializations, pickupDropSupported, processedImage, description, 
         businessHours ? JSON.stringify(businessHours) : null, 
-        garageId, garageUserId, contactPhone
+        garageId, garageUserId, contactPhone, garageType, stateRegion, postalCode, timezone, ownerDesignation
       ]
     );
 
@@ -266,6 +274,10 @@ garagesRouter.put('/my-profile', authenticate, requireRole(['garage', 'admin']),
       return error(res, 'Garage profile not found or unauthorized', 'NOT_FOUND', 404);
     }
 
+    if (ownerName && ownerName.trim()) {
+      await query('UPDATE users SET name = $1, updated_at = NOW() WHERE id = $2', [ownerName.trim(), garageUserId]);
+      result.rows[0].ownerName = ownerName.trim();
+    }
     return success(res, result.rows[0]);
   } catch (err) {
     console.error('Failed to update garage profile:', err);

@@ -5,8 +5,40 @@ import { query, getDbPool } from '../../config/database';
 import { getPagination } from '../../utils/pagination';
 import fs from 'fs';
 import path from 'path';
+import { getEnv } from '../../config/env';
+import { verifyFirebaseIdToken } from '../../services/firebase-id-token.service';
 
 export const adminRouter = Router();
+
+const COUNTRY_REGISTRATION_LABELS: Record<string, string> = {
+  IN: 'Business Registration / Applicable Government Identification Number',
+  US: 'State Business Registration Number / Applicable Business Identification Number',
+  AE: 'Trade Licence Number / Commercial Registration Number',
+};
+const COUNTRY_PHONE_LENGTHS: Record<string, { min: number; max: number }> = {
+  IN: { min: 10, max: 10 },
+  US: { min: 10, max: 10 },
+  AE: { min: 9, max: 9 },
+};
+const COUNTRY_CURRENCIES: Record<string, string> = { IN: 'INR', US: 'USD', AE: 'AED' };
+
+function normalizePhone(value: unknown, country: string): string | null {
+  if (typeof value !== 'string') return null;
+  const digits = value.replace(/\D/g, '');
+  const callingCode = country === 'IN' ? '91' : country === 'US' ? '1' : country === 'AE' ? '971' : '';
+  const national = callingCode && digits.startsWith(callingCode) ? digits.slice(callingCode.length) : digits;
+  const rule = COUNTRY_PHONE_LENGTHS[country];
+  if (!rule || national.length < rule.min || national.length > rule.max) return null;
+  return `+${callingCode}${national}`;
+}
+
+function isDevelopmentOtpValid(otp: unknown): boolean {
+  // Development OTP support is explicitly opt-in and can never authenticate a production registration.
+  return process.env.NODE_ENV !== 'production'
+    && process.env.ENABLE_DEVELOPMENT_OTP === 'true'
+    && typeof otp === 'string'
+    && otp === (process.env.DEVELOPMENT_OTP_CODE || '123456');
+}
 
 // Apply auth and admin role requirements to all routes in this sub-router
 adminRouter.use(authenticate);
@@ -141,16 +173,29 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
   const client = await getDbPool().connect();
   try {
     const { 
-      name, type, phone, email, city, address, area,
-      ownerName, ownerPhone, password, 
+      name, type, otherGarageType, phone, email, city, customCity, address, area, stateRegion, postalCode, ownerCountry,
+      ownerName, ownerDesignation, ownerPhone, password, confirmPassword,
       services, customServices, servicePrices, customServicePrices, description, workingHours,
       chips, image, country, responseMins,
-      registrationNumber, businessCurrency, locale
+      registrationNumber, businessCurrency, locale, timezone, ownerPhoneVerificationToken
     } = req.body;
 
-    const garageType = typeof type === 'string' ? type.trim() : '';
-    if (!garageType || garageType === 'Other') {
+    const requestedGarageType = typeof type === 'string' ? type.trim() : '';
+    const garageType = requestedGarageType === 'Other'
+      ? (typeof otherGarageType === 'string' ? otherGarageType.trim() : '')
+      : requestedGarageType;
+    if (!garageType) {
       return error(res, 'Please specify a valid garage type.', 'VALIDATION_ERROR', 400);
+    }
+
+    const countryCode = typeof country === 'string' ? country.toUpperCase() : '';
+    if (!COUNTRY_CURRENCIES[countryCode]) {
+      return error(res, 'Select a supported business country.', 'VALIDATION_ERROR', 400);
+    }
+    const normalizedGaragePhone = normalizePhone(phone, countryCode);
+    const normalizedOwnerPhone = normalizePhone(ownerPhone || phone, typeof ownerCountry === 'string' ? ownerCountry.toUpperCase() : countryCode);
+    if (!normalizedGaragePhone || !normalizedOwnerPhone) {
+      return error(res, 'Enter a valid phone number for the selected country.', 'VALIDATION_ERROR', 400);
     }
 
     const emailClean = typeof email === 'string' ? email.trim().toLowerCase() : '';
@@ -159,7 +204,8 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       return error(res, 'Please enter a valid email address.', 'VALIDATION_ERROR', 400);
     }
 
-    if (!city || !city.trim()) {
+    const resolvedCity = city === 'Other' ? (typeof customCity === 'string' ? customCity.trim() : '') : (typeof city === 'string' ? city.trim() : '');
+    if (!resolvedCity) {
       return error(res, 'City (or Custom Location) is required.', 'VALIDATION_ERROR', 400);
     }
 
@@ -167,8 +213,8 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       return error(res, 'Area/Locality is required.', 'VALIDATION_ERROR', 400);
     }
 
-    if (!registrationNumber || !registrationNumber.trim()) {
-      return error(res, 'Registration number is strictly required.', 'VALIDATION_ERROR', 400);
+    if (typeof registrationNumber !== 'string' || !registrationNumber.trim()) {
+      return error(res, `${COUNTRY_REGISTRATION_LABELS[countryCode]} is required.`, 'VALIDATION_ERROR', 400);
     }
     const regNumTrimmed = registrationNumber.trim();
 
@@ -176,8 +222,11 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       return error(res, 'Garage description is strictly required.', 'VALIDATION_ERROR', 400);
     }
 
-    if (!password) {
-      return error(res, 'Password is required.', 'VALIDATION_ERROR', 400);
+    if (!ownerName || typeof ownerName !== 'string' || !ownerName.trim() || !ownerDesignation || typeof ownerDesignation !== 'string' || !ownerDesignation.trim()) {
+      return error(res, 'Authorized representative name and designation are required.', 'VALIDATION_ERROR', 400);
+    }
+    if (!password || password !== confirmPassword) {
+      return error(res, 'A matching password confirmation is required.', 'VALIDATION_ERROR', 400);
     }
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,15}$/;
     if (!passwordRegex.test(password)) {
@@ -195,13 +244,27 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       return error(res, 'Garage established year is required and must be a valid year.', 'VALIDATION_ERROR', 400);
     }
 
-    if (!otp || (otp !== '1234' && otp !== '123456')) {
-      return error(res, 'Invalid OTP for owner phone verification.', 'VALIDATION_ERROR', 400);
+    let isPhoneVerified = isDevelopmentOtpValid(otp);
+    if (!isPhoneVerified && typeof ownerPhoneVerificationToken === 'string') {
+      const { firebaseWebApiKey } = getEnv();
+      if (firebaseWebApiKey) {
+        try {
+          const firebaseUser = await verifyFirebaseIdToken(ownerPhoneVerificationToken, firebaseWebApiKey);
+          const verifiedPhone = normalizePhone(firebaseUser.phoneNumber || '', typeof ownerCountry === 'string' ? ownerCountry.toUpperCase() : countryCode);
+          isPhoneVerified = verifiedPhone === normalizedOwnerPhone;
+        } catch {
+          isPhoneVerified = false;
+        }
+      }
+    }
+    if (!isPhoneVerified) {
+      return error(res, 'Owner phone verification is required. Development OTP is unavailable outside an explicitly enabled development environment.', 'PHONE_NOT_VERIFIED', 400);
     }
 
     // Backend validation for documents (before DB work)
+    if (!image) return error(res, 'Garage display image is required.', 'VALIDATION_ERROR', 400);
     if (image) {
-      if (image.type !== 'image/png') return error(res, 'Profile Image must be a PNG file.', 'VALIDATION_ERROR', 400);
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(image.type)) return error(res, 'Profile image must be JPG, PNG, or WEBP.', 'VALIDATION_ERROR', 400);
       if (image.size && image.size > 2 * 1024 * 1024) return error(res, 'Profile Image must be less than 2MB.', 'VALIDATION_ERROR', 400);
     }
 
@@ -214,11 +277,10 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     ];
 
     for (const doc of docs) {
-      if (doc.obj) {
-        const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-        if (!validTypes.includes(doc.obj.type)) return error(res, `Invalid file type for ${doc.type}.`, 'VALIDATION_ERROR', 400);
-        if (doc.obj.size && doc.obj.size > 10 * 1024 * 1024) return error(res, `${doc.type} must be less than 10MB.`, 'VALIDATION_ERROR', 400);
-      }
+      if (!doc.obj) return error(res, `${doc.type} is required.`, 'VALIDATION_ERROR', 400);
+      const validTypes = ['application/pdf', 'image/jpeg', 'image/png'];
+      if (!validTypes.includes(doc.obj.type)) return error(res, `Invalid file type for ${doc.type}.`, 'VALIDATION_ERROR', 400);
+      if (doc.obj.size && doc.obj.size > 5 * 1024 * 1024) return error(res, `${doc.type} must be less than 5MB.`, 'VALIDATION_ERROR', 400);
     }
 
     // Helper to save base64 files locally (fallback for dev)
@@ -234,35 +296,23 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       return `/uploads/${folder}/${filename}`;
     };
 
-    // Helper to upload base64 files to Cloudinary for production
+    // Production documents use authenticated delivery; profile responses never expose URLs.
     const uploadBase64File = async (fileObj: any, folder: string) => {
       if (!fileObj || !fileObj.data) return null;
       if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
         try {
           const { v2: cloudinary } = require('cloudinary');
-          
-          const config = cloudinary.config();
-          const diagnostics = {
-             hasUrl: !!process.env.CLOUDINARY_URL,
-             hasCloudName: !!config.cloud_name,
-             hasApiKey: !!config.api_key,
-             hasApiSecret: !!config.api_secret
-          };
-          console.log('Cloudinary Env Check:', diagnostics);
-
           const result = await cloudinary.uploader.upload(fileObj.data, {
             folder: `wrectifai/${folder}`,
-            public_id: `garage_${Date.now()}_${Math.random().toString(36).substring(7)}`
+            public_id: `garage_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+            type: folder.includes('documents') ? 'authenticated' : 'upload'
           });
           return result.secure_url;
-        } catch (err: any) {
-          console.error('Cloudinary Upload Error:', err);
-          const { v2: cloudinary } = require('cloudinary');
-          const config = cloudinary.config();
-          const diagStr = `hasUrl=${!!process.env.CLOUDINARY_URL}, hasCloudName=${!!config.cloud_name}, hasApiKey=${!!config.api_key}, hasApiSecret=${!!config.api_secret}`;
-          throw new Error(`Cloudinary upload failed: ${err.message || 'Unknown error'}. Diagnostics: ${diagStr}`);
+        } catch {
+          throw new Error('Secure document upload failed.');
         }
       }
+      if (process.env.NODE_ENV === 'production') throw new Error('Secure document storage is not configured.');
       return saveBase64File(fileObj, folder);
     };
 
@@ -300,25 +350,6 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         console.warn('[WrectifAI Geocoding] Nominatim failed or timed out:', err);
       }
       
-      // Smart Fallback for popular testing cities if GPS completely fails
-      console.warn('[WrectifAI Geocoding] Using smart fallback for city:', city);
-      const fallbackCities: Record<string, {lat: number, lng: number}> = {
-        'chennai': { lat: 13.0827, lng: 80.2707 },
-        'bengaluru': { lat: 12.9716, lng: 77.5946 },
-        'bangalore': { lat: 12.9716, lng: 77.5946 },
-        'mumbai': { lat: 19.0760, lng: 72.8777 },
-        'delhi': { lat: 28.7041, lng: 77.1025 },
-        'hyderabad': { lat: 17.3850, lng: 78.4867 },
-        'pune': { lat: 18.5204, lng: 73.8567 },
-        'dubai': { lat: 25.2048, lng: 55.2708 },
-        'new york': { lat: 40.7128, lng: -74.0060 }
-      };
-      
-      const cityKey = (city || '').toLowerCase().trim();
-      if (fallbackCities[cityKey]) {
-        return fallbackCities[cityKey];
-      }
-
       return { lat: null, lng: null };
     };
 
@@ -329,22 +360,19 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    // Check if user already exists
-    let ownerId;
-    const existingUser = await client.query('SELECT id FROM users WHERE email = $1 OR mobile_number = $2', [email, ownerPhone || phone]);
-    
+    // A registration must not mutate the credentials of an existing account. This was
+    // the source of mixed garage logins when an email or number had been reused.
+    const existingUser = await client.query('SELECT id FROM users WHERE email = $1 OR mobile_number = $2', [emailClean, normalizedOwnerPhone]);
     if (existingUser.rows.length > 0) {
-      ownerId = existingUser.rows[0].id;
-      // Optionally update password hash
-      await client.query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, ownerId]);
-    } else {
-      // Create Owner User
-      const newUser = await client.query(
-        `INSERT INTO users (name, mobile_number, email, password_hash, status) VALUES ($1, $2, $3, $4, 'active') RETURNING id`,
-        [ownerName, ownerPhone || phone, email, passwordHash]
-      );
-      ownerId = newUser.rows[0].id;
+      await client.query('ROLLBACK');
+      return error(res, 'An account already exists with this login email or authorized representative phone number.', 'CONFLICT', 409);
     }
+    const newUser = await client.query(
+      `INSERT INTO users (name, mobile_number, email, password_hash, status, is_mobile_verified)
+       VALUES ($1, $2, $3, $4, 'active', true) RETURNING id`,
+      [ownerName.trim(), normalizedOwnerPhone, emailClean, passwordHash]
+    );
+    const ownerId = newUser.rows[0].id;
 
     // Assign Garage Role
     const roleResult = await client.query("SELECT id FROM roles WHERE code = 'garage'");
@@ -353,32 +381,39 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     }
 
     const imagePath = await uploadBase64File(image, 'garages');
-    const coords = await geocodeAddress(address, area, city, country || 'IN');
+    const coords = await geocodeAddress(address, area, resolvedCity, countryCode);
 
     // Insert Garage — only columns that exist in the live garages table
     const newGarage = await client.query(
       `INSERT INTO garages (
         name, address, city, owner_user_id, approval_status, is_approved,
-        specializations, image, location, response_mins, description, business_hours, registration_number, country, business_currency, locale, established_year, contact_phone, is_contact_phone_verified
-      ) VALUES ($1, $2, $3, $4, 'pending', false, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17) RETURNING id`,
+        specializations, image, location, response_mins, description, business_hours, registration_number, country, business_currency, locale, established_year, contact_phone, is_contact_phone_verified,
+        garage_type, owner_designation, state_region, postal_code, pricing_currency, timezone
+      ) VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING id`,
       [
         name,
         address,
-        city || null,
+        resolvedCity,
         ownerId,
         chips || [],
         imagePath || null,
-        JSON.stringify({ city, lat: coords.lat, lng: coords.lng, locality: area || null, country: country || 'IN' }),
+        JSON.stringify({ city: resolvedCity, lat: coords.lat, lng: coords.lng, locality: area || null, state: stateRegion || null, postalCode: postalCode || null, country: countryCode }),
         responseMins || null,
         description || null,
         workingHours ? JSON.stringify(workingHours) : null,
         regNumTrimmed,
-        country || 'IN',
-        businessCurrency || 'INR',
-        locale || 'en-IN',
+        countryCode,
+        COUNTRY_CURRENCIES[countryCode],
+        locale || 'en-US',
         yearNum,
-        contactPhone || null,
-        true // we verified it above using the OTP
+        normalizedGaragePhone,
+        true,
+        garageType,
+        ownerDesignation.trim(),
+        stateRegion?.trim() || null,
+        postalCode?.trim() || null,
+        COUNTRY_CURRENCIES[countryCode],
+        timezone?.trim() || 'UTC'
       ]
     );
     const garageId = newGarage.rows[0].id;

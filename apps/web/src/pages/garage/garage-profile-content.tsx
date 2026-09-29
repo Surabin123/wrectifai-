@@ -31,6 +31,12 @@ export function GarageProfileContent() {
           description: res.description || '',
           pickupDropSupported: res.pickupDropSupported || false,
           image: res.image || '',
+          garageType: res.garageType || '',
+          stateRegion: res.stateRegion || '',
+          postalCode: res.postalCode || '',
+          timezone: res.timezone || '',
+          ownerName: res.ownerName || '',
+          ownerDesignation: res.ownerDesignation || '',
         });
       }
     } catch (err) {
@@ -153,6 +159,10 @@ export function GarageProfileContent() {
                    </span>
                  )}
               </div>
+              {(profile.responseMins || profile.specializations?.length) && <div className="flex flex-wrap gap-2 mt-3 text-xs text-slate-600">
+                {profile.responseMins && <span className="rounded bg-slate-100 px-2 py-1">Responds in about {profile.responseMins} min</span>}
+                {(profile.specializations || []).map((highlight: string) => <span key={highlight} className="rounded bg-blue-50 px-2 py-1 text-blue-700">{highlight}</span>)}
+              </div>}
             </div>
             
             {!isEditing && (
@@ -190,6 +200,25 @@ export function GarageProfileContent() {
                   <span className="text-sm font-medium text-slate-900 text-right w-full sm:w-2/3">{profile.address || 'N/A'}</span>
                 )}
               </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
+                <span className="text-sm font-medium text-slate-500 w-1/3">Garage Type</span>
+                {isEditing ? (
+                  <input type="text" className="border rounded p-2 text-sm w-full sm:w-2/3" value={formData.garageType} onChange={(e) => setFormData({...formData, garageType: e.target.value})} />
+                ) : <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{profile.garageType || 'Not specified'}</span>}
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
+                <span className="text-sm font-medium text-slate-500 w-1/3">Registration Number</span>
+                <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">{profile.registrationNumber || 'Not specified'}</span>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
+                <span className="text-sm font-medium text-slate-500 w-1/3">Business Location</span>
+                {isEditing ? (
+                  <div className="flex gap-2 w-full sm:w-2/3"><input className="border rounded p-2 text-sm w-1/2" value={formData.stateRegion} onChange={(e) => setFormData({...formData, stateRegion: e.target.value})} placeholder="State / Province" /><input className="border rounded p-2 text-sm w-1/2" value={formData.postalCode} onChange={(e) => setFormData({...formData, postalCode: e.target.value})} placeholder="Postal code" /></div>
+                ) : <span className="text-sm text-slate-700 text-right w-full sm:w-2/3">{[profile.city, profile.stateRegion, profile.postalCode].filter(Boolean).join(', ') || 'Not specified'}</span>}
+              </div>
               
               <div className="flex flex-col sm:flex-row sm:items-start justify-between border-b pb-4">
                 <span className="text-sm font-medium text-slate-500 w-1/3 pt-2">Description</span>
@@ -213,6 +242,8 @@ export function GarageProfileContent() {
                   </span>
                 )}
               </div>
+
+              {isEditing && <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-4"><span className="text-sm font-medium text-slate-500 w-1/3">Representative</span><div className="flex gap-2 w-full sm:w-2/3"><input className="border rounded p-2 text-sm w-1/2" value={formData.ownerName} onChange={(e) => setFormData({...formData, ownerName: e.target.value})} placeholder="Full name" /><input className="border rounded p-2 text-sm w-1/2" value={formData.ownerDesignation} onChange={(e) => setFormData({...formData, ownerDesignation: e.target.value})} placeholder="Designation" /></div></div>}
             </div>
             
             {isEditing && (
@@ -326,6 +357,7 @@ export function GarageProfileContent() {
                 <Phone className="w-4 h-4" />
                 <span>{profile.ownerPhone || 'N/A'}</span>
               </div>
+              {profile.ownerDesignation && <div className="text-xs text-slate-500 pl-11">{profile.ownerDesignation}</div>}
               <div className="flex items-center gap-3 text-slate-600 pl-11">
                 <Mail className="w-4 h-4" />
                 <span className="truncate">{profile.ownerEmail || 'N/A'}</span>

@@ -10,7 +10,7 @@ services:
     runtime: node
     plan: free
     buildCommand: pnpm install --frozen-lockfile && npx nx build api --skip-nx-cache
-    startCommand: node dist/api/main.js
+    startCommand: node db/migrate.js && node dist/api/main.js
     envVars:
       - key: NODE_VERSION
         value: 22.11.0
@@ -92,10 +92,10 @@ services:
         value: production
 
       - key: NEXT_PUBLIC_API_URL
-        value: https://wrectifai-api.onrender.com/api/v1
+        value: https://wrectifai-api-hafr.onrender.com/api/v1
 
       - key: NEXT_PUBLIC_API_BASE_URL
-        value: https://wrectifai-api.onrender.com/api/v1
+        value: https://wrectifai-api-hafr.onrender.com/api/v1
 
       - key: NEXT_PUBLIC_GOOGLE_CLIENT_ID
         sync: false

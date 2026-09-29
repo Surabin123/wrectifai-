@@ -7,24 +7,30 @@ import { useRouter } from 'next/navigation';
 import { COUNTRIES, getCountryByCallingCode } from '@/lib/countries';
 import { Modal } from '@/components/common/modal';
 import { toast } from 'sonner';
+import { auth } from '@/lib/firebase';
+import { ConfirmationResult, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 
-const CITY_COORDS: Record<string, { lat: number; lon: number }> = {
-  'Mumbai': { lat: 19.0760, lon: 72.8777 },
-  'Delhi': { lat: 28.7041, lon: 77.1025 },
-  'Bengaluru': { lat: 12.9716, lon: 77.5946 },
-  'Hyderabad': { lat: 17.3850, lon: 78.4867 },
-  'Chennai': { lat: 13.0827, lon: 80.2707 },
-  'New York': { lat: 40.7128, lon: -74.0060 },
-  'Los Angeles': { lat: 34.0522, lon: -118.2437 },
-  'Chicago': { lat: 41.8781, lon: -87.6298 },
-  'Houston': { lat: 29.7604, lon: -95.3698 },
-  'Phoenix': { lat: 33.4484, lon: -112.0740 },
-  'Dubai': { lat: 25.2048, lon: 55.2708 },
-  'Abu Dhabi': { lat: 24.4539, lon: 54.3773 },
-  'Sharjah': { lat: 25.3463, lon: 55.4209 },
-  'Ajman': { lat: 25.4052, lon: 55.5136 },
-  'Fujairah': { lat: 25.1288, lon: 56.3265 },
+declare global { interface Window { garageRegistrationRecaptcha?: RecaptchaVerifier; } }
+
+const GARAGE_TYPES = [
+  'General Automotive Repair Workshop', 'Multi-Brand Car Service Centre',
+  'Authorized Dealership Service Centre', 'Specialized Automotive Repair Workshop',
+  'Auto Electrical & Diagnostics Workshop', 'Body Shop & Collision Repair Centre',
+  'Tyre & Wheel Service Centre', 'Car Detailing & Accessories Centre',
+  'Motorcycle Repair Workshop', 'Commercial Vehicle Repair Workshop', 'Other'
+];
+const registrationLabelByCountry: Record<string, string> = {
+  '+91': 'Business Registration / Applicable Government Identification Number',
+  '+1': 'State Business Registration Number / Applicable Business Identification Number',
+  '+971': 'Trade Licence Number / Commercial Registration Number',
 };
+const timeOptions = Array.from({ length: 96 }, (_, index) => {
+  const hours = Math.floor(index / 4);
+  const minutes = (index % 4) * 15;
+  const suffix = hours >= 12 ? 'PM' : 'AM';
+  const displayHour = hours % 12 || 12;
+  return `${String(displayHour).padStart(2, '0')}:${String(minutes).padStart(2, '0')} ${suffix}`;
+});
 
 
 export default function RegisterGaragePage() {
@@ -39,12 +45,16 @@ export default function RegisterGaragePage() {
     phone: '',
     email: '',
     city: '',
+    customCity: '',
     area: '',
     address: '',
+    stateRegion: '',
+    postalCode: '',
     year: '',
     description: '',
     responseMins: '30',
     ownerName: '',
+    ownerDesignation: '',
     sameAsGaragePhone: true,
     ownerCountryCode: '+91',
     ownerPhone: '',
@@ -52,6 +62,7 @@ export default function RegisterGaragePage() {
     confirmPassword: '',
     otp: '',
     isPhoneVerified: false,
+    ownerPhoneVerificationToken: '',
     businessRegDoc: null as any,
     businessLicenseDoc: null as any,
     ownerIdDoc: null as any,
@@ -79,6 +90,8 @@ export default function RegisterGaragePage() {
   const [platformServices, setPlatformServices] = useState<Array<{ id: string; name: string; category?: string; description?: string; base_price?: number }>>([]);
   const [areaSuggestions, setAreaSuggestions] = useState<string[]>([]);
   const [areaSearchTimer, setAreaSearchTimer] = useState<NodeJS.Timeout | null>(null);
+  const [ownerOtpConfirmation, setOwnerOtpConfirmation] = useState<ConfirmationResult | null>(null);
+  const [isSendingOwnerOtp, setIsSendingOwnerOtp] = useState(false);
 
 
   const handleAreaSearch = (query: string) => {
@@ -88,13 +101,9 @@ export default function RegisterGaragePage() {
       setAreaSuggestions([]);
       return;
     }
-    // Capture city NOW before entering the async timeout (avoid stale closure)
-    const currentCity = formData.city;
     setAreaSearchTimer(setTimeout(async () => {
       try {
-        const coords = currentCity ? CITY_COORDS[currentCity] : null;
-        const biasPart = coords ? `&lat=${coords.lat}&lon=${coords.lon}` : '';
-        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}${biasPart}&limit=10&lang=en`;
+        const url = `https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=10&lang=en`;
         const res = await fetch(url, { headers: { 'User-Agent': 'WrectifAI/1.0 (admin@wrectifai.com)' } });
         if (res.ok) {
           const data = await res.json();
@@ -122,15 +131,6 @@ export default function RegisterGaragePage() {
       .catch(() => setErrorMsg('Failed to load the platform service catalog. Please try again.'));
   }, []);
   
-  const getCitiesForCountry = (code: string): string[] => {
-    switch (code) {
-      case '+91': return ['Bengaluru', 'Hyderabad', 'Mumbai', 'Chennai', 'Pune'];
-      case '+1': return ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'];
-      case '+971': return ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Fujairah'];
-      default: return [];
-    }
-  };
-
   const getPhoneError = (code: string, phone: string) => {
     if (code === '+91' && phone.length !== 10) return 'Phone number must be exactly 10 digits for India.';
     if (code === '+1' && phone.length !== 10) return 'Phone number must be exactly 10 digits for USA.';
@@ -171,7 +171,7 @@ export default function RegisterGaragePage() {
         setErrorMsg(`Please enter a valid 4-digit established year between 1800 and ${currentYear}.`);
         return;
       }
-      if (!formData.name.trim() || !formData.phone.trim() || !formData.email.trim() || !formData.city.trim() || !formData.area.trim() || !formData.address.trim() || !formData.registrationNumber.trim() || !formData.description.trim()) {
+      if (!formData.name.trim() || !formData.phone.trim() || !formData.email.trim() || !(formData.city === 'Other' ? formData.customCity.trim() : formData.city.trim()) || !formData.area.trim() || !formData.address.trim() || !formData.registrationNumber.trim() || !formData.description.trim()) {
         setErrorMsg('Please fill out all required fields marked with *');
         return;
       }
@@ -188,7 +188,7 @@ export default function RegisterGaragePage() {
     }
     
     if (step === 2) {
-      if (!formData.ownerName) { setErrorMsg('Owner name is required.'); return; }
+      if (!formData.ownerName.trim() || !formData.ownerDesignation.trim()) { setErrorMsg('Authorized representative name and designation are required.'); return; }
       if (!formData.sameAsGaragePhone) {
         const err = getPhoneError(formData.ownerCountryCode, formData.ownerPhone);
         if (err) { setErrorMsg(err); return; }
@@ -247,12 +247,33 @@ export default function RegisterGaragePage() {
     setStep(prev => Math.max(prev - 1, 1));
   };
 
-  const handleVerifyOTP = () => {
-    if (formData.otp.length >= 4) {
+  const handleSendOwnerOtp = async () => {
+    const phone = formData.sameAsGaragePhone ? `${formData.countryCode}${formData.phone}` : `${formData.ownerCountryCode}${formData.ownerPhone}`;
+    if (!getPhoneError(formData.sameAsGaragePhone ? formData.countryCode : formData.ownerCountryCode, formData.sameAsGaragePhone ? formData.phone : formData.ownerPhone)) {
+      if (process.env.NEXT_PUBLIC_ENABLE_DEVELOPMENT_OTP === 'true') { setErrorMsg('Development OTP is enabled. Enter 123456 to verify.'); return; }
+      if (!auth) { setErrorMsg('Phone verification is not configured.'); return; }
+      setIsSendingOwnerOtp(true); setErrorMsg('');
+      try {
+        if (!window.garageRegistrationRecaptcha) window.garageRegistrationRecaptcha = new RecaptchaVerifier(auth, 'garage-registration-recaptcha', { size: 'invisible' });
+        setOwnerOtpConfirmation(await signInWithPhoneNumber(auth, phone, window.garageRegistrationRecaptcha));
+      } catch (err: any) { setErrorMsg(err?.message || 'Could not send verification code.'); }
+      finally { setIsSendingOwnerOtp(false); }
+    } else setErrorMsg('Enter a valid authorized representative phone number first.');
+  };
+
+  const handleVerifyOTP = async () => {
+    if (process.env.NEXT_PUBLIC_ENABLE_DEVELOPMENT_OTP === 'true' && formData.otp === '123456') {
       setFormData(prev => ({ ...prev, isPhoneVerified: true }));
       setErrorMsg('');
+    } else if (ownerOtpConfirmation) {
+      try {
+        const credential = await ownerOtpConfirmation.confirm(formData.otp);
+        const ownerPhoneVerificationToken = await credential.user.getIdToken();
+        setFormData(prev => ({ ...prev, isPhoneVerified: true, ownerPhoneVerificationToken }));
+        setErrorMsg('');
+      } catch { setErrorMsg('The verification code is invalid or expired.'); }
     } else {
-      setErrorMsg('Please enter a valid OTP.');
+      setErrorMsg('Phone verification requires the configured verification provider. The development OTP is available only in an explicitly enabled development environment.');
     }
   };
 
@@ -263,16 +284,23 @@ export default function RegisterGaragePage() {
       const selectedCountry = getCountryByCallingCode(formData.countryCode);
       await apiClient.post('/admin/onboarding/garages', {
         name: formData.name,
-        type: formData.type.trim() === 'Other' ? otherGarageType.trim() : formData.type.trim(),
+        type: formData.type.trim(),
+        otherGarageType: otherGarageType.trim(),
         registrationNumber: formData.registrationNumber,
         phone: formData.countryCode + formData.phone,
         email: formData.email,
         city: formData.city,
+        customCity: formData.customCity,
         address: formData.address,
         area: formData.area,
+        stateRegion: formData.stateRegion,
+        postalCode: formData.postalCode,
         ownerName: formData.ownerName,
+        ownerDesignation: formData.ownerDesignation,
         ownerPhone: formData.sameAsGaragePhone ? (formData.countryCode + formData.phone) : (formData.ownerCountryCode + formData.ownerPhone),
+        ownerCountry: (formData.sameAsGaragePhone ? getCountryByCallingCode(formData.countryCode) : getCountryByCallingCode(formData.ownerCountryCode))?.isoCode,
         password: formData.password,
+        confirmPassword: formData.confirmPassword,
         services: formData.services,
         servicePrices: formData.servicePrices,
         customServices: formData.customServices,
@@ -289,8 +317,10 @@ export default function RegisterGaragePage() {
         country: selectedCountry?.isoCode || null,
         businessCurrency: selectedCountry?.currencyCode || 'USD',
         locale: selectedCountry?.locale || 'en-US',
+        timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         year: formData.year,
         otp: formData.otp,
+        ownerPhoneVerificationToken: formData.ownerPhoneVerificationToken,
         contactPhone: formData.countryCode + formData.phone
       });
       router.push('/admin/garages');
@@ -333,8 +363,8 @@ export default function RegisterGaragePage() {
       const file = e.target.files[0];
       
       if (field === 'image') {
-        if (file.type !== 'image/png') {
-          setErrorMsg('Garage Display/Profile Image must be a PNG file.');
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+          setErrorMsg('Garage Display/Profile Image must be JPG, PNG, or WEBP.');
           return;
         }
         if (file.size > 2 * 1024 * 1024) {
@@ -342,13 +372,13 @@ export default function RegisterGaragePage() {
           return;
         }
       } else {
-        const validTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
+        const validTypes = ['application/pdf', 'image/jpeg', 'image/png'];
         if (!validTypes.includes(file.type)) {
           setErrorMsg('Only PDF, JPG, or PNG files are supported for business documents.');
           return;
         }
-        if (file.size > 10 * 1024 * 1024) {
-          setErrorMsg('Business Document must be less than 10MB.');
+        if (file.size > 5 * 1024 * 1024) {
+          setErrorMsg('Business Document must be less than 5MB.');
           return;
         }
       }
@@ -427,33 +457,32 @@ export default function RegisterGaragePage() {
                    </div>
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Garage Type <span className="text-red-500">*</span></label>
-                       <select value={['General Service Garage', 'Specialist Workshop', 'Authorized Service Center', 'Body & Paint Shop', 'Tire & Wheel Center', 'EV Service Center', 'Multi-Brand Service Center', ''].includes(formData.type) ? formData.type : 'Other'} onChange={e => {
+                       <select value={GARAGE_TYPES.includes(formData.type) || !formData.type ? formData.type : 'Other'} onChange={e => {
                          const value = e.target.value;
                          setFormData({...formData, type: value});
                          if (value !== 'Other') setOtherGarageType('');
                        }} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700 mb-2">
                        <option value="">Select garage type</option>
-                       <option value="General Service Garage">General Service Garage</option>
-                       <option value="Specialist Workshop">Specialist Workshop</option>
-                       <option value="Authorized Service Center">Authorized Service Center</option>
-                       <option value="Body & Paint Shop">Body & Paint Shop</option>
-                       <option value="Tire & Wheel Center">Tire & Wheel Center</option>
-                       <option value="EV Service Center">EV Service Center</option>
-                       <option value="Multi-Brand Service Center">Multi-Brand Service Center</option>
-                       <option value="Other">Other</option>
+                       {GARAGE_TYPES.map(garageType => <option key={garageType} value={garageType}>{garageType}</option>)}
                      </select>
                      {formData.type === 'Other' && (
                        <input type="text" value={otherGarageType} onChange={e => setOtherGarageType(e.target.value)} placeholder="Please specify garage type" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                      )}
                    </div>
                    <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-2">Registration Number <span className="text-red-500">*</span></label>
+                      <label className="block text-xs font-bold text-slate-700 mb-2">{registrationLabelByCountry[formData.countryCode]} <span className="text-red-500">*</span></label>
                       <input type="text" value={formData.registrationNumber} onChange={e => setFormData({...formData, registrationNumber: e.target.value})} placeholder="Enter registration number" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                     </div>
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Established Year <span className="text-red-500">*</span></label>
                      <input type="number" min="1800" max={new Date().getFullYear()} value={formData.year} onChange={e => setFormData({...formData, year: e.target.value})} placeholder="e.g. 2015" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                    </div>
+                   {formData.city === 'Other' && (
+                     <div>
+                       <label className="block text-xs font-bold text-slate-700 mb-2">Specify City <span className="text-red-500">*</span></label>
+                       <input type="text" value={formData.customCity} onChange={e => setFormData({...formData, customCity: e.target.value})} placeholder="Enter city" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                     </div>
+                   )}
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Phone Number <span className="text-red-500">*</span></label>
                      <div className="flex gap-2">
@@ -476,15 +505,8 @@ export default function RegisterGaragePage() {
                    </div>
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">City <span className="text-red-500">*</span></label>
-                     <select value={formData.city} onChange={e => {
-                         const val = e.target.value;
-                         setFormData({...formData, city: val, area: ''});
-                         setAreaSuggestions([]);
-                       }} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
-                         <option value="">Select city</option>
-                         {getCitiesForCountry(formData.countryCode).map(c => <option key={c} value={c}>{c}</option>)}
-                         <option value="Other">Other</option>
-                       </select>
+                     <input list="garage-city-options" value={formData.city} onChange={e => { setFormData({...formData, city: e.target.value, area: ''}); setAreaSuggestions([]); }} placeholder="Select or enter city" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700" />
+                     <datalist id="garage-city-options"><option value="Other" /></datalist>
                    </div>
                    <div className="relative">
                      <label className="block text-xs font-bold text-slate-700 mb-2">Area / Locality <span className="text-red-500">*</span></label>
@@ -505,6 +527,10 @@ export default function RegisterGaragePage() {
                    <label className="block text-xs font-bold text-slate-700 mb-2">Complete Address <span className="text-red-500">*</span></label>
                    <textarea value={formData.address} onChange={e => setFormData({...formData, address: e.target.value})} maxLength={200} placeholder="Example: 125 Broadway, Manhattan, New York, NY 10006" className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none h-24 focus:border-blue-500"></textarea>
                    <div className="text-right text-[10px] text-slate-400 mt-1">{formData.address.length}/200</div>
+                </div>
+                <div className="grid grid-cols-2 gap-6 mb-6">
+                  <div><label className="block text-xs font-bold text-slate-700 mb-2">State / Province / Emirate</label><input type="text" value={formData.stateRegion} onChange={e => setFormData({...formData, stateRegion: e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" /></div>
+                  <div><label className="block text-xs font-bold text-slate-700 mb-2">Postal Code</label><input type="text" value={formData.postalCode} onChange={e => setFormData({...formData, postalCode: e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" /></div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-6 mb-6">
@@ -547,13 +573,17 @@ export default function RegisterGaragePage() {
             {/* STEP 2 */}
             {step === 2 && (
               <>
-                <h2 className="text-xl font-bold text-[#17307a] mb-1">Owner Details</h2>
+                <h2 className="text-xl font-bold text-[#17307a] mb-1">Authorized Representative</h2>
                 <p className="text-xs text-slate-500 mb-8">Enter the details of the person responsible for managing this garage.</p>
                 
                 <div className="grid grid-cols-2 gap-6 mb-6">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-2">Owner Full Name <span className="text-red-500">*</span></label>
+                    <label className="block text-xs font-bold text-slate-700 mb-2">Full Name <span className="text-red-500">*</span></label>
                     <input type="text" value={formData.ownerName} onChange={e => setFormData({...formData, ownerName: e.target.value})} placeholder="Example: John Smith" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-2">Designation <span className="text-red-500">*</span></label>
+                    <input type="text" value={formData.ownerDesignation} onChange={e => setFormData({...formData, ownerDesignation: e.target.value})} placeholder="Example: Operations Manager" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                   </div>
                   <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Owner Phone Number <span className="text-red-500">*</span></label>
@@ -588,6 +618,7 @@ export default function RegisterGaragePage() {
                         <input type="text" value={formData.otp} onChange={e => setFormData({...formData, otp: e.target.value.replace(/\D/g, '')})} maxLength={6} placeholder="Enter 6-digit OTP" className="w-36 border rounded-lg px-4 py-2 text-sm text-center outline-none focus:border-blue-500" />
                         <span className="text-xs text-slate-400">Sent to {formData.sameAsGaragePhone ? `${formData.countryCode} ${formData.phone}` : `${formData.ownerCountryCode} ${formData.ownerPhone}`}</span>
                       </div>
+                      <button onClick={handleSendOwnerOtp} disabled={isSendingOwnerOtp} className="border border-[#17307a] text-[#17307a] px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors disabled:opacity-50">{isSendingOwnerOtp ? 'Sending…' : ownerOtpConfirmation ? 'Resend OTP' : 'Send OTP'}</button>
                       <button onClick={handleVerifyOTP} className="bg-[#17307a] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-900 transition-colors">Verify OTP</button>
                     </div>
                   ) : (
@@ -596,6 +627,7 @@ export default function RegisterGaragePage() {
                     </div>
                   )}
                 </div>
+                <div id="garage-registration-recaptcha" />
 
                 <div className="border-t border-slate-100 pt-6">
                   <h3 className="text-md font-bold text-[#17307a] mb-4">Login Credentials</h3>
@@ -701,7 +733,7 @@ export default function RegisterGaragePage() {
                             </label>
                             {isSelected && (
                               <div className="ml-7 flex items-center gap-2">
-                                <span className="text-xs text-slate-500">Price: {formData.countryCode === '+91' ? '₹' : formData.countryCode === '+1' ? '$' : 'AED '}</span>
+                                <span className="text-xs text-slate-500">Price: {getCountryByCallingCode(formData.countryCode)?.currencyCode}</span>
                                 <input 
                                   type="number" 
                                   min="0"
@@ -730,7 +762,7 @@ export default function RegisterGaragePage() {
                             </label>
                             {isSelected && (
                               <div className="ml-7 flex items-center gap-2">
-                                <span className="text-xs text-slate-500">Price: {formData.countryCode === '+91' ? '₹' : formData.countryCode === '+1' ? '$' : 'AED '}</span>
+                                <span className="text-xs text-slate-500">Price: {getCountryByCallingCode(formData.countryCode)?.currencyCode}</span>
                                 <input 
                                   type="number" 
                                   min="0"
@@ -761,7 +793,7 @@ export default function RegisterGaragePage() {
                           <span className="text-sm text-blue-700 font-medium">{s}</span>
                           <div className="flex items-center gap-3">
                             <div className="flex items-center gap-2">
-                              <span className="text-xs text-blue-600">Price: {formData.countryCode === '+91' ? '₹' : formData.countryCode === '+1' ? '$' : 'AED '}</span>
+                              <span className="text-xs text-blue-600">Price: {getCountryByCallingCode(formData.countryCode)?.currencyCode}</span>
                               <input 
                                 type="number" 
                                 min="0"
@@ -812,17 +844,12 @@ export default function RegisterGaragePage() {
                           <>
                             <div className="col-span-3">
                               <select value={data.start} onChange={e => setFormData(prev => ({...prev, workingHours: {...prev.workingHours, [day]: {...data, start: e.target.value}}}))} className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white outline-none">
-                                <option value="08:00 AM">08:00 AM</option>
-                                <option value="09:00 AM">09:00 AM</option>
-                                <option value="10:00 AM">10:00 AM</option>
+                                {timeOptions.map(time => <option key={time} value={time}>{time}</option>)}
                               </select>
                             </div>
                             <div className="col-span-3">
                               <select value={data.end} onChange={e => setFormData(prev => ({...prev, workingHours: {...prev.workingHours, [day]: {...data, end: e.target.value}}}))} className="w-full border rounded-lg px-2 py-1.5 text-xs bg-white outline-none">
-                                <option value="05:00 PM">05:00 PM</option>
-                                <option value="06:00 PM">06:00 PM</option>
-                                <option value="07:00 PM">07:00 PM</option>
-                                <option value="08:00 PM">08:00 PM</option>
+                                {timeOptions.map(time => <option key={time} value={time}>{time}</option>)}
                               </select>
                             </div>
                           </>
