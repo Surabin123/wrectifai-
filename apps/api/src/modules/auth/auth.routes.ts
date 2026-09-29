@@ -78,6 +78,22 @@ function setTokensInCookies(res: Response, accessToken: string, refreshToken: st
   return csrfToken;
 }
 
+function clearAuthCookies(res: Response): void {
+  // Clear cookies created by every deployment configuration used by this app.
+  // This prevents an older Secure/SameSite variant from surviving logout.
+  const variants: CookieOptions[] = [
+    { httpOnly: true, secure: true, sameSite: 'none', path: '/' },
+    { httpOnly: true, secure: true, sameSite: 'lax', path: '/' },
+    { httpOnly: true, secure: false, sameSite: 'lax', path: '/' },
+  ];
+
+  for (const options of variants) {
+    res.clearCookie('accessToken', options);
+    res.clearCookie('refreshToken', options);
+    res.clearCookie('XSRF-TOKEN', { ...options, httpOnly: false });
+  }
+}
+
 const HARDCODED_PHONES = ['9876543210', '1234567890'];
 
 function normalizedPhone(value: string): string {
@@ -593,6 +609,7 @@ authRouter.post('/refresh', async (req, res) => {
 });
 
 authRouter.post('/logout', async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   const refreshToken = req.cookies?.refreshToken || req.body?.refreshToken;
   if (refreshToken) {
     try {
@@ -601,12 +618,7 @@ authRouter.post('/logout', async (req, res) => {
       console.warn('Failed to delete refresh token during logout:', err instanceof Error ? err.message : err);
     }
   }
-  if (typeof res.clearCookie === 'function') {
-    const { maxAge, ...clearConfig } = cookieConfig;
-    res.clearCookie('accessToken', clearConfig);
-    res.clearCookie('refreshToken', clearConfig);
-    res.clearCookie('XSRF-TOKEN', { ...clearConfig, httpOnly: false });
-  }
+  if (typeof res.clearCookie === 'function') clearAuthCookies(res);
   return success(res, { message: 'Logged out successfully' });
 });
 
@@ -629,6 +641,7 @@ authRouter.get('/csrf-token', (req, res) => {
 });
 
 authRouter.get('/me', authenticate, async (req, res) => {
+  res.setHeader('Cache-Control', 'no-store');
   try {
     const userId = req.user?.userId;
     if (!userId) {

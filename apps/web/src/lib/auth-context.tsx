@@ -153,12 +153,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const baseUrl = getBaseUrl();
         const csrfResponse = await fetch(`${baseUrl}/auth/csrf-token`, {
           credentials: 'include',
+          cache: 'no-store',
         });
         const csrfPayload = csrfResponse.ok ? await csrfResponse.json() : null;
         const csrfToken = csrfPayload?.data?.csrfToken || csrfPayload?.csrfToken;
         await fetch(`${baseUrl}/auth/logout`, {
           method: 'POST',
           credentials: 'include',
+          cache: 'no-store',
           headers: {
             'Content-Type': 'application/json',
             ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
@@ -182,7 +184,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Redirect to login page to prevent back navigation
     if (typeof window !== 'undefined') {
-      window.location.href = '/login';
+      window.location.replace('/login');
     }
   }, []);
 
