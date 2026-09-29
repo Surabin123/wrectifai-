@@ -151,10 +151,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (typeof window !== 'undefined') {
       try {
         const baseUrl = getBaseUrl();
+        const csrfResponse = await fetch(`${baseUrl}/auth/csrf-token`, {
+          credentials: 'include',
+        });
+        const csrfPayload = csrfResponse.ok ? await csrfResponse.json() : null;
+        const csrfToken = csrfPayload?.data?.csrfToken || csrfPayload?.csrfToken;
         await fetch(`${baseUrl}/auth/logout`, {
           method: 'POST',
           credentials: 'include',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(csrfToken ? { 'X-XSRF-TOKEN': csrfToken } : {}),
+          },
         });
       } catch (err) {
         console.warn('Logout API failed', err);

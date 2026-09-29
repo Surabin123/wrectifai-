@@ -605,6 +605,7 @@ authRouter.post('/logout', async (req, res) => {
     const { maxAge, ...clearConfig } = cookieConfig;
     res.clearCookie('accessToken', clearConfig);
     res.clearCookie('refreshToken', clearConfig);
+    res.clearCookie('XSRF-TOKEN', { ...clearConfig, httpOnly: false });
   }
   return success(res, { message: 'Logged out successfully' });
 });
