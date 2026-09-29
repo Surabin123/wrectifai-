@@ -121,9 +121,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = useCallback((accessToken: string, refreshToken?: string, userData?: User) => {
     authOperationRef.current += 1;
     let resolvedUser = userData || null;
+    const decoded = decodeJwt(accessToken);
 
     if (!resolvedUser) {
-      const decoded = decodeJwt(accessToken);
       if (decoded) {
         resolvedUser = {
           id: decoded.userId,
@@ -132,6 +132,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           name: decoded.name || (decoded.email ? decoded.email.split('@')[0] : 'User'),
         };
       }
+    } else if (Array.isArray(decoded?.roles) && decoded.roles.length > 0) {
+      // Signed token claims are authoritative for role-based UI routing.
+      resolvedUser = { ...resolvedUser, roles: decoded.roles };
     }
 
     setUser(resolvedUser);

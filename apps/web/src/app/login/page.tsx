@@ -24,9 +24,22 @@ interface AuthResponse {
 }
 
 function getDashboardPath(authenticatedUser: User): string {
-  if (authenticatedUser.roles?.includes('admin')) return '/admin/dashboard';
-  if (authenticatedUser.roles?.includes('garage')) return '/garage/dashboard';
+  const roles = (authenticatedUser.roles || []).map((role) => role.toLowerCase());
+  if (roles.includes('admin')) return '/admin/dashboard';
+  if (roles.includes('garage')) return '/garage/dashboard';
   return '/dashboard';
+}
+
+function getAuthenticatedUser(data: AuthResponse): User {
+  try {
+    const payload = JSON.parse(window.atob(data.accessToken.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')));
+    if (Array.isArray(payload?.roles) && payload.roles.length > 0) {
+      return { ...data.user, roles: payload.roles };
+    }
+  } catch {
+    // Fall back to the API user payload when the token cannot be decoded for UI routing.
+  }
+  return data.user;
 }
 
 import { Phone, ShieldCheck, Mail, Lock } from 'lucide-react';
@@ -41,11 +54,12 @@ export default function LoginPage() {
   const isDemoAuthEnabled = process.env.NEXT_PUBLIC_DEMO_AUTH_ENABLED === 'true';
 
   const completeLogin = (data: AuthResponse) => {
+    const authenticatedUser = getAuthenticatedUser(data);
     setLocationCookie('wrectifai_country_code', countryCode);
-    login(data.accessToken, data.refreshToken, data.user);
+    login(data.accessToken, data.refreshToken, authenticatedUser);
     setIsSubmitting(false);
     setIsOtpSent(false);
-    window.location.replace(getDashboardPath(data.user));
+    window.location.replace(getDashboardPath(authenticatedUser));
   };
 
   // Redirect authenticated users to their role-based dashboard
