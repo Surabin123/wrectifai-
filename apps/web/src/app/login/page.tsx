@@ -208,7 +208,7 @@ export default function LoginPage() {
         
         const data = await apiClient.post<AuthResponse>('/auth/login', {
           idToken,
-          mobileNumber: mobileNumber.replace(/\s+/g, ''),
+          mobileNumber: `${countryCode}${mobileNumber.replace(/\s+/g, '')}`,
         });
         setLocationCookie('wrectifai_country_code', countryCode);
         login(data.accessToken, data.refreshToken, data.user);

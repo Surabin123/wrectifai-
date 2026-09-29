@@ -17,6 +17,7 @@ import { CookieOptions, Response } from 'express';
 import { NotificationsService } from '../notifications/notifications.service';
 import { AuditLogService } from '../../services/audit.service';
 import { getEnv } from '../../config/env';
+import { verifyFirebaseIdToken } from '../../services/firebase-id-token.service';
 import { rateLimiter } from '../../middleware/rate-limiter';
 
 export const authRouter = Router();
@@ -353,9 +354,9 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
 });
 
 authRouter.post('/login', loginLimiter, async (req, res, next) => {
-  const { mobileNumber, otp, provider, password } = req.body;
+  const { mobileNumber, otp, provider, password, idToken } = req.body;
   let { email } = req.body;
-  if ((email && typeof email !== 'string') || (password && typeof password !== 'string') || (mobileNumber && typeof mobileNumber !== 'string') || (otp && typeof otp !== 'string') || (provider && typeof provider !== 'string')) {
+  if ((email && typeof email !== 'string') || (password && typeof password !== 'string') || (mobileNumber && typeof mobileNumber !== 'string') || (otp && typeof otp !== 'string') || (provider && typeof provider !== 'string') || (idToken && typeof idToken !== 'string')) {
     return error(res, 'Invalid input format', 'BAD_REQUEST', 400);
   }
   if (email) email = email.toLowerCase();
@@ -381,6 +382,28 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
         if (!userRecord.password_hash || !bcrypt.compareSync(password, userRecord.password_hash)) {
           throw new Error('Invalid email or password');
         }
+      } else if (idToken) {
+        const { firebaseWebApiKey } = getEnv();
+        if (!firebaseWebApiKey) {
+          throw new Error('Firebase authentication is not configured on the server');
+        }
+
+        const firebaseUser = await verifyFirebaseIdToken(idToken, firebaseWebApiKey);
+        const tokenPhone = normalizedPhone(firebaseUser.phoneNumber || '');
+        const requestedPhone = normalizedPhone(mobileNumber || '');
+        const localTokenPhone = tokenPhone.length > 10 ? tokenPhone.slice(-10) : tokenPhone;
+        if (!tokenPhone || (requestedPhone && tokenPhone !== requestedPhone && localTokenPhone !== requestedPhone)) {
+          throw new Error('Firebase phone number does not match the login request');
+        }
+
+        const existingUser = await client.query(
+          `SELECT * FROM users WHERE ${normalizedPhoneSql} IN ($1, $2)`,
+          [tokenPhone, localTokenPhone]
+        );
+        if (existingUser.rows.length === 0) {
+          throw new Error('Account not found. Please sign up first.');
+        }
+        userRecord = existingUser.rows[0];
       } else {
         if (!mobileNumber || !otp) {
           throw new Error('Phone number and OTP are required');
@@ -484,7 +507,7 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
   } catch (err: any) {
     console.error('[Login Route Error]', err);
     const msg = err?.message || String(err);
-    if (msg === 'Invalid email or password' || msg === 'Invalid phone number or OTP' || msg === 'Direct provider mock login is disabled in production.') {
+    if (msg === 'Invalid email or password' || msg === 'Invalid phone number or OTP' || msg === 'Invalid Firebase authentication token' || msg === 'Firebase phone number does not match the login request' || msg === 'Account not found. Please sign up first.' || msg === 'Direct provider mock login is disabled in production.') {
       return error(res, msg, 'UNAUTHORIZED', 401);
     }
     if (msg.includes('required') || msg.includes('Invalid')) {
