@@ -39,6 +39,13 @@ export const responseInterceptors: ResponseInterceptor[] = [];
 
 let refreshPromise: Promise<string> | null = null;
 
+function getXsrfToken(): string | null {
+  if (typeof document === 'undefined') return null;
+
+  const match = document.cookie.match(/(?:^|; )\s*XSRF-TOKEN\s*=\s*([^;]+)/);
+  return match ? decodeURIComponent(match[1]) : null;
+}
+
 // Reset refresh state on logout so re-login starts fresh
 if (typeof window !== 'undefined') {
   window.addEventListener('auth-logout', () => {
@@ -65,8 +72,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
   const method = (options.method || 'GET').toUpperCase();
   let csrfToken: string | null = null;
   if (typeof document !== 'undefined' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    const match = document.cookie.match(/(?:^|; )\s*XSRF-TOKEN\s*=\s*([^;]+)/);
-    if (match) csrfToken = decodeURIComponent(match[1]);
+    csrfToken = getXsrfToken();
   }
 
   const defaultHeaders: Record<string, string> = {
@@ -106,10 +112,14 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
       if (!refreshPromise) {
         refreshPromise = (async () => {
           try {
+            const refreshCsrfToken = getXsrfToken();
             const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
               method: 'POST',
               credentials: 'include',
-              headers: { 'Content-Type': 'application/json' },
+              headers: {
+                'Content-Type': 'application/json',
+                ...(refreshCsrfToken ? { 'X-XSRF-TOKEN': refreshCsrfToken } : {}),
+              },
             });
 
             if (!refreshRes.ok) {
