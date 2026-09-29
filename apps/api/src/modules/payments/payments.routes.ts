@@ -137,7 +137,10 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
   const sigBuffer = Buffer.from(razorpay_signature, 'utf8');
   const expectedBuffer = Buffer.from(generated_signature, 'utf8');
 
-  if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(sigBuffer, expectedBuffer)) {
+  if (sigBuffer.length !== expectedBuffer.length || !crypto.timingSafeEqual(
+    sigBuffer as unknown as Uint8Array<ArrayBuffer>,
+    expectedBuffer as unknown as Uint8Array<ArrayBuffer>,
+  )) {
     return error(res, 'Invalid payment signature', 'BAD_REQUEST', 400);
   }
 

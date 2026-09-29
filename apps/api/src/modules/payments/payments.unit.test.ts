@@ -34,6 +34,9 @@ describe('Payment Processing Security & Fail-Closed Safeguards', () => {
     const expectedBuffer = Buffer.from(generatedSignature, 'utf8');
 
     assert.strictEqual(sigBuffer.length, expectedBuffer.length);
-    assert.strictEqual(crypto.timingSafeEqual(sigBuffer, expectedBuffer), true);
+    assert.strictEqual(crypto.timingSafeEqual(
+      sigBuffer as unknown as Uint8Array<ArrayBuffer>,
+      expectedBuffer as unknown as Uint8Array<ArrayBuffer>,
+    ), true);
   });
 });

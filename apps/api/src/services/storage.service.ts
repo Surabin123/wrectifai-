@@ -85,7 +85,7 @@ export class LocalStorageProvider implements FileStorage {
     const ext = path.extname(input.filename) || '.bin';
     const uniqueName = `${Date.now()}_${crypto.randomBytes(8).toString('hex')}${ext}`;
     const filePath = path.join(this.uploadDir, uniqueName);
-    await fs.writeFile(filePath, input.buffer);
+    await fs.writeFile(filePath, input.buffer as unknown as Uint8Array<ArrayBuffer>);
 
     return {
       fileId: uniqueName,
