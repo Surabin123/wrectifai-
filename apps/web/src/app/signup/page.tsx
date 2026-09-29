@@ -37,14 +37,14 @@ function SignupContent() {
   useEffect(() => {
     if (isAuthenticated && user) {
       if (user.roles?.includes('admin')) {
-        window.location.href = '/admin/dashboard';
+        router.replace('/admin/dashboard');
       } else if (user.roles?.includes('garage')) {
-        window.location.href = '/garage/dashboard';
+        router.replace('/garage/dashboard');
       } else {
-        window.location.href = '/dashboard';
+        router.replace('/dashboard');
       }
     }
-  }, [isAuthenticated, user]);
+  }, [isAuthenticated, user, router]);
 
   // Form states
   const [name, setName] = useState('');
