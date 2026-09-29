@@ -6,7 +6,7 @@ CREATE INDEX IF NOT EXISTS idx_users_mobile_clean ON users (regexp_replace(mobil
 
 -- Payment Provider Indexes
 CREATE INDEX IF NOT EXISTS idx_payments_booking_status ON payments(booking_id, status);
-CREATE INDEX IF NOT EXISTS idx_payments_customer ON payments(customer_user_id, status);
+CREATE INDEX IF NOT EXISTS idx_payments_customer ON payments(payer_user_id, status);
 
 -- Booking Lookup & Performance Indexes
 CREATE INDEX IF NOT EXISTS idx_bookings_customer_status ON bookings(customer_id, status, payment_status);
