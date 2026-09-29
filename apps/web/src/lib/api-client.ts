@@ -145,7 +145,10 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
     response = await interceptor(response);
   }
 
-  if (response.status === 401 && !config._retry && !path.includes('/auth/refresh') && !path.includes('/auth/login') && !path.includes('/auth/me')) {
+  // /auth/me is the first request after a full-page redirect. If an access
+  // token expired during navigation, refresh it before AuthGuard decides that
+  // the user is logged out.
+  if (response.status === 401 && !config._retry && !path.includes('/auth/refresh') && !path.includes('/auth/login')) {
     config._retry = true;
 
     if (typeof window !== 'undefined') {
@@ -204,7 +207,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
       await refreshPromise;
       
       const retryToken = typeof sessionStorage !== 'undefined'
-        ? (sessionStorage.getItem('wrectifai_demo_access_token') || localStorage.getItem('accessToken') || localStorage.getItem('token'))
+        ? (sessionStorage.getItem('wrectifai_session_access_token') || sessionStorage.getItem('wrectifai_demo_access_token'))
         : null;
       const retryHeaders = {
         ...(config.headers as Record<string, string>),
