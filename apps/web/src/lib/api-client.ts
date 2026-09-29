@@ -38,18 +38,51 @@ export const requestInterceptors: RequestInterceptor[] = [];
 export const responseInterceptors: ResponseInterceptor[] = [];
 
 let refreshPromise: Promise<string> | null = null;
+let csrfTokenCache: string | null = null;
 
-function getXsrfToken(): string | null {
+function readXsrfCookie(): string | null {
   if (typeof document === 'undefined') return null;
 
   const match = document.cookie.match(/(?:^|; )\s*XSRF-TOKEN\s*=\s*([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;
 }
 
+function getXsrfToken(): string | null {
+  return readXsrfCookie() || csrfTokenCache;
+}
+
+async function ensureXsrfToken(baseUrl: string): Promise<string | null> {
+  const existingToken = getXsrfToken();
+  if (existingToken) {
+    csrfTokenCache = existingToken;
+    return existingToken;
+  }
+
+  try {
+    const response = await fetch(`${baseUrl}/auth/csrf-token`, {
+      method: 'GET',
+      credentials: 'include',
+    });
+    if (!response.ok) return null;
+
+    const payload = await response.json();
+    const token = payload?.data?.csrfToken || payload?.csrfToken;
+    if (typeof token === 'string' && token.length > 0) {
+      csrfTokenCache = token;
+      return token;
+    }
+  } catch {
+    // The protected request will report the original error if the token cannot be fetched.
+  }
+
+  return null;
+}
+
 // Reset refresh state on logout so re-login starts fresh
 if (typeof window !== 'undefined') {
   window.addEventListener('auth-logout', () => {
     refreshPromise = null;
+    csrfTokenCache = null;
   });
 }
 
@@ -71,8 +104,8 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
   const method = (options.method || 'GET').toUpperCase();
   let csrfToken: string | null = null;
-  if (typeof document !== 'undefined' && ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
-    csrfToken = getXsrfToken();
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+    csrfToken = await ensureXsrfToken(baseUrl);
   }
 
   const defaultHeaders: Record<string, string> = {
@@ -112,7 +145,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
       if (!refreshPromise) {
         refreshPromise = (async () => {
           try {
-            const refreshCsrfToken = getXsrfToken();
+            const refreshCsrfToken = await ensureXsrfToken(baseUrl);
             const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
               method: 'POST',
               credentials: 'include',
@@ -189,6 +222,10 @@ async function handleResponse<T = unknown>(response: Response): Promise<T> {
   }
 
   if (json && json.data !== undefined) {
+    const responseCsrfToken = (json.data as { csrfToken?: unknown })?.csrfToken;
+    if (typeof responseCsrfToken === 'string' && responseCsrfToken.length > 0) {
+      csrfTokenCache = responseCsrfToken;
+    }
     return json.data;
   }
   return json as unknown as T;

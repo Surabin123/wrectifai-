@@ -37,7 +37,7 @@ const cookieConfig: CookieOptions = {
   maxAge: 7 * 24 * 60 * 60 * 1000 // 7 days
 };
 
-function setTokensInCookies(res: Response, accessToken: string, refreshToken: string) {
+function setTokensInCookies(res: Response, accessToken: string, refreshToken: string, existingCsrfToken?: string): string {
   // Clear legacy SameSite=None cookies to prevent session confusion
   const legacyCookieConfig: CookieOptions = {
     httpOnly: true,
@@ -63,13 +63,14 @@ function setTokensInCookies(res: Response, accessToken: string, refreshToken: st
   // Set the new cookies using the configured SameSite=None (kept for cross-site Render deployment)
   res.cookie('accessToken', accessToken, cookieConfig);
   res.cookie('refreshToken', refreshToken, cookieConfig);
-  const csrfToken = crypto.randomBytes(32).toString('hex');
+  const csrfToken = existingCsrfToken || crypto.randomBytes(32).toString('hex');
   res.cookie('XSRF-TOKEN', csrfToken, {
     httpOnly: false,
     secure: process.env.NODE_ENV === 'production',
     sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
     path: '/',
   });
+  return csrfToken;
 }
 
 const HARDCODED_PHONES = ['9876543210', '1234567890'];
@@ -185,12 +186,13 @@ authRouter.post('/google', googleLimiter, async (req, res) => {
     const ipAddress = (req.socket ? req.ip : undefined) || (req.headers['x-forwarded-for'] as string) || '';
     const authResult = await handleUserLoginOrRegister(googlePayload.email, googlePayload.name, deviceInfo, ipAddress);
     
-    setTokensInCookies(res, authResult.accessToken, authResult.refreshToken);
+    const csrfToken = setTokensInCookies(res, authResult.accessToken, authResult.refreshToken);
     
     return success(res, {
       user: authResult.user,
       accessToken: authResult.accessToken,
       refreshToken: authResult.refreshToken,
+      csrfToken,
     }, 200);
   } catch (err) {
     return error(res, err instanceof Error ? err.message : 'Google authentication failed', 'UNAUTHORIZED', 401);
@@ -319,7 +321,7 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
 
     await storeRefreshToken(user.id, refreshToken);
 
-    setTokensInCookies(res, accessToken, refreshToken);
+    const csrfToken = setTokensInCookies(res, accessToken, refreshToken);
 
     if (isNew && roles.includes('customer')) {
       await NotificationsService.createNotification({
@@ -338,7 +340,8 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
         status: user.status,
         roles,
         country: user.country,
-      }
+      },
+      csrfToken
     }, 201);
   } catch (err: any) {
     console.error('[Login Route Error]', err);
@@ -478,7 +481,7 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
       [user.id, deviceInfo || null, ipAddress || null, 'success']
     ).catch(e => console.error('Failed to log activity', e));
 
-    setTokensInCookies(res, accessToken, refreshToken);
+    const csrfToken = setTokensInCookies(res, accessToken, refreshToken);
 
     if (isNew && roles.includes('customer')) {
       await NotificationsService.createNotification({
@@ -502,7 +505,8 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
         roles,
         country: user.country,
       },
-      requiresPasswordChange
+      requiresPasswordChange,
+      csrfToken
     });
   } catch (err: any) {
     console.error('[Login Route Error]', err);
@@ -568,12 +572,13 @@ authRouter.post('/refresh', async (req, res) => {
     await storeRefreshToken(userId, newRefreshToken, deviceInfo, ipAddress);
 
     // Set replacement cookie (token rotation step 5)
-    setTokensInCookies(res, newAccessToken, newRefreshToken);
+    const csrfToken = setTokensInCookies(res, newAccessToken, newRefreshToken, req.cookies?.['XSRF-TOKEN']);
 
     return success(res, {
       accessToken: newAccessToken,
       // Keep returning accessToken temporarily for backwards compatibility with legacy clients
-      message: 'Token refreshed successfully'
+      message: 'Token refreshed successfully',
+      csrfToken
     });
   } catch (err) {
     return error(res, err instanceof Error ? err.message : 'Invalid refresh token', 'UNAUTHORIZED', 401);
