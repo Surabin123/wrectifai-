@@ -63,6 +63,12 @@ export function getDbPool(): Pool {
   return pool;
 }
 
+export async function closeDbPool(): Promise<void> {
+  if (!pool) return;
+  await pool.end();
+  pool = null;
+}
+
 export async function query(text: string, params?: any[]) {
   const start = Date.now();
   const dbPool = getDbPool();

@@ -3,6 +3,7 @@ import { resolve } from 'path';
 require('dotenv').config({ path: resolve(__dirname, '../../../../.env') });
 import { getEnv } from './config/env';
 import { createApp } from './app';
+import { closeDbPool } from './config/database';
 import dns from 'dns';
 
 // Fix ENOTFOUND errors on some Windows setups where IPv6 fails
@@ -22,8 +23,7 @@ async function startServer() {
       server.close(async () => {
         console.log('HTTP server closed.');
         try {
-          const { pool } = require('./config/database');
-          await pool.end();
+          await closeDbPool();
           console.log('Database pool closed.');
           process.exit(0);
         } catch (err) {
