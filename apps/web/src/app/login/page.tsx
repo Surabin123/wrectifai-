@@ -22,6 +22,13 @@ interface AuthResponse {
   user: User;
   requiresPasswordChange?: boolean;
 }
+
+function getDashboardPath(authenticatedUser: User): string {
+  if (authenticatedUser.roles?.includes('admin')) return '/admin/dashboard';
+  if (authenticatedUser.roles?.includes('garage')) return '/garage/dashboard';
+  return '/dashboard';
+}
+
 import { Phone, ShieldCheck, Mail, Lock } from 'lucide-react';
 import OtpInput from '@/components/common/otp-input';
 import { useGoogleLogin } from '@react-oauth/google';
@@ -33,16 +40,18 @@ export default function LoginPage() {
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
   const isDemoAuthEnabled = process.env.NEXT_PUBLIC_DEMO_AUTH_ENABLED === 'true';
 
+  const completeLogin = (data: AuthResponse) => {
+    setLocationCookie('wrectifai_country_code', countryCode);
+    login(data.accessToken, data.refreshToken, data.user);
+    setIsSubmitting(false);
+    setIsOtpSent(false);
+    router.replace(getDashboardPath(data.user));
+  };
+
   // Redirect authenticated users to their role-based dashboard
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (user.roles?.includes('admin')) {
-        router.replace('/admin/dashboard');
-      } else if (user.roles?.includes('garage')) {
-        router.replace('/garage/dashboard');
-      } else {
-        router.replace('/dashboard');
-      }
+      router.replace(getDashboardPath(user));
     }
   }, [isAuthenticated, user, router]);
 
@@ -92,7 +101,7 @@ export default function LoginPage() {
         const data = await apiClient.post<AuthResponse>('/auth/google', {
           credential: credentialResponse.access_token
         });
-        login(data.accessToken, data.refreshToken, data.user);
+        completeLogin(data);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Google login failed.';
         setErrorMsg(message);
@@ -214,8 +223,7 @@ export default function LoginPage() {
           mobileNumber: `${countryCode}${mobileNumber.replace(/\s+/g, '')}`,
           otp,
         });
-        setLocationCookie('wrectifai_country_code', countryCode);
-        login(data.accessToken, data.refreshToken, data.user);
+        completeLogin(data);
       } else if (confirmationResult) {
         const result = await confirmationResult.confirm(otp);
         const idToken = await result.user.getIdToken();
@@ -224,16 +232,14 @@ export default function LoginPage() {
           idToken,
           mobileNumber: `${countryCode}${mobileNumber.replace(/\s+/g, '')}`,
         });
-        setLocationCookie('wrectifai_country_code', countryCode);
-        login(data.accessToken, data.refreshToken, data.user);
+        completeLogin(data);
       } else if (isTestFixturesEnabled) {
         const data = await apiClient.post<AuthResponse>('/auth/login', {
           mobileNumber: mobileNumber.replace(/\s+/g, ''),
           otp,
           country: getCountryByCallingCode(countryCode)?.isoCode || 'IN'
         });
-        setLocationCookie('wrectifai_country_code', countryCode);
-        login(data.accessToken, data.refreshToken, data.user);
+        completeLogin(data);
       } else {
         throw new Error('Verification session expired. Please request a new OTP.');
       }
@@ -282,7 +288,7 @@ export default function LoginPage() {
         return;
       }
 
-      login(data.accessToken, data.refreshToken, data.user);
+      completeLogin(data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Login failed. Please check your credentials.';
       setErrorMsg(message);
@@ -333,7 +339,7 @@ export default function LoginPage() {
 
     try {
       const data = await apiClient.post<AuthResponse>('/auth/login', { provider });
-      login(data.accessToken, data.refreshToken, data.user);
+      completeLogin(data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : `${provider === 'google' ? 'Google' : 'Apple'} login failed.`;
       setErrorMsg(message);

@@ -19,6 +19,12 @@ interface AuthResponse {
   user: User;
 }
 
+function getDashboardPath(authenticatedUser: User): string {
+  if (authenticatedUser.roles?.includes('admin')) return '/admin/dashboard';
+  if (authenticatedUser.roles?.includes('garage')) return '/garage/dashboard';
+  return '/dashboard';
+}
+
 export default function SignupPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-[#f6f8fe] via-[#edf2fc] to-[#e4ecff]" />}>
@@ -33,16 +39,17 @@ function SignupContent() {
   const searchParams = useSearchParams();
   const referralCode = searchParams?.get('ref') || '';
 
+  const completeLogin = (data: AuthResponse) => {
+    setLocationCookie('wrectifai_country_code', countryCode);
+    login(data.accessToken, data.refreshToken, data.user);
+    setIsSubmitting(false);
+    router.replace(getDashboardPath(data.user));
+  };
+
   // Redirect authenticated users to their role-based dashboard
   useEffect(() => {
     if (isAuthenticated && user) {
-      if (user.roles?.includes('admin')) {
-        router.replace('/admin/dashboard');
-      } else if (user.roles?.includes('garage')) {
-        router.replace('/garage/dashboard');
-      } else {
-        router.replace('/dashboard');
-      }
+      router.replace(getDashboardPath(user));
     }
   }, [isAuthenticated, user, router]);
 
@@ -130,9 +137,7 @@ function SignupContent() {
         referralCode: referralCode || undefined
       });
       
-      setLocationCookie('wrectifai_country_code', countryCode);
-      login(data.accessToken, data.refreshToken, data.user);
-      setSuccessMsg('Successfully registered and logged in! Redirecting...');
+      completeLogin(data);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Registration failed.';
       setErrorMsg(message);
@@ -151,7 +156,7 @@ function SignupContent() {
         const data = await apiClient.post<AuthResponse>('/auth/google', {
           credential: credentialResponse.access_token,
         });
-        login(data.accessToken, data.refreshToken, data.user);
+        completeLogin(data);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Google sign-up failed.';
         setErrorMsg(message);
