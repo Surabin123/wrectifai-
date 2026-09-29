@@ -39,6 +39,7 @@ export const responseInterceptors: ResponseInterceptor[] = [];
 
 let refreshPromise: Promise<string> | null = null;
 let csrfTokenCache: string | null = null;
+const isDemoAuthEnabled = process.env.NEXT_PUBLIC_DEMO_AUTH_ENABLED === 'true';
 
 function readXsrfCookie(): string | null {
   if (typeof document === 'undefined') return null;
@@ -61,7 +62,7 @@ async function ensureXsrfToken(baseUrl: string): Promise<string | null> {
   try {
     const response = await fetch(`${baseUrl}/auth/csrf-token`, {
       method: 'GET',
-      credentials: 'include',
+      credentials: isDemoAuthEnabled ? 'omit' : 'include',
     });
     if (!response.ok) return null;
 
@@ -120,7 +121,10 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
   let config: RequestOptions = {
     ...options,
-    credentials: 'include', // Send HttpOnly cookies automatically
+    // Demo mode deliberately ignores persistent cross-site cookies. Its
+    // sessionStorage token expires with the browser session, so reopening the
+    // site requires login again. Production continues using HttpOnly cookies.
+    credentials: isDemoAuthEnabled ? 'omit' : 'include',
     headers: defaultHeaders,
   };
 
@@ -154,7 +158,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
               : null;
             const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
               method: 'POST',
-              credentials: 'include',
+              credentials: isDemoAuthEnabled ? 'omit' : 'include',
               headers: {
                 'Content-Type': 'application/json',
                 ...(refreshCsrfToken ? { 'X-XSRF-TOKEN': refreshCsrfToken } : {}),
