@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 
 function getBaseUrl(): string {
   let url = process.env.NEXT_PUBLIC_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api/v1';
@@ -59,23 +59,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const authOperationRef = useRef(0);
 
   // Initialize auth state
   useEffect(() => {
     let mounted = true;
+    const operation = authOperationRef.current;
 
     async function initAuth() {
       try {
         const { apiClient } = await import('./api-client');
         const data = await apiClient<{ user: User }>('/auth/me');
         
-        if (data && data.user && mounted) {
+        if (data && data.user && mounted && authOperationRef.current === operation) {
           setUser(data.user);
           setIsAuthenticated(true);
         }
       } catch (err: any) {
         console.warn('[AuthContext] Auth initialization failed:', err);
-        if (mounted) {
+        if (mounted && authOperationRef.current === operation) {
           // Distinguish between genuine auth failure (401/403) and temporary network/server failure
           const isGenuineAuthFailure = err.status === 401 || err.status === 403;
           
@@ -93,7 +95,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         }
       } finally {
-        if (mounted) setIsLoading(false);
+        if (mounted && authOperationRef.current === operation) setIsLoading(false);
       }
     }
 
@@ -105,9 +107,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Listen to silent refresh logout events
   useEffect(() => {
     const handleLogoutEvent = () => {
+      authOperationRef.current += 1;
       setUser(null);
       setToken(null);
       setIsAuthenticated(false);
+      setIsLoading(false);
     };
 
     window.addEventListener('auth-logout', handleLogoutEvent);
@@ -115,6 +119,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const login = useCallback((accessToken: string, refreshToken?: string, userData?: User) => {
+    authOperationRef.current += 1;
     let resolvedUser = userData || null;
 
     if (!resolvedUser) {
@@ -132,12 +137,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(resolvedUser);
     setToken(accessToken);
     setIsAuthenticated(true);
+    setIsLoading(false);
 
     // Tokens are securely stored as HttpOnly cookies by the backend.
     // We intentionally avoid exposing them to localStorage or client JS.
   }, []);
 
   const logout = useCallback(async () => {
+    authOperationRef.current += 1;
     if (typeof window !== 'undefined') {
       try {
         const baseUrl = getBaseUrl();

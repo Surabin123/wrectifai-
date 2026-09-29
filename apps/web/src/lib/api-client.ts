@@ -138,7 +138,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
     response = await interceptor(response);
   }
 
-  if (response.status === 401 && !config._retry && !path.includes('/auth/refresh') && !path.includes('/auth/login')) {
+  if (response.status === 401 && !config._retry && !path.includes('/auth/refresh') && !path.includes('/auth/login') && !path.includes('/auth/me')) {
     config._retry = true;
 
     if (typeof window !== 'undefined') {
