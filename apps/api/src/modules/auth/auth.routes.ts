@@ -355,6 +355,8 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
     }
 
     return success(res, {
+      accessToken,
+      refreshToken,
       user: {
         id: user.id,
         name: user.name,
