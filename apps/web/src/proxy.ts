@@ -29,7 +29,11 @@ export function proxy(request: NextRequest) {
   // If no accessToken exists, rely on backend authorization or client-side auth guard
   if (!accessToken) {
     if (path === '/') {
-      return NextResponse.redirect(new URL('/login', request.url));
+      // The deployed web client may keep the session in sessionStorage and
+      // send a bearer token to the API, so middleware cannot require a cookie
+      // here. AuthGuard will route an authenticated user to their dashboard;
+      // guests can still view the public home page.
+      return NextResponse.next();
     }
     
     if (isProtected) {
