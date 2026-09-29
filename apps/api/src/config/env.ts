@@ -56,6 +56,8 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     corsOrigins: envSource.WEB_ORIGINS ? envSource.WEB_ORIGINS.split(',') : (isProd ? [] : ['http://localhost:4200', 'http://localhost:3001']),
     googleClientId: envSource.GOOGLE_CLIENT_ID || '',
     firebaseWebApiKey: envSource.FIREBASE_WEB_API_KEY || '',
+    demoAuthEnabled: envSource.DEMO_AUTH_ENABLED === 'true',
+    demoOtp: envSource.DEMO_OTP || '123456',
     llmProvider: provider,
     llmModel: (envSource.LLM_MODEL?.trim() === 'llama-3.1-70b-versatile' || envSource.LLM_MODEL?.trim() === 'llama-3.3-70b-versatile') ? 'llama3-70b-8192' : (envSource.LLM_MODEL?.trim() || 'llama3-70b-8192'),
     groqApiKey: anyKey,

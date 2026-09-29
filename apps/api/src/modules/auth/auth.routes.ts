@@ -266,7 +266,8 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
         if (!mobileNumber || !otp) {
           throw new Error('Phone number and OTP are required');
         }
-        if (otp !== '1234' && otp !== '123456') {
+        const { demoAuthEnabled, demoOtp } = getEnv();
+        if (!demoAuthEnabled || otp !== demoOtp) {
           throw new Error('Invalid phone number or OTP');
         }
         const existingUser = await client.query(`SELECT * FROM users WHERE ${normalizedPhoneSql} = $1`, [normalizedPhone(mobileNumber)]);
@@ -411,7 +412,8 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
         if (!mobileNumber || !otp) {
           throw new Error('Phone number and OTP are required');
         }
-        if (otp === '1234' || otp === '123456') {
+        const { demoAuthEnabled, demoOtp } = getEnv();
+        if (demoAuthEnabled && otp === demoOtp) {
           const existingUser = await client.query(`SELECT * FROM users WHERE ${normalizedPhoneSql} = $1`, [normalizedPhone(mobileNumber)]);
           if (existingUser.rows.length > 0) {
             userRecord = existingUser.rows[0];

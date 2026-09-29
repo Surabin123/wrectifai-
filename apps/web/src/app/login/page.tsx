@@ -31,6 +31,7 @@ export default function LoginPage() {
   const router = useRouter();
 
   const googleClientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+  const isDemoAuthEnabled = process.env.NEXT_PUBLIC_DEMO_AUTH_ENABLED === 'true';
 
   // Redirect authenticated users to their role-based dashboard
   useEffect(() => {
@@ -155,6 +156,13 @@ export default function LoginPage() {
       return;
     }
 
+    if (isDemoAuthEnabled) {
+      setIsOtpSent(true);
+      setIsSubmitting(false);
+      setSuccessMsg('Demo OTP ready. Enter 123456 to continue.');
+      return;
+    }
+
     if (!auth) {
       setErrorMsg('Authentication service is not configured properly.');
       setIsSubmitting(false);
@@ -202,7 +210,14 @@ export default function LoginPage() {
     const isTestFixturesEnabled = process.env.NEXT_PUBLIC_ENABLE_TEST_FIXTURES === 'true';
 
     try {
-      if (confirmationResult) {
+      if (isDemoAuthEnabled) {
+        const data = await apiClient.post<AuthResponse>('/auth/login', {
+          mobileNumber: `${countryCode}${mobileNumber.replace(/\s+/g, '')}`,
+          otp,
+        });
+        setLocationCookie('wrectifai_country_code', countryCode);
+        login(data.accessToken, data.refreshToken, data.user);
+      } else if (confirmationResult) {
         const result = await confirmationResult.confirm(otp);
         const idToken = await result.user.getIdToken();
         
