@@ -518,6 +518,11 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
     }
 
     return success(res, {
+      // The web client supports cross-origin deployments. It must receive the
+      // tokens as well as the HttpOnly cookies so it can keep its tab-scoped
+      // bearer session after navigating to the role dashboard.
+      accessToken,
+      refreshToken,
       user: {
         id: user.id,
         email: user.email,
