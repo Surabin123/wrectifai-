@@ -43,7 +43,7 @@ function SignupContent() {
     setLocationCookie('wrectifai_country_code', countryCode);
     login(data.accessToken, data.refreshToken, data.user);
     setIsSubmitting(false);
-    router.replace(getDashboardPath(data.user));
+    window.location.replace(getDashboardPath(data.user));
   };
 
   // Redirect authenticated users to their role-based dashboard

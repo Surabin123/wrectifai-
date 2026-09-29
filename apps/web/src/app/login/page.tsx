@@ -45,7 +45,7 @@ export default function LoginPage() {
     login(data.accessToken, data.refreshToken, data.user);
     setIsSubmitting(false);
     setIsOtpSent(false);
-    router.replace(getDashboardPath(data.user));
+    window.location.replace(getDashboardPath(data.user));
   };
 
   // Redirect authenticated users to their role-based dashboard
