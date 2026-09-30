@@ -187,7 +187,9 @@ garagesRouter.get('/my-profile', authenticate, async (req, res) => {
     }
 
     const documentsResult = await query(
-      `SELECT doc_type, verification_status FROM garage_documents WHERE garage_id = $1`,
+      `SELECT doc_type, verification_status, original_filename as "originalFilename",
+              file_size_bytes as "fileSizeBytes", expiry_date as "expiryDate"
+       FROM garage_documents WHERE garage_id = $1`,
       [garageId]
     );
 

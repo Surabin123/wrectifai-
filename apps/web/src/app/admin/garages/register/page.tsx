@@ -66,8 +66,13 @@ export default function RegisterGaragePage() {
     ownerPhoneVerificationToken: '',
     businessRegDoc: null as any,
     businessLicenseDoc: null as any,
+    taxRegistrationDoc: null as any,
     ownerIdDoc: null as any,
     addressProofDoc: null as any,
+    insuranceDoc: null as any,
+    certificationsDoc: null as any,
+    authorizationDoc: null as any,
+    supportingDoc: null as any,
     services: [] as string[],
     servicePrices: {} as Record<string, string>,
     customServices: [] as string[],
@@ -208,7 +213,7 @@ export default function RegisterGaragePage() {
     }
 
     if (step === 3) {
-      if (!formData.image || !formData.businessRegDoc || !formData.businessLicenseDoc || !formData.ownerIdDoc || !formData.addressProofDoc) {
+      if (!formData.image || !formData.businessRegDoc || !formData.businessLicenseDoc || !formData.taxRegistrationDoc || !formData.ownerIdDoc || !formData.addressProofDoc) {
         setErrorMsg('Please upload all mandatory documents including the garage image to proceed.');
         return;
       }
@@ -223,7 +228,7 @@ export default function RegisterGaragePage() {
       // Validate prices for selected platform services
       for (const s of formData.services) {
         const price = formData.servicePrices[s];
-        if (!price || isNaN(Number(price)) || Number(price) < 0) {
+        if (price === '' || price === undefined || isNaN(Number(price)) || Number(price) < 0) {
           const serviceName = platformServices.find(ps => ps.id === s)?.name || 'a selected service';
           setErrorMsg(`Please enter a valid non-negative price for ${serviceName}.`);
           return;
@@ -232,7 +237,7 @@ export default function RegisterGaragePage() {
       // Validate prices for custom services
       for (const s of formData.customServices) {
         const price = formData.customServicePrices[s];
-        if (!price || isNaN(Number(price)) || Number(price) < 0) {
+        if (price === '' || price === undefined || isNaN(Number(price)) || Number(price) < 0) {
           setErrorMsg(`Please enter a valid non-negative price for custom service "${s}".`);
           return;
         }
@@ -298,8 +303,15 @@ export default function RegisterGaragePage() {
         responseMins: Number(formData.responseMins),
         businessRegDoc: formData.businessRegDoc,
         businessLicenseDoc: formData.businessLicenseDoc,
+        taxRegistrationDoc: formData.taxRegistrationDoc,
         ownerIdDoc: formData.ownerIdDoc,
         addressProofDoc: formData.addressProofDoc,
+        additionalDocuments: [
+          { type: 'Business Insurance', file: formData.insuranceDoc },
+          { type: 'Professional Certifications', file: formData.certificationsDoc },
+          { type: 'Authorization Documents', file: formData.authorizationDoc },
+          { type: 'Other Supporting Documents', file: formData.supportingDoc },
+        ].filter(document => Boolean(document.file)),
         workingHours: formData.workingHours,
         country: selectedCountry?.isoCode || null,
         businessCurrency: selectedCountry?.currencyCode || 'USD',
@@ -350,8 +362,8 @@ export default function RegisterGaragePage() {
       const file = e.target.files[0];
       
       if (field === 'image') {
-        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
-          setErrorMsg('Garage Display/Profile Image must be JPG, PNG, or WEBP.');
+        if (file.type !== 'image/png') {
+          setErrorMsg('Garage Display/Profile Image must be a PNG file.');
           return;
         }
         if (file.size > 2 * 1024 * 1024) {
@@ -364,8 +376,8 @@ export default function RegisterGaragePage() {
           setErrorMsg('Only PDF, JPG, or PNG files are supported for business documents.');
           return;
         }
-        if (file.size > 5 * 1024 * 1024) {
-          setErrorMsg('Business Document must be less than 5MB.');
+        if (file.size > 10 * 1024 * 1024) {
+          setErrorMsg('Business Document must be less than 10MB.');
           return;
         }
       }
@@ -388,6 +400,10 @@ export default function RegisterGaragePage() {
 
   const handleSelectAllServices = () => {
     const allIds = platformServices.map(service => service.id);
+    if (formData.services.length === allIds.length) {
+      setFormData(prev => ({ ...prev, services: [], servicePrices: {} }));
+      return;
+    }
     const newPrices = { ...formData.servicePrices };
     platformServices.forEach(service => {
       if (!newPrices[service.id]) {
@@ -399,9 +415,14 @@ export default function RegisterGaragePage() {
 
   const [newService, setNewService] = useState('');
   const addCustomService = () => {
-    if (newService.trim() && !formData.customServices.includes(newService.trim())) {
+    const normalized = newService.trim().toLowerCase();
+    const existsInCatalog = platformServices.some(service => service.name.trim().toLowerCase() === normalized);
+    const existsInCustom = formData.customServices.some(service => service.trim().toLowerCase() === normalized);
+    if (normalized && !existsInCatalog && !existsInCustom) {
       setFormData(prev => ({...prev, customServices: [...prev.customServices, newService.trim()]}));
       setNewService('');
+    } else if (normalized) {
+      setErrorMsg('That service is already in the garage service catalogue.');
     }
   };
 
@@ -660,23 +681,28 @@ export default function RegisterGaragePage() {
                   {/* Document Box Component */}
                   {[
                     { id: 'image', label: 'Garage Display Picture / Profile Image', req: true },
-                    { id: 'businessRegDoc', label: 'Business Registration Document', req: true },
+                    { id: 'businessRegDoc', label: 'Business Registration Certificate', req: true },
                     { id: 'businessLicenseDoc', label: 'Business License / Trade License', req: true },
+                    { id: 'taxRegistrationDoc', label: 'Tax Registration / Tax Identification Document', req: true },
                     { id: 'ownerIdDoc', label: 'Owner Identity Proof', req: true },
-                    { id: 'addressProofDoc', label: 'Proof of Business Address', req: true }
+                    { id: 'addressProofDoc', label: 'Proof of Business Address', req: true },
+                    { id: 'insuranceDoc', label: 'Business Insurance', req: false },
+                    { id: 'certificationsDoc', label: 'Professional Certifications', req: false },
+                    { id: 'authorizationDoc', label: 'Authorization Documents', req: false },
+                    { id: 'supportingDoc', label: 'Other Supporting Documents', req: false }
                   ].map(doc => {
                     const file = (formData as any)[doc.id];
                     return (
                       <div key={doc.id} className="border border-slate-200 rounded-lg p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-blue-300 transition-colors">
                         <div>
-                          <h4 className="font-bold text-sm text-slate-800">{doc.label} {doc.req && <span className="text-red-500">*</span>}</h4>
+                          <h4 className="font-bold text-sm text-slate-800">{doc.label} {doc.req ? <span className="text-red-500">*</span> : <span className="text-slate-400 font-normal">(Optional)</span>}</h4>
                           <p className="text-[11px] text-slate-500 mt-1">{doc.id === 'image' ? 'PNG ONLY • Max 2 MB' : 'PDF, JPG or PNG • Max 10 MB'}</p>
                         </div>
                         {file ? (
                           <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg flex items-center justify-between gap-4 w-full md:w-64">
                             <div className="flex items-center gap-2 truncate cursor-pointer hover:text-green-900 group" onClick={() => setPreviewModal({isOpen: true, url: file.data, type: file.type, name: file.name})}>
                               <Check className="w-4 h-4 flex-shrink-0" />
-                              <span className="text-xs truncate font-medium group-hover:underline">{file.name}</span>
+                              <span className="text-xs truncate font-medium group-hover:underline">{file.name} · {(file.size / 1024 / 1024).toFixed(2)} MB · Uploaded</span>
                             </div>
                             <button onClick={() => removeUpload(doc.id)} className="text-slate-400 hover:text-red-500" title="Remove Document">
                               <X className="w-4 h-4" />
@@ -900,6 +926,13 @@ export default function RegisterGaragePage() {
 
                    {/* Services */}
                    <div className="border border-slate-200 rounded-lg overflow-hidden">
+                     <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center"><h3 className="font-bold text-sm text-[#17307a]">Business Documents</h3><button onClick={() => setStep(3)} className="text-blue-600 text-xs font-bold hover:underline">Edit</button></div>
+                     <div className="p-5 text-sm text-slate-700 space-y-1">
+                       {[['Business Registration Certificate', formData.businessRegDoc], ['Business / Trade License', formData.businessLicenseDoc], ['Tax Registration / Tax Identification', formData.taxRegistrationDoc], ['Owner Identity Proof', formData.ownerIdDoc], ['Business Address Proof', formData.addressProofDoc]].map(([label, file]: any) => <p key={label}>{label}: <span className="font-medium">{file?.name || 'Missing'}</span></p>)}
+                     </div>
+                   </div>
+
+                   <div className="border border-slate-200 rounded-lg overflow-hidden">
                      <div className="bg-slate-50 px-5 py-3 border-b border-slate-200 flex justify-between items-center">
                        <h3 className="font-bold text-sm text-[#17307a]">Services Offered</h3>
                        <button onClick={() => setStep(4)} className="text-blue-600 text-xs font-bold hover:underline">Edit</button>
@@ -907,10 +940,10 @@ export default function RegisterGaragePage() {
                      <div className="p-5">
                         <div className="flex flex-wrap gap-2">
                           {formData.services.map(id => (
-                            <span key={id} className="bg-blue-50 text-blue-700 border border-blue-100 text-xs px-3 py-1.5 rounded-full font-medium">{platformServices.find(s => s.id === id)?.name || id}</span>
+                            <span key={id} className="bg-blue-50 text-blue-700 border border-blue-100 text-xs px-3 py-1.5 rounded-full font-medium">{platformServices.find(s => s.id === id)?.name || id} · {getCountryByCallingCode(formData.countryCode)?.currencyCode} {formData.servicePrices[id]}</span>
                           ))}
                           {formData.customServices.map(name => (
-                            <span key={name} className="bg-blue-50 text-blue-700 border border-blue-100 text-xs px-3 py-1.5 rounded-full font-medium">{name}</span>
+                            <span key={name} className="bg-blue-50 text-blue-700 border border-blue-100 text-xs px-3 py-1.5 rounded-full font-medium">{name} · {getCountryByCallingCode(formData.countryCode)?.currencyCode} {formData.customServicePrices[name]}</span>
                           ))}
                         </div>
                      </div>

@@ -237,6 +237,9 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     if (!chips || !Array.isArray(chips) || chips.length === 0) {
       return error(res, 'At least one garage highlight must be selected.', 'VALIDATION_ERROR', 400);
     }
+    if ((!Array.isArray(services) || services.length === 0) && (!Array.isArray(customServices) || customServices.length === 0)) {
+      return error(res, 'Select at least one garage service.', 'VALIDATION_ERROR', 400);
+    }
 
     const { year, otp, contactPhone } = req.body;
     const yearNum = Number(year);
@@ -265,23 +268,39 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     // Backend validation for documents (before DB work)
     if (!image) return error(res, 'Garage display image is required.', 'VALIDATION_ERROR', 400);
     if (image) {
-      if (!['image/jpeg', 'image/png', 'image/webp'].includes(image.type)) return error(res, 'Profile image must be JPG, PNG, or WEBP.', 'VALIDATION_ERROR', 400);
+      if (image.type !== 'image/png') return error(res, 'Profile image must be a PNG file.', 'VALIDATION_ERROR', 400);
       if (image.size && image.size > 2 * 1024 * 1024) return error(res, 'Profile Image must be less than 2MB.', 'VALIDATION_ERROR', 400);
+      const imageContent = typeof image.data === 'string' ? image.data.split(',')[1] || '' : '';
+      const imageBytes = Buffer.from(imageContent, 'base64');
+      if (!imageBytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || imageBytes.length === 0 || imageBytes.length > 2 * 1024 * 1024) {
+        return error(res, 'Profile image content must be a valid PNG under 2MB.', 'VALIDATION_ERROR', 400);
+      }
     }
 
-    const { businessRegDoc, businessLicenseDoc, ownerIdDoc, addressProofDoc } = req.body;
+    const { businessRegDoc, businessLicenseDoc, taxRegistrationDoc, ownerIdDoc, addressProofDoc, additionalDocuments } = req.body;
     const docs = [
-      { obj: businessRegDoc, type: 'Business Registration' },
-      { obj: businessLicenseDoc, type: 'Business License' },
-      { obj: ownerIdDoc, type: 'Owner Identity Proof' },
-      { obj: addressProofDoc, type: 'Address Proof' }
+      { obj: businessRegDoc, type: 'Business Registration Certificate', required: true },
+      { obj: businessLicenseDoc, type: 'Business / Trade License', required: true },
+      { obj: taxRegistrationDoc, type: 'Tax Registration / Tax Identification Document', required: true },
+      { obj: ownerIdDoc, type: 'Owner Identity Proof', required: true },
+      { obj: addressProofDoc, type: 'Business Address Proof', required: true },
+      ...(Array.isArray(additionalDocuments) ? additionalDocuments.map((document: any) => ({ obj: document?.file, type: document?.type, required: false })) : [])
     ];
 
     for (const doc of docs) {
-      if (!doc.obj) return error(res, `${doc.type} is required.`, 'VALIDATION_ERROR', 400);
+      if (!doc.obj && doc.required) return error(res, `${doc.type} is required.`, 'VALIDATION_ERROR', 400);
+      if (!doc.obj) continue;
+      if (typeof doc.type !== 'string' || !['Business Registration Certificate', 'Business / Trade License', 'Tax Registration / Tax Identification Document', 'Owner Identity Proof', 'Business Address Proof', 'Business Insurance', 'Professional Certifications', 'Authorization Documents', 'Other Supporting Documents'].includes(doc.type)) return error(res, 'Invalid document category.', 'VALIDATION_ERROR', 400);
       const validTypes = ['application/pdf', 'image/jpeg', 'image/png'];
       if (!validTypes.includes(doc.obj.type)) return error(res, `Invalid file type for ${doc.type}.`, 'VALIDATION_ERROR', 400);
-      if (doc.obj.size && doc.obj.size > 5 * 1024 * 1024) return error(res, `${doc.type} must be less than 5MB.`, 'VALIDATION_ERROR', 400);
+      if (!doc.obj.data || typeof doc.obj.data !== 'string') return error(res, `${doc.type} upload is invalid.`, 'VALIDATION_ERROR', 400);
+      const content = doc.obj.data.split(',')[1] || '';
+      const bytes = Buffer.from(content, 'base64');
+      const isPdf = bytes.subarray(0, 5).toString() === '%PDF-';
+      const isPng = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+      if ((doc.obj.type === 'application/pdf' && !isPdf) || (doc.obj.type === 'image/png' && !isPng) || (doc.obj.type === 'image/jpeg' && !isJpeg)) return error(res, `${doc.type} file content does not match its type.`, 'VALIDATION_ERROR', 400);
+      if (bytes.length === 0 || bytes.length > 10 * 1024 * 1024) return error(res, `${doc.type} must be less than 10MB.`, 'VALIDATION_ERROR', 400);
     }
 
     // Helper to save base64 files locally (fallback for dev)
@@ -425,8 +444,15 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         const docPath = await uploadBase64File(doc.obj, 'garages/documents');
         if (docPath) {
           await client.query(
-            `INSERT INTO garage_documents (garage_id, doc_type, file_url, verification_status) VALUES ($1, $2, $3, 'pending')`,
-            [garageId, doc.type, docPath]
+            `INSERT INTO garage_documents (
+              garage_id, doc_type, file_url, verification_status, original_filename, mime_type,
+              file_size_bytes, document_number, issuing_authority, issue_date, expiry_date, country_code
+            ) VALUES ($1, $2, $3, 'pending', $4, $5, $6, $7, $8, $9, $10, $11)`,
+            [
+              garageId, doc.type, docPath, doc.obj.name || null, doc.obj.type || null, doc.obj.size || null,
+              doc.obj.documentNumber || null, doc.obj.issuingAuthority || null, doc.obj.issueDate || null,
+              doc.obj.expiryDate || null, countryCode
+            ]
           );
         }
       }
@@ -453,10 +479,14 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       }
     }
     if (customServices && Array.isArray(customServices)) {
+      const normalizedServiceNames = new Set<string>();
       for (const serviceName of customServices) {
         if (typeof serviceName !== 'string' || !serviceName.trim()) {
           throw new Error('Validation Error: Custom service names must not be empty.');
         }
+        const normalizedServiceName = serviceName.trim().toLowerCase();
+        if (normalizedServiceNames.has(normalizedServiceName)) throw new Error('Validation Error: Duplicate custom service names are not allowed.');
+        normalizedServiceNames.add(normalizedServiceName);
         const providedPrice = customServicePrices?.[serviceName];
         if (providedPrice === undefined || providedPrice === null || providedPrice === '' || isNaN(Number(providedPrice)) || Number(providedPrice) < 0) {
           throw new Error(`Validation Error: Please provide a valid non-negative price for custom service "${serviceName}".`);
