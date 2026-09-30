@@ -506,7 +506,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         name, address, city, owner_user_id, approval_status, is_approved,
         specializations, image, location, response_mins, description, business_hours, registration_number, country, business_currency, locale, established_year, contact_phone, is_contact_phone_verified,
         garage_type, owner_designation, state_region, postal_code, pricing_currency, timezone
-      ) VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25) RETURNING id`,
+      ) VALUES ($1, $2, $3, $4, 'active', true, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23) RETURNING id`,
       [
         name,
         address,
