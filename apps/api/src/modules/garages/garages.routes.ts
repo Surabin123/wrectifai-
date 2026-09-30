@@ -10,6 +10,18 @@ export const garagesRouter = Router();
 
 // Helper: resolve garageId from token or DB (handles stale tokens without garageId)
 async function resolveGarageId(userId: string, tokenGarageId?: string): Promise<string | null> {
+  // Prefer the garage association issued with the authenticated session. It is
+  // still checked against the owner so a stale or tampered token cannot select
+  // another garage. Fall back to the owner lookup for older sessions that do
+  // not contain garageId.
+  if (tokenGarageId) {
+    const tokenGarage = await query(
+      'SELECT id FROM garages WHERE id = $1 AND owner_user_id = $2 LIMIT 1',
+      [tokenGarageId, userId]
+    );
+    if (tokenGarage.rows.length > 0) return tokenGarage.rows[0].id;
+  }
+
   const result = await query(
     'SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1',
     [userId]
@@ -164,7 +176,7 @@ garagesRouter.get('/my-profile', authenticate, async (req, res) => {
     if (!garageUserId || !req.user?.roles?.includes('garage')) {
       return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
     }
-    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
+    const garageId = await resolveGarageId(garageUserId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(
@@ -223,7 +235,8 @@ garagesRouter.get('/my-documents/:documentId/access', authenticate, requireRole(
     const encodedPath = fileUrl.split(marker)[1].replace(/^v\d+\//, '');
     const publicId = decodeURIComponent(encodedPath).replace(/\.[^.]+$/, '');
     const { v2: cloudinary } = require('cloudinary');
-    const signedUrl = cloudinary.url(publicId, { secure: true, sign_url: true, type: 'authenticated', resource_type: 'image' });
+    const resourceType = result.rows[0].mime_type === 'application/pdf' ? 'raw' : 'image';
+    const signedUrl = cloudinary.url(publicId, { secure: true, sign_url: true, type: 'authenticated', resource_type: resourceType });
     return success(res, { url: signedUrl });
   } catch {
     return error(res, 'Failed to access document', 'DOCUMENT_ACCESS_ERROR', 500);
@@ -535,8 +548,7 @@ garagesRouter.get('/my-inventory', authenticate, async (req, res) => {
 
     const result = await query(
       `SELECT gi.id as inventory_id, p.id as product_id, p.name, p.category, p.description, p.is_diy_kit, p.image,
-              gi.qty_available, COALESCE(gi.price, p.price) as price, gi.is_active,
-              p.price as "basePrice"
+              gi.qty_available, COALESCE(gi.price, p.price) as price, gi.is_active
        FROM garage_inventory gi
        JOIN products p ON gi.product_id = p.id
        WHERE gi.garage_id = $1
@@ -706,7 +718,7 @@ garagesRouter.get('/my-services', authenticate, async (req, res) => {
               COALESCE(ps.category, s.category) as category, 
               COALESCE(ps.description, s.description) as description, 
               ps.icon, s.image, s.price, s.is_active, s.duration_mins,
-              s.duration_unit, ps.base_price as "basePrice"
+              s.duration_unit
        FROM services s 
        LEFT JOIN platform_services ps ON s.platform_service_id = ps.id 
        WHERE s.garage_id = $1

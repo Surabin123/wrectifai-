@@ -101,6 +101,13 @@ function normalizedPhone(value: string): string {
   return value.replace(/\D/g, '');
 }
 
+function phoneCandidates(value: string): string[] {
+  const digits = normalizedPhone(value);
+  if (!digits) return [];
+  const local = digits.length > 10 ? digits.slice(-10) : digits;
+  return [...new Set([digits, local])];
+}
+
 const normalizedPhoneSql = "regexp_replace(mobile_number, '[^0-9]', '', 'g')";
 
 function checkIfPasswordResetRequired(passwordHash: string, userRoles: string[]): boolean {
@@ -440,7 +447,11 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
         }
         const { demoAuthEnabled, demoOtp } = getEnv();
         if (demoAuthEnabled && otp === demoOtp) {
-          const existingUser = await client.query(`SELECT * FROM users WHERE ${normalizedPhoneSql} = $1`, [normalizedPhone(mobileNumber)]);
+          const candidates = phoneCandidates(mobileNumber);
+          const existingUser = await client.query(
+            `SELECT * FROM users WHERE ${normalizedPhoneSql} = ANY($1::text[]) ORDER BY created_at DESC LIMIT 1`,
+            [candidates]
+          );
           if (existingUser.rows.length > 0) {
             userRecord = existingUser.rows[0];
             if (mobileNumber === '9876543210') {

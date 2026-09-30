@@ -295,19 +295,17 @@ export default function ServicesPage() {
                      <th className="p-4 text-xs font-bold text-slate-500 border-b">Category</th>
                      <th className="p-4 text-xs font-bold text-slate-500 border-b">Duration</th>
                      <th className="p-4 text-xs font-bold text-slate-500 border-b">Your Price</th>
-                     <th className="p-4 text-xs font-bold text-slate-500 border-b">Base Price</th>
                      <th className="p-4 text-xs font-bold text-slate-500 border-b">Status</th>
                      <th className="p-4 text-xs font-bold text-slate-500 border-b text-center">Actions</th>
                    </tr>
                  </thead>
                  <tbody className="divide-y divide-slate-100">
                    {loading ? (
-                     <tr><td colSpan={7} className="p-8 text-center text-slate-500">Loading services...</td></tr>
+                     <tr><td colSpan={6} className="p-8 text-center text-slate-500">Loading services...</td></tr>
                    ) : filteredServices.length === 0 ? (
-                     <tr><td colSpan={7} className="p-8 text-center text-slate-500">No services found.</td></tr>
+                      <tr><td colSpan={6} className="p-8 text-center text-slate-500">No services found.</td></tr>
                    ) : filteredServices.map((item) => {
                      const price = Number(item.price);
-                     const basePrice = Number(item.basePrice);
                      const status = item.is_active ? 'Active' : 'Inactive';
                      
                      // Dynamically load the correct Lucide icon, or fallback
@@ -329,7 +327,6 @@ export default function ServicesPage() {
                        <td className="p-4"><p className="text-xs font-medium text-slate-600 truncate">{item.category}</p></td>
                        <td className="p-4"><p className="text-xs font-medium text-slate-600">{item.duration_mins ? `${item.duration_mins} ${item.duration_unit || 'Mins'}` : 'N/A'}</p></td>
                        <td className="p-4"><p className="text-xs font-bold text-[#17307a]">{formatCurrency(price)}</p></td>
-                       <td className="p-4"><p className="text-xs font-medium text-slate-400 line-through">{formatCurrency(basePrice)}</p></td>
                        <td className="p-4">
                          <span className={status === 'Active' ? 'px-3 py-1 rounded-full text-[10px] font-bold bg-green-50 text-green-600' : 'px-3 py-1 rounded-full text-[10px] font-bold bg-slate-100 text-slate-600'}>{status}</span>
                        </td>
@@ -404,7 +401,7 @@ export default function ServicesPage() {
                           className={`p-2 cursor-pointer text-sm hover:bg-blue-50 ${formData.platformServiceId === ps.id ? 'bg-blue-100 border-l-2 border-blue-600' : ''}`}
                         >
                           <p className="font-bold text-slate-700">{ps.name}</p>
-                          <p className="text-[10px] text-slate-500">{ps.category} • Base: {formatCurrency(ps.base_price)}</p>
+                          <p className="text-[10px] text-slate-500">{ps.category}</p>
                         </div>
                       ))}
                     </div>
@@ -518,7 +515,6 @@ export default function ServicesPage() {
               <div className="mb-6 p-3 bg-slate-50 rounded-lg border border-slate-100">
                 <p className="font-bold text-slate-800">{selectedService.name}</p>
                 <p className="text-xs text-slate-600 mb-2">Category: {selectedService.category}</p>
-                <p className="text-[10px] text-slate-500">Base Price: {formatCurrency(selectedService.basePrice)}</p>
               </div>
               
               <div className="space-y-4">

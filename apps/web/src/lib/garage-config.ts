@@ -7,6 +7,7 @@ export const garageNavItems: NavItem[] = [
   { label: 'Bookings', icon: CalendarDays, href: '/garage/bookings', slug: 'bookings' },
   { label: 'Quotes', icon: FileText, href: '/garage/quotes', slug: 'quotes' },
   { label: 'Orders', icon: Package, href: '/garage/orders', slug: 'orders' },
+  { label: 'Inventory', icon: Package, href: '/garage/inventory', slug: 'inventory' },
   { label: 'Garage Services', icon: ClipboardList, href: '/garage/services', slug: 'services' },
   { label: 'Refund Requests', icon: ClipboardList, href: '/garage/refund-requests', slug: 'refund-requests' },
   { label: 'Offers & Promos', icon: Star, href: '/garage/offers', slug: 'offers' },
