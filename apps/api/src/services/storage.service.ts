@@ -41,7 +41,11 @@ export class CloudinaryStorage implements FileStorage {
     return new Promise((resolve, reject) => {
       const folder = input.folder || process.env.CLOUDINARY_FOLDER || 'wrectifai';
       const uploadStream = cloudinary.uploader.upload_stream(
-        { folder, resource_type: 'auto' },
+        {
+          folder,
+          resource_type: 'auto',
+          ...(folder.includes('/documents') ? { type: 'authenticated' } : {}),
+        },
         (err, result) => {
           if (err || !result) {
             return reject(new Error(`Cloudinary upload failed: ${err?.message || 'Unknown error'}`));
@@ -109,9 +113,11 @@ export class LocalStorageProvider implements FileStorage {
 export function createStorageProvider(): FileStorage {
   const isProd = process.env.NODE_ENV === 'production';
   const hasCloudinaryConfig = Boolean(
-    process.env.CLOUDINARY_CLOUD_NAME &&
-    process.env.CLOUDINARY_API_KEY &&
-    process.env.CLOUDINARY_API_SECRET
+    process.env.CLOUDINARY_URL || (
+      process.env.CLOUDINARY_CLOUD_NAME &&
+      process.env.CLOUDINARY_API_KEY &&
+      process.env.CLOUDINARY_API_SECRET
+    )
   );
 
   if (hasCloudinaryConfig) {

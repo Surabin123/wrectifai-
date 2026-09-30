@@ -3,11 +3,10 @@ import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
 import { query, getDbPool } from '../../config/database';
 import { getPagination } from '../../utils/pagination';
-import fs from 'fs';
-import path from 'path';
 import { randomUUID } from 'crypto';
 import { getEnv } from '../../config/env';
 import { verifyFirebaseIdToken } from '../../services/firebase-id-token.service';
+import { createStorageProvider } from '../../services/storage.service';
 
 export const adminRouter = Router();
 
@@ -404,39 +403,27 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       if (bytes.length === 0 || bytes.length > 5 * 1024 * 1024) return error(res, `${doc.type} must be less than 5MB.`, 'VALIDATION_ERROR', 400);
     }
 
-    // Helper to save base64 files locally (fallback for dev)
-    const saveBase64File = (fileObj: any, folder: string) => {
-      if (!fileObj || !fileObj.data) return null;
-      const match = fileObj.data.match(/^data:([A-Za-z-+/]+);base64,(.+)$/);
-      if (!match || match.length !== 3) return null;
-      const ext = fileObj.name.split('.').pop() || 'png';
-      const filename = `${Date.now()}_${Math.random().toString(36).substring(7)}.${ext}`;
-      const fullPath = path.join(process.cwd(), 'uploads', folder);
-      if (!fs.existsSync(fullPath)) fs.mkdirSync(fullPath, { recursive: true });
-      fs.writeFileSync(path.join(fullPath, filename), Buffer.from(match[2], 'base64') as any);
-      return `/uploads/${folder}/${filename}`;
-    };
-
-    // Production documents use authenticated delivery; profile responses never expose URLs.
+    // Use the shared storage provider so garage registration follows the same
+    // Cloudinary configuration and PDF handling as the rest of the API.
+    const storage = createStorageProvider();
     const uploadBase64File = async (fileObj: any, folder: string) => {
       if (!fileObj || !fileObj.data) return null;
-      if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
-        try {
-          const { v2: cloudinary } = require('cloudinary');
-          const result = await cloudinary.uploader.upload(fileObj.data, {
-            folder: `wrectifai/${folder}`,
-            public_id: `garage_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-            type: folder.includes('documents') ? 'authenticated' : 'upload',
-            resource_type: 'auto'
-          });
-          return result.secure_url;
-        } catch (uploadError) {
-          console.error('[Cloudinary] Garage registration upload failed:', uploadError instanceof Error ? uploadError.message : uploadError);
-          throw new Error('Secure document upload failed.');
-        }
+      const match = /^data:([^;,]+);base64,([A-Za-z0-9+/=]+)$/.exec(fileObj.data);
+      if (!match) throw new Error(`Invalid upload data for ${folder.includes('documents') ? 'document' : 'garage image'}.`);
+      const buffer = Buffer.from(match[2], 'base64');
+      if (!buffer.length) throw new Error('Uploaded file is empty.');
+      try {
+        const stored = await storage.upload({
+          buffer,
+          filename: typeof fileObj.name === 'string' && fileObj.name ? fileObj.name : `garage-${Date.now()}`,
+          mimeType: match[1],
+          folder: `wrectifai/${folder}`,
+        });
+        return stored.url;
+      } catch (uploadError) {
+        console.error('[Garage registration] File storage upload failed:', uploadError instanceof Error ? uploadError.message : uploadError);
+        throw new Error('Garage file upload failed. Check the configured object storage and try again.');
       }
-      if (process.env.NODE_ENV === 'production') throw new Error('Secure document storage is not configured.');
-      return saveBase64File(fileObj, folder);
     };
 
     const geocodeAddress = async (address: string, area: string, city: string, country: string) => {
