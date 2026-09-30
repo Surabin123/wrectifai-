@@ -272,7 +272,9 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       if (image.size && image.size > 2 * 1024 * 1024) return error(res, 'Profile Image must be less than 2MB.', 'VALIDATION_ERROR', 400);
       const imageContent = typeof image.data === 'string' ? image.data.split(',')[1] || '' : '';
       const imageBytes = Buffer.from(imageContent, 'base64');
-      if (!imageBytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])) || imageBytes.length === 0 || imageBytes.length > 2 * 1024 * 1024) {
+      const isPng = imageBytes[0] === 137 && imageBytes[1] === 80 && imageBytes[2] === 78 && imageBytes[3] === 71
+        && imageBytes[4] === 13 && imageBytes[5] === 10 && imageBytes[6] === 26 && imageBytes[7] === 10;
+      if (!isPng || imageBytes.length === 0 || imageBytes.length > 2 * 1024 * 1024) {
         return error(res, 'Profile image content must be a valid PNG under 2MB.', 'VALIDATION_ERROR', 400);
       }
     }
@@ -297,7 +299,8 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       const content = doc.obj.data.split(',')[1] || '';
       const bytes = Buffer.from(content, 'base64');
       const isPdf = bytes.subarray(0, 5).toString() === '%PDF-';
-      const isPng = bytes.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]));
+      const isPng = bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71
+        && bytes[4] === 13 && bytes[5] === 10 && bytes[6] === 26 && bytes[7] === 10;
       const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
       if ((doc.obj.type === 'application/pdf' && !isPdf) || (doc.obj.type === 'image/png' && !isPng) || (doc.obj.type === 'image/jpeg' && !isJpeg)) return error(res, `${doc.type} file content does not match its type.`, 'VALIDATION_ERROR', 400);
       if (bytes.length === 0 || bytes.length > 10 * 1024 * 1024) return error(res, `${doc.type} must be less than 10MB.`, 'VALIDATION_ERROR', 400);
