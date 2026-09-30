@@ -58,7 +58,12 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     firebaseWebApiKey: envSource.FIREBASE_WEB_API_KEY || '',
     demoAuthEnabled: envSource.DEMO_AUTH_ENABLED === 'true',
     demoOtp: envSource.DEMO_OTP || '123456',
-    garageRegistrationTempOtpEnabled: envSource.GARAGE_REGISTRATION_TEMP_OTP_ENABLED === 'true' && (envSource.NODE_ENV !== 'production' || ['demo', 'test'].includes(envSource.APP_ENV || '')),
+    // The garage-registration OTP provider is intentionally a fixed testing
+    // mechanism for non-production environments until SMS delivery is wired.
+    // Set GARAGE_REGISTRATION_TEMP_OTP_ENABLED=false to disable it locally.
+    // Production remains opt-in and is restricted to demo/test app modes.
+    garageRegistrationTempOtpEnabled: envSource.GARAGE_REGISTRATION_TEMP_OTP_ENABLED !== 'false'
+      && (envSource.NODE_ENV !== 'production' || ['demo', 'test'].includes(envSource.APP_ENV || '')),
     llmProvider: provider,
     llmModel: (envSource.LLM_MODEL?.trim() === 'llama-3.1-70b-versatile' || envSource.LLM_MODEL?.trim() === 'llama-3.3-70b-versatile') ? 'llama3-70b-8192' : (envSource.LLM_MODEL?.trim() || 'llama3-70b-8192'),
     groqApiKey: anyKey,

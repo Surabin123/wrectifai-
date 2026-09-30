@@ -714,7 +714,7 @@ export default function RegisterGaragePage() {
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 text-green-600 text-sm font-bold">
-                      <Check className="w-5 h-5" /> Phone number verified
+                      <Check className="w-5 h-5" /> Phone Number Verified Successfully
                     </div>
                   )}
                 </div>
