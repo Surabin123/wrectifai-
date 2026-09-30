@@ -173,6 +173,11 @@ export function createApp() {
   app.use('/api/garages/documents', base64Parser);
   app.use('/api/v1/garages/my-documents', base64Parser);
   app.use('/api/garages/my-documents', base64Parser);
+  // Garage registration submits the profile image and required documents as
+  // base64 JSON in one request. Keep the global parser limit unchanged while
+  // allowing the validated registration payload through.
+  app.use('/api/v1/admin/onboarding/garages', express.json({ limit: '40mb' }));
+  app.use('/api/admin/onboarding/garages', express.json({ limit: '40mb' }));
   app.use('/api/v1/diagnosis/upload-media', base64Parser);
   app.use('/api/diagnosis/upload-media', base64Parser);
   app.use('/api/v1/users/avatar', base64Parser);
