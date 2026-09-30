@@ -169,7 +169,7 @@ adminRouter.get('/stats', async (req, res) => {
 
 adminRouter.get('/onboarding/garages', async (req, res) => {
   try {
-    const { city, country, status, search, dateFrom, dateTo } = req.query;
+    const { country, search, dateFrom, dateTo } = req.query;
     const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
     const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '20'), 10) || 20));
     const sortColumns: Record<string, string> = { name: 'g.name', city: 'g.city', status: 'g.approval_status', createdAt: 'g.created_at' };
@@ -184,12 +184,18 @@ adminRouter.get('/onboarding/garages', async (req, res) => {
     const params: any[] = [];
     let whereSql = ` WHERE g.approval_status != 'deleted'`;
     
-    if (city && city !== 'All') {
-      params.push((city as string).toLowerCase());
-      whereSql += ` AND LOWER(g.city) = $${params.length}`;
+    const countryExpression = `CASE UPPER(COALESCE(g.country, g.location->>'country'))
+      WHEN 'INDIA' THEN 'IN'
+      WHEN 'UNITED STATES' THEN 'US'
+      WHEN 'USA' THEN 'US'
+      WHEN 'UNITED ARAB EMIRATES' THEN 'AE'
+      WHEN 'UAE' THEN 'AE'
+      ELSE UPPER(COALESCE(g.country, g.location->>'country'))
+    END`;
+    if (country && country !== 'All') {
+      params.push(String(country).toUpperCase());
+      whereSql += ` AND ${countryExpression} = $${params.length}`;
     }
-    if (country && country !== 'All') { params.push(String(country).toUpperCase()); whereSql += ` AND UPPER(COALESCE(g.country, g.location->>'country')) = $${params.length}`; }
-    if (status && status !== 'All') { params.push(String(status).toLowerCase()); whereSql += ` AND LOWER(g.approval_status) = $${params.length}`; }
     if (dateFrom) { params.push(dateFrom); whereSql += ` AND g.created_at >= $${params.length}::date`; }
     if (dateTo) { params.push(dateTo); whereSql += ` AND g.created_at < ($${params.length}::date + INTERVAL '1 day')`; }
     
@@ -204,7 +210,7 @@ adminRouter.get('/onboarding/garages', async (req, res) => {
       COUNT(*) FILTER (WHERE g.approval_status NOT IN ('active', 'approved', 'deleted')) AS inactive
       FROM garages g LEFT JOIN users u ON g.owner_user_id = u.id${whereSql}`, params);
     const pagedParams = [...params, limit, (page - 1) * limit];
-    queryStr += ` ORDER BY ${sortColumn} ${sortOrder} LIMIT $${pagedParams.length - 1} OFFSET $${pagedParams.length}`;
+    queryStr += ` ORDER BY ${sortColumn} ${sortOrder}, g.created_at DESC, g.id DESC LIMIT $${pagedParams.length - 1} OFFSET $${pagedParams.length}`;
     const result = await query(queryStr, pagedParams);
     return success(res, {
       items: result.rows,
@@ -222,9 +228,13 @@ adminRouter.get('/onboarding/garages', async (req, res) => {
 adminRouter.get('/onboarding/garage-filter-options', async (_req, res) => {
   try {
     const result = await query(`SELECT
-      ARRAY(SELECT DISTINCT city FROM garages WHERE city IS NOT NULL AND approval_status != 'deleted' ORDER BY city) AS cities,
-      ARRAY(SELECT DISTINCT COALESCE(country, location->>'country') FROM garages WHERE COALESCE(country, location->>'country') IS NOT NULL AND approval_status != 'deleted' ORDER BY COALESCE(country, location->>'country')) AS countries`);
-    return success(res, result.rows[0]);
+      ARRAY(SELECT DISTINCT CASE UPPER(COALESCE(country, location->>'country'))
+        WHEN 'INDIA' THEN 'IN' WHEN 'UNITED STATES' THEN 'US' WHEN 'USA' THEN 'US'
+        WHEN 'UNITED ARAB EMIRATES' THEN 'AE' WHEN 'UAE' THEN 'AE'
+        ELSE UPPER(COALESCE(country, location->>'country')) END
+        FROM garages WHERE COALESCE(country, location->>'country') IS NOT NULL AND approval_status != 'deleted'
+        ORDER BY 1) AS countries`);
+    return success(res, { countries: result.rows[0]?.countries || [] });
   } catch {
     return error(res, 'Failed to fetch garage filters', 'DATABASE_ERROR', 500);
   }

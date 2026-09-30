@@ -23,9 +23,7 @@ export default function AllGaragesPage() {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeCity, setActiveCity] = useState('All');
   const [countryFilter, setCountryFilter] = useState('All');
-  const [statusFilter, setStatusFilter] = useState('All');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [sortBy, setSortBy] = useState('createdAt');
@@ -33,7 +31,7 @@ export default function AllGaragesPage() {
   const [total, setTotal] = useState(0);
   const [activeTotal, setActiveTotal] = useState(0);
   const [inactiveTotal, setInactiveTotal] = useState(0);
-  const [filterOptions, setFilterOptions] = useState<{cities: string[]; countries: string[]}>({ cities: [], countries: [] });
+  const [filterOptions, setFilterOptions] = useState<{countries: string[]}>({ countries: [] });
 
   const handleDropdownClick = (e: React.MouseEvent, id: string) => {
     if (openDropdownId === id) {
@@ -50,9 +48,7 @@ export default function AllGaragesPage() {
     setLoading(true);
     try {
       const queryParams = new URLSearchParams();
-      if (activeCity && activeCity !== 'All') queryParams.append('city', activeCity);
       if (countryFilter !== 'All') queryParams.append('country', countryFilter);
-      if (statusFilter !== 'All') queryParams.append('status', statusFilter);
       if (dateFrom) queryParams.append('dateFrom', dateFrom);
       if (dateTo) queryParams.append('dateTo', dateTo);
       if (searchQuery) queryParams.append('search', searchQuery);
@@ -74,13 +70,13 @@ export default function AllGaragesPage() {
 
   useEffect(() => {
     loadData();
-  }, [activeCity, countryFilter, statusFilter, dateFrom, dateTo, sortBy, page, searchQuery]);
+  }, [countryFilter, dateFrom, dateTo, sortBy, page, searchQuery]);
 
   useEffect(() => {
     apiClient.get<{cities: string[]; countries: string[]}>('/admin/onboarding/garage-filter-options').then(setFilterOptions).catch(console.error);
   }, []);
 
-  const clearFilters = () => { setSearchQuery(''); setActiveCity('All'); setCountryFilter('All'); setStatusFilter('All'); setDateFrom(''); setDateTo(''); setSortBy('createdAt'); setPage(1); };
+  const clearFilters = () => { setSearchQuery(''); setCountryFilter('All'); setDateFrom(''); setDateTo(''); setSortBy('createdAt'); setPage(1); };
 
   // Remove local filtering since it is now done in the backend
   const filteredGarages = garages;
@@ -199,17 +195,7 @@ export default function AllGaragesPage() {
              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search by garage name, owner, email or phone..." className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500" />
            </div>
            <div className="flex flex-wrap gap-2">
-             {['All', ...filterOptions.cities].map(city => (
-               <button 
-                 key={city}
-                 onClick={() => setActiveCity(city)}
-                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-colors ${activeCity === city ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-               >
-                 {city}
-               </button>
-             ))}
-             <select value={countryFilter} onChange={e => { setCountryFilter(e.target.value); setPage(1); }} className="px-3 py-1.5 text-xs border rounded-lg bg-white"><option value="All">All Countries</option>{filterOptions.countries.map(country => <option key={country} value={country}>{country}</option>)}</select>
-             <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="px-3 py-1.5 text-xs border rounded-lg bg-white"><option value="All">All Statuses</option><option value="active">Active</option><option value="approved">Approved</option><option value="suspended">Suspended</option><option value="pending">Pending</option></select>
+             <select value={countryFilter} onChange={e => { setCountryFilter(e.target.value); setPage(1); }} className="px-3 py-1.5 text-xs border rounded-lg bg-white"><option value="All">All Countries</option>{filterOptions.countries.map(country => <option key={country} value={country}>{country === 'IN' ? 'India' : country === 'US' ? 'United States' : country === 'AE' ? 'United Arab Emirates' : country}</option>)}</select>
              <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className="px-3 py-1.5 text-xs border rounded-lg" />
              <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} className="px-3 py-1.5 text-xs border rounded-lg" />
              <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="px-3 py-1.5 text-xs border rounded-lg bg-white"><option value="createdAt">Newest</option><option value="name">Garage Name</option><option value="city">City</option><option value="status">Status</option></select>
