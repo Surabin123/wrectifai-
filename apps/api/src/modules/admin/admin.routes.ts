@@ -426,10 +426,12 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
           const result = await cloudinary.uploader.upload(fileObj.data, {
             folder: `wrectifai/${folder}`,
             public_id: `garage_${Date.now()}_${Math.random().toString(36).substring(7)}`,
-            type: folder.includes('documents') ? 'authenticated' : 'upload'
+            type: folder.includes('documents') ? 'authenticated' : 'upload',
+            resource_type: 'auto'
           });
           return result.secure_url;
-        } catch {
+        } catch (uploadError) {
+          console.error('[Cloudinary] Garage registration upload failed:', uploadError instanceof Error ? uploadError.message : uploadError);
           throw new Error('Secure document upload failed.');
         }
       }
