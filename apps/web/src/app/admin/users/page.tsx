@@ -42,8 +42,16 @@ export default function CustomersPage() {
       setAddError('Name, email, password, and mobile number are required.');
       return;
     }
-    if (!/^\+?[1-9]\d{8,14}$/.test(addForm.phone.trim())) {
-      setAddError('Please enter a valid mobile number with country code (e.g. +919876543210).');
+    const phone = addForm.phone.trim();
+    const phoneRules = [
+      { prefix: '+91', length: 10, label: 'India (+91)' },
+      { prefix: '+1', length: 10, label: 'US (+1)' },
+      { prefix: '+971', length: 9, label: 'UAE (+971)' },
+    ];
+    const matchingRule = phoneRules.find((rule) => phone.startsWith(rule.prefix));
+    const nationalNumber = matchingRule ? phone.slice(matchingRule.prefix.length) : '';
+    if (!matchingRule || !/^\d+$/.test(nationalNumber) || nationalNumber.length !== matchingRule.length || nationalNumber.startsWith('0')) {
+      setAddError('Enter a valid mobile number: India +91 followed by 10 digits, US +1 followed by 10 digits, or UAE +971 followed by 9 digits.');
       return;
     }
     if (!passwordRegex.test(addForm.password)) {

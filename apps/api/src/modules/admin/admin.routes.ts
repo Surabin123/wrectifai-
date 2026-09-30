@@ -792,8 +792,11 @@ adminRouter.post('/users', async (req, res) => {
       return error(res, 'Password must be at least 8 characters with uppercase, lowercase, and a special character', 'BAD_REQUEST', 400);
     }
     const phoneClean = phone && phone.trim() !== '' ? phone.trim() : null;
-    if (!phoneClean || !/^\+?[1-9]\d{8,14}$/.test(phoneClean)) {
-      return error(res, 'Please enter a valid mobile number with country code.', 'BAD_REQUEST', 400);
+    const phoneRules: Record<string, number> = { '+91': 10, '+1': 10, '+971': 9 };
+    const phoneRule = Object.entries(phoneRules).find(([prefix]) => phoneClean?.startsWith(prefix));
+    const nationalNumber = phoneRule ? phoneClean!.slice(phoneRule[0].length) : '';
+    if (!phoneRule || !/^\d+$/.test(nationalNumber) || nationalNumber.length !== phoneRule[1] || nationalNumber.startsWith('0')) {
+      return error(res, 'Enter a valid mobile number: India +91 followed by 10 digits, US +1 followed by 10 digits, or UAE +971 followed by 9 digits.', 'BAD_REQUEST', 400);
     }
 
     // --- Vehicle partial-entry guard (pre-transaction — returns 400, not 500) ---
