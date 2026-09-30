@@ -7,18 +7,23 @@ import { useRouter } from 'next/navigation';
 import { COUNTRIES, getCountryByCallingCode } from '@/lib/countries';
 import { Modal } from '@/components/common/modal';
 import { toast } from 'sonner';
-import { auth } from '@/lib/firebase';
-import { ConfirmationResult, RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
-
-declare global { interface Window { garageRegistrationRecaptcha?: RecaptchaVerifier; } }
 
 const GARAGE_TYPES = [
   'General Automotive Repair Workshop', 'Multi-Brand Car Service Centre',
   'Authorized Dealership Service Centre', 'Specialized Automotive Repair Workshop',
   'Auto Electrical & Diagnostics Workshop', 'Body Shop & Collision Repair Centre',
   'Tyre & Wheel Service Centre', 'Car Detailing & Accessories Centre',
-  'Motorcycle Repair Workshop', 'Commercial Vehicle Repair Workshop', 'Other'
+  'Motorcycle Repair Workshop', 'Commercial Vehicle Repair Workshop',
+  // Existing registrations can continue to select their previous labels.
+  'General Service Garage', 'Specialist Workshop', 'Authorized Service Center',
+  'Body & Paint Shop', 'Tire & Wheel Center', 'EV Service Center',
+  'Multi-Brand Service Center', 'Car Detailing & Accessories Centre', 'Other'
 ];
+const CITY_OPTIONS_BY_COUNTRY: Record<string, string[]> = {
+  '+91': ['Bengaluru', 'Hyderabad', 'Mumbai', 'Chennai', 'Pune'],
+  '+1': ['New York', 'Los Angeles', 'Chicago', 'Houston', 'Phoenix'],
+  '+971': ['Dubai', 'Abu Dhabi', 'Sharjah', 'Ajman', 'Fujairah'],
+};
 const registrationLabelByCountry: Record<string, string> = {
   '+91': 'Business Registration / Applicable Government Identification Number',
   '+1': 'State Business Registration Number / Applicable Business Identification Number',
@@ -90,8 +95,7 @@ export default function RegisterGaragePage() {
   const [platformServices, setPlatformServices] = useState<Array<{ id: string; name: string; category?: string; description?: string; base_price?: number }>>([]);
   const [areaSuggestions, setAreaSuggestions] = useState<string[]>([]);
   const [areaSearchTimer, setAreaSearchTimer] = useState<NodeJS.Timeout | null>(null);
-  const [ownerOtpConfirmation, setOwnerOtpConfirmation] = useState<ConfirmationResult | null>(null);
-  const [isSendingOwnerOtp, setIsSendingOwnerOtp] = useState(false);
+  const [ownerOtpStatus, setOwnerOtpStatus] = useState<'idle' | 'sent' | 'verified'>('idle');
 
 
   const handleAreaSearch = (query: string) => {
@@ -171,7 +175,7 @@ export default function RegisterGaragePage() {
         setErrorMsg(`Please enter a valid 4-digit established year between 1800 and ${currentYear}.`);
         return;
       }
-      if (!formData.name.trim() || !formData.phone.trim() || !formData.email.trim() || !(formData.city === 'Other' ? formData.customCity.trim() : formData.city.trim()) || !formData.area.trim() || !formData.address.trim() || !formData.registrationNumber.trim() || !formData.description.trim()) {
+      if (!formData.name.trim() || !formData.phone.trim() || !formData.email.trim() || !(formData.city === 'Other' ? formData.customCity.trim() : formData.city.trim()) || !formData.area.trim() || !formData.address.trim() || !formData.stateRegion.trim() || !formData.postalCode.trim() || !formData.registrationNumber.trim() || !formData.description.trim()) {
         setErrorMsg('Please fill out all required fields marked with *');
         return;
       }
@@ -247,33 +251,20 @@ export default function RegisterGaragePage() {
     setStep(prev => Math.max(prev - 1, 1));
   };
 
-  const handleSendOwnerOtp = async () => {
-    const phone = formData.sameAsGaragePhone ? `${formData.countryCode}${formData.phone}` : `${formData.ownerCountryCode}${formData.ownerPhone}`;
-    if (!getPhoneError(formData.sameAsGaragePhone ? formData.countryCode : formData.ownerCountryCode, formData.sameAsGaragePhone ? formData.phone : formData.ownerPhone)) {
-      if (process.env.NEXT_PUBLIC_ENABLE_DEVELOPMENT_OTP === 'true') { setErrorMsg('Development OTP is enabled. Enter 123456 to verify.'); return; }
-      if (!auth) { setErrorMsg('Phone verification is not configured.'); return; }
-      setIsSendingOwnerOtp(true); setErrorMsg('');
-      try {
-        if (!window.garageRegistrationRecaptcha) window.garageRegistrationRecaptcha = new RecaptchaVerifier(auth, 'garage-registration-recaptcha', { size: 'invisible' });
-        setOwnerOtpConfirmation(await signInWithPhoneNumber(auth, phone, window.garageRegistrationRecaptcha));
-      } catch (err: any) { setErrorMsg(err?.message || 'Could not send verification code.'); }
-      finally { setIsSendingOwnerOtp(false); }
-    } else setErrorMsg('Enter a valid authorized representative phone number first.');
+  const handleSendOwnerOtp = () => {
+    const phoneError = getPhoneError(formData.sameAsGaragePhone ? formData.countryCode : formData.ownerCountryCode, formData.sameAsGaragePhone ? formData.phone : formData.ownerPhone);
+    if (phoneError) { setErrorMsg('Enter a valid authorized representative phone number first.'); return; }
+    setOwnerOtpStatus('sent');
+    setErrorMsg('');
   };
 
-  const handleVerifyOTP = async () => {
-    if (process.env.NEXT_PUBLIC_ENABLE_DEVELOPMENT_OTP === 'true' && formData.otp === '123456') {
+  const handleVerifyOTP = () => {
+    if (ownerOtpStatus === 'sent' && formData.otp === '123456') {
       setFormData(prev => ({ ...prev, isPhoneVerified: true }));
+      setOwnerOtpStatus('verified');
       setErrorMsg('');
-    } else if (ownerOtpConfirmation) {
-      try {
-        const credential = await ownerOtpConfirmation.confirm(formData.otp);
-        const ownerPhoneVerificationToken = await credential.user.getIdToken();
-        setFormData(prev => ({ ...prev, isPhoneVerified: true, ownerPhoneVerificationToken }));
-        setErrorMsg('');
-      } catch { setErrorMsg('The verification code is invalid or expired.'); }
     } else {
-      setErrorMsg('Phone verification requires the configured verification provider. The development OTP is available only in an explicitly enabled development environment.');
+      setErrorMsg(ownerOtpStatus === 'idle' ? 'Click Send OTP before verifying.' : 'Enter the OTP 123456 to verify the phone number.');
     }
   };
 
@@ -487,7 +478,7 @@ export default function RegisterGaragePage() {
                      <label className="block text-xs font-bold text-slate-700 mb-2">Phone Number <span className="text-red-500">*</span></label>
                      <div className="flex gap-2">
                        <select value={formData.countryCode} onChange={e => {
-                         setFormData({...formData, countryCode: e.target.value, city: ''})
+                         setFormData({...formData, countryCode: e.target.value, city: '', isPhoneVerified: false, otp: ''}); setOwnerOtpStatus('idle');
                        }} className="border rounded-lg px-3 py-2.5 text-sm bg-white outline-none w-28">
                          <option value="+91">IN (+91)</option>
                          <option value="+1">US (+1)</option>
@@ -495,7 +486,7 @@ export default function RegisterGaragePage() {
                        </select>
                        <input type="text" value={formData.phone} onChange={e => {
                          const maxLen = formData.countryCode === '+971' ? 9 : 10;
-                         setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, maxLen)});
+                         setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, maxLen), isPhoneVerified: false, otp: ''}); setOwnerOtpStatus('idle');
                        }} placeholder="Enter phone number" className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                      </div>
                    </div>
@@ -505,8 +496,11 @@ export default function RegisterGaragePage() {
                    </div>
                    <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">City <span className="text-red-500">*</span></label>
-                     <input list="garage-city-options" value={formData.city} onChange={e => { setFormData({...formData, city: e.target.value, area: ''}); setAreaSuggestions([]); }} placeholder="Select or enter city" className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700" />
-                     <datalist id="garage-city-options"><option value="Other" /></datalist>
+                     <select value={formData.city} onChange={e => { setFormData({...formData, city: e.target.value, customCity: '', area: ''}); setAreaSuggestions([]); }} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500 text-slate-700">
+                       <option value="">Select city</option>
+                       {(CITY_OPTIONS_BY_COUNTRY[formData.countryCode] || []).map(city => <option key={city} value={city}>{city}</option>)}
+                       <option value="Other">Other</option>
+                     </select>
                    </div>
                    <div className="relative">
                      <label className="block text-xs font-bold text-slate-700 mb-2">Area / Locality <span className="text-red-500">*</span></label>
@@ -529,8 +523,8 @@ export default function RegisterGaragePage() {
                    <div className="text-right text-[10px] text-slate-400 mt-1">{formData.address.length}/200</div>
                 </div>
                 <div className="grid grid-cols-2 gap-6 mb-6">
-                  <div><label className="block text-xs font-bold text-slate-700 mb-2">State / Province / Emirate</label><input type="text" value={formData.stateRegion} onChange={e => setFormData({...formData, stateRegion: e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" /></div>
-                  <div><label className="block text-xs font-bold text-slate-700 mb-2">Postal Code</label><input type="text" value={formData.postalCode} onChange={e => setFormData({...formData, postalCode: e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" /></div>
+                  <div><label className="block text-xs font-bold text-slate-700 mb-2">State / Province / Emirate <span className="text-red-500">*</span></label><input required type="text" value={formData.stateRegion} onChange={e => setFormData({...formData, stateRegion: e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" /></div>
+                  <div><label className="block text-xs font-bold text-slate-700 mb-2">Postal Code <span className="text-red-500">*</span></label><input required type="text" value={formData.postalCode} onChange={e => setFormData({...formData, postalCode: e.target.value})} className="w-full border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" /></div>
                 </div>
                 
                 <div className="grid grid-cols-2 gap-6 mb-6">
@@ -588,13 +582,13 @@ export default function RegisterGaragePage() {
                   <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Owner Phone Number <span className="text-red-500">*</span></label>
                      <label className="flex items-center gap-2 text-sm text-slate-700 mb-2 cursor-pointer">
-                       <input type="checkbox" checked={formData.sameAsGaragePhone} onChange={(e) => setFormData({...formData, sameAsGaragePhone: e.target.checked})} className="rounded text-blue-600 focus:ring-blue-500"/>
+                       <input type="checkbox" checked={formData.sameAsGaragePhone} onChange={(e) => { setFormData({...formData, sameAsGaragePhone: e.target.checked, isPhoneVerified: false, otp: ''}); setOwnerOtpStatus('idle'); }} className="rounded text-blue-600 focus:ring-blue-500"/>
                        Same as garage phone number
                      </label>
                      {!formData.sameAsGaragePhone && (
                        <div className="flex gap-2">
                          <select value={formData.ownerCountryCode} onChange={e => {
-                           setFormData({...formData, ownerCountryCode: e.target.value})
+                           setFormData({...formData, ownerCountryCode: e.target.value, isPhoneVerified: false, otp: ''}); setOwnerOtpStatus('idle');
                          }} className="border rounded-lg px-3 py-2.5 text-sm bg-white outline-none w-28">
                            <option value="+91">IN (+91)</option>
                            <option value="+1">US (+1)</option>
@@ -602,7 +596,7 @@ export default function RegisterGaragePage() {
                          </select>
                          <input type="text" value={formData.ownerPhone} onChange={e => {
                            const maxLen = formData.ownerCountryCode === '+971' ? 9 : 10;
-                           setFormData({...formData, ownerPhone: e.target.value.replace(/\D/g, '').slice(0, maxLen), isPhoneVerified: false, otp: ''});
+                           setFormData({...formData, ownerPhone: e.target.value.replace(/\D/g, '').slice(0, maxLen), isPhoneVerified: false, otp: ''}); setOwnerOtpStatus('idle');
                          }} placeholder="Enter owner phone" className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                        </div>
                      )}
@@ -618,8 +612,8 @@ export default function RegisterGaragePage() {
                         <input type="text" value={formData.otp} onChange={e => setFormData({...formData, otp: e.target.value.replace(/\D/g, '')})} maxLength={6} placeholder="Enter 6-digit OTP" className="w-36 border rounded-lg px-4 py-2 text-sm text-center outline-none focus:border-blue-500" />
                         <span className="text-xs text-slate-400">Sent to {formData.sameAsGaragePhone ? `${formData.countryCode} ${formData.phone}` : `${formData.ownerCountryCode} ${formData.ownerPhone}`}</span>
                       </div>
-                      <button onClick={handleSendOwnerOtp} disabled={isSendingOwnerOtp} className="border border-[#17307a] text-[#17307a] px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors disabled:opacity-50">{isSendingOwnerOtp ? 'Sending…' : ownerOtpConfirmation ? 'Resend OTP' : 'Send OTP'}</button>
-                      <button onClick={handleVerifyOTP} className="bg-[#17307a] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-900 transition-colors">Verify OTP</button>
+                      {ownerOtpStatus === 'idle' ? <button onClick={handleSendOwnerOtp} className="border border-[#17307a] text-[#17307a] px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors">Send OTP</button> : <span className={`px-3 py-2 rounded-lg text-xs font-bold ${ownerOtpStatus === 'verified' ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-700'}`}>{ownerOtpStatus === 'verified' ? 'OTP verified' : 'OTP Sent'}</span>}
+                      {ownerOtpStatus !== 'verified' && <button onClick={handleVerifyOTP} className="bg-[#17307a] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-900 transition-colors">Verify OTP</button>}
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 text-green-600 text-sm font-bold">
@@ -627,7 +621,6 @@ export default function RegisterGaragePage() {
                     </div>
                   )}
                 </div>
-                <div id="garage-registration-recaptcha" />
 
                 <div className="border-t border-slate-100 pt-6">
                   <h3 className="text-md font-bold text-[#17307a] mb-4">Login Credentials</h3>

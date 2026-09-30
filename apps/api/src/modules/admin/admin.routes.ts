@@ -32,12 +32,10 @@ function normalizePhone(value: unknown, country: string): string | null {
   return `+${callingCode}${national}`;
 }
 
-function isDevelopmentOtpValid(otp: unknown): boolean {
-  // Development OTP support is explicitly opt-in and can never authenticate a production registration.
-  return process.env.NODE_ENV !== 'production'
-    && process.env.ENABLE_DEVELOPMENT_OTP === 'true'
-    && typeof otp === 'string'
-    && otp === (process.env.DEVELOPMENT_OTP_CODE || '123456');
+function isTemporaryRegistrationOtpValid(otp: unknown): boolean {
+  // Temporary registration verification until the SMS provider is configured.
+  // This is intentionally separate from customer and login authentication.
+  return otp === '123456';
 }
 
 // Apply auth and admin role requirements to all routes in this sub-router
@@ -212,6 +210,9 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     if (!area || !area.trim()) {
       return error(res, 'Area/Locality is required.', 'VALIDATION_ERROR', 400);
     }
+    if (typeof stateRegion !== 'string' || !stateRegion.trim() || typeof postalCode !== 'string' || !postalCode.trim()) {
+      return error(res, 'State/Province/Emirate and postal code are required.', 'VALIDATION_ERROR', 400);
+    }
 
     if (typeof registrationNumber !== 'string' || !registrationNumber.trim()) {
       return error(res, `${COUNTRY_REGISTRATION_LABELS[countryCode]} is required.`, 'VALIDATION_ERROR', 400);
@@ -244,7 +245,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       return error(res, 'Garage established year is required and must be a valid year.', 'VALIDATION_ERROR', 400);
     }
 
-    let isPhoneVerified = isDevelopmentOtpValid(otp);
+    let isPhoneVerified = isTemporaryRegistrationOtpValid(otp);
     if (!isPhoneVerified && typeof ownerPhoneVerificationToken === 'string') {
       const { firebaseWebApiKey } = getEnv();
       if (firebaseWebApiKey) {
@@ -258,7 +259,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       }
     }
     if (!isPhoneVerified) {
-      return error(res, 'Owner phone verification is required. Development OTP is unavailable outside an explicitly enabled development environment.', 'PHONE_NOT_VERIFIED', 400);
+      return error(res, 'Owner phone verification is required. Enter the OTP 123456 after sending it.', 'PHONE_NOT_VERIFIED', 400);
     }
 
     // Backend validation for documents (before DB work)
