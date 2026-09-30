@@ -102,6 +102,7 @@ export default function RegisterGaragePage() {
   const [areaSuggestions, setAreaSuggestions] = useState<string[]>([]);
   const [areaSearchTimer, setAreaSearchTimer] = useState<NodeJS.Timeout | null>(null);
   const [ownerOtpStatus, setOwnerOtpStatus] = useState<'idle' | 'sent' | 'verified'>('idle');
+  const [newHighlight, setNewHighlight] = useState('');
 
 
   const handleAreaSearch = (query: string) => {
@@ -375,8 +376,8 @@ export default function RegisterGaragePage() {
       const file = e.target.files[0];
       
       if (field === 'image') {
-        if (file.type !== 'image/png') {
-          setErrorMsg('Garage Display/Profile Image must be a PNG file.');
+        if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+          setErrorMsg('Garage Display/Profile Image must be JPG, PNG, or WEBP.');
           return;
         }
         if (file.size > 2 * 1024 * 1024) {
@@ -389,8 +390,8 @@ export default function RegisterGaragePage() {
           setErrorMsg('Only PDF, JPG, or PNG files are supported for business documents.');
           return;
         }
-        if (file.size > 10 * 1024 * 1024) {
-          setErrorMsg('Business Document must be less than 10MB.');
+        if (file.size > 5 * 1024 * 1024) {
+          setErrorMsg('Business Document must be less than 5MB.');
           return;
         }
       }
@@ -444,6 +445,15 @@ export default function RegisterGaragePage() {
     } else if (normalized) {
       setErrorMsg('That service is already in the garage service catalogue.');
     }
+  };
+
+  const addCustomHighlight = () => {
+    const value = newHighlight.trim();
+    if (!value) { setErrorMsg('Enter a highlight before adding it.'); return; }
+    if (formData.chips.some(chip => chip.toLowerCase() === value.toLowerCase())) { setErrorMsg('That highlight has already been selected.'); return; }
+    setFormData(prev => ({ ...prev, chips: [...prev.chips, value] }));
+    setNewHighlight('');
+    setErrorMsg('');
   };
 
   return (
@@ -571,8 +581,8 @@ export default function RegisterGaragePage() {
                      <div className="text-right text-[10px] text-slate-400 mt-1">{formData.description.length}/200</div>
                    </div>
                    <div>
-                     <label className="block text-xs font-bold text-slate-700 mb-2">Response Time (mins) <span className="text-red-500">*</span></label>
-                     <input type="number" min="1" max="1440" value={formData.responseMins} onChange={e => setFormData({...formData, responseMins: e.target.value})} placeholder="e.g. 30" className="w-full border rounded-lg px-4 py-3 text-sm bg-white outline-none focus:border-blue-500" />
+                     <label className="block text-xs font-bold text-slate-700 mb-2">Response Time <span className="text-red-500">*</span></label>
+                     <div className="flex items-center gap-2"><input type="number" min="1" max="1440" value={formData.responseMins} onChange={e => setFormData({...formData, responseMins: e.target.value})} placeholder="e.g. 30" className="flex-1 border rounded-lg px-4 py-3 text-sm bg-white outline-none focus:border-blue-500" /><span className="text-xs text-slate-500">minutes</span></div>
                    </div>
                 </div>
 
@@ -597,6 +607,8 @@ export default function RegisterGaragePage() {
                       </button>
                     ))}
                   </div>
+                  <div className="flex gap-2 mt-3 max-w-md"><input value={newHighlight} onChange={e => setNewHighlight(e.target.value)} onKeyDown={e => e.key === 'Enter' && addCustomHighlight()} placeholder="Add custom highlight" className="flex-1 border rounded-lg px-3 py-2 text-xs outline-none focus:border-blue-500" /><button type="button" onClick={addCustomHighlight} className="border border-blue-200 text-blue-600 px-3 py-2 rounded-lg text-xs font-bold">Add</button></div>
+                  <div className="flex flex-wrap gap-2 mt-2">{formData.chips.filter(chip => !['Free Pickup & Drop', 'Genuine Parts', 'Warranty', 'Expert Mechanics', 'AC Lounge'].includes(chip)).map(chip => <span key={chip} className="bg-blue-50 border border-blue-100 text-blue-700 text-xs px-3 py-1.5 rounded-full">{chip}<button type="button" aria-label={`Remove ${chip}`} onClick={() => setFormData(prev => ({...prev, chips: prev.chips.filter(value => value !== chip)}))} className="ml-2 text-blue-500">×</button></span>)}</div>
                 </div>
               </>
             )}
@@ -716,7 +728,7 @@ export default function RegisterGaragePage() {
                       <div key={doc.id} className="border border-slate-200 rounded-lg p-5 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-blue-300 transition-colors">
                         <div>
                           <h4 className="font-bold text-sm text-slate-800">{doc.label} {doc.req ? <span className="text-red-500">*</span> : <span className="text-slate-400 font-normal">(Optional)</span>}</h4>
-                          <p className="text-[11px] text-slate-500 mt-1">{doc.id === 'image' ? 'PNG ONLY • Max 2 MB' : 'PDF, JPG or PNG • Max 10 MB'}</p>
+                          <p className="text-[11px] text-slate-500 mt-1">{doc.id === 'image' ? 'JPG, PNG or WEBP • Max 2 MB' : 'PDF, JPG or PNG • Max 5 MB'}</p>
                         </div>
                         {file ? (
                           <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-2 rounded-lg flex items-center justify-between gap-4 w-full md:w-64">
@@ -730,7 +742,7 @@ export default function RegisterGaragePage() {
                           </div>
                         ) : (
                           <div className="relative">
-                            <input type="file" id={doc.id} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept={doc.id === 'image' ? ".png" : ".pdf,.png,.jpg,.jpeg"} onChange={(e) => handleUpload(doc.id, e)} />
+                            <input type="file" id={doc.id} className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept={doc.id === 'image' ? ".png,.jpg,.jpeg,.webp" : ".pdf,.png,.jpg,.jpeg"} onChange={(e) => handleUpload(doc.id, e)} />
                             <div className="bg-white border border-slate-200 px-4 py-2 rounded-lg text-sm text-slate-600 font-medium flex items-center gap-2 hover:bg-slate-50 transition-colors pointer-events-none w-full md:w-64 justify-center">
                               <Upload className="w-4 h-4" /> Upload Document
                             </div>

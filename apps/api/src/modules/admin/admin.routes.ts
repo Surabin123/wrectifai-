@@ -269,14 +269,16 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
     // Backend validation for documents (before DB work)
     if (!image) return error(res, 'Garage display image is required.', 'VALIDATION_ERROR', 400);
     if (image) {
-      if (image.type !== 'image/png') return error(res, 'Profile image must be a PNG file.', 'VALIDATION_ERROR', 400);
+      if (!['image/jpeg', 'image/png', 'image/webp'].includes(image.type)) return error(res, 'Profile image must be JPG, PNG, or WEBP.', 'VALIDATION_ERROR', 400);
       if (image.size && image.size > 2 * 1024 * 1024) return error(res, 'Profile Image must be less than 2MB.', 'VALIDATION_ERROR', 400);
       const imageContent = typeof image.data === 'string' ? image.data.split(',')[1] || '' : '';
       const imageBytes = Buffer.from(imageContent, 'base64');
       const isPng = imageBytes[0] === 137 && imageBytes[1] === 80 && imageBytes[2] === 78 && imageBytes[3] === 71
         && imageBytes[4] === 13 && imageBytes[5] === 10 && imageBytes[6] === 26 && imageBytes[7] === 10;
-      if (!isPng || imageBytes.length === 0 || imageBytes.length > 2 * 1024 * 1024) {
-        return error(res, 'Profile image content must be a valid PNG under 2MB.', 'VALIDATION_ERROR', 400);
+      const isJpeg = imageBytes[0] === 0xff && imageBytes[1] === 0xd8 && imageBytes[2] === 0xff;
+      const isWebp = imageBytes.subarray(0, 4).toString() === 'RIFF' && imageBytes.subarray(8, 12).toString() === 'WEBP';
+      if ((!isPng && !isJpeg && !isWebp) || imageBytes.length === 0 || imageBytes.length > 2 * 1024 * 1024) {
+        return error(res, 'Profile image content must be a valid JPG, PNG, or WEBP under 2MB.', 'VALIDATION_ERROR', 400);
       }
     }
 
@@ -304,7 +306,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         && bytes[4] === 13 && bytes[5] === 10 && bytes[6] === 26 && bytes[7] === 10;
       const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
       if ((doc.obj.type === 'application/pdf' && !isPdf) || (doc.obj.type === 'image/png' && !isPng) || (doc.obj.type === 'image/jpeg' && !isJpeg)) return error(res, `${doc.type} file content does not match its type.`, 'VALIDATION_ERROR', 400);
-      if (bytes.length === 0 || bytes.length > 10 * 1024 * 1024) return error(res, `${doc.type} must be less than 10MB.`, 'VALIDATION_ERROR', 400);
+      if (bytes.length === 0 || bytes.length > 5 * 1024 * 1024) return error(res, `${doc.type} must be less than 5MB.`, 'VALIDATION_ERROR', 400);
     }
 
     // Helper to save base64 files locally (fallback for dev)

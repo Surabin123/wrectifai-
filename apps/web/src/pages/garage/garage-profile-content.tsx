@@ -229,20 +229,6 @@ export function GarageProfileContent() {
                 )}
               </div>
               
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-2">
-                <span className="text-sm font-medium text-slate-500 w-1/3">Pickup & Drop</span>
-                {isEditing ? (
-                  <label className="flex items-center gap-2 w-full sm:w-2/3 justify-end">
-                    <input type="checkbox" checked={formData.pickupDropSupported} onChange={(e) => setFormData({...formData, pickupDropSupported: e.target.checked})} className="rounded text-blue-600 focus:ring-blue-500" />
-                    <span className="text-sm text-slate-700">Supported</span>
-                  </label>
-                ) : (
-                  <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3">
-                    {profile.pickupDropSupported ? 'Supported' : 'Not Supported'}
-                  </span>
-                )}
-              </div>
-
               {isEditing && <div className="flex flex-col sm:flex-row sm:items-center justify-between pt-4"><span className="text-sm font-medium text-slate-500 w-1/3">Representative</span><div className="flex gap-2 w-full sm:w-2/3"><input className="border rounded p-2 text-sm w-1/2" value={formData.ownerName} onChange={(e) => setFormData({...formData, ownerName: e.target.value})} placeholder="Full name" /><input className="border rounded p-2 text-sm w-1/2" value={formData.ownerDesignation} onChange={(e) => setFormData({...formData, ownerDesignation: e.target.value})} placeholder="Designation" /></div></div>}
             </div>
             
@@ -271,7 +257,7 @@ export function GarageProfileContent() {
                   <p className="text-xs text-slate-500 mt-1">Manage your service catalogue</p>
                 </Card>
               </Link>
-              <Link href="/garage/inventory" className="block">
+              <Link href="/garage/orders" className="block">
                 <Card className="p-6 shadow-sm border-slate-100 rounded-[24px] hover:border-blue-200 hover:shadow-md transition-all cursor-pointer">
                   <div className="flex items-center justify-between mb-4">
                     <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">
