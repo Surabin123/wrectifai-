@@ -76,12 +76,10 @@ export default function RegisterGaragePage() {
     services: [] as string[],
     servicePrices: {} as Record<string, string>,
     servicePricingTypes: {} as Record<string, string>,
-    serviceDurations: {} as Record<string, string>,
     customServices: [] as string[],
     customServicePrices: {} as Record<string, string>,
     customServiceDescriptions: {} as Record<string, string>,
     customServicePricingTypes: {} as Record<string, string>,
-    customServiceDurations: {} as Record<string, string>,
     chips: [] as string[],
     image: null as any,
     workingHours: {
@@ -104,6 +102,8 @@ export default function RegisterGaragePage() {
   const [ownerOtpStatus, setOwnerOtpStatus] = useState<'idle' | 'sent' | 'verified'>('idle');
   const [ownerOtpModalOpen, setOwnerOtpModalOpen] = useState(false);
   const [ownerOtpBusy, setOwnerOtpBusy] = useState(false);
+  const [invalidServicePrices, setInvalidServicePrices] = useState<string[]>([]);
+  const [invalidCustomServicePrices, setInvalidCustomServicePrices] = useState<string[]>([]);
   const [newHighlight, setNewHighlight] = useState('');
 
 
@@ -232,25 +232,14 @@ export default function RegisterGaragePage() {
         setErrorMsg('Please select at least one service offered by the garage.');
         return;
       }
-      
-      // Validate prices for selected platform services
-      for (const s of formData.services) {
-        const price = formData.servicePrices[s];
-        const pricingType = formData.servicePricingTypes[s] || 'fixed';
-        if ((pricingType === 'fixed' || pricingType === 'starting_from') && (price === '' || price === undefined || isNaN(Number(price)) || Number(price) < 0)) {
-          const serviceName = platformServices.find(ps => ps.id === s)?.name || 'a selected service';
-          setErrorMsg(`Please enter a valid non-negative price for ${serviceName}.`);
-          return;
-        }
-      }
-      // Validate prices for custom services
-      for (const s of formData.customServices) {
-        const price = formData.customServicePrices[s];
-        const pricingType = formData.customServicePricingTypes[s] || 'fixed';
-        if ((pricingType === 'fixed' || pricingType === 'starting_from') && (price === '' || price === undefined || isNaN(Number(price)) || Number(price) < 0)) {
-          setErrorMsg(`Please enter a valid non-negative price for custom service "${s}".`);
-          return;
-        }
+      const hasValidPrice = (price: string | undefined) => price !== undefined && price.trim() !== '' && Number.isFinite(Number(price)) && Number(price) >= 0;
+      const invalidPlatform = formData.services.filter(serviceId => !hasValidPrice(formData.servicePrices[serviceId]));
+      const invalidCustom = formData.customServices.filter(serviceName => !hasValidPrice(formData.customServicePrices[serviceName]));
+      setInvalidServicePrices(invalidPlatform);
+      setInvalidCustomServicePrices(invalidCustom);
+      if (invalidPlatform.length > 0 || invalidCustom.length > 0) {
+        setErrorMsg('Please enter a valid price for all selected services.');
+        return;
       }
     }
 
@@ -343,12 +332,10 @@ export default function RegisterGaragePage() {
         services: formData.services,
         servicePrices: formData.servicePrices,
         servicePricingTypes: formData.servicePricingTypes,
-        serviceDurations: formData.serviceDurations,
         customServices: formData.customServices,
         customServicePrices: formData.customServicePrices,
         customServiceDescriptions: formData.customServiceDescriptions,
         customServicePricingTypes: formData.customServicePricingTypes,
-        customServiceDurations: formData.customServiceDurations,
         chips: formData.chips,
         image: formData.image,
         description: formData.description,
@@ -403,8 +390,7 @@ export default function RegisterGaragePage() {
           ...prev, 
           services: [...prev.services, s],
           servicePrices: { ...prev.servicePrices, [s]: '' },
-          servicePricingTypes: { ...prev.servicePricingTypes, [s]: 'fixed' },
-          serviceDurations: { ...prev.serviceDurations, [s]: '' }
+          servicePricingTypes: { ...prev.servicePricingTypes, [s]: 'fixed' }
         };
       }
     });
@@ -452,9 +438,10 @@ export default function RegisterGaragePage() {
   };
 
   const handleSelectAllServices = () => {
-    const allIds = platformServices.map(service => service.id);
+    const allIds = platformServices.filter(service => service.name !== 'More Services').map(service => service.id);
     if (formData.services.length === allIds.length) {
       setFormData(prev => ({ ...prev, services: [], servicePrices: {} }));
+      setInvalidServicePrices([]);
       return;
     }
     const newPrices = { ...formData.servicePrices };
@@ -478,7 +465,6 @@ export default function RegisterGaragePage() {
         customServicePrices: {...prev.customServicePrices, [newService.trim()]: ''},
         customServiceDescriptions: {...prev.customServiceDescriptions, [newService.trim()]: ''},
         customServicePricingTypes: {...prev.customServicePricingTypes, [newService.trim()]: 'fixed'},
-        customServiceDurations: {...prev.customServiceDurations, [newService.trim()]: ''},
       }));
       setNewService('');
     } else if (normalized) {
@@ -822,12 +808,12 @@ export default function RegisterGaragePage() {
                         {platformServices.filter(service => service.category === category && service.name !== 'More Services').map(service => {
                           const selected = formData.services.includes(service.id);
                           const pricingType = formData.servicePricingTypes[service.id] || 'fixed';
-                          return <div key={service.id} className="flex flex-col gap-2">
-                            <label className="flex items-center gap-3 cursor-pointer group"><input type="checkbox" checked={selected} onChange={() => toggleService(service.id)} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500" /><span className="text-sm text-slate-700 group-hover:text-blue-700">{service.name}</span></label>
-                            {selected && <div className="ml-7 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                          const hasInvalidPrice = invalidServicePrices.includes(service.id);
+                          return <div key={service.id} className={`flex flex-col gap-2 rounded-md ${hasInvalidPrice ? 'bg-red-50 p-2 ring-1 ring-red-300' : ''}`}>
+                            <label className="flex items-center gap-3 cursor-pointer group"><input type="checkbox" checked={selected} onChange={() => { toggleService(service.id); setInvalidServicePrices(prev => prev.filter(id => id !== service.id)); }} className="w-4 h-4 rounded text-blue-600 border-slate-300 focus:ring-blue-500" /><span className="text-sm text-slate-700 group-hover:text-blue-700">{service.name}</span></label>
+                            {selected && <div className="ml-7 grid grid-cols-1 sm:grid-cols-2 gap-2">
                               <select value={pricingType} onChange={e => setFormData(prev => ({...prev, servicePricingTypes: {...prev.servicePricingTypes, [service.id]: e.target.value}}))} className="border rounded px-2 py-1 text-xs"><option value="fixed">Fixed Price</option><option value="starting_from">Starting From</option><option value="inspection_required">Inspection Required</option><option value="custom_quote">Custom Quote</option></select>
-                              <input type="number" min="0" value={formData.servicePrices[service.id] || ''} disabled={pricingType === 'inspection_required' || pricingType === 'custom_quote'} onChange={e => setFormData(prev => ({...prev, servicePrices: {...prev.servicePrices, [service.id]: e.target.value}}))} placeholder={`${getCountryByCallingCode(formData.countryCode)?.currencyCode} price`} className="border rounded px-2 py-1 text-xs disabled:bg-slate-100" />
-                              <input type="number" min="1" max="1440" value={formData.serviceDurations[service.id] || ''} onChange={e => setFormData(prev => ({...prev, serviceDurations: {...prev.serviceDurations, [service.id]: e.target.value}}))} placeholder="Duration (min) optional" className="border rounded px-2 py-1 text-xs" />
+                              <input type="number" min="0" value={formData.servicePrices[service.id] || ''} onChange={e => { setFormData(prev => ({...prev, servicePrices: {...prev.servicePrices, [service.id]: e.target.value}})); setInvalidServicePrices(prev => prev.filter(id => id !== service.id)); }} placeholder={`${getCountryByCallingCode(formData.countryCode)?.currencyCode} price`} aria-invalid={hasInvalidPrice} className={`border rounded px-2 py-1 text-xs ${hasInvalidPrice ? 'border-red-500 bg-white' : ''}`} />
                             </div>}
                           </div>;
                         })}
@@ -845,10 +831,10 @@ export default function RegisterGaragePage() {
                   {formData.customServices.length > 0 && (
                     <div className="flex flex-col gap-3 mt-4 max-w-md">
                       {formData.customServices.map(s => (
-                        <div key={s} className="bg-blue-50 border border-blue-100 px-3 py-3 rounded-lg space-y-2">
-                          <div className="flex items-center justify-between"><span className="text-sm text-blue-700 font-medium">{s}</span><button onClick={() => setFormData(prev => ({ ...prev, customServices: prev.customServices.filter(service => service !== s) }))} className="text-blue-400 hover:text-blue-700"><X className="w-4 h-4"/></button></div>
+                        <div key={s} className={`bg-blue-50 border px-3 py-3 rounded-lg space-y-2 ${invalidCustomServicePrices.includes(s) ? 'border-red-500 ring-1 ring-red-300' : 'border-blue-100'}`}>
+                          <div className="flex items-center justify-between"><span className="text-sm text-blue-700 font-medium">{s}</span><button onClick={() => { setFormData(prev => ({ ...prev, customServices: prev.customServices.filter(service => service !== s) })); setInvalidCustomServicePrices(prev => prev.filter(service => service !== s)); }} className="text-blue-400 hover:text-blue-700"><X className="w-4 h-4"/></button></div>
                           <textarea value={formData.customServiceDescriptions[s] || ''} onChange={e => setFormData(prev => ({...prev, customServiceDescriptions: {...prev.customServiceDescriptions, [s]: e.target.value}}))} placeholder="Service description (optional)" className="w-full border border-blue-200 rounded px-2 py-1 text-xs" />
-                          <div className="grid grid-cols-3 gap-2"><select value={formData.customServicePricingTypes[s] || 'fixed'} onChange={e => setFormData(prev => ({...prev, customServicePricingTypes: {...prev.customServicePricingTypes, [s]: e.target.value}}))} className="border border-blue-200 rounded px-2 py-1 text-xs"><option value="fixed">Fixed Price</option><option value="starting_from">Starting From</option><option value="inspection_required">Inspection Required</option><option value="custom_quote">Custom Quote</option></select><input type="number" min="0" value={formData.customServicePrices[s] || ''} disabled={['inspection_required','custom_quote'].includes(formData.customServicePricingTypes[s] || 'fixed')} onChange={e => setFormData(prev => ({...prev, customServicePrices: {...prev.customServicePrices, [s]: e.target.value}}))} placeholder={`${getCountryByCallingCode(formData.countryCode)?.currencyCode} price`} className="border border-blue-200 rounded px-2 py-1 text-xs disabled:bg-slate-100" /><input type="number" min="1" max="1440" value={formData.customServiceDurations[s] || ''} onChange={e => setFormData(prev => ({...prev, customServiceDurations: {...prev.customServiceDurations, [s]: e.target.value}}))} placeholder="Duration min" className="border border-blue-200 rounded px-2 py-1 text-xs" /></div>
+                          <div className="grid grid-cols-2 gap-2"><select value={formData.customServicePricingTypes[s] || 'fixed'} onChange={e => setFormData(prev => ({...prev, customServicePricingTypes: {...prev.customServicePricingTypes, [s]: e.target.value}}))} className="border border-blue-200 rounded px-2 py-1 text-xs"><option value="fixed">Fixed Price</option><option value="starting_from">Starting From</option><option value="inspection_required">Inspection Required</option><option value="custom_quote">Custom Quote</option></select><input type="number" min="0" value={formData.customServicePrices[s] || ''} onChange={e => { setFormData(prev => ({...prev, customServicePrices: {...prev.customServicePrices, [s]: e.target.value}})); setInvalidCustomServicePrices(prev => prev.filter(service => service !== s)); }} placeholder={`${getCountryByCallingCode(formData.countryCode)?.currencyCode} price`} aria-invalid={invalidCustomServicePrices.includes(s)} className={`border rounded px-2 py-1 text-xs ${invalidCustomServicePrices.includes(s) ? 'border-red-500 bg-white' : 'border-blue-200'}`} /></div>
                         </div>
                       ))}
                     </div>

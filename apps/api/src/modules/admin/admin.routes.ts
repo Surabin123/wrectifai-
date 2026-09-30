@@ -237,7 +237,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       name, type, otherGarageType, phone, email, city, customCity, address, area, stateRegion, postalCode, ownerCountry,
       ownerName, ownerDesignation, ownerPhone, password, confirmPassword,
       services, customServices, servicePrices, customServicePrices, servicePricingTypes, customServicePricingTypes,
-      serviceDurations, customServiceDurations, customServiceDescriptions, description, workingHours,
+      customServiceDescriptions, description, workingHours,
       chips, image, country, responseMins,
       registrationNumber, businessCurrency, locale, timezone, ownerPhoneVerificationToken
     } = req.body;
@@ -540,14 +540,12 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         const providedPrice = servicePrices?.[ps.id];
         const pricingType = servicePricingTypes?.[ps.id] || 'fixed';
         if (!['fixed', 'starting_from', 'inspection_required', 'custom_quote'].includes(pricingType)) throw new Error('Validation Error: Invalid service pricing type.');
-        if (['fixed', 'starting_from'].includes(pricingType) && (providedPrice === undefined || providedPrice === null || providedPrice === '' || isNaN(Number(providedPrice)) || Number(providedPrice) < 0)) {
-          throw new Error(`Validation Error: Please provide a valid non-negative price for service "${ps.name}".`);
+        if (providedPrice === undefined || providedPrice === null || providedPrice === '' || isNaN(Number(providedPrice)) || Number(providedPrice) < 0) {
+          throw new Error('Validation Error: Please enter a valid price for all selected services.');
         }
-        const duration = serviceDurations?.[ps.id] === '' || serviceDurations?.[ps.id] === undefined ? null : Number(serviceDurations[ps.id]);
-        if (duration !== null && (!Number.isInteger(duration) || duration < 1 || duration > 1440)) throw new Error(`Validation Error: Invalid duration for service "${ps.name}".`);
         await client.query(
           `INSERT INTO services (garage_id, platform_service_id, name, category, description, price, duration_mins, pricing_type, currency, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)`,
-          [garageId, ps.id, ps.name, ps.category || 'Additional Services', ps.description || '', providedPrice === '' || providedPrice === undefined ? 0 : Number(providedPrice), duration, pricingType, COUNTRY_CURRENCIES[countryCode]]
+          [garageId, ps.id, ps.name, ps.category || 'Additional Services', ps.description || '', Number(providedPrice), null, pricingType, COUNTRY_CURRENCIES[countryCode]]
         );
       }
     }
@@ -563,14 +561,12 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
         const providedPrice = customServicePrices?.[serviceName];
         const pricingType = customServicePricingTypes?.[serviceName] || 'fixed';
         if (!['fixed', 'starting_from', 'inspection_required', 'custom_quote'].includes(pricingType)) throw new Error('Validation Error: Invalid custom-service pricing type.');
-        if (['fixed', 'starting_from'].includes(pricingType) && (providedPrice === undefined || providedPrice === null || providedPrice === '' || isNaN(Number(providedPrice)) || Number(providedPrice) < 0)) {
-          throw new Error(`Validation Error: Please provide a valid non-negative price for custom service "${serviceName}".`);
+        if (providedPrice === undefined || providedPrice === null || providedPrice === '' || isNaN(Number(providedPrice)) || Number(providedPrice) < 0) {
+          throw new Error('Validation Error: Please enter a valid price for all selected services.');
         }
-        const duration = customServiceDurations?.[serviceName] === '' || customServiceDurations?.[serviceName] === undefined ? null : Number(customServiceDurations[serviceName]);
-        if (duration !== null && (!Number.isInteger(duration) || duration < 1 || duration > 1440)) throw new Error(`Validation Error: Invalid duration for custom service "${serviceName}".`);
         await client.query(
           `INSERT INTO services (garage_id, name, category, description, price, duration_mins, pricing_type, currency, is_active) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, true)`,
-          [garageId, serviceName.trim(), 'Additional Services', customServiceDescriptions?.[serviceName]?.trim() || '', providedPrice === '' || providedPrice === undefined ? 0 : Number(providedPrice), duration, pricingType, COUNTRY_CURRENCIES[countryCode]]
+          [garageId, serviceName.trim(), 'Additional Services', customServiceDescriptions?.[serviceName]?.trim() || '', Number(providedPrice), null, pricingType, COUNTRY_CURRENCIES[countryCode]]
         );
       }
     }
