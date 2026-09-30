@@ -269,7 +269,12 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
         }
         
         if (mobileNumber) {
-          const existingPhone = await client.query('SELECT * FROM users WHERE mobile_number = $1', [mobileNumber]);
+          const existingPhone = await client.query(
+            `SELECT * FROM users
+             WHERE regexp_replace(mobile_number, '[^0-9]', '', 'g') = regexp_replace($1, '[^0-9]', '', 'g')
+             LIMIT 1`,
+            [mobileNumber]
+          );
           if (existingPhone.rows.length > 0) {
             throw new Error('Account already exists with this phone number. Please sign in.');
           }
@@ -299,7 +304,13 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
         if (!demoAuthEnabled || otp !== demoOtp) {
           throw new Error('Invalid phone number or OTP');
         }
-        const existingUser = await client.query(`SELECT * FROM users WHERE ${normalizedPhoneSql} = $1`, [normalizedPhone(mobileNumber)]);
+        const candidates = phoneCandidates(mobileNumber);
+        const existingUser = await client.query(
+          `SELECT * FROM users
+           WHERE ${normalizedPhoneSql} = ANY($1::text[])
+           LIMIT 1`,
+          [candidates]
+        );
         if (existingUser.rows.length > 0) {
           throw new Error('Account already exists with this phone number. Please sign in.');
         }
@@ -434,7 +445,12 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
         }
 
         const existingUser = await client.query(
-          `SELECT * FROM users WHERE ${normalizedPhoneSql} IN ($1, $2)`,
+          `SELECT u.* FROM users u
+           LEFT JOIN user_roles ur ON ur.user_id = u.id
+           LEFT JOIN roles r ON r.id = ur.role_id
+           WHERE regexp_replace(u.mobile_number, '[^0-9]', '', 'g') IN ($1, $2)
+           ORDER BY CASE WHEN r.code = 'garage' THEN 0 ELSE 1 END, u.created_at DESC
+           LIMIT 1`,
           [tokenPhone, localTokenPhone]
         );
         if (existingUser.rows.length === 0) {
@@ -449,7 +465,12 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
         if (demoAuthEnabled && otp === demoOtp) {
           const candidates = phoneCandidates(mobileNumber);
           const existingUser = await client.query(
-            `SELECT * FROM users WHERE ${normalizedPhoneSql} = ANY($1::text[]) ORDER BY created_at DESC LIMIT 1`,
+            `SELECT u.* FROM users u
+             LEFT JOIN user_roles ur ON ur.user_id = u.id
+             LEFT JOIN roles r ON r.id = ur.role_id
+             WHERE regexp_replace(u.mobile_number, '[^0-9]', '', 'g') = ANY($1::text[])
+             ORDER BY CASE WHEN r.code = 'garage' THEN 0 ELSE 1 END, u.created_at DESC
+             LIMIT 1`,
             [candidates]
           );
           if (existingUser.rows.length > 0) {

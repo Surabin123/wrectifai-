@@ -491,7 +491,12 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
 
     // A registration must not mutate the credentials of an existing account. This was
     // the source of mixed garage logins when an email or number had been reused.
-    const existingUser = await client.query('SELECT id FROM users WHERE email = $1 OR mobile_number = $2', [emailClean, normalizedOwnerPhone]);
+    const existingUser = await client.query(
+      `SELECT id FROM users
+       WHERE email = $1
+          OR regexp_replace(mobile_number, '[^0-9]', '', 'g') = regexp_replace($2, '[^0-9]', '', 'g')`,
+      [emailClean, normalizedOwnerPhone]
+    );
     if (existingUser.rows.length > 0) {
       await client.query('ROLLBACK');
       return error(res, 'An account already exists with this login email or authorized representative phone number.', 'CONFLICT', 409);
