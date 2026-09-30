@@ -728,7 +728,7 @@ adminRouter.get('/users/:id', async (req, res) => {
     if (userRes.rows.length === 0) return error(res, 'User not found', 'NOT_FOUND', 404);
     const user = userRes.rows[0];
 
-    const vehiclesRes = await query(`SELECT id, make, model, year, vin, plate_number as "plateNumber" FROM vehicles WHERE customer_id = $1`, [userId]);
+    const vehiclesRes = await query(`SELECT id, make, model, year, vin, plate_number as "plateNumber", image FROM vehicles WHERE customer_id = $1`, [userId]);
     const bookingsRes = await query(`
       SELECT b.id, b.status, b.created_at as "createdAt", g.name as "garageName", v.make as "vehicleMake", v.model as "vehicleModel", 
              b.total_amount as "amount", COALESCE(b.currency, g.business_currency, 'USD') as currency
@@ -774,7 +774,7 @@ adminRouter.post('/users', async (req, res) => {
       name, email, password, phone,
       address, city, state, pincode,
       vehiclePlate, vehicleMake, vehicleModel, vehicleYear,
-      vehicleVin, vehicleTrim, vehicleFuelType, vehicleMileage,
+      vehicleVin, vehicleTrim, vehicleFuelType, vehicleMileage, vehicleImage,
     } = req.body;
 
     // --- Input validation ---
@@ -796,6 +796,14 @@ adminRouter.post('/users', async (req, res) => {
     const vehicleAnySupplied = vehicleMake || vehicleModel || vehicleYear;
     if (vehicleAnySupplied && (!vehicleMake || !vehicleModel || !vehicleYear)) {
       return error(res, 'Vehicle make, model, and year are all required when providing vehicle information', 'BAD_REQUEST', 400);
+    }
+    if (vehicleImage !== undefined && vehicleImage !== null) {
+      if (typeof vehicleImage !== 'string' || !/^data:image\/(jpeg|jpg|png);base64,/i.test(vehicleImage)) {
+        return error(res, 'Only JPG or PNG format is accepted for vehicle picture.', 'BAD_REQUEST', 400);
+      }
+      if (vehicleImage.length > 7 * 1024 * 1024) {
+        return error(res, 'Vehicle picture must be less than 5MB.', 'BAD_REQUEST', 400);
+      }
     }
 
     // --- Duplicate checks (pre-transaction) ---
@@ -850,8 +858,8 @@ adminRouter.post('/users', async (req, res) => {
     // 5. Optionally insert vehicle (all three fields guaranteed present by pre-transaction validation above)
     if (vehicleMake || vehicleModel || vehicleYear) {
       await dbClient.query(
-        `INSERT INTO vehicles (customer_id, make, model, year, vin, plate_number, trim, fuel_type, mileage, is_active)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)`,
+        `INSERT INTO vehicles (customer_id, make, model, year, vin, plate_number, trim, fuel_type, mileage, image, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, true)`,
         [
           user.id,
           vehicleMake.trim(),
@@ -862,6 +870,7 @@ adminRouter.post('/users', async (req, res) => {
           vehicleTrim     ? vehicleTrim.trim()     : null,
           vehicleFuelType ? vehicleFuelType.trim() : null,
           vehicleMileage  ? parseInt(vehicleMileage, 10) : null,
+          vehicleImage || null,
         ]
       );
     }

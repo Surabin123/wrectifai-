@@ -8,7 +8,7 @@ import { Modal } from '@/components/common/modal';
 const BLANK_FORM = {
   name: '', email: '', phone: '', password: '',
   address: '', city: '', state: '', pincode: '',
-  vehicleMake: '', vehicleModel: '', vehicleYear: '', vehicleVin: '', vehiclePlate: ''
+  vehicleMake: '', vehicleModel: '', vehicleYear: '', vehicleVin: '', vehiclePlate: '', vehicleImage: ''
 };
 
 export default function CustomersPage() {
@@ -67,6 +67,7 @@ export default function CustomersPage() {
         vehicleYear:    addForm.vehicleYear.trim() || undefined,
         vehicleVin:     addForm.vehicleVin.trim() || undefined,
         vehiclePlate:   addForm.vehiclePlate.trim() || undefined,
+        vehicleImage:   addForm.vehicleImage || undefined,
       });
       setAddSuccess('Customer created successfully.');
       setAddForm(BLANK_FORM);
@@ -466,6 +467,25 @@ export default function CustomersPage() {
                 <input id="add-v-plate" type="text" value={addForm.vehiclePlate} onChange={e => setField('vehiclePlate', e.target.value)}
                   placeholder="e.g. KA-01-AB-1234"
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
+              </div>
+              <div className="col-span-2 space-y-1">
+                <label className="text-xs font-semibold text-slate-600">Vehicle Picture (Optional)</label>
+                <input id="add-v-image" type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png"
+                  onChange={e => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    const type = file.type.toLowerCase();
+                    const name = file.name.toLowerCase();
+                    const validFormat = type.includes('jpeg') || type.includes('jpg') || type.includes('png') || name.endsWith('.jpg') || name.endsWith('.jpeg') || name.endsWith('.png');
+                    if (!validFormat) { setAddError('Only JPG or PNG format is accepted for vehicle picture.'); e.target.value = ''; return; }
+                    if (file.size > 5 * 1024 * 1024) { setAddError('Vehicle picture must be less than 5MB.'); e.target.value = ''; return; }
+                    setAddError('');
+                    const reader = new FileReader();
+                    reader.onloadend = () => setField('vehicleImage', reader.result as string);
+                    reader.readAsDataURL(file);
+                  }}
+                  className="block w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer border rounded-lg p-1.5" />
+                {addForm.vehicleImage && <img src={addForm.vehicleImage} alt="Vehicle preview" className="mt-2 h-24 object-cover rounded-lg border" />}
               </div>
             </div>
           </div>
