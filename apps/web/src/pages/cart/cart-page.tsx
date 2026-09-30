@@ -11,14 +11,13 @@ import { Modal } from '@/components/common/modal';
 import { DashboardShell } from '@/components/home/dashboard-shell';
 import { TopNavbar } from '@/components/home/top-navbar';
 import { apiClient } from '@/lib/api-client';
-import { getSavedCity, formatCurrencyForCity } from '@/utils/location';
 import { loadRazorpaySdk } from '@/lib/razorpay';
+import { formatCurrency } from '@/lib/currency';
 
 export function CartPage() {
   const router = useRouter();
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
-  const [userCity, setUserCity] = useState<string>('Bengaluru');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [promoCode, setPromoCode] = useState('');
   const [promoCodeApplied, setPromoCodeApplied] = useState('');
@@ -38,18 +37,10 @@ export function CartPage() {
   });
 
   useEffect(() => {
-    setUserCity(getSavedCity() || 'Bengaluru');
     const items = localStorage.getItem('shopCart');
     if (items) {
       setCartItems(JSON.parse(items));
     }
-
-    const handleCityChange = () => {
-      const newCity = getSavedCity() || 'Bengaluru';
-      setUserCity(newCity);
-    };
-    window.addEventListener('city-changed', handleCityChange);
-    return () => window.removeEventListener('city-changed', handleCityChange);
   }, []);
 
   const updateCart = (newItems: any[]) => {
@@ -80,8 +71,9 @@ export function CartPage() {
   const discountAmount = subtotal * (discountPercent / 100);
   const discountedSubtotal = subtotal - discountAmount;
   const tax = discountedSubtotal * 0.18;
-  const shipping = discountedSubtotal > 0 ? 10 : 0;
+  const shipping = 0;
   const total = discountedSubtotal + tax + shipping;
+  const cartCurrency = cartItems[0]?.currency || 'INR';
 
   const handleApplyPromo = async () => {
     if (!promoCode || !cartItems.length) return;
@@ -125,11 +117,6 @@ export function CartPage() {
   };
 
   const handlePlaceOrderClick = () => {
-    if (!address.name || !address.phone || !address.street || !address.zip) {
-      setErrorMsg("Please fill in all shipping address fields.");
-      window.scrollTo(0, 0);
-      return;
-    }
     setErrorMsg(null);
     setIsPaymentSelectionOpen(true);
   };
@@ -139,10 +126,6 @@ export function CartPage() {
     setIsProcessing(true);
     
     try {
-      if (!address.name || !address.phone || !address.street || !address.zip) {
-        throw new Error("Please fill in all shipping address fields.");
-      }
-
       const garageId = cartItems[0].garageId;
       if (!garageId) throw new Error("Items are missing garage information");
       
@@ -151,15 +134,6 @@ export function CartPage() {
 
       const payload = {
         garageId,
-        shippingAddress: { 
-          name: address.name,
-          phone: address.phone,
-          street: address.street,
-          city: address.city, 
-          state: address.state,
-          zip: address.zip, 
-          country: 'India' 
-        },
         offerCode: promoCodeApplied || undefined,
         items: cartItems.map(i => ({
           productId: i.id,
@@ -315,11 +289,11 @@ export function CartPage() {
                       <div className="flex-1">
                         <h4 className="font-bold text-slate-900">{item.name}</h4>
                         <p className="text-sm text-slate-500 mb-2">{item.category}</p>
-                        <div className="text-sm font-medium text-slate-500">{formatCurrencyForCity(item.numericPrice || 0, userCity)} each</div>
+                        <div className="text-sm font-medium text-slate-500">{formatCurrency(item.numericPrice || 0, item.currency || cartCurrency)} each</div>
                       </div>
                       <div className="flex flex-col items-end gap-2 mt-4 sm:mt-0">
                         <div className="text-lg font-bold text-blue-600">
-                          {formatCurrencyForCity((item.numericPrice || 0) * (item.quantity || 1), userCity)}
+                          {formatCurrency((item.numericPrice || 0) * (item.quantity || 1), item.currency || cartCurrency)}
                         </div>
                         <div className="flex items-center gap-4">
                           <div className="flex items-center gap-3 border border-slate-200 rounded-full px-3 py-1">
@@ -339,18 +313,8 @@ export function CartPage() {
             ) : (
               <div className="space-y-6">
                 <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
-                  <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-blue-600"/> Delivery Details</h3>
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <input type="text" placeholder="Full Name *" value={address.name} onChange={e => setAddress({...address, name: e.target.value})} className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" required />
-                      <input type="text" placeholder="Phone Number *" value={address.phone} onChange={e => setAddress({...address, phone: e.target.value})} className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" required />
-                    </div>
-                    <input type="text" placeholder="Street Address *" value={address.street} onChange={e => setAddress({...address, street: e.target.value})} className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" required />
-                    <div className="grid grid-cols-2 gap-4">
-                      <input type="text" placeholder="City *" value={address.city} onChange={e => setAddress({...address, city: e.target.value})} className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" required />
-                      <input type="text" placeholder="ZIP *" value={address.zip} onChange={e => setAddress({...address, zip: e.target.value})} className="w-full text-sm rounded-xl border border-slate-200 px-4 py-3 outline-none focus:border-blue-500" required />
-                    </div>
-                  </div>
+                  <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-blue-600"/> Garage Collection</h3>
+                  <p className="text-sm text-slate-600">This order must be collected from <strong>{cartItems[0]?.garageName || 'the selected garage'}</strong>. The collection location and status will appear in My Orders.</p>
                 </Card>
 
                 <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
@@ -362,7 +326,7 @@ export function CartPage() {
                           <p className="text-sm font-medium text-slate-900">{item.name}</p>
                           <p className="text-xs text-slate-500">Qty: {item.quantity || 1}</p>
                         </div>
-                        <span className="text-sm font-bold">{formatCurrencyForCity((item.numericPrice || 0) * (item.quantity || 1), userCity)}</span>
+                        <span className="text-sm font-bold">{formatCurrency((item.numericPrice || 0) * (item.quantity || 1), item.currency || cartCurrency)}</span>
                       </div>
                     ))}
                   </div>
@@ -396,25 +360,21 @@ export function CartPage() {
               <div className="space-y-4 text-sm">
                 <div className="flex justify-between">
                   <span className="text-slate-500">Subtotal</span>
-                  <span className="font-medium">{formatCurrencyForCity(subtotal, userCity)}</span>
+                  <span className="font-medium">{formatCurrency(subtotal, cartCurrency)}</span>
                 </div>
                 {discountAmount > 0 && (
                   <div className="flex justify-between text-green-600">
                     <span>Discount ({discountPercent}%)</span>
-                    <span className="font-medium">-{formatCurrencyForCity(discountAmount, userCity)}</span>
+                    <span className="font-medium">-{formatCurrency(discountAmount, cartCurrency)}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
                   <span className="text-slate-500">Tax (18%)</span>
-                  <span className="font-medium">{formatCurrencyForCity(tax, userCity)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-slate-500">Shipping</span>
-                  <span className="font-medium">{formatCurrencyForCity(shipping, userCity)}</span>
+                  <span className="font-medium">{formatCurrency(tax, cartCurrency)}</span>
                 </div>
                 <div className="border-t border-slate-100 pt-4 flex justify-between items-center">
                   <span className="font-bold text-slate-900">Total</span>
-                  <span className="font-bold text-xl text-blue-600">{formatCurrencyForCity(total, userCity)}</span>
+                  <span className="font-bold text-xl text-blue-600">{formatCurrency(total, cartCurrency)}</span>
                 </div>
               </div>
               {step === 'cart' ? (
@@ -436,7 +396,7 @@ export function CartPage() {
         onClose={() => setIsCheckoutModalOpen(false)}
         title="Order Placed Successfully!"
         description={completedOrder?.paymentMethod === 'cod' 
-          ? "Your order has been placed and will be delivered to you. Payment Method: Cash on Delivery"
+          ? "Your order has been placed for garage collection. Payment Method: Cash at Collection"
           : "Your payment was successful and your order has been placed."}
         amount={completedOrder?.total ?? 0}
         paymentMethod={completedOrder?.paymentMethod === 'cod' ? 'cash' : 'online'}
@@ -471,8 +431,8 @@ export function CartPage() {
             className={`p-4 border rounded-xl cursor-pointer hover:border-blue-500 transition-colors ${selectedPaymentMethod === 'cod' ? 'border-blue-500 bg-blue-50' : 'border-slate-200'}`}
             onClick={() => setSelectedPaymentMethod('cod')}
           >
-            <h4 className="font-bold text-slate-900">Cash on Delivery</h4>
-            <p className="text-sm text-slate-500">Pay when your order is delivered to your doorstep</p>
+            <h4 className="font-bold text-slate-900">Cash at Collection</h4>
+            <p className="text-sm text-slate-500">Pay at the garage when collecting your order</p>
           </div>
 
           <div className="flex gap-3 pt-4">

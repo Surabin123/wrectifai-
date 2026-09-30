@@ -24,6 +24,16 @@ export default function AllGaragesPage() {
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCity, setActiveCity] = useState('All');
+  const [countryFilter, setCountryFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [sortBy, setSortBy] = useState('createdAt');
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [activeTotal, setActiveTotal] = useState(0);
+  const [inactiveTotal, setInactiveTotal] = useState(0);
+  const [filterOptions, setFilterOptions] = useState<{cities: string[]; countries: string[]}>({ cities: [], countries: [] });
 
   const handleDropdownClick = (e: React.MouseEvent, id: string) => {
     if (openDropdownId === id) {
@@ -41,10 +51,20 @@ export default function AllGaragesPage() {
     try {
       const queryParams = new URLSearchParams();
       if (activeCity && activeCity !== 'All') queryParams.append('city', activeCity);
+      if (countryFilter !== 'All') queryParams.append('country', countryFilter);
+      if (statusFilter !== 'All') queryParams.append('status', statusFilter);
+      if (dateFrom) queryParams.append('dateFrom', dateFrom);
+      if (dateTo) queryParams.append('dateTo', dateTo);
       if (searchQuery) queryParams.append('search', searchQuery);
+      queryParams.append('sortBy', sortBy);
+      queryParams.append('page', String(page));
+      queryParams.append('limit', '20');
       
-      const garagesData = await apiClient.get<any[]>(`/admin/onboarding/garages?${queryParams.toString()}`);
-      setGarages(garagesData);
+      const garagesData = await apiClient.get<{items: any[]; total: number; active: number; inactive: number}>(`/admin/onboarding/garages?${queryParams.toString()}`);
+      setGarages(garagesData.items);
+      setTotal(garagesData.total);
+      setActiveTotal(garagesData.active);
+      setInactiveTotal(garagesData.inactive);
     } catch (err) {
       console.error('Failed to load garages', err);
     } finally {
@@ -54,7 +74,13 @@ export default function AllGaragesPage() {
 
   useEffect(() => {
     loadData();
-  }, [activeCity, searchQuery]); // Reload data when filters change
+  }, [activeCity, countryFilter, statusFilter, dateFrom, dateTo, sortBy, page, searchQuery]);
+
+  useEffect(() => {
+    apiClient.get<{cities: string[]; countries: string[]}>('/admin/onboarding/garage-filter-options').then(setFilterOptions).catch(console.error);
+  }, []);
+
+  const clearFilters = () => { setSearchQuery(''); setActiveCity('All'); setCountryFilter('All'); setStatusFilter('All'); setDateFrom(''); setDateTo(''); setSortBy('createdAt'); setPage(1); };
 
   // Remove local filtering since it is now done in the backend
   const filteredGarages = garages;
@@ -123,9 +149,9 @@ export default function AllGaragesPage() {
 
   // Local filtering is now done in backend, we already have filteredGarages = garages
 
-  const totalGarages = filteredGarages.length;
-  const activeGarages = filteredGarages.filter(g => g.approvalStatus === 'active' || g.approvalStatus === 'approved').length;
-  const inactiveGarages = filteredGarages.filter(g => g.approvalStatus !== 'active' && g.approvalStatus !== 'approved').length;
+  const totalGarages = total;
+  const activeGarages = activeTotal;
+  const inactiveGarages = inactiveTotal;
 
   const formatTime = (isoString: string) => {
     if (!isoString) return 'N/A';
@@ -173,7 +199,7 @@ export default function AllGaragesPage() {
              <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="Search by garage name, owner, email or phone..." className="w-full pl-9 pr-4 py-2 border rounded-lg text-sm bg-white outline-none focus:ring-1 focus:ring-blue-500" />
            </div>
            <div className="flex flex-wrap gap-2">
-             {['All', ...Array.from(new Set(garages.map(g => g.city).filter(Boolean)))].map(city => (
+             {['All', ...filterOptions.cities].map(city => (
                <button 
                  key={city}
                  onClick={() => setActiveCity(city)}
@@ -182,6 +208,12 @@ export default function AllGaragesPage() {
                  {city}
                </button>
              ))}
+             <select value={countryFilter} onChange={e => { setCountryFilter(e.target.value); setPage(1); }} className="px-3 py-1.5 text-xs border rounded-lg bg-white"><option value="All">All Countries</option>{filterOptions.countries.map(country => <option key={country} value={country}>{country}</option>)}</select>
+             <select value={statusFilter} onChange={e => { setStatusFilter(e.target.value); setPage(1); }} className="px-3 py-1.5 text-xs border rounded-lg bg-white"><option value="All">All Statuses</option><option value="active">Active</option><option value="approved">Approved</option><option value="suspended">Suspended</option><option value="pending">Pending</option></select>
+             <input type="date" value={dateFrom} onChange={e => { setDateFrom(e.target.value); setPage(1); }} className="px-3 py-1.5 text-xs border rounded-lg" />
+             <input type="date" value={dateTo} onChange={e => { setDateTo(e.target.value); setPage(1); }} className="px-3 py-1.5 text-xs border rounded-lg" />
+             <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="px-3 py-1.5 text-xs border rounded-lg bg-white"><option value="createdAt">Newest</option><option value="name">Garage Name</option><option value="city">City</option><option value="status">Status</option></select>
+             <button onClick={clearFilters} className="px-3 py-1.5 text-xs font-semibold text-blue-600">Clear All</button>
            </div>
         </div>
         <table className="w-full text-left border-collapse">
@@ -251,6 +283,10 @@ export default function AllGaragesPage() {
             )}
           </tbody>
         </table>
+        <div className="p-4 border-t flex items-center justify-between text-xs text-slate-600">
+          <span>{total === 0 ? 'No garages' : `Showing ${(page - 1) * 20 + 1}-${Math.min(page * 20, total)} of ${total}`}</span>
+          <div className="flex gap-2"><button disabled={page === 1} onClick={() => setPage(value => Math.max(1, value - 1))} className="px-3 py-1.5 border rounded disabled:opacity-40">Previous</button><button disabled={page * 20 >= total} onClick={() => setPage(value => value + 1)} className="px-3 py-1.5 border rounded disabled:opacity-40">Next</button></div>
+        </div>
       </Card>
 
       {/* Details Modal */}

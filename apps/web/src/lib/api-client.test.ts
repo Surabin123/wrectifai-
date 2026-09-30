@@ -22,6 +22,14 @@ const mockLocalStorage = {
 };
 
 globalThis.localStorage = mockLocalStorage as unknown as Storage;
+const sessionStorageStore: Record<string, string> = {};
+const mockSessionStorage = {
+  getItem: (key: string) => sessionStorageStore[key] || null,
+  setItem: (key: string, value: string) => { sessionStorageStore[key] = value.toString(); },
+  removeItem: (key: string) => { delete sessionStorageStore[key]; },
+  clear: () => { for (const key in sessionStorageStore) delete sessionStorageStore[key]; },
+};
+globalThis.sessionStorage = mockSessionStorage as unknown as Storage;
 globalThis.window = {
   dispatchEvent: () => true,
 } as unknown as Window & typeof globalThis;
@@ -33,6 +41,7 @@ beforeEach(() => {
   originalFetch = globalThis.fetch;
   fetchCalls = [];
   mockLocalStorage.clear();
+  mockSessionStorage.clear();
   delete process.env.NEXT_PUBLIC_API_URL;
 });
 
@@ -123,13 +132,19 @@ test('apiClient - 401 silent retry token refresh logic', async () => {
 
   // Setup sequence of responses:
   // 1. Initial request fails with 401
-  // 2. Token refresh request succeeds with new access token
-  // 3. Retried initial request succeeds
+  // 2. CSRF token request succeeds
+  // 3. Token refresh request succeeds with new access token
+  // 4. Retried initial request succeeds
   setupMockFetch([
     {
       status: 401,
       statusText: 'Unauthorized',
       json: { error: { message: 'Token expired', code: 'UNAUTHORIZED' } }
+    },
+    {
+      status: 200,
+      statusText: 'OK',
+      json: { data: { csrfToken: 'csrf-token' } }
     },
     {
       status: 200,
@@ -146,23 +161,28 @@ test('apiClient - 401 silent retry token refresh logic', async () => {
   const result = await apiClient('/protected-resource');
 
   // Verify fetch calls
-  assert.strictEqual(fetchCalls.length, 3);
+  assert.strictEqual(fetchCalls.length, 4);
   
   // Call 1: Original request with expired token
   assert.strictEqual(fetchCalls[0].url, 'http://localhost:3000/api/v1/protected-resource');
   assert.strictEqual(fetchCalls[0].config.headers['Authorization'], 'Bearer expired-token');
   
-  // Call 2: Refresh token request uses HttpOnly cookie credentials
-  assert.strictEqual(fetchCalls[1].url, 'http://localhost:3000/api/v1/auth/refresh');
+  // Call 2: CSRF bootstrap uses HttpOnly cookie credentials
+  assert.strictEqual(fetchCalls[1].url, 'http://localhost:3000/api/v1/auth/csrf-token');
   assert.strictEqual(fetchCalls[1].config.credentials, 'include');
-  
-  // Call 3: Retried original request with new token
-  assert.strictEqual(fetchCalls[2].url, 'http://localhost:3000/api/v1/protected-resource');
-  assert.strictEqual(fetchCalls[2].config.headers['Authorization'], 'Bearer new-valid-token');
+
+  // Call 3: Refresh uses the CSRF token and secure refresh cookie
+  assert.strictEqual(fetchCalls[2].url, 'http://localhost:3000/api/v1/auth/refresh');
+  assert.strictEqual(fetchCalls[2].config.credentials, 'include');
+  assert.strictEqual(fetchCalls[2].config.headers['X-XSRF-TOKEN'], 'csrf-token');
+
+  // Call 4: Retried original request with new token
+  assert.strictEqual(fetchCalls[3].url, 'http://localhost:3000/api/v1/protected-resource');
+  assert.strictEqual(fetchCalls[3].config.headers['Authorization'], 'Bearer new-valid-token');
 
   // Verify final unwrapped result
   assert.deepStrictEqual(result, { resource: 'secret-data' });
   
-  // Verify localStorage updated
-  assert.strictEqual(localStorage.getItem('accessToken'), 'new-valid-token');
+  // The refreshed access token is session-scoped; the legacy local token is not overwritten.
+  assert.strictEqual(sessionStorage.getItem('wrectifai_session_access_token'), 'new-valid-token');
 });

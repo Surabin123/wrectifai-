@@ -3,6 +3,8 @@ import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
 import { query, getDbPool } from '../../config/database';
 import { getPagination } from '../../utils/pagination';
+import fs from 'fs';
+import path from 'path';
 
 export const garagesRouter = Router();
 
@@ -187,7 +189,7 @@ garagesRouter.get('/my-profile', authenticate, async (req, res) => {
     }
 
     const documentsResult = await query(
-      `SELECT doc_type, verification_status, original_filename as "originalFilename",
+      `SELECT id, doc_type, original_filename as "originalFilename", mime_type as "mimeType",
               file_size_bytes as "fileSizeBytes", expiry_date as "expiryDate"
        FROM garage_documents WHERE garage_id = $1`,
       [garageId]
@@ -202,6 +204,66 @@ garagesRouter.get('/my-profile', authenticate, async (req, res) => {
   } catch (err) {
     console.error('Failed to fetch garage profile:', err);
     return error(res, 'Failed to fetch garage profile', 'DATABASE_ERROR', 500);
+  }
+});
+
+garagesRouter.get('/my-documents/:documentId/access', authenticate, requireRole(['garage']), async (req, res) => {
+  try {
+    const result = await query(
+      `SELECT gd.file_url, gd.mime_type FROM garage_documents gd
+       JOIN garages g ON g.id = gd.garage_id
+       WHERE gd.id = $1 AND g.owner_user_id = $2`,
+      [req.params.documentId, req.user!.userId]
+    );
+    if (!result.rows.length) return error(res, 'Document not found', 'NOT_FOUND', 404);
+    const fileUrl = result.rows[0].file_url as string;
+    if (fileUrl.startsWith('/uploads/')) return success(res, { url: `${req.protocol}://${req.get('host')}${fileUrl}` });
+    const marker = '/authenticated/upload/';
+    if (!fileUrl.includes(marker)) return error(res, 'Secure document access is unavailable', 'DOCUMENT_ACCESS_ERROR', 500);
+    const encodedPath = fileUrl.split(marker)[1].replace(/^v\d+\//, '');
+    const publicId = decodeURIComponent(encodedPath).replace(/\.[^.]+$/, '');
+    const { v2: cloudinary } = require('cloudinary');
+    const signedUrl = cloudinary.url(publicId, { secure: true, sign_url: true, type: 'authenticated', resource_type: 'image' });
+    return success(res, { url: signedUrl });
+  } catch {
+    return error(res, 'Failed to access document', 'DOCUMENT_ACCESS_ERROR', 500);
+  }
+});
+
+garagesRouter.put('/my-documents/:documentId', authenticate, requireRole(['garage']), async (req, res) => {
+  try {
+    const file = req.body.file;
+    if (!file || !['application/pdf', 'image/jpeg', 'image/png'].includes(file.type)) return error(res, 'Upload a PDF, JPG, or PNG document.', 'VALIDATION_ERROR', 400);
+    const content = typeof file.data === 'string' ? file.data.split(',')[1] || '' : '';
+    const bytes = Buffer.from(content, 'base64');
+    const isPdf = bytes.subarray(0, 5).toString() === '%PDF-';
+    const isPng = bytes[0] === 137 && bytes[1] === 80 && bytes[2] === 78 && bytes[3] === 71;
+    const isJpeg = bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff;
+    if (!bytes.length || bytes.length > 5 * 1024 * 1024 || (file.type === 'application/pdf' && !isPdf) || (file.type === 'image/png' && !isPng) || (file.type === 'image/jpeg' && !isJpeg)) return error(res, 'Document content is invalid or exceeds 5MB.', 'VALIDATION_ERROR', 400);
+    const owner = await query(`SELECT gd.id FROM garage_documents gd JOIN garages g ON g.id = gd.garage_id WHERE gd.id = $1 AND g.owner_user_id = $2`, [req.params.documentId, req.user!.userId]);
+    if (!owner.rows.length) return error(res, 'Document not found', 'NOT_FOUND', 404);
+    let storedUrl: string;
+    if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+      const { v2: cloudinary } = require('cloudinary');
+      const uploaded = await cloudinary.uploader.upload(file.data, { folder: 'wrectifai/garages/documents', type: 'authenticated', resource_type: 'auto' });
+      storedUrl = uploaded.secure_url;
+    } else {
+      const directory = path.join(process.cwd(), 'uploads', 'garages', 'documents');
+      fs.mkdirSync(directory, { recursive: true });
+      const extension = file.type === 'application/pdf' ? 'pdf' : file.type === 'image/png' ? 'png' : 'jpg';
+      const filename = `${req.params.documentId}-${Date.now()}.${extension}`;
+      fs.writeFileSync(path.join(directory, filename), bytes);
+      storedUrl = `/uploads/garages/documents/${filename}`;
+    }
+    const updated = await query(
+      `UPDATE garage_documents SET file_url = $1, original_filename = $2, mime_type = $3, file_size_bytes = $4,
+       verification_status = 'pending' WHERE id = $5 RETURNING id, doc_type, original_filename as "originalFilename", mime_type as "mimeType", file_size_bytes as "fileSizeBytes", expiry_date as "expiryDate"`,
+      [storedUrl, file.name || null, file.type, bytes.length, req.params.documentId]
+    );
+    return success(res, updated.rows[0]);
+  } catch (err) {
+    console.error('Document replacement failed:', err);
+    return error(res, 'Failed to replace document', 'DOCUMENT_UPLOAD_ERROR', 500);
   }
 });
 
@@ -222,6 +284,19 @@ garagesRouter.put('/my-profile', authenticate, requireRole(['garage', 'admin']),
 
     if ((garageName && typeof garageName !== 'string') || (address && typeof address !== 'string') || (description && typeof description !== 'string') || (ownerDesignation && typeof ownerDesignation !== 'string')) {
       return error(res, 'Invalid profile data format', 'BAD_REQUEST', 400);
+    }
+    if (businessHours && typeof businessHours === 'object') {
+      const toMinutes = (value: unknown) => {
+        if (typeof value !== 'string') return -1;
+        const match = value.match(/^(\d{2}):(\d{2}) (AM|PM)$/);
+        if (!match) return -1;
+        let hour = Number(match[1]) % 12;
+        if (match[3] === 'PM') hour += 12;
+        return hour * 60 + Number(match[2]);
+      };
+      for (const [day, hours] of Object.entries(businessHours as Record<string, any>)) {
+        if (hours?.open && (toMinutes(hours.start) < 0 || toMinutes(hours.end) <= toMinutes(hours.start))) return error(res, `Invalid working hours for ${day}.`, 'VALIDATION_ERROR', 400);
+      }
     }
 
     let processedImage = image;

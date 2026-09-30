@@ -42,13 +42,13 @@ export function OrdersPage() {
     }
   };
 
-  const getFulfillmentLabel = (status: string) => {
+  const getOrderStatusLabel = (status: string) => {
     const s = (status || '').toUpperCase();
-    if (s === 'PENDING_ACCEPTANCE' || s === 'PENDINGPAYMENT' || s === 'PAID') return 'Pending Acceptance';
-    if (s === 'PACKING' || s === 'PROCESSING') return 'Packing';
-    if (s === 'SHIPPED') return 'Shipped';
-    if (s === 'OUT_FOR_DELIVERY') return 'Out for Delivery';
-    if (s === 'DELIVERED') return 'Delivered';
+    if (s === 'PENDING_ACCEPTANCE') return 'Order Placed';
+    if (s === 'ACCEPTED') return 'Garage Received Order';
+    if (s === 'READY_FOR_COLLECTION') return 'Ready for Collection';
+    if (s === 'COLLECTED') return 'Collected';
+    if (s === 'CANCELLED') return 'Cancelled';
     return status;
   };
 
@@ -66,7 +66,7 @@ export function OrdersPage() {
     if (isCod) {
       return (
         <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-200">
-          COD — Pending
+          Cash at Collection — Pending
         </span>
       );
     }
@@ -123,7 +123,7 @@ export function OrdersPage() {
                         <span className="font-bold text-slate-900 text-base">Order #{order.order_number}</span>
                         {getPaymentBadge(order)}
                         <span className="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
-                          {getFulfillmentLabel(order.status)}
+                          {getOrderStatusLabel(order.status)}
                         </span>
                       </div>
                       <p className="text-xs text-slate-500 mt-1 flex items-center gap-1">
@@ -146,6 +146,7 @@ export function OrdersPage() {
                   </div>
 
                   <div className="space-y-2 mb-4">
+                    {order.garage_name && <p className="text-xs font-semibold text-slate-700">Collect from: {order.garage_name}{order.garage_city ? `, ${order.garage_city}` : ''}</p>}
                     {order.items?.slice(0, 3).map((item: any) => (
                       <div key={item.id} className="flex justify-between text-xs text-slate-700">
                         <span>{item.quantity}x {item.name}</span>

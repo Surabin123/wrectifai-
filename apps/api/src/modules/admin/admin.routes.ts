@@ -36,7 +36,7 @@ function normalizePhone(value: unknown, country: string): string | null {
 function isTemporaryRegistrationOtpValid(otp: unknown): boolean {
   // Temporary registration verification until the SMS provider is configured.
   // This is intentionally separate from customer and login authentication.
-  return otp === '123456';
+  return getEnv().garageRegistrationTempOtpEnabled && otp === '123456';
 }
 
 async function isVerifiedRegistrationPhoneChallenge(challengeId: unknown, requestedByUserId: string, phone: string): Promise<boolean> {
@@ -56,6 +56,7 @@ adminRouter.use(requireRole(['admin']));
 
 adminRouter.post('/onboarding/garages/phone-otp/initiate', async (req, res) => {
   try {
+    if (!getEnv().garageRegistrationTempOtpEnabled) return error(res, 'Temporary garage OTP is disabled in this environment.', 'OTP_PROVIDER_UNAVAILABLE', 503);
     const country = typeof req.body.country === 'string' ? req.body.country.toUpperCase() : '';
     const phone = normalizePhone(req.body.phone, country);
     if (!phone) return error(res, 'Enter a valid phone number for the selected country.', 'VALIDATION_ERROR', 400);
@@ -162,33 +163,64 @@ adminRouter.get('/stats', async (req, res) => {
 
 adminRouter.get('/onboarding/garages', async (req, res) => {
   try {
-    const { city, search } = req.query;
+    const { city, country, status, search, dateFrom, dateTo } = req.query;
+    const page = Math.max(1, Number.parseInt(String(req.query.page || '1'), 10) || 1);
+    const limit = Math.min(100, Math.max(1, Number.parseInt(String(req.query.limit || '20'), 10) || 20));
+    const sortColumns: Record<string, string> = { name: 'g.name', city: 'g.city', status: 'g.approval_status', createdAt: 'g.created_at' };
+    const sortColumn = sortColumns[String(req.query.sortBy || 'createdAt')] || 'g.created_at';
+    const sortOrder = String(req.query.sortOrder || 'desc').toLowerCase() === 'asc' ? 'ASC' : 'DESC';
     let queryStr = `
-       SELECT g.id, g.name, g.address, g.approval_status as "approvalStatus", g.created_at as "createdAt", g.city, g.specializations,
+       SELECT g.id, g.name, g.address, g.approval_status as "approvalStatus", g.created_at as "createdAt", g.city, g.country, g.specializations,
               u.name as "ownerName", u.email, u.mobile_number as "ownerPhone"
        FROM garages g
        LEFT JOIN users u ON g.owner_user_id = u.id
-       WHERE g.approval_status != 'deleted'
     `;
     const params: any[] = [];
+    let whereSql = ` WHERE g.approval_status != 'deleted'`;
     
     if (city && city !== 'All') {
       params.push((city as string).toLowerCase());
-      queryStr += ` AND LOWER(g.city) = $${params.length}`;
+      whereSql += ` AND LOWER(g.city) = $${params.length}`;
     }
+    if (country && country !== 'All') { params.push(String(country).toUpperCase()); whereSql += ` AND UPPER(COALESCE(g.country, g.location->>'country')) = $${params.length}`; }
+    if (status && status !== 'All') { params.push(String(status).toLowerCase()); whereSql += ` AND LOWER(g.approval_status) = $${params.length}`; }
+    if (dateFrom) { params.push(dateFrom); whereSql += ` AND g.created_at >= $${params.length}::date`; }
+    if (dateTo) { params.push(dateTo); whereSql += ` AND g.created_at < ($${params.length}::date + INTERVAL '1 day')`; }
     
     if (search) {
       const q = `%${(search as string).toLowerCase()}%`;
       params.push(q);
-      queryStr += ` AND (LOWER(g.name) LIKE $${params.length} OR LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(u.mobile_number) LIKE $${params.length})`;
+      whereSql += ` AND (LOWER(g.name) LIKE $${params.length} OR LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(u.mobile_number) LIKE $${params.length})`;
     }
-    
-    queryStr += ` ORDER BY g.created_at DESC`;
-    
-    const result = await query(queryStr, params);
-    return success(res, result.rows);
+    queryStr += whereSql;
+    const countResult = await query(`SELECT COUNT(*) AS total,
+      COUNT(*) FILTER (WHERE g.approval_status IN ('active', 'approved')) AS active,
+      COUNT(*) FILTER (WHERE g.approval_status NOT IN ('active', 'approved', 'deleted')) AS inactive
+      FROM garages g LEFT JOIN users u ON g.owner_user_id = u.id${whereSql}`, params);
+    const pagedParams = [...params, limit, (page - 1) * limit];
+    queryStr += ` ORDER BY ${sortColumn} ${sortOrder} LIMIT $${pagedParams.length - 1} OFFSET $${pagedParams.length}`;
+    const result = await query(queryStr, pagedParams);
+    return success(res, {
+      items: result.rows,
+      total: Number(countResult.rows[0].total),
+      active: Number(countResult.rows[0].active),
+      inactive: Number(countResult.rows[0].inactive),
+      page,
+      limit
+    });
   } catch (err) {
     return error(res, 'Failed to fetch garages', 'DATABASE_ERROR', 500);
+  }
+});
+
+adminRouter.get('/onboarding/garage-filter-options', async (_req, res) => {
+  try {
+    const result = await query(`SELECT
+      ARRAY(SELECT DISTINCT city FROM garages WHERE city IS NOT NULL AND approval_status != 'deleted' ORDER BY city) AS cities,
+      ARRAY(SELECT DISTINCT COALESCE(country, location->>'country') FROM garages WHERE COALESCE(country, location->>'country') IS NOT NULL AND approval_status != 'deleted' ORDER BY COALESCE(country, location->>'country')) AS countries`);
+    return success(res, result.rows[0]);
+  } catch {
+    return error(res, 'Failed to fetch garage filters', 'DATABASE_ERROR', 500);
   }
 });
 
@@ -659,6 +691,12 @@ adminRouter.put('/garages/:id/status', async (req, res) => {
 
 adminRouter.get('/users', async (req, res) => {
   try {
+    const params: unknown[] = [];
+    const filters = [`r.code = 'customer'`];
+    if (req.query.search) { params.push(`%${String(req.query.search).toLowerCase()}%`); filters.push(`(LOWER(u.name) LIKE $${params.length} OR LOWER(u.email) LIKE $${params.length} OR LOWER(COALESCE(u.mobile_number, '')) LIKE $${params.length})`); }
+    if (req.query.status && req.query.status !== 'All') { params.push(String(req.query.status).toLowerCase()); filters.push(`LOWER(u.status) = $${params.length}`); }
+    if (req.query.dateFrom) { params.push(req.query.dateFrom); filters.push(`u.created_at >= $${params.length}::date`); }
+    if (req.query.dateTo) { params.push(req.query.dateTo); filters.push(`u.created_at < ($${params.length}::date + INTERVAL '1 day')`); }
     const result = await query(
       `SELECT u.id, u.name, u.email, u.mobile_number as phone, u.created_at as "joined", u.status,
        (SELECT COUNT(*) FROM bookings b WHERE b.customer_id = u.id) as bookings,
@@ -666,8 +704,8 @@ adminRouter.get('/users', async (req, res) => {
        FROM users u
        JOIN user_roles ur ON u.id = ur.user_id
        JOIN roles r ON ur.role_id = r.id
-       WHERE r.code = 'customer'
-       ORDER BY u.created_at DESC LIMIT 100`
+       WHERE ${filters.join(' AND ')}
+       ORDER BY u.created_at DESC LIMIT 100`, params
     );
     return success(res, result.rows);
   } catch (err) {

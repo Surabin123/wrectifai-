@@ -52,19 +52,13 @@ export default function GarageOrdersPage() {
     }
   };
 
-  const renderFulfillmentBadge = (status: string) => {
+  const renderOrderBadge = (status: string) => {
     const s = (status || '').toUpperCase();
-    if (s === 'PENDING_ACCEPTANCE' || s === 'PENDINGPAYMENT' || s === 'PAID') {
-      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">Pending Acceptance</span>;
-    } else if (s === 'PACKING' || s === 'PROCESSING') {
-      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">Packing</span>;
-    } else if (s === 'SHIPPED') {
-      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-indigo-100 text-indigo-800 border border-indigo-200">Shipped</span>;
-    } else if (s === 'OUT_FOR_DELIVERY') {
-      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">Out for Delivery</span>;
-    } else if (s === 'DELIVERED') {
-      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Delivered</span>;
-    }
+    if (s === 'PENDING_ACCEPTANCE') return <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">Order Placed</span>;
+    if (s === 'ACCEPTED') return <span className="px-2 py-0.5 rounded text-xs font-bold bg-blue-100 text-blue-800 border border-blue-200">Garage Received Order</span>;
+    if (s === 'READY_FOR_COLLECTION') return <span className="px-2 py-0.5 rounded text-xs font-bold bg-purple-100 text-purple-800 border border-purple-200">Ready for Collection</span>;
+    if (s === 'COLLECTED') return <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Collected</span>;
+    if (s === 'CANCELLED') return <span className="px-2 py-0.5 rounded text-xs font-bold bg-red-100 text-red-800 border border-red-200">Cancelled</span>;
     return <span className="px-2 py-0.5 rounded text-xs font-bold bg-slate-100 text-slate-800">{status}</span>;
   };
 
@@ -76,7 +70,7 @@ export default function GarageOrdersPage() {
       return <span className="px-2 py-0.5 rounded text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">Paid</span>;
     }
     if (isCod) {
-      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">Cash on Delivery — Pending</span>;
+      return <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">Cash at Collection — Pending</span>;
     }
     return <span className="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-800 border border-amber-200">Payment Pending</span>;
   };
@@ -97,7 +91,7 @@ export default function GarageOrdersPage() {
                      <th className="p-4 font-bold text-slate-600 border-b">Order ID</th>
                      <th className="p-4 font-bold text-slate-600 border-b">Amount</th>
                      <th className="p-4 font-bold text-slate-600 border-b">Payment Status</th>
-                     <th className="p-4 font-bold text-slate-600 border-b">Fulfillment Status</th>
+                     <th className="p-4 font-bold text-slate-600 border-b">Collection Status</th>
                      <th className="p-4 font-bold text-slate-600 border-b text-center">Action</th>
                    </tr>
                  </thead>
@@ -115,10 +109,10 @@ export default function GarageOrdersPage() {
                          <td className="p-4 text-slate-700 font-mono text-xs">{order.order_number}</td>
                          <td className="p-4 text-slate-700 font-medium">{formatCurrency(order.total, order.currency)}</td>
                          <td className="p-4">{renderPaymentBadge(order)}</td>
-                         <td className="p-4">{renderFulfillmentBadge(order.status)}</td>
+                         <td className="p-4">{renderOrderBadge(order.status)}</td>
                          <td className="p-4 text-center">
                            <div className="flex flex-col gap-2 items-center justify-center">
-                             {(fulStatus === 'PENDING_ACCEPTANCE' || fulStatus === 'PENDINGPAYMENT' || fulStatus === 'PAID') && (
+                             {fulStatus === 'PENDING_ACCEPTANCE' && (
                                <button 
                                  onClick={() => handleUpdateStatus(order.id, 'ACCEPTED')} 
                                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded text-xs shadow-sm transition-colors"
@@ -127,25 +121,16 @@ export default function GarageOrdersPage() {
                                </button>
                              )}
 
-                             {(fulStatus === 'PACKING' || fulStatus === 'PROCESSING') && (
+                             {fulStatus === 'ACCEPTED' && (
                                <button 
-                                 onClick={() => handleUpdateStatus(order.id, 'SHIPPED')} 
-                                 className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold rounded text-xs shadow-sm transition-colors"
-                               >
-                                 Mark Shipped
-                               </button>
-                             )}
-
-                             {fulStatus === 'SHIPPED' && (
-                               <button 
-                                 onClick={() => handleUpdateStatus(order.id, 'OUT_FOR_DELIVERY')} 
+                                 onClick={() => handleUpdateStatus(order.id, 'READY_FOR_COLLECTION')}
                                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded text-xs shadow-sm transition-colors"
                                >
-                                 Out for Delivery
+                                 Ready for Collection
                                </button>
                              )}
 
-                             {fulStatus === 'OUT_FOR_DELIVERY' && !isPaid && (
+                             {fulStatus === 'READY_FOR_COLLECTION' && !isPaid && (
                                <button 
                                  onClick={() => handleConfirmCash(order.id)} 
                                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded text-xs shadow-sm transition-colors"
@@ -154,16 +139,16 @@ export default function GarageOrdersPage() {
                                </button>
                              )}
 
-                             {fulStatus === 'OUT_FOR_DELIVERY' && isPaid && (
+                             {fulStatus === 'READY_FOR_COLLECTION' && isPaid && (
                                <button 
-                                 onClick={() => handleUpdateStatus(order.id, 'DELIVERED')} 
+                                 onClick={() => handleUpdateStatus(order.id, 'COLLECTED')}
                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded text-xs shadow-sm transition-colors"
                                >
-                                 Mark Delivered
+                                 Confirm Collection
                                </button>
                              )}
 
-                             {fulStatus === 'DELIVERED' && (
+                             {fulStatus === 'COLLECTED' && (
                                <span className="text-xs font-semibold text-emerald-700 flex items-center gap-1">
                                  ✓ Order Completed
                                </span>

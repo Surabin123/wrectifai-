@@ -171,6 +171,8 @@ export function createApp() {
   app.use('/api/garages/upload-image', base64Parser);
   app.use('/api/v1/garages/documents', base64Parser);
   app.use('/api/garages/documents', base64Parser);
+  app.use('/api/v1/garages/my-documents', base64Parser);
+  app.use('/api/garages/my-documents', base64Parser);
   app.use('/api/v1/diagnosis/upload-media', base64Parser);
   app.use('/api/diagnosis/upload-media', base64Parser);
   app.use('/api/v1/users/avatar', base64Parser);

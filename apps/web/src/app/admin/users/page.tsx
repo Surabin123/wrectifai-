@@ -17,7 +17,7 @@ export default function CustomersPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
-  const [activeCity, setActiveCity] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
 
   const [selectedUser, setSelectedUser] = useState<any>(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
@@ -85,7 +85,12 @@ export default function CustomersPage() {
 
   const loadData = async () => {
     try {
-      const data = await apiClient.get<any[]>('/admin/users');
+      const params = new URLSearchParams();
+      if (searchQuery) params.set('search', searchQuery);
+      if (statusFilter !== 'All') params.set('status', statusFilter);
+      if (dateFrom) params.set('dateFrom', dateFrom);
+      if (dateTo) params.set('dateTo', dateTo);
+      const data = await apiClient.get<any[]>(`/admin/users?${params.toString()}`);
       setCustomers(data);
     } catch (err) {
       console.warn('Failed to load customers', err);
@@ -96,7 +101,7 @@ export default function CustomersPage() {
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [searchQuery, statusFilter, dateFrom, dateTo]);
 
   const handleAction = async (id: string, action: string) => {
     try {
@@ -128,13 +133,7 @@ export default function CustomersPage() {
   };
 
   const filtered = customers.filter(c => {
-    if (activeCity !== 'All' && c.city !== activeCity) return false;
-    if (dateFrom && new Date(c.joined || c.createdAt) < new Date(dateFrom)) return false;
-    if (dateTo && new Date(c.joined || c.createdAt) > new Date(new Date(dateTo).setHours(23, 59, 59, 999))) return false;
-
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    return c.name?.toLowerCase().includes(q) || c.email?.toLowerCase().includes(q) || c.phone?.toLowerCase().includes(q);
+    return true;
   });
 
   const todayStr = new Date().toISOString().split('T')[0];
@@ -175,18 +174,8 @@ export default function CustomersPage() {
             
             <div className="h-4 w-px bg-slate-200 mx-2"></div>
             
-            <span className="text-xs font-semibold text-slate-600">City:</span>
-            <div className="flex flex-wrap gap-2">
-             {['All', ...Array.from(new Set(customers.map(c => c.city).filter(Boolean)))].map(city => (
-               <button 
-                 key={city}
-                 onClick={() => setActiveCity(city)}
-                 className={`px-3 py-1.5 text-xs font-semibold rounded-lg capitalize transition-colors ${activeCity === city ? 'bg-blue-100 text-blue-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
-               >
-                 {city}
-               </button>
-             ))}
-            </div>
+            <span className="text-xs font-semibold text-slate-600">Account Status:</span>
+            <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="px-3 py-1.5 text-xs border rounded-lg bg-white"><option value="All">All</option><option value="active">Active</option><option value="suspended">Suspended</option></select>
           </div>
         </div>
 

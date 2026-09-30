@@ -5,6 +5,7 @@ import { authenticate, requireRole } from '../../middleware/auth';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { validateOffer, recordOfferRedemption } from '../offers/offers.service';
+import { NotificationsService } from '../notifications/notifications.service';
 
 export const ordersRouter = Router();
 
@@ -20,9 +21,9 @@ ordersRouter.post('/', authenticate, async (req, res) => {
   const customerId = req.user?.userId;
   if (!customerId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
 
-  const { items, garageId, shippingAddress, offerCode, paymentMethod, checkoutSessionId } = req.body;
+  const { items, garageId, offerCode, paymentMethod, checkoutSessionId } = req.body;
   
-  if (!items || !items.length || !garageId || !shippingAddress) {
+  if (!items || !items.length || !garageId) {
     return error(res, 'Missing required fields', 'BAD_REQUEST', 400);
   }
 
@@ -114,31 +115,27 @@ ordersRouter.post('/', authenticate, async (req, res) => {
 
     const discountedSubtotal = subtotal - discountApplied;
     const tax = Math.round(discountedSubtotal * 0.18 * 100) / 100; // 18% tax on discounted amount
-    const shippingCost = discountedSubtotal > 0 ? 10.0 : 0; // Flat shipping cost if cart not empty
+    const shippingCost = 0;
     
     const total = Math.round((discountedSubtotal + tax + shippingCost) * 100) / 100;
     const orderNumber = `ORD-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
-    // Attach checkoutSessionId to shippingAddress for idempotency tracking
-    const updatedShippingAddress = {
-      ...shippingAddress,
-      checkoutSessionId: checkoutSessionId || undefined
-    };
+    const pickupDetails = { checkoutSessionId: checkoutSessionId || undefined, pickupGarageId: garageId };
 
-    // Fetch garage location to set correct currency
-    const garageRes = await client.query(`SELECT location->>'country' as country, city FROM garages WHERE id = $1`, [garageId]);
-    let currency = 'INR';
-    if (garageRes.rows.length > 0) {
-      const c = (garageRes.rows[0].country || '').toLowerCase();
-      if (c.includes('united states') || c === 'us') currency = 'USD';
-      else if (c.includes('united arab emirates') || c === 'ae') currency = 'AED';
-    }
+    // Currency belongs to the garage, never the browser or customer locale.
+    const garageRes = await client.query(
+      `SELECT name, address, city, location, COALESCE(business_currency, pricing_currency, 'INR') AS currency
+       FROM garages WHERE id = $1 AND approval_status IN ('active', 'approved')`,
+      [garageId]
+    );
+    if (garageRes.rows.length === 0) throw new Error('Garage is not available for orders');
+    const currency = garageRes.rows[0].currency;
 
     // 2. Create the Order (Default status: PENDING_ACCEPTANCE, payment_status: PENDING)
     const orderResult = await client.query(
       `INSERT INTO orders (customer_id, garage_id, order_number, status, payment_status, subtotal, shipping_cost, tax, total, currency, fulfillment_mode, shipping_address)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-      [customerId, garageId, orderNumber, 'PENDING_ACCEPTANCE', 'PENDING', subtotal, shippingCost, tax, total, currency, 'inHouse', updatedShippingAddress]
+      [customerId, garageId, orderNumber, 'PENDING_ACCEPTANCE', 'PENDING', subtotal, shippingCost, tax, total, currency, 'inHouse', pickupDetails]
     );
     const orderId = orderResult.rows[0].id;
     
@@ -176,6 +173,12 @@ ordersRouter.post('/', authenticate, async (req, res) => {
     }
     
     await client.query('COMMIT');
+    await NotificationsService.createNotification({
+      garageId,
+      type: 'Order',
+      title: 'New order received',
+      description: `Order ${orderNumber} is awaiting acceptance. [ID:${orderId}]`
+    }).catch(err => console.error('Order notification failed:', err));
     return success(res, { 
       orderId, 
       orderNumber, 
@@ -221,17 +224,17 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
       `SELECT provider_order_id FROM payments WHERE order_id = $1 AND status = 'created' AND provider_order_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`, [orderId]
     );
     if (existingIntent.rows[0]?.provider_order_id) {
-      return success(res, { providerOrderId: existingIntent.rows[0].provider_order_id, amount: amountInPaise, currency: 'INR' });
+      return success(res, { providerOrderId: existingIntent.rows[0].provider_order_id, amount: amountInPaise, currency: order.currency });
     }
     await pool.query(
       `INSERT INTO payments (customer_user_id, order_id, method, transaction_id, amount, currency, status)
-       VALUES ($1, $2, 'razorpay', $3, $4, 'INR', 'created') ON CONFLICT (transaction_id) DO NOTHING`,
-      [customerId, orderId, intentToken, parseFloat(order.total)]
+       VALUES ($1, $2, 'razorpay', $3, $4, $5, 'created') ON CONFLICT (transaction_id) DO NOTHING`,
+      [customerId, orderId, intentToken, parseFloat(order.total), order.currency]
     );
     
     const rzpOrder = await getRazorpayClient().orders.create({
       amount: amountInPaise,
-      currency: 'INR',
+      currency: order.currency,
       receipt: order.order_number,
       notes: { order_id: order.id }
     });
@@ -243,7 +246,7 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
       [rzpOrder.id, orderId, intentToken]
     );
     
-    return success(res, { providerOrderId: rzpOrder.id, amount: amountInPaise, currency: 'INR' });
+    return success(res, { providerOrderId: rzpOrder.id, amount: amountInPaise, currency: order.currency });
   } catch (err: any) {
     console.error('Razorpay order creation error:', err);
     return error(res, err?.error?.description || err?.message || 'Failed to initialize payment', 'PAYMENT_INIT_ERROR', 500);
@@ -364,7 +367,7 @@ ordersRouter.get('/garage', authenticate, requireRole(['garage', 'admin']), asyn
     const garageId = garageRes.rows[0].id;
 
     const ordersRes = await pool.query(`
-      SELECT o.*, 
+      SELECT o.*, g.name as garage_name, g.address as garage_address, g.city as garage_city, g.location as garage_location,
         o.payment_status as payment_status,
         COALESCE(p_pay.method, 'online') as payment_method,
         p_pay.provider_payment_id as payment_transaction_id,
@@ -378,12 +381,13 @@ ordersRouter.get('/garage', authenticate, requireRole(['garage', 'admin']), asyn
         da.status as delivery_status,
         da.delivery_agent_id
       FROM orders o
+      JOIN garages g ON o.garage_id = g.id
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN products p ON oi.product_id = p.id
       LEFT JOIN payments p_pay ON o.id = p_pay.order_id
       LEFT JOIN delivery_assignments da ON o.id = da.order_id
       WHERE o.garage_id = $1
-      GROUP BY o.id, da.id, p_pay.method, p_pay.provider_payment_id
+      GROUP BY o.id, g.id, da.id, p_pay.method, p_pay.provider_payment_id
       ORDER BY o.created_at DESC
       LIMIT ${limit}
     `, [garageId]);
@@ -422,33 +426,48 @@ ordersRouter.put('/:id/status', authenticate, requireRole(['garage', 'admin']), 
 
     const order = checkRes.rows[0];
 
-    // Ownership check: authenticated user MUST be the garage owner
-    if (order.owner_user_id !== userId) {
+    const isAdmin = req.user?.roles?.includes('admin');
+    if (!isAdmin && order.owner_user_id !== userId) {
       return error(res, 'Unauthorized: Garage does not own this order', 'FORBIDDEN', 403);
     }
 
-    // Normalize target status
+    // Canonical pickup lifecycle, with aliases accepted only for safe rollout.
     const statusMap: Record<string, string> = {
-      'ACCEPTED': 'PACKING', // Accepting moves to PACKING
-      'PACKING': 'PACKING',
-      'SHIPPED': 'SHIPPED',
-      'OUT_FOR_DELIVERY': 'OUT_FOR_DELIVERY',
-      'DELIVERED': 'DELIVERED',
+      'ACCEPTED': 'ACCEPTED',
+      'READY_FOR_COLLECTION': 'READY_FOR_COLLECTION',
+      'READYFORCOLLECTION': 'READY_FOR_COLLECTION',
+      'COLLECTED': 'COLLECTED',
       'CANCELLED': 'CANCELLED'
     };
 
-    const targetStatus = statusMap[requestedStatus] || requestedStatus;
+    const targetStatus = statusMap[String(requestedStatus).toUpperCase().replace(/\s+/g, '_')];
+    if (!targetStatus) return error(res, 'Invalid order status', 'BAD_REQUEST', 400);
 
-    // Enforce transition rules
-    if (targetStatus === 'DELIVERED' && order.payment_status !== 'PAID') {
-      return error(res, 'Payment must be confirmed before marking order as delivered', 'BAD_REQUEST', 400);
+    const allowedTransitions: Record<string, string[]> = {
+      PENDING_ACCEPTANCE: ['ACCEPTED', 'CANCELLED'],
+      ACCEPTED: ['READY_FOR_COLLECTION', 'CANCELLED'],
+      READY_FOR_COLLECTION: ['COLLECTED'],
+      COLLECTED: [],
+      CANCELLED: []
+    };
+    if (!(allowedTransitions[order.status] || []).includes(targetStatus)) {
+      return error(res, `Order cannot move from ${order.status} to ${targetStatus}`, 'INVALID_STATUS_TRANSITION', 400);
     }
+    if (targetStatus === 'COLLECTED' && order.payment_status !== 'PAID') return error(res, 'Payment must be confirmed before collection', 'BAD_REQUEST', 400);
 
     const updateRes = await pool.query(
       'UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
       [targetStatus, id]
     );
 
+    const customerResult = await pool.query('SELECT customer_id FROM orders WHERE id = $1', [id]);
+    const statusLabel = targetStatus === 'READY_FOR_COLLECTION' ? 'Ready for Collection' : targetStatus.charAt(0) + targetStatus.slice(1).toLowerCase();
+    await NotificationsService.createNotification({
+      userId: customerResult.rows[0]?.customer_id,
+      type: 'Order',
+      title: `Order ${statusLabel}`,
+      description: `Your order status is now ${statusLabel}. [ID:${id}]`
+    }).catch(err => console.error('Order status notification failed:', err));
     return success(res, updateRes.rows[0]);
   } catch (err) {
     console.error('Update order status error', err);
@@ -481,14 +500,15 @@ ordersRouter.post('/:id/confirm-cash', authenticate, requireRole(['garage', 'adm
 
     const order = orderRes.rows[0];
 
-    if (order.owner_user_id !== userId) {
+    const isAdmin = req.user?.roles?.includes('admin');
+    if (!isAdmin && order.owner_user_id !== userId) {
       await client.query('ROLLBACK');
       return error(res, 'Unauthorized: Garage does not own this order', 'FORBIDDEN', 403);
     }
 
-    if (order.status !== 'OUT_FOR_DELIVERY') {
+    if (order.status !== 'READY_FOR_COLLECTION') {
       await client.query('ROLLBACK');
-      return error(res, 'Cash can only be confirmed when order is Out for Delivery', 'BAD_REQUEST', 400);
+      return error(res, 'Cash can only be confirmed when the order is ready for collection', 'BAD_REQUEST', 400);
     }
 
     // Update payment_status to PAID
@@ -522,7 +542,7 @@ ordersRouter.get('/customer/me', authenticate, async (req, res) => {
   const pool = getDbPool();
   try {
     const ordersRes = await pool.query(`
-      SELECT o.*, 
+      SELECT o.*, g.name as garage_name, g.address as garage_address, g.city as garage_city, g.location as garage_location,
         o.payment_status as payment_status,
         COALESCE(p_pay.method, 'online') as payment_method,
         p_pay.provider_payment_id as payment_transaction_id,
@@ -535,12 +555,13 @@ ordersRouter.get('/customer/me', authenticate, async (req, res) => {
         )) as items,
         da.status as delivery_status
       FROM orders o
+      JOIN garages g ON o.garage_id = g.id
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN products p ON oi.product_id = p.id
       LEFT JOIN payments p_pay ON o.id = p_pay.order_id
       LEFT JOIN delivery_assignments da ON o.id = da.order_id
       WHERE o.customer_id = $1
-      GROUP BY o.id, da.id, p_pay.method, p_pay.provider_payment_id
+      GROUP BY o.id, g.id, da.id, p_pay.method, p_pay.provider_payment_id
       ORDER BY o.created_at DESC
     `, [customerId]);
 
@@ -561,7 +582,7 @@ ordersRouter.get('/:id', authenticate, async (req, res) => {
   try {
     const ordersRes = await pool.query(`
       SELECT o.*, 
-        g.name as garage_name,
+        g.name as garage_name, g.address as garage_address, g.city as garage_city, g.location as garage_location,
         o.payment_status as payment_status,
         COALESCE(p_pay.method, 'online') as payment_method,
         p_pay.provider_payment_id as payment_transaction_id,
@@ -586,9 +607,9 @@ ordersRouter.get('/:id', authenticate, async (req, res) => {
       LEFT JOIN products p ON oi.product_id = p.id
       LEFT JOIN payments p_pay ON o.id = p_pay.order_id
       LEFT JOIN delivery_assignments da ON o.id = da.order_id
-      WHERE o.id = $1 AND (o.customer_id = $2 OR g.owner_user_id = $2)
-      GROUP BY o.id, g.name, p_pay.method, p_pay.provider_payment_id, da.status
-    `, [id, customerId]);
+      WHERE o.id = $1 AND ($3::boolean = TRUE OR o.customer_id = $2 OR g.owner_user_id = $2)
+      GROUP BY o.id, g.id, p_pay.method, p_pay.provider_payment_id, da.status
+    `, [id, customerId, req.user?.roles?.includes('admin') || false]);
 
     if (ordersRes.rows.length === 0) {
       return error(res, 'Order not found or unauthorized', 'NOT_FOUND', 404);
@@ -601,11 +622,27 @@ ordersRouter.get('/:id', authenticate, async (req, res) => {
   }
 });
 
+// GET /api/v1/orders/admin/filter-options - Get live order filter options
+ordersRouter.get('/admin/filter-options', authenticate, requireRole(['admin']), async (_req, res) => {
+  const pool = getDbPool();
+  try {
+    const garages = await pool.query(
+      `SELECT DISTINCT g.id, g.name FROM orders o JOIN garages g ON g.id = o.garage_id WHERE g.name IS NOT NULL ORDER BY g.name`
+    );
+    return success(res, {
+      garages: garages.rows,
+    });
+  } catch (err) {
+    console.error('Fetch admin order filter options error', err);
+    return error(res, 'Failed to fetch order filter options', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
 // GET /api/v1/orders/admin/all - Get ALL orders for admin
 ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req, res) => {
   const pool = getDbPool();
   try {
-    const { search, fulfillment_mode } = req.query;
+    const { search, garageId, customer, dateFrom, dateTo, collectionStatus } = req.query;
     
     let queryStr = `
       SELECT o.*, 
@@ -626,29 +663,17 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
         ) as items,
         g.name as garage_name,
         u.name as customer_name,
-        da.status as delivery_status,
-        agent.name as delivery_agent_name
+        CASE WHEN o.status = 'COLLECTED' THEN 'COLLECTED' WHEN o.status = 'READY_FOR_COLLECTION' THEN 'READY' ELSE 'PENDING' END as collection_status
       FROM orders o
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN products p ON oi.product_id = p.id
       LEFT JOIN garages g ON o.garage_id = g.id
       LEFT JOIN users u ON o.customer_id = u.id
       LEFT JOIN payments p_pay ON o.id = p_pay.order_id
-      LEFT JOIN delivery_assignments da ON o.id = da.order_id
-      LEFT JOIN users agent ON da.delivery_agent_id = agent.id
     `;
     
     const conditions: string[] = [];
     const params: any[] = [];
-    
-    if (fulfillment_mode && fulfillment_mode !== 'All') {
-      let mode = (fulfillment_mode as string).toLowerCase();
-      // Handle the exact camelCase expected by backend schema
-      if (mode === 'inhouse') mode = 'inHouse';
-      if (mode === 'thirdparty') mode = 'thirdParty';
-      params.push(mode);
-      conditions.push(`o.fulfillment_mode = $${params.length}`);
-    }
     
     if (req.query.status && req.query.status !== 'All') {
       params.push(req.query.status as string);
@@ -658,7 +683,16 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
     if (search) {
       const q = `%${(search as string).toLowerCase()}%`;
       params.push(q);
-      conditions.push(`(LOWER(g.name) LIKE $${params.length} OR LOWER(u.name) LIKE $${params.length} OR LOWER(o.order_number) LIKE $${params.length})`);
+      conditions.push(`LOWER(o.order_number) LIKE $${params.length}`);
+    }
+    if (garageId) { params.push(garageId); conditions.push(`o.garage_id = $${params.length}`); }
+    if (customer) { params.push(`%${String(customer).toLowerCase()}%`); conditions.push(`LOWER(u.name) LIKE $${params.length}`); }
+    if (dateFrom) { params.push(dateFrom); conditions.push(`o.created_at >= $${params.length}::date`); }
+    if (dateTo) { params.push(dateTo); conditions.push(`o.created_at < ($${params.length}::date + INTERVAL '1 day')`); }
+    if (collectionStatus && collectionStatus !== 'All') {
+      const statusMap: Record<string, string[]> = { Ready: ['READY_FOR_COLLECTION'], Collected: ['COLLECTED'], Pending: ['PENDING_ACCEPTANCE', 'ACCEPTED'] };
+      const statuses = statusMap[String(collectionStatus)];
+      if (statuses) { params.push(statuses); conditions.push(`o.status = ANY($${params.length}::varchar[])`); }
     }
     
     if (conditions.length > 0) {
@@ -666,7 +700,7 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
     }
     
     queryStr += `
-      GROUP BY o.id, da.id, g.name, u.name, agent.name, p_pay.method, p_pay.provider_payment_id
+      GROUP BY o.id, g.name, u.name, p_pay.method, p_pay.provider_payment_id
       ORDER BY o.created_at DESC
     `;
 

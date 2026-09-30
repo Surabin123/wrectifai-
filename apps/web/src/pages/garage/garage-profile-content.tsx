@@ -37,6 +37,7 @@ export function GarageProfileContent() {
           timezone: res.timezone || '',
           ownerName: res.ownerName || '',
           ownerDesignation: res.ownerDesignation || '',
+          businessHours: res.businessHours || {},
         });
       }
     } catch (err) {
@@ -53,6 +54,27 @@ export function GarageProfileContent() {
   };
 
   const startEditing = () => setIsEditing(true);
+
+  const viewDocument = async (documentId: string) => {
+    try {
+      const result = await apiClient.get<{url: string}>(`/garages/my-documents/${documentId}/access`);
+      window.open(result.url, '_blank', 'noopener,noreferrer');
+    } catch (err: any) { showToast(err.message || 'Could not open document', 'error'); }
+  };
+
+  const replaceDocument = (documentId: string, file?: File) => {
+    if (!file) return;
+    if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type) || file.size > 5 * 1024 * 1024) { showToast('Upload a PDF, JPG, or PNG under 5MB.', 'error'); return; }
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      try {
+        await apiClient.put(`/garages/my-documents/${documentId}`, { file: { name: file.name, type: file.type, size: file.size, data: reader.result } });
+        showToast('Document replaced successfully', 'success');
+        await fetchProfile();
+      } catch (err: any) { showToast(err.message || 'Failed to replace document', 'error'); }
+    };
+    reader.readAsDataURL(file);
+  };
 
   const handleSave = async () => {
     try {
@@ -280,7 +302,9 @@ export function GarageProfileContent() {
             <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
               <Clock className="w-4 h-4 text-slate-500" /> Working Hours
             </h3>
-            {profile.businessHours ? (
+            {isEditing ? (
+              <div className="space-y-2 text-xs">{Object.entries(formData.businessHours || {}).map(([day, hours]: [string, any]) => <div key={day} className="grid grid-cols-3 gap-2 items-center"><label className="capitalize flex gap-2"><input type="checkbox" checked={hours.open} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, open: e.target.checked}}})}/>{day}</label><input disabled={!hours.open} value={hours.start || ''} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, start: e.target.value}}})} className="border rounded p-1 disabled:bg-slate-100"/><input disabled={!hours.open} value={hours.end || ''} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, end: e.target.value}}})} className="border rounded p-1 disabled:bg-slate-100"/></div>)}</div>
+            ) : profile.businessHours ? (
               <div className="space-y-2 text-sm">
                 {Object.entries(profile.businessHours)
                   .sort(([dayA], [dayB]) => {
@@ -300,11 +324,6 @@ export function GarageProfileContent() {
               <p className="text-sm text-slate-500">Working hours not configured.</p>
             )}
             
-            {isEditing && (
-              <p className="text-xs text-blue-600 mt-4 bg-blue-50 p-2 rounded">
-                Contact admin to update complex working hours or location coordinates.
-              </p>
-            )}
           </Card>
           
           <Card className="p-6 shadow-sm border-slate-100 rounded-[24px] bg-slate-50">
@@ -313,15 +332,10 @@ export function GarageProfileContent() {
             </h3>
             <div className="space-y-3">
               {profile.documents && profile.documents.length > 0 ? (
-                profile.documents.map((doc: any, i: number) => (
-                  <div key={i} className="flex justify-between items-center bg-white p-3 rounded-lg border border-slate-100">
-                    <span className="text-sm font-medium text-slate-700 uppercase">{doc.doc_type}</span>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded ${
-                      doc.verification_status === 'approved' ? 'bg-green-100 text-green-700' :
-                      doc.verification_status === 'rejected' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'
-                    }`}>
-                      {doc.verification_status}
-                    </span>
+                profile.documents.map((doc: any) => (
+                  <div key={doc.id} className="flex justify-between items-center gap-2 bg-white p-3 rounded-lg border border-slate-100">
+                    <div className="min-w-0"><span className="text-sm font-medium text-slate-700">{doc.doc_type}</span>{doc.originalFilename && <p className="text-[10px] text-slate-400 truncate">{doc.originalFilename}</p>}</div>
+                    <div className="flex gap-2"><button type="button" onClick={() => viewDocument(doc.id)} className="text-xs font-bold text-blue-600">View</button><label className="text-xs font-bold text-blue-600 cursor-pointer">Replace<input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={event => replaceDocument(doc.id, event.target.files?.[0])}/></label></div>
                   </div>
                 ))
               ) : (

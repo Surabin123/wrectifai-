@@ -81,16 +81,17 @@ export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
   const currency = order.currency || 'INR';
   const subtotal = Number(order.subtotal || 0);
   const tax = Number(order.tax || 0);
-  const shipping = Number(order.shipping_cost || 0);
+  const shipping = 0;
   const total = Number(order.total || 0);
   
   // Calculate discount if total < subtotal + tax + shipping
   const expectedWithoutDiscount = subtotal + tax + shipping;
   const calculatedDiscount = Math.max(0, expectedWithoutDiscount - total);
 
-  const address = typeof order.shipping_address === 'string' 
-    ? JSON.parse(order.shipping_address) 
-    : order.shipping_address;
+  const orderStatusLabel: Record<string, string> = {
+    PENDING_ACCEPTANCE: 'Order Placed', ACCEPTED: 'Garage Received Order',
+    READY_FOR_COLLECTION: 'Ready for Collection', COLLECTED: 'Collected', CANCELLED: 'Cancelled'
+  };
 
   return (
     <RoleGuard allowedRoles={['customer', 'garage', 'admin']}>
@@ -120,7 +121,7 @@ export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
                     Payment: {order.payment_status === 'PAID' || order.status === 'paid' ? 'PAID' : (order.payment_method === 'cod' ? 'COD PENDING' : 'PENDING')}
                   </span>
                   <span className="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-blue-50 text-blue-700 border border-blue-200">
-                    Fulfillment: {(order.status || '').replace('_', ' ')}
+                    {orderStatusLabel[String(order.status || '').toUpperCase()] || order.status}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-1 flex items-center gap-1.5">
@@ -138,7 +139,7 @@ export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
               {order.garage_name && (
                 <div className="flex items-center gap-2 text-xs font-semibold text-slate-600 bg-slate-50 px-3 py-2 rounded-xl border border-slate-100">
                   <Store className="w-4 h-4 text-blue-600" />
-                  <span>Seller: <strong>{order.garage_name}</strong></span>
+                  <span>Collection Garage: <strong>{order.garage_name}</strong></span>
                 </div>
               )}
             </div>
@@ -175,20 +176,19 @@ export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
 
             {/* Address & Payment Grid */}
             <div className="grid md:grid-cols-2 gap-4 pt-2">
-              {/* Shipping Address */}
+              {/* Garage collection location */}
               <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
                 <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                  <MapPin className="w-4 h-4 text-blue-600" /> Delivery Address
+                  <MapPin className="w-4 h-4 text-blue-600" /> Collection Location
                 </h4>
-                {address ? (
+                {order.garage_name ? (
                   <div className="text-xs text-slate-700 space-y-1 font-medium">
-                    <p className="font-bold text-slate-900">{address.name}</p>
-                    <p>{address.street}</p>
-                    <p>{address.city}, {address.state} - {address.zip || address.zipCode}</p>
-                    {address.phone && <p className="text-slate-500">Phone: {address.phone}</p>}
+                    <p className="font-bold text-slate-900">{order.garage_name}</p>
+                    <p>{order.garage_address || 'Address not available'}</p>
+                    {order.garage_city && <p>{order.garage_city}</p>}
                   </div>
                 ) : (
-                  <p className="text-xs text-slate-500">No shipping address recorded</p>
+                  <p className="text-xs text-slate-500">Collection garage unavailable</p>
                 )}
               </div>
 
@@ -200,7 +200,7 @@ export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
                 <div className="flex justify-between text-xs">
                   <span className="text-slate-500">Payment Method</span>
                   <span className="font-semibold text-slate-900 capitalize">
-                    {order.payment_method === 'cod' ? 'Cash on Delivery' : (order.payment_method || 'Online Payment')}
+                    {order.payment_method === 'cod' ? 'Cash at Collection' : (order.payment_method || 'Online Payment')}
                   </span>
                 </div>
                 {order.payment_transaction_id && order.payment_method !== 'cod' && (
@@ -236,10 +236,6 @@ export function OrderDetailsPage({ orderId }: OrderDetailsPageProps) {
                 <div className="flex justify-between text-xs text-slate-600">
                   <span>Tax (18%)</span>
                   <span className="font-semibold">{formatCurrency(tax, currency)}</span>
-                </div>
-                <div className="flex justify-between text-xs text-slate-600">
-                  <span>Shipping</span>
-                  <span className="font-semibold">{formatCurrency(shipping, currency)}</span>
                 </div>
                 <div className="flex justify-between text-sm font-bold text-slate-900 border-t border-slate-200 pt-2.5 mt-2">
                   <span>Final Total</span>

@@ -61,11 +61,9 @@ export class NotificationsService {
   }
 
   static async markAsRead(notificationId: string, userId?: string, garageId?: string, isAdmin = false) {
-    await query(
-      `UPDATE notifications SET is_read = TRUE WHERE id = $1 AND
-       (is_admin = $2 OR user_id = $3 OR garage_id = $4)`,
-      [notificationId, isAdmin, userId || null, garageId || null]
-    );
+    if (isAdmin) await query(`UPDATE notifications SET is_read = TRUE WHERE id = $1 AND is_admin = TRUE`, [notificationId]);
+    else if (garageId) await query(`UPDATE notifications SET is_read = TRUE WHERE id = $1 AND garage_id = $2`, [notificationId, garageId]);
+    else if (userId) await query(`UPDATE notifications SET is_read = TRUE WHERE id = $1 AND user_id = $2`, [notificationId, userId]);
   }
 
   static async markAllAsRead(userId?: string, garageId?: string, isAdmin?: boolean) {
@@ -76,5 +74,16 @@ export class NotificationsService {
     } else if (isAdmin) {
       await query(`UPDATE notifications SET is_read = TRUE WHERE is_admin = TRUE`);
     }
+  }
+
+  static async clearNotifications(ids: string[] | undefined, userId?: string, garageId?: string, isAdmin = false) {
+    const scope: string[] = [];
+    const params: unknown[] = [];
+    if (isAdmin) scope.push('is_admin = TRUE');
+    else if (garageId) { params.push(garageId); scope.push(`garage_id = $${params.length}`); }
+    else if (userId) { params.push(userId); scope.push(`user_id = $${params.length}`); }
+    else return;
+    if (ids?.length) { params.push(ids); scope.push(`id = ANY($${params.length}::uuid[])`); }
+    await query(`DELETE FROM notifications WHERE ${scope.join(' AND ')}`, params);
   }
 }

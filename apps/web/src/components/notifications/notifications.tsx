@@ -123,6 +123,7 @@ export function Notifications() {
 
   const clearSelected = async () => {
     if (selectedIds.length === 0) return;
+    if (!window.confirm(`Clear ${selectedIds.length} selected notification(s)? This cannot be undone.`)) return;
     try {
       await apiClient('/notifications/clear-selected', {
         method: 'POST',
@@ -136,6 +137,16 @@ export function Notifications() {
     }
   };
 
+  const clearAll = async () => {
+    if (notifications.length === 0 || !window.confirm('Clear all notifications? This cannot be undone.')) return;
+    try {
+      await apiClient('/notifications/clear-all', { method: 'POST' });
+      setNotifications([]);
+      setSelectedIds([]);
+      window.dispatchEvent(new Event('notifications-updated'));
+    } catch (err) { console.error('Failed to clear all notifications', err); }
+  };
+
   return (
     <div className="flex flex-col lg:flex-row gap-6 p-4">
       <div className="flex-1 space-y-6 max-w-4xl">
@@ -145,6 +156,7 @@ export function Notifications() {
             <p className="text-slate-500 text-sm">Stay updated on your bookings and activities</p>
           </div>
           <div className="flex gap-2">
+            <Button variant="outline" className="text-xs h-8 text-red-600 border-red-200 hover:bg-red-50" onClick={clearAll}>Clear All</Button>
             {selectedIds.length > 0 && (
               <Button variant="outline" className="text-xs h-8 text-red-600 border-red-200 hover:bg-red-50" onClick={clearSelected}>
                 Delete Selected ({selectedIds.length})
@@ -162,7 +174,7 @@ export function Notifications() {
           <div className="p-4 border-b border-slate-100 space-y-4 bg-white">
             <div className="flex flex-wrap gap-2 items-center">
               <span className="text-xs font-semibold text-slate-600">Filter:</span>
-              {['All', 'Unread', 'Read', 'Booking', 'Quote', 'System'].map(s => (
+              {['All', 'Unread', 'Read'].map(s => (
                 <button 
                   key={s}
                   onClick={() => setFilter(s)}

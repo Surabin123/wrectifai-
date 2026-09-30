@@ -243,6 +243,21 @@ export default function RegisterGaragePage() {
       }
     }
 
+    if (step === 5) {
+      const toMinutes = (value: string) => {
+        const match = value.match(/^(\d{2}):(\d{2}) (AM|PM)$/);
+        if (!match) return -1;
+        let hour = Number(match[1]) % 12;
+        if (match[3] === 'PM') hour += 12;
+        return hour * 60 + Number(match[2]);
+      };
+      const invalidDay = Object.entries(formData.workingHours).find(([, value]) => {
+        const hours = value as {open: boolean; start: string; end: string};
+        return hours.open && (toMinutes(hours.start) < 0 || toMinutes(hours.end) <= toMinutes(hours.start));
+      });
+      if (invalidDay) { setErrorMsg(`Closing time must be after opening time for ${invalidDay[0]}.`); return; }
+    }
+
     setStep(prev => Math.min(prev + 1, 6));
   };
 
@@ -371,7 +386,7 @@ export default function RegisterGaragePage() {
 
   const stepsList = [
     { num: 1, title: 'Garage Details', desc: 'Basic information about the garage' },
-    { num: 2, title: 'Owner Details', desc: 'Information about the owner' },
+    { num: 2, title: 'Authorized Person Details', desc: 'Information about the authorized person' },
     { num: 3, title: 'Business Documents', desc: 'Upload required documents' },
     { num: 4, title: 'Services Offered', desc: 'Select services provided' },
     { num: 5, title: 'Working Hours', desc: 'Set working hours & days' },
@@ -454,6 +469,17 @@ export default function RegisterGaragePage() {
   };
 
   const [newService, setNewService] = useState('');
+
+  const copyMondayHours = (weekendsOnly = false) => {
+    setFormData(prev => {
+      const monday = prev.workingHours.monday;
+      const days = weekendsOnly ? ['saturday', 'sunday'] : ['tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+      const workingHours = { ...prev.workingHours } as any;
+      days.forEach(day => { workingHours[day] = { ...monday }; });
+      return { ...prev, workingHours };
+    });
+    setErrorMsg('');
+  };
   const addCustomService = () => {
     const normalized = newService.trim().toLowerCase();
     const existsInCatalog = platformServices.some(service => service.name.trim().toLowerCase() === normalized);
@@ -641,7 +667,7 @@ export default function RegisterGaragePage() {
             {/* STEP 2 */}
             {step === 2 && (
               <>
-                <h2 className="text-xl font-bold text-[#17307a] mb-1">Authorized Representative</h2>
+                <h2 className="text-xl font-bold text-[#17307a] mb-1">Authorized Person Details</h2>
                 <p className="text-xs text-slate-500 mb-8">Enter the details of the person responsible for managing this garage.</p>
                 
                 <div className="grid grid-cols-2 gap-6 mb-6">
@@ -848,6 +874,7 @@ export default function RegisterGaragePage() {
               <>
                 <h2 className="text-xl font-bold text-[#17307a] mb-1">Working Hours</h2>
                 <p className="text-xs text-slate-500 mb-8">Set the garage&apos;s operating hours and weekly availability.</p>
+                <div className="flex gap-2 mb-4"><button type="button" onClick={() => copyMondayHours(false)} className="px-3 py-2 text-xs font-bold border rounded-lg text-blue-700 hover:bg-blue-50">Copy Monday to Other Days</button><button type="button" onClick={() => copyMondayHours(true)} className="px-3 py-2 text-xs font-bold border rounded-lg text-blue-700 hover:bg-blue-50">Copy Monday to Weekends</button></div>
                 
                 <div className="border border-slate-200 rounded-lg overflow-hidden">
                   <div className="bg-slate-50 px-6 py-3 grid grid-cols-12 gap-4 border-b text-xs font-bold text-slate-600">

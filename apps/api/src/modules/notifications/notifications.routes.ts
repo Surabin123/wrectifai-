@@ -82,3 +82,36 @@ notificationsRouter.post('/read-all', authenticate, async (req, res) => {
     return error(res, 'Failed to update notifications', 'INTERNAL_SERVER_ERROR', 500);
   }
 });
+
+async function notificationScope(req: any) {
+  const userId = req.user?.userId;
+  const roles = req.user?.roles || [];
+  if (roles.includes('admin')) return { userId, isAdmin: true, garageId: undefined };
+  if (roles.includes('garage')) {
+    const garageRes = await query('SELECT id FROM garages WHERE owner_user_id = $1 LIMIT 1', [userId]);
+    return { userId, isAdmin: false, garageId: garageRes.rows[0]?.id };
+  }
+  return { userId, isAdmin: false, garageId: undefined };
+}
+
+notificationsRouter.post('/clear-selected', authenticate, async (req, res) => {
+  try {
+    const ids = Array.isArray(req.body.ids) ? req.body.ids.filter((id: unknown) => typeof id === 'string') : [];
+    if (!ids.length) return error(res, 'Select at least one notification.', 'VALIDATION_ERROR', 400);
+    const scope = await notificationScope(req);
+    await NotificationsService.clearNotifications(ids, scope.userId, scope.garageId, scope.isAdmin);
+    return success(res, { cleared: ids.length });
+  } catch (err) {
+    return error(res, 'Failed to clear notifications', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
+
+notificationsRouter.post('/clear-all', authenticate, async (req, res) => {
+  try {
+    const scope = await notificationScope(req);
+    await NotificationsService.clearNotifications(undefined, scope.userId, scope.garageId, scope.isAdmin);
+    return success(res, { success: true });
+  } catch (err) {
+    return error(res, 'Failed to clear notifications', 'INTERNAL_SERVER_ERROR', 500);
+  }
+});
