@@ -29,12 +29,12 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
     const userId = req.user?.userId;
     let filterCondition = '1=1';
     const params: any[] = [];
-    
+
     if (!userRoles.includes('admin')) {
       if (userRoles.includes('garage')) {
         const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
         if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
-        
+
         filterCondition = 'b.garage_id = $1';
         params.push(garageId);
       } else {
@@ -44,7 +44,7 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
     }
 
     const result = await query(
-      `SELECT 
+      `SELECT
         b.id,
         b.customer_id as "customerId",
         b.garage_id as "garageId",
@@ -146,7 +146,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
   }
   let { garageId } = data;
   const { vehicleId, scheduledAt, bookingType, quoteId, currency, serviceType, issueDescription, notes, offerCode, comboId, walletAmountToUse, paymentMethod, serviceIds } = data;
-  
+
   const extractedNotes = issueDescription || serviceType || notes || req.body?.issueDescription || req.body?.serviceType || req.body?.notes || '';
   let totalAmount = data.totalAmount;
 
@@ -157,7 +157,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
   if (typeof vehicleId !== 'string' || typeof scheduledAt !== 'string' || typeof bookingType !== 'string') {
     return error(res, 'Invalid booking data format', 'BAD_REQUEST', 400);
   }
-  
+
   if (serviceIds !== undefined && !Array.isArray(serviceIds)) {
     return error(res, 'serviceIds must be an array', 'BAD_REQUEST', 400);
   }
@@ -243,7 +243,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
         const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         let dayName: string;
         let bookingMinutes: number | null = null;
-        
+
         if (typeof scheduledAt === 'string' && scheduledAt.includes('T')) {
           const [datePart, timePart] = scheduledAt.split('T');
           const [year, month, day] = datePart.split('-').map(Number);
@@ -308,14 +308,14 @@ function parseTimeToMinutes(timeStr: any): number | null {
       if (servicesCheck.rows.length !== serviceIds.length) {
          return error(res, 'One or more selected services are invalid or not offered by this garage.', 'BAD_REQUEST', 400);
       }
-      
+
       let computedTotal = 0;
       const laborItems = servicesCheck.rows.map(s => {
         const p = Number(s.price) || 0;
         computedTotal += p;
         return { name: s.name, price: p, quantity: 1, total: p };
       });
-      
+
       totalAmount = computedTotal;
       if (!extractedNotes) {
         finalServiceType = laborItems.map(l => l.name).join(', ');
@@ -345,13 +345,13 @@ function parseTimeToMinutes(timeStr: any): number | null {
       }
 
       finalServiceType = `Combo Deal: ${combo.title}`;
-      
+
       const nPrice = Number(combo.numeric_price);
       const sPrice = combo.strike_price ? Number(combo.strike_price) : nPrice;
-      
+
       discountApplied = sPrice > nPrice ? sPrice - nPrice : 0;
       finalAmount = nPrice; // The final amount to be paid
-      
+
       // Do NOT classify entire price as labor_cost to preserve financial integrity.
       serviceDetailsJSON = {
         ...(serviceDetailsJSON || {}),
@@ -393,7 +393,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
         scheduledAt,
         status,
         paymentStatus,
-        finalAmount, 
+        finalAmount,
         currency || garageData.business_currency || 'INR',
         finalServiceType,
         offerId,
@@ -425,23 +425,28 @@ function parseTimeToMinutes(timeStr: any): number | null {
     const remainingAmountToPay = finalAmount - heldWalletAmount;
 
     // Fetch customer name and garage name for notification
-    const customerRes = await query('SELECT name FROM users WHERE id = $1', [customerId]);
-    const garageRes = await query('SELECT name FROM garages WHERE id = $1', [garageId]);
+    const customerRes = await query('SELECT name, mobile_number FROM users WHERE id = $1', [customerId]);
+    const garageRes = await query('SELECT name, city, address FROM garages WHERE id = $1', [garageId]);
+    const vehicleRes = await query('SELECT make, model, registration_number FROM vehicles WHERE id = $1', [booking.vehicle_id]);
     const customerName = customerRes.rows[0]?.name || 'A customer';
     const garageName = garageRes.rows[0]?.name || 'a garage';
+    const garageLocation = [garageRes.rows[0]?.city, garageRes.rows[0]?.address].filter(Boolean).join(', ');
+    const vehicle = vehicleRes.rows[0];
+    const vehicleLabel = vehicle ? [vehicle.make, vehicle.model, vehicle.registration_number].filter(Boolean).join(' ') : 'the customer vehicle';
+    const serviceLabel = booking.final_service_type || booking.customer_note || 'requested service';
 
     await NotificationsService.createNotification({
       garageId: garageId,
       type: 'Booking',
-      title: 'New Booking',
-      description: `${customerName} booked your garage.`
+      title: 'New Booking Received',
+      description: `${customerName}${customerRes.rows[0]?.mobile_number ? ` (${customerRes.rows[0].mobile_number})` : ''} booked ${vehicleLabel}. Requested service: ${serviceLabel}${booking.scheduled_at ? `. Scheduled for ${new Date(booking.scheduled_at).toLocaleString()}` : ''}. [ID:${bookingId}]`
     }).catch(err => console.error('Failed to create notification', err));
 
     await NotificationsService.createNotification({
       isAdmin: true,
       type: 'Booking',
-      title: 'New Booking',
-      description: `${customerName} booked ${garageName}.`
+      title: 'New Booking Received',
+      description: `${customerName} booked ${vehicleLabel} at ${garageName}${garageLocation ? `, ${garageLocation}` : ''}. Requested service: ${serviceLabel}${booking.scheduled_at ? `. Scheduled for ${new Date(booking.scheduled_at).toLocaleString()}` : ''}. [ID:${bookingId}]`
     }).catch(err => console.error('Failed to create notification', err));
 
     return success(
@@ -538,34 +543,34 @@ bookingsRouter.post('/from-quote/:quoteId', authenticate, async (req, res) => {
   try {
     const { quoteId } = req.params;
     const { vehicleId, vehicle, issueDescription, scheduledAt, totalAmount, currency, serviceType } = req.body;
-    
+
     // Auto-fetch missing data from quote and quote_request
     const quoteResult = await query(
       `SELECT q.garage_id, q.total_cost, qr.vehicle_id, q.currency, q.expires_at
-       FROM quotes q 
+       FROM quotes q
        JOIN quote_requests qr ON q.quote_request_id = qr.id
-       WHERE q.id = $1`, 
+       WHERE q.id = $1`,
       [quoteId]
     );
 
     if (quoteResult.rows.length === 0) {
       return error(res, 'Quote not found', 'NOT_FOUND', 404);
     }
-    
+
     const quoteData = quoteResult.rows[0];
-    
+
     if (quoteData.expires_at && new Date(quoteData.expires_at) < new Date()) {
       return error(res, 'This quote has expired and can no longer be booked.', 'BAD_REQUEST', 400);
     }
-    
+
     // Mark quote and quote_request as selected
     await query(`UPDATE quotes SET status = 'selected' WHERE id = $1`, [quoteId]);
     await query(`UPDATE quote_requests SET status = 'selected' WHERE id = (SELECT quote_request_id FROM quotes WHERE id = $1)`, [quoteId]);
-    
+
     if (issueDescription) {
       await query(`UPDATE quote_requests SET issue_summary = $1 WHERE id = (SELECT quote_request_id FROM quotes WHERE id = $2)`, [issueDescription, quoteId]);
     }
-    
+
     return createBookingInternal(req, res, {
       garageId: quoteData.garage_id,
       vehicleId: vehicleId || quoteData.vehicle_id,
@@ -592,17 +597,17 @@ bookingsRouter.post('/from-quote/:quoteId', authenticate, async (req, res) => {
 bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
   try {
     const { bookingId } = req.params;
-    
+
     const userRoles = req.user?.roles || [];
     const userId = req.user?.userId;
     let filterCondition = '1=1';
     const params: any[] = [bookingId];
-    
+
     if (!userRoles.includes('admin')) {
       if (userRoles.includes('garage')) {
         const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
         if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
-        
+
         filterCondition = 'b.garage_id = $2';
         params.push(garageId);
       } else {
@@ -612,7 +617,7 @@ bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
     }
 
     const result = await query(
-      `SELECT 
+      `SELECT
         b.id,
         b.customer_id as "customerId",
         b.garage_id as "garageId",
@@ -762,7 +767,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
         try {
           const { issueRazorpayRefund } = require('../payments/razorpay.service');
           const refundResponse = await issueRazorpayRefund(paymentRecord.provider_payment_id);
-          
+
           await query(
             'UPDATE payments SET status = $1, provider_refund_id = $2, updated_at = NOW() WHERE id = $3 AND status = \'refund_pending\'',
             ['refund_pending', refundResponse.id, paymentRecord.id]
@@ -777,7 +782,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
           if (walletRes.rows.length > 0) {
              const walletId = walletRes.rows[0].id;
              await query(`
-               INSERT INTO wallet_transactions 
+               INSERT INTO wallet_transactions
                (wallet_id, type, amount, balance_before, balance_after, reference_type, reference_id, status, description)
                VALUES ($1, 'REFUND', $2, (SELECT balance FROM wallets WHERE id = $1), (SELECT balance FROM wallets WHERE id = $1), 'BOOKING', $3, 'COMPLETED', 'Refund for Cancelled Booking (Razorpay pending)')
              `, [walletId, paymentRecord.amount, bookingId]);
@@ -830,14 +835,14 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
         const totalAmount = currentBooking.total_amount || 0;
         const discountAmount = currentBooking.discount_applied || 0;
         const subtotal = Number(totalAmount) + Number(discountAmount);
-        
+
         await query(
           `INSERT INTO invoices (booking_id, invoice_number, subtotal, discount_amount, total_amount, currency)
            VALUES ($1, $2, $3, $4, $5, $6)`,
           [bookingId, invoiceNum, subtotal, discountAmount, totalAmount, currentBooking.currency || 'INR']
         );
       }
-      
+
       // Attempt referral reward and cashback logic when service finishes.
       // (The actual service logic will only credit if it is ALSO marked PAID)
       ReferralService.processReferralReward(currentBooking.customer_id, bookingId).catch(err => {
@@ -851,17 +856,21 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
     if (status === 'inService' || status === 'completed' || status === 'readyForCollection' || status === 'collected') {
       // Fetch details for comprehensive notification
       const bookingRes = await query(
-        `SELECT b.customer_note as service_type, u.name as customer_name, u.id as customer_id, g.name as garage_name, b.garage_id as garage_id
+        `SELECT b.customer_note as service_type, b.final_service_type, u.name as customer_name, u.id as customer_id, g.name as garage_name, g.city as garage_city, b.garage_id as garage_id,
+                v.make, v.model, v.registration_number
          FROM bookings b
          JOIN users u ON b.customer_id = u.id
          JOIN garages g ON b.garage_id = g.id
+         LEFT JOIN vehicles v ON v.id = b.vehicle_id
          WHERE b.id = $1`,
          [bookingId]
       );
       const bData = bookingRes.rows[0];
-      const serviceStr = bData?.service_type || 'A service';
+      const serviceStr = bData?.final_service_type || bData?.service_type || 'A service';
       const customerStr = bData?.customer_name || 'a customer';
       const garageStr = bData?.garage_name || 'a garage';
+      const vehicleStr = [bData?.make, bData?.model, bData?.registration_number].filter(Boolean).join(' ') || 'the vehicle';
+      const locationStr = bData?.garage_city ? ` in ${bData.garage_city}` : '';
       const custId = bData?.customer_id;
       const garageId = bData?.garage_id;
 
@@ -870,20 +879,20 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
           userId: custId,
           type: 'Booking',
           title: 'Service In Progress',
-          description: 'Your vehicle is currently being serviced.'
+          description: `${garageStr} has started the ${serviceStr} for your ${vehicleStr}${locationStr}. [ID:${bookingId}]`
         }).catch(err => console.error('Failed to create notification', err));
       } else if (status === 'completed') {
         await NotificationsService.createNotification({
           userId: custId,
           type: 'Booking',
           title: 'Service Completed',
-          description: 'Your vehicle service is completed.'
+          description: `${garageStr} has completed the ${serviceStr} for your ${vehicleStr}${locationStr}. [ID:${bookingId}]`
         }).catch(err => console.error('Failed to create notification', err));
         await NotificationsService.createNotification({
           isAdmin: true,
           type: 'Booking',
           title: 'Service Completed',
-          description: `${serviceStr} has been completed by ${garageStr} for ${customerStr}.`
+          description: `${garageStr} has completed the ${serviceStr} for ${customerStr}'s ${vehicleStr}${locationStr}. [ID:${bookingId}]`
         }).catch(err => console.error('Failed to create notification', err));
       } else if (status === 'readyForCollection') {
         const timeStr = collectionTime ? ` at ${new Date(collectionTime).toLocaleString()}` : '';
@@ -891,26 +900,26 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
           userId: custId,
           type: 'Booking',
           title: 'Vehicle Ready for Collection',
-          description: `Your vehicle is ready. Please collect it${timeStr}.`
+          description: `Your ${vehicleStr} is ready for collection at ${garageStr}${locationStr}. Please collect it${timeStr}. [ID:${bookingId}]`
         }).catch(err => console.error('Failed to create notification', err));
         await NotificationsService.createNotification({
           isAdmin: true,
           type: 'Booking',
           title: 'Vehicle Ready',
-          description: `${garageStr} marked vehicle ready for ${customerStr}.`
+          description: `${garageStr} marked ${customerStr}'s ${vehicleStr} ready for collection after completing the ${serviceStr}. [ID:${bookingId}]`
         }).catch(err => console.error('Failed to create notification', err));
       } else if (status === 'collected') {
         await NotificationsService.createNotification({
           garageId: garageId || undefined,
           type: 'Booking',
           title: 'Vehicle Collected',
-          description: `${customerStr} has confirmed collection of their vehicle.`
+          description: `${customerStr} has confirmed collection of their ${vehicleStr} from ${garageStr}${locationStr}. [ID:${bookingId}]`
         }).catch(err => console.error('Failed to create notification', err));
         await NotificationsService.createNotification({
           isAdmin: true,
           type: 'Booking',
           title: 'Vehicle Collected',
-          description: `${customerStr} collected their vehicle from ${garageStr}.`
+          description: `${customerStr} collected their ${vehicleStr} from ${garageStr}${locationStr}, following completion of the ${serviceStr}. [ID:${bookingId}]`
         }).catch(err => console.error('Failed to create notification', err));
       }
     }
@@ -935,7 +944,7 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
 
     const bookingRes = await query(
       `SELECT b.id, b.payment_status, b.status, COALESCE(i.total_amount, b.total_amount) as total_amount, b.discount_applied, b.wallet_used
-       FROM bookings b 
+       FROM bookings b
        LEFT JOIN invoices i ON i.booking_id = b.id
        WHERE b.id = $1 AND b.customer_id = $2`,
       [bookingId, userId]
@@ -950,7 +959,7 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
     if (booking.payment_status === 'PAID') {
       return error(res, 'Booking is already paid', 'BAD_REQUEST', 400);
     }
-    
+
     if (booking.status !== 'completed' && booking.status !== 'readyForCollection') {
       return error(res, 'Service must be completed before payment', 'BAD_REQUEST', 400);
     }
@@ -962,7 +971,7 @@ bookingsRouter.post('/:bookingId/pay', authenticate, async (req, res) => {
        const additionalWallet = walletAmountToUse - currentWalletUsed;
        const maxAllowed = finalAmount - currentWalletUsed;
        const toHold = Math.min(additionalWallet, maxAllowed);
-       
+
        if (toHold > 0) {
          try {
            await holdWalletBalance(userId, toHold, 'BOOKING', bookingId);
@@ -1029,7 +1038,7 @@ bookingsRouter.post('/:bookingId/apply-offer', authenticate, async (req, res) =>
     }
 
     const offerValidation = await validateOffer(offerCode, userId, Number(booking.total_amount), booking.garage_id);
-    
+
     await query(
       `UPDATE bookings SET offer_id = $1, discount_applied = $2, updated_at = NOW() WHERE id = $3`,
       [offerValidation.offerId, offerValidation.discount, bookingId]
@@ -1046,11 +1055,11 @@ bookingsRouter.post('/:bookingId/select-cash', authenticate, async (req, res) =>
   try {
     const { bookingId } = req.params;
     const userId = req.user?.userId;
-    
+
     // 1. Verify booking ownership and status
     const bookingRes = await query(
-      `SELECT b.id, b.payment_status, b.status, COALESCE(i.total_amount, b.total_amount) as total_amount 
-       FROM bookings b 
+      `SELECT b.id, b.payment_status, b.status, COALESCE(i.total_amount, b.total_amount) as total_amount
+       FROM bookings b
        LEFT JOIN invoices i ON i.booking_id = b.id
        WHERE b.id = $1 AND b.customer_id = $2`,
       [bookingId, userId]
@@ -1065,7 +1074,7 @@ bookingsRouter.post('/:bookingId/select-cash', authenticate, async (req, res) =>
     if (booking.payment_status === 'PAID') {
       return error(res, 'Booking is already paid', 'BAD_REQUEST', 400);
     }
-    
+
     if (booking.status !== 'completed' && booking.status !== 'readyForCollection') {
       return error(res, 'Service must be completed before payment selection', 'BAD_REQUEST', 400);
     }
@@ -1100,16 +1109,16 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
   try {
     const { bookingId } = req.params;
     const userRoles = req.user?.roles || [];
-    
+
     if (!userRoles.includes('garage') && !userRoles.includes('admin')) {
       return error(res, 'Only garages or admins can confirm cash payments', 'FORBIDDEN', 403);
     }
-    
+
     const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     let garageCheck = '';
     const params: any[] = [bookingId];
     const authorizedGarageId: string | null = null;
-    
+
     if (userRoles.includes('garage') && !userRoles.includes('admin')) {
       if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
       garageCheck = ' AND garage_id = $2';
@@ -1117,31 +1126,31 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
     }
 
     const bookingRes = await query(
-      `SELECT b.payment_status, COALESCE(i.total_amount, b.total_amount) as total_amount, b.customer_id, b.status 
-       FROM bookings b 
-       LEFT JOIN invoices i ON i.booking_id = b.id 
-       WHERE b.id = $1${garageCheck}`, 
+      `SELECT b.payment_status, COALESCE(i.total_amount, b.total_amount) as total_amount, b.customer_id, b.status
+       FROM bookings b
+       LEFT JOIN invoices i ON i.booking_id = b.id
+       WHERE b.id = $1${garageCheck}`,
       params
     );
-    
+
     if (bookingRes.rows.length === 0) {
       return error(res, 'Booking not found or unauthorized', 'NOT_FOUND', 404);
     }
-    
+
     const booking = bookingRes.rows[0];
-    
+
     if (booking.payment_status === 'PAID') {
       return error(res, 'Booking is already paid', 'BAD_REQUEST', 400);
     }
-    
+
     if (booking.status !== 'completed' && booking.status !== 'readyForCollection' && booking.status !== 'collected') {
       return error(res, 'Service must be completed before payment', 'BAD_REQUEST', 400);
     }
-    
+
     await query(`UPDATE bookings SET payment_status = 'PAID', updated_at = NOW() WHERE id = $1`, [bookingId]);
-    
+
     await processCashback(bookingId);
-    
+
     // Process referral reward asynchronously
     ReferralService.processReferralReward(booking.customer_id, bookingId).catch(err => {
       console.error('Referral reward failed for cash booking', bookingId, err);
@@ -1167,7 +1176,7 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
         [booking.customer_id, bookingId, cashTransactionId, booking.total_amount]
       );
     }
-    
+
     return success(res, { message: 'Cash payment confirmed' }, 200);
   } catch (err: any) {
     console.error('[confirm-cash] error:', err?.message, err?.code);
@@ -1187,9 +1196,14 @@ bookingsRouter.post('/:id/refund-requests', authenticate, async (req, res) => {
 
     // 1. Verify Booking Eligibility
     const bookingRes = await query(
-      `SELECT b.id, b.garage_id, b.total_amount, b.payment_status, p.amount as payment_amount, p.status as p_status 
-       FROM bookings b 
-       LEFT JOIN payments p ON p.booking_id = b.id AND p.status IN ('paid', 'succeeded') 
+      `SELECT b.id, b.garage_id, b.total_amount, b.payment_status, u.name as customer_name,
+              CONCAT_WS(' ', v.make, v.model, v.registration_number) as refund_vehicle,
+              COALESCE(b.final_service_type, b.customer_note) as refund_service,
+              p.amount as payment_amount, p.status as p_status
+       FROM bookings b
+       JOIN users u ON u.id = b.customer_id
+       LEFT JOIN vehicles v ON v.id = b.vehicle_id
+       LEFT JOIN payments p ON p.booking_id = b.id AND p.status IN ('paid', 'succeeded')
        WHERE b.id = $1 AND b.customer_id = $2`,
       [bookingId, customerId]
     );
@@ -1219,7 +1233,7 @@ bookingsRouter.post('/:id/refund-requests', authenticate, async (req, res) => {
 
     // Create the refund request
     const insertRes = await query(
-      `INSERT INTO refund_requests (booking_id, garage_id, customer_id, reason, explanation, evidence_urls, calculated_refund_amount, status) 
+      `INSERT INTO refund_requests (booking_id, garage_id, customer_id, reason, explanation, evidence_urls, calculated_refund_amount, status)
        VALUES ($1, $2, $3, $4, $5, $6, $7, 'pending') RETURNING *`,
       [
         bookingId,
@@ -1232,12 +1246,21 @@ bookingsRouter.post('/:id/refund-requests', authenticate, async (req, res) => {
       ]
     );
 
-    // Notify Garage
-    await query(
-      `INSERT INTO notifications (garage_id, type, title, description) 
-       VALUES ($1, 'refund_requested', 'New Refund Request', 'Customer requested a refund for booking ' || $2)`,
-      [booking.garage_id, bookingId]
-    );
+    const refundParts = [
+      `${booking.customer_name} requested a refund`,
+      booking.refund_vehicle ? `for ${booking.refund_vehicle}` : null,
+      booking.refund_service ? `related to ${booking.refund_service}` : null,
+      refundAmount != null ? `for ${refundAmount}` : null,
+      reason ? `Reason: ${reason}` : null,
+      `requested on ${new Date().toLocaleString()}`,
+      `[ID:${bookingId}]`
+    ].filter(Boolean);
+    await NotificationsService.createNotification({
+      garageId: booking.garage_id,
+      type: 'Refund',
+      title: 'New Refund Request',
+      description: `${refundParts.join('. ')}.`
+    }).catch(err => console.error('Failed to create refund notification', err));
 
     return success(res, insertRes.rows[0], 201);
   } catch (err: any) {

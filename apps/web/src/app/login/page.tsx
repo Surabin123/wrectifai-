@@ -165,20 +165,6 @@ export default function LoginPage() {
       return;
     }
 
-    try {
-      const checkRes = await apiClient.post<{ exists: boolean }>('/auth/check-user', { mobileNumber: sanitizedPhone });
-      if (!checkRes.exists && !isDemoAuthEnabled) {
-        setErrorMsg('Account not found. Please sign up first.');
-        setIsSubmitting(false);
-        return;
-      }
-    } catch (err) {
-      console.error('Error checking user existence:', err);
-      setErrorMsg('Failed to verify user. Please try again.');
-      setIsSubmitting(false);
-      return;
-    }
-
     if (isDemoAuthEnabled) {
       setIsOtpSent(true);
       setIsSubmitting(false);

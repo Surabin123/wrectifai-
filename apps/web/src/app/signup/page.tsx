@@ -118,15 +118,8 @@ function SignupContent() {
 
     setIsSubmitting(true);
     try {
-      // Step 1: Pre-check phone to see if it exists to provide friendly error
-      const checkRes = await apiClient.post<{ exists: boolean }>('/auth/check-user', { mobileNumber: sanitizedPhone });
-      if (checkRes.exists) {
-        setErrorMsg('Account already exists with this phone number. Please sign in.');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Step 2: Register user with all details
+      // The register endpoint performs the authoritative uniqueness check.
+      // Avoid a serial preflight request so signup completes in one round trip.
       const data = await apiClient.post<AuthResponse>('/auth/register', {
         name,
         email,

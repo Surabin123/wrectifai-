@@ -347,7 +347,9 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
     const accessToken = generateAccessToken({ userId: user.id, name: user.name, roles, garageId });
     const refreshToken = generateRefreshToken({ userId: user.id });
 
-    await storeRefreshToken(user.id, refreshToken);
+    // The response only needs the signed tokens. Persisting the refresh token
+    // and admin notification must not hold the user's first paint hostage.
+    void storeRefreshToken(user.id, refreshToken).catch(err => console.error('Failed to store refresh token', err));
 
     const csrfToken = setTokensInCookies(res, accessToken, refreshToken);
 
@@ -505,9 +507,9 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
     const deviceInfo = req.headers['user-agent'];
     const ipAddress = (req.socket ? req.ip : undefined) || (req.headers['x-forwarded-for'] as string) || '';
 
-    await storeRefreshToken(user.id, refreshToken, deviceInfo, ipAddress);
+    void storeRefreshToken(user.id, refreshToken, deviceInfo, ipAddress).catch(err => console.error('Failed to store refresh token', err));
 
-    await query(
+    void query(
       'INSERT INTO login_activity (user_id, device_info, ip_address, status) VALUES ($1, $2, $3, $4)',
       [user.id, deviceInfo || null, ipAddress || null, 'success']
     ).catch(e => console.error('Failed to log activity', e));

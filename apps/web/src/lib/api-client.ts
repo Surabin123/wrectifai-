@@ -108,7 +108,10 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
   const method = (options.method || 'GET').toUpperCase();
   let csrfToken: string | null = null;
-  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) {
+  // Public auth endpoints are exempt from CSRF by the API. Avoid an extra
+  // network round trip before the latency-sensitive login/signup request.
+  const isPublicAuthRequest = /^\/auth\/(login|register|check-user|google)$/.test(path);
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method) && !isPublicAuthRequest) {
     csrfToken = await ensureXsrfToken(baseUrl);
   }
 

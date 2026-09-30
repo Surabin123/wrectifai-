@@ -177,7 +177,13 @@ ordersRouter.post('/', authenticate, async (req, res) => {
       garageId,
       type: 'Order',
       title: 'New order received',
-      description: `Order ${orderNumber} is awaiting acceptance. [ID:${orderId}]`
+      description: `Order ${orderNumber} has been placed and is awaiting acceptance by the garage.`
+    }).catch(err => console.error('Order notification failed:', err));
+    await NotificationsService.createNotification({
+      userId: customerId,
+      type: 'Order',
+      title: 'Order Placed',
+      description: `Your order ${orderNumber} has been placed successfully for collection from the selected garage.`
     }).catch(err => console.error('Order notification failed:', err));
     return success(res, { 
       orderId, 
@@ -460,13 +466,14 @@ ordersRouter.put('/:id/status', authenticate, requireRole(['garage', 'admin']), 
       [targetStatus, id]
     );
 
-    const customerResult = await pool.query('SELECT customer_id FROM orders WHERE id = $1', [id]);
-    const statusLabel = targetStatus === 'READY_FOR_COLLECTION' ? 'Ready for Collection' : targetStatus.charAt(0) + targetStatus.slice(1).toLowerCase();
+    const customerResult = await pool.query(`SELECT o.customer_id, o.order_number, g.name AS garage_name, g.city
+                                              FROM orders o JOIN garages g ON g.id = o.garage_id WHERE o.id = $1`, [id]);
+    const statusLabel = targetStatus === 'ACCEPTED' ? 'Received by Garage' : targetStatus === 'READY_FOR_COLLECTION' ? 'Ready for Collection' : targetStatus.charAt(0) + targetStatus.slice(1).toLowerCase();
     await NotificationsService.createNotification({
       userId: customerResult.rows[0]?.customer_id,
       type: 'Order',
       title: `Order ${statusLabel}`,
-      description: `Your order status is now ${statusLabel}. [ID:${id}]`
+      description: `Your order ${customerResult.rows[0]?.order_number || ''} status is now ${statusLabel}${targetStatus === 'READY_FOR_COLLECTION' ? ` at ${customerResult.rows[0]?.garage_name || 'the garage'}${customerResult.rows[0]?.city ? `, ${customerResult.rows[0].city}` : ''}` : ''}.`
     }).catch(err => console.error('Order status notification failed:', err));
     return success(res, updateRes.rows[0]);
   } catch (err) {

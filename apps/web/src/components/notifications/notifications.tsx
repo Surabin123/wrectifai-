@@ -15,6 +15,7 @@ import { formatDate } from '@/lib/utils';
 import { SharedBookingDetailsModal } from '@/components/bookings/SharedBookingDetailsModal';
 import { SharedQuoteDetailsModal } from '@/components/quotes/SharedQuoteDetailsModal';
 import { SharedInvoiceDetailsModal } from '@/components/invoices/SharedInvoiceDetailsModal';
+import { getNotificationReference } from './notification-navigation';
 
 export function Notifications() {
   const pathname = usePathname();
@@ -210,12 +211,10 @@ export function Notifications() {
                   className={cn("p-4 flex gap-4 items-center transition-colors group relative cursor-pointer", !notification.is_read ? "bg-blue-50/30" : "hover:bg-slate-50", selectedIds.includes(notification.id) ? "bg-red-50/20" : "")}
                   onClick={() => {
                     markAsRead(notification.id);
-                    if (notification.description?.match(/\[ID:([^\]]+)\]/)) {
-                      const id = notification.description.match(/\[ID:([^\]]+)\]/)[1];
-                      if (notification.type === 'Booking') setSelectedBookingId(id);
-                      else if (notification.type === 'Quote') setSelectedQuoteId(id);
-                      else if (notification.type === 'Invoice') setSelectedInvoiceId(id);
-                    }
+                    const reference = getNotificationReference(notification);
+                    if (reference?.type === 'booking') setSelectedBookingId(reference.id);
+                    else if (reference?.type === 'quote') setSelectedQuoteId(reference.id);
+                    else if (reference?.type === 'invoice') setSelectedInvoiceId(reference.id);
                   }}
                 >
                   <div onClick={(e) => toggleSelection(e, notification.id)} className="flex items-center justify-center h-full mr-2">

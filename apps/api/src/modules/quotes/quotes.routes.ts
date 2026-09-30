@@ -472,17 +472,26 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
     await query(`UPDATE quote_requests SET status = 'quoted' WHERE id = $1`, [req.params.quoteRequestId]);
 
     // Fetch customerId and garageName for notification
-    const requestRes = await query('SELECT customer_id FROM quote_requests WHERE id = $1', [req.params.quoteRequestId]);
-    const garageRes = await query('SELECT name FROM garages WHERE id = $1', [garageId]);
+    const requestRes = await query(`SELECT qr.customer_id, qr.issue_summary, u.name AS customer_name,
+                                           v.make, v.model, v.registration_number
+                                    FROM quote_requests qr
+                                    JOIN users u ON u.id = qr.customer_id
+                                    LEFT JOIN vehicles v ON v.id = qr.vehicle_id
+                                    WHERE qr.id = $1`, [req.params.quoteRequestId]);
+    const garageRes = await query('SELECT name, city FROM garages WHERE id = $1', [garageId]);
     const customerId = requestRes.rows[0]?.customer_id;
     const garageName = garageRes.rows[0]?.name || 'A garage';
+    const garageLocation = garageRes.rows[0]?.city ? `, ${garageRes.rows[0].city}` : '';
+    const customerName = requestRes.rows[0]?.customer_name || 'the customer';
+    const vehicleLabel = [requestRes.rows[0]?.make, requestRes.rows[0]?.model, requestRes.rows[0]?.registration_number].filter(Boolean).join(' ') || 'the vehicle';
+    const serviceLabel = requestRes.rows[0]?.issue_summary || 'requested service';
 
     if (customerId) {
       await NotificationsService.createNotification({
         userId: customerId,
         type: 'Quote',
         title: 'New Quote Received',
-        description: `${garageName} sent you a quote.`
+        description: `${garageName}${garageLocation} submitted a quote for the ${serviceLabel} of your ${vehicleLabel}. Quoted amount: ${amount}. [ID:${result.rows[0].id}]`
       }).catch(err => console.error('Failed to create notification', err));
     }
     
@@ -491,7 +500,7 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
       isAdmin: true,
       type: 'Quote',
       title: 'New Quote Submitted',
-      description: `${garageName} submitted a quote.`
+      description: `${garageName}${garageLocation} submitted a service quote for ${customerName}'s ${vehicleLabel}. Requested service: ${serviceLabel}. Quoted amount: ${amount}. [ID:${result.rows[0].id}]`
     }).catch(err => console.error('Failed to create admin notification', err));
 
     return success(res, { success: true, quoteId: result.rows[0].id }, 201);
@@ -559,7 +568,7 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
           garageId: row.id,
           type: 'Quote',
           title: 'New Quote Request',
-          description: `${customerName} requested a quote for ${vehicleStr}.`
+          description: `${customerName} requested a quote for ${issueSummary} for their ${vehicleStr}.`
         }).catch(err => console.error('Failed to create notification', err));
       }
       return success(res, createdRequests[0], 201);
@@ -585,7 +594,7 @@ quotesRouter.post('/requests', authenticate, async (req, res) => {
         garageId: garageId,
         type: 'Quote',
         title: 'New Quote Request',
-        description: `${customerName} requested a quote for ${vehicleStr}.`
+        description: `${customerName} requested a quote for ${issueSummary} for their ${vehicleStr}.`
       }).catch(err => console.error('Failed to create notification', err));
 
       return success(res, result.rows[0], 201);
