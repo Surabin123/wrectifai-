@@ -627,7 +627,10 @@ ordersRouter.get('/admin/filter-options', authenticate, requireRole(['admin']), 
   const pool = getDbPool();
   try {
     const garages = await pool.query(
-      `SELECT DISTINCT g.id, g.name FROM orders o JOIN garages g ON g.id = o.garage_id WHERE g.name IS NOT NULL ORDER BY g.name`
+      `SELECT g.id, g.name
+       FROM garages g
+       WHERE g.name IS NOT NULL AND g.approval_status != 'deleted'
+       ORDER BY g.name`
     );
     return success(res, {
       garages: garages.rows,
