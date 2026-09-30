@@ -252,7 +252,9 @@ garagesRouter.put('/my-documents/:documentId', authenticate, requireRole(['garag
       fs.mkdirSync(directory, { recursive: true });
       const extension = file.type === 'application/pdf' ? 'pdf' : file.type === 'image/png' ? 'png' : 'jpg';
       const filename = `${req.params.documentId}-${Date.now()}.${extension}`;
-      fs.writeFileSync(path.join(directory, filename), bytes);
+      // Write the validated base64 payload directly to avoid Buffer/ArrayBuffer
+      // incompatibilities between the Node and TypeScript runtime definitions.
+      fs.writeFileSync(path.join(directory, filename), content, 'base64');
       storedUrl = `/uploads/garages/documents/${filename}`;
     }
     const updated = await query(
