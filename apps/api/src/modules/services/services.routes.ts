@@ -43,7 +43,8 @@ servicesRouter.get('/', async (req, res) => {
       `SELECT s.id, s.garage_id as "garageId", g.name as "garageName", 
               COALESCE(g.location->>'city', g.city) as "city",
               COALESCE(g.location->>'country', '') as "country",
-              s.name, s.category, s.description, s.image, s.price, s.duration_mins as "durationMins"
+              s.name, s.category, s.description, s.image, s.price, s.currency,
+              s.pricing_type as "pricingType", s.duration_mins as "durationMins"
        FROM services s
        JOIN garages g ON s.garage_id = g.id
        ${whereClause}
