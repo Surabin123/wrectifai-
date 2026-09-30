@@ -40,7 +40,7 @@ async function seedAdmin() {
     } else {
       console.log('Admin user already exists. Updating password hash...');
       adminUserId = existingUser.rows[0].id;
-      await query('UPDATE users SET password_hash = $1 WHERE id = $2', [passwordHash, adminUserId]);
+      await query('UPDATE users SET email = $1, password_hash = $2 WHERE id = $3', [email, passwordHash, adminUserId]);
     }
 
     const urResult = await query('SELECT * FROM user_roles WHERE user_id = $1 AND role_id = $2', [adminUserId, adminRoleId]);

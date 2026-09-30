@@ -725,6 +725,11 @@ authRouter.post('/change-password', authenticate, async (req, res) => {
     return error(res, 'Current and new passwords are required', 'BAD_REQUEST', 400);
   }
 
+  const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[\S]{8,15}$/;
+  if (!passwordRegex.test(newPassword)) {
+    return error(res, 'New password must be 8-15 characters and include uppercase, lowercase, number, and special character.', 'BAD_REQUEST', 400);
+  }
+
   try {
     const userResult = await query('SELECT password_hash FROM users WHERE id = $1', [userId]);
     if (userResult.rows.length === 0) {
@@ -853,9 +858,9 @@ authRouter.post('/reset-password', resetPasswordLimiter, async (req, res) => {
       return error(res, 'Valid token and new password are required', 'VALIDATION_ERROR', 400);
     }
 
-    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[\S]{8,15}$/;
     if (!passwordRegex.test(newPassword)) {
-      return error(res, 'Password must be at least 8 characters with uppercase, lowercase, and a special character', 'BAD_REQUEST', 400);
+      return error(res, 'Password must be 8-15 characters and include uppercase, lowercase, number, and special character.', 'BAD_REQUEST', 400);
     }
 
     const tokenHash = crypto.createHash('sha256').update(token).digest('hex');

@@ -85,6 +85,11 @@ export function AdminProfileContent() {
       return;
     }
 
+    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*(),.?":{}|<>])[\S]{8,15}$/.test(pwdForm.newPassword)) {
+      setPwdError('New password must be 8-15 characters with uppercase, lowercase, number, and special character.');
+      return;
+    }
+
     setPwdSubmitting(true);
     try {
       await apiClient.post('/auth/change-password', {
@@ -590,6 +595,8 @@ export function AdminProfileContent() {
               required
               className="w-full border rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-600" 
               value={pwdForm.newPassword}
+              minLength={8}
+              maxLength={15}
               onChange={(e) => setPwdForm({...pwdForm, newPassword: e.target.value})}
             />
           </div>
@@ -600,6 +607,8 @@ export function AdminProfileContent() {
               required
               className="w-full border rounded-lg p-2.5 text-sm focus:outline-none focus:border-blue-600" 
               value={pwdForm.confirmPassword}
+              minLength={8}
+              maxLength={15}
               onChange={(e) => setPwdForm({...pwdForm, confirmPassword: e.target.value})}
             />
           </div>
