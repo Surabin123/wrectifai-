@@ -7,6 +7,7 @@ import { Card } from '@/components/common/card';
 import { Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { formatPhoneForDisplay } from '@/utils/phone-display';
 import { Modal } from '@/components/common/modal';
 
 interface Customer {
@@ -116,7 +117,7 @@ export default function GarageCustomersPage() {
                           </div>
                         </td>
                         <td className="p-4 text-sm text-slate-700 truncate" title={c.email}>{c.email || '—'}</td>
-                        <td className="p-4 text-sm text-slate-700 truncate">{c.phone || '—'}</td>
+                        <td className="p-4 text-sm text-slate-700 truncate">{formatPhoneForDisplay(c.phone)}</td>
                         <td className="p-4 text-sm text-slate-700">
                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border bg-green-50 text-green-700 border-green-200`}>
                             ACTIVE
@@ -149,7 +150,7 @@ export default function GarageCustomersPage() {
                     <h2 className="text-xl font-bold text-slate-900 mb-1">{selectedUser.name}</h2>
                     <div className="text-sm text-slate-600 space-x-4">
                       <span>{selectedUser.email || 'No Email'}</span>
-                      <span>{selectedUser.phone || 'No Phone'}</span>
+                      <span>{formatPhoneForDisplay(selectedUser.phone)}</span>
                     </div>
                   </div>
                   <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase border ${

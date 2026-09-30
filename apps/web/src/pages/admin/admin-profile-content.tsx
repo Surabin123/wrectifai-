@@ -5,6 +5,7 @@ import { Button } from '@/components/common/button';
 import { Edit2, Save, CameraIcon, Check, AlertCircle, Shield, Activity, ShieldCheck, LogOut, Bell, Monitor, MonitorSmartphone, XCircle, CheckCircle2, Phone, MapPin, CalendarDays, Building2, ClipboardList, ShoppingBag, FileText } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
+import { formatPhoneForDisplay } from '@/utils/phone-display';
 import { Modal } from '@/components/common/modal';
 import Link from 'next/link';
 
@@ -254,7 +255,7 @@ export function AdminProfileContent() {
             </span>
           </div>
           <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-sm text-slate-600">
-            {user.mobileNumber && <span className="flex items-center gap-1.5"><Phone className="w-4 h-4" /> {user.mobileNumber}</span>}
+            {user.mobileNumber && <span className="flex items-center gap-1.5"><Phone className="w-4 h-4" /> {formatPhoneForDisplay(user.mobileNumber)}</span>}
             {(user.city || user.country) && <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {[user.city, user.country].filter(Boolean).join(', ')}</span>}
           </div>
           <div className="flex flex-wrap items-center gap-2 mt-2">
@@ -379,7 +380,7 @@ export function AdminProfileContent() {
                     </div>
                   </div>
                 ) : (
-                  <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3 mt-2">{user.mobileNumber ?? 'N/A'}</span>
+                        <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3 mt-2">{formatPhoneForDisplay(user.mobileNumber)}</span>
                 )}
               </div>
             </div>

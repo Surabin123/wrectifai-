@@ -116,6 +116,7 @@ export function Notifications() {
   };
 
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [pendingClear, setPendingClear] = useState<'all' | 'selected' | null>(null);
   
   const toggleSelection = (e: React.MouseEvent, id: string) => {
     e.stopPropagation();
@@ -124,7 +125,6 @@ export function Notifications() {
 
   const clearSelected = async () => {
     if (selectedIds.length === 0) return;
-    if (!window.confirm(`Clear ${selectedIds.length} selected notification(s)? This cannot be undone.`)) return;
     try {
       await apiClient('/notifications/clear-selected', {
         method: 'POST',
@@ -135,17 +135,20 @@ export function Notifications() {
       window.dispatchEvent(new Event('notifications-updated'));
     } catch (err) {
       console.error('Failed to clear selected', err);
+    } finally {
+      setPendingClear(null);
     }
   };
 
   const clearAll = async () => {
-    if (notifications.length === 0 || !window.confirm('Clear all notifications? This cannot be undone.')) return;
+    if (notifications.length === 0) return;
     try {
       await apiClient('/notifications/clear-all', { method: 'POST' });
       setNotifications([]);
       setSelectedIds([]);
       window.dispatchEvent(new Event('notifications-updated'));
     } catch (err) { console.error('Failed to clear all notifications', err); }
+    finally { setPendingClear(null); }
   };
 
   return (
@@ -157,9 +160,9 @@ export function Notifications() {
             <p className="text-slate-500 text-sm">Stay updated on your bookings and activities</p>
           </div>
           <div className="flex gap-2">
-            <Button variant="outline" className="text-xs h-8 text-red-600 border-red-200 hover:bg-red-50" onClick={clearAll}>Clear All</Button>
+            <Button variant="outline" className="text-xs h-8 text-red-600 border-red-200 hover:bg-red-50" onClick={() => setPendingClear('all')}>Clear All</Button>
             {selectedIds.length > 0 && (
-              <Button variant="outline" className="text-xs h-8 text-red-600 border-red-200 hover:bg-red-50" onClick={clearSelected}>
+              <Button variant="outline" className="text-xs h-8 text-red-600 border-red-200 hover:bg-red-50" onClick={() => setPendingClear('selected')}>
                 Delete Selected ({selectedIds.length})
               </Button>
             )}
@@ -245,6 +248,23 @@ export function Notifications() {
           )}
         </Card>
       </div>
+
+      {pendingClear && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4" role="dialog" aria-modal="true" aria-labelledby="clear-notifications-title">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 id="clear-notifications-title" className="text-lg font-bold text-slate-900">
+              {pendingClear === 'all' ? 'Clear all notifications?' : 'Delete selected notifications?'}
+            </h2>
+            <p className="mt-2 text-sm text-slate-600">This action cannot be undone.</p>
+            <div className="mt-6 flex justify-end gap-3">
+              <Button variant="outline" className="h-9 text-sm" onClick={() => setPendingClear(null)}>Cancel</Button>
+              <Button className="h-9 bg-red-600 text-sm text-white hover:bg-red-700" onClick={pendingClear === 'all' ? clearAll : clearSelected}>
+                {pendingClear === 'all' ? 'Clear All' : 'Delete'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {selectedBookingId && detailsData && (
         <SharedBookingDetailsModal

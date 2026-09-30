@@ -8,6 +8,7 @@ import { getEnv } from '../../config/env';
 import { verifyFirebaseIdToken } from '../../services/firebase-id-token.service';
 import { createStorageProvider } from '../../services/storage.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { formatPhoneForDisplay } from '../../utils/phone-display';
 
 export const adminRouter = Router();
 
@@ -888,7 +889,7 @@ adminRouter.post('/users', async (req, res) => {
       isAdmin: true,
       type: 'System',
       title: 'New Customer Added',
-      description: `${user.name} was added by an admin with mobile ${phoneClean ? `+${phoneClean.replace(/\D/g, '').slice(-10, -4)}******${phoneClean.replace(/\D/g, '').slice(-4)}` : 'not provided'}${city ? ` from ${city}` : ''}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
+      description: `${user.name} was added by an admin with mobile ${formatPhoneForDisplay(phoneClean)}${city ? ` from ${city}` : ''}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
     }).catch(notificationError => console.error('Failed to create admin customer notification:', notificationError));
 
     // Return the safe user object — password_hash is never included

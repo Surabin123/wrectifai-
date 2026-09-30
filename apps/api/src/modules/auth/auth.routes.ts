@@ -19,6 +19,7 @@ import { AuditLogService } from '../../services/audit.service';
 import { getEnv } from '../../config/env';
 import { verifyFirebaseIdToken } from '../../services/firebase-id-token.service';
 import { rateLimiter } from '../../middleware/rate-limiter';
+import { formatPhoneForDisplay } from '../../utils/phone-display';
 
 export const authRouter = Router();
 
@@ -100,24 +101,6 @@ function normalizedPhone(value: string): string {
   return value.replace(/\D/g, '');
 }
 
-function maskedPhone(value?: string | null): string {
-  if (!value) return 'not provided';
-  const digits = value.replace(/\D/g, '');
-  if (digits.length < 5) return 'provided';
-
-  // Keep the country code readable and mask only the local number. This
-  // avoids displaying values such as +992626******4119 for an Indian number.
-  if (digits.length === 12 && digits.startsWith('91')) {
-    const local = digits.slice(2);
-    return `+91 ${local.slice(0, 5)}*${local.slice(-4)}`;
-  }
-  if (digits.length === 10) {
-    return `+91 ${digits.slice(0, 5)}*${digits.slice(-4)}`;
-  }
-
-  return `+${digits.slice(0, -4)}*${digits.slice(-4)}`;
-}
-
 const normalizedPhoneSql = "regexp_replace(mobile_number, '[^0-9]', '', 'g')";
 
 function checkIfPasswordResetRequired(passwordHash: string, userRoles: string[]): boolean {
@@ -193,7 +176,7 @@ export async function handleUserLoginOrRegister(email: string, name: string, dev
       isAdmin: true,
       type: 'System',
       title: 'New User Registered',
-      description: `${user.name} registered with mobile ${maskedPhone(user.mobile_number)}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
+      description: `${user.name} registered with mobile ${formatPhoneForDisplay(user.mobile_number)}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
     }).catch(err => console.error('Failed to create notification', err));
   }
 
@@ -370,7 +353,7 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
         isAdmin: true,
         type: 'System',
         title: 'New User Registered',
-        description: `${user.name} registered with mobile ${maskedPhone(user.mobile_number)}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
+        description: `${user.name} registered with mobile ${formatPhoneForDisplay(user.mobile_number)}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
       }).catch(err => console.error('Failed to create notification', err));
     }
 
@@ -533,7 +516,7 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
         isAdmin: true,
         type: 'System',
         title: 'New User Registered',
-        description: `${user.name} registered with mobile ${maskedPhone(user.mobile_number)}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
+      description: `${user.name} registered with mobile ${formatPhoneForDisplay(user.mobile_number)}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
       }).catch(err => console.error('Failed to create notification', err));
     }
 

@@ -5,6 +5,7 @@ import { Button } from '@/components/common/button';
 import { Edit2, Save, CameraIcon, Check, AlertCircle, Car, Calendar, ShoppingBag, Star, UserCircle, FileText } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
+import { formatPhoneForDisplay } from '@/utils/phone-display';
 import { useRouter } from 'next/navigation';
 
 export function ProfileContent() {
@@ -152,7 +153,7 @@ export function ProfileContent() {
               <UserCircle className="w-3 h-3" /> Customer
             </span>
           </div>
-          <p className="text-sm text-slate-500 mt-1">{user.email || 'N/A'} • {user.mobileNumber || 'N/A'}</p>
+            <p className="text-sm text-slate-500 mt-1">{user.email || 'N/A'} • {formatPhoneForDisplay(user.mobileNumber)}</p>
         </div>
         
         {!isEditing && (
@@ -264,7 +265,7 @@ export function ProfileContent() {
                       </div>
                     </div>
                   ) : (
-                    <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3 mt-2">{user.mobileNumber ?? 'N/A'}</span>
+                            <span className="text-sm font-bold text-slate-900 text-right w-full sm:w-2/3 mt-2">{formatPhoneForDisplay(user.mobileNumber)}</span>
                   )}
                 </div>
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">

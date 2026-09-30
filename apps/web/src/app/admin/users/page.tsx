@@ -3,6 +3,7 @@ import { Card } from '@/components/common/card';
 import { Search } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { apiClient } from '@/lib/api-client';
+import { formatPhoneForDisplay } from '@/utils/phone-display';
 import { Modal } from '@/components/common/modal';
 
 const BLANK_FORM = {
@@ -214,7 +215,7 @@ export default function CustomersPage() {
                       </div>
                     </td>
                     <td className="p-4 text-sm text-slate-700 truncate" title={c.email}>{c.email}</td>
-                    <td className="p-4 text-sm text-slate-700 truncate">{c.phone || 'N/A'}</td>
+                    <td className="p-4 text-sm text-slate-700 truncate">{formatPhoneForDisplay(c.phone)}</td>
                     <td className="p-4 text-sm text-slate-700">
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
                         c.status === 'active' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-red-50 text-red-700 border-red-200'
@@ -264,7 +265,7 @@ export default function CustomersPage() {
                 <h2 className="text-xl font-bold text-slate-900 mb-1">{selectedUser.name}</h2>
                 <div className="text-sm text-slate-600 space-x-4">
                   <span>{selectedUser.email}</span>
-                  <span>{selectedUser.phone || 'No Phone'}</span>
+                  <span>{formatPhoneForDisplay(selectedUser.phone)}</span>
                 </div>
                 {selectedUser.address && (
                   <div className="text-xs text-slate-500 mt-2">
