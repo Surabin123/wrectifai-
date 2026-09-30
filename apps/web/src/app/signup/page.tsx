@@ -13,6 +13,36 @@ import { auth } from '@/lib/firebase';
 import { RecaptchaVerifier, signInWithPhoneNumber, ConfirmationResult } from 'firebase/auth';
 import { COUNTRIES, getCountryByCallingCode } from '@/lib/countries';
 
+const COMMON_EMAIL_PROVIDERS = ['gmail.com', 'outlook.com', 'yahoo.com', 'hotmail.com', 'icloud.com', 'proton.me', 'protonmail.com'];
+
+function emailProviderSuggestion(emailAddress: string): string | null {
+  const domain = emailAddress.split('@')[1]?.toLowerCase();
+  if (!domain || COMMON_EMAIL_PROVIDERS.includes(domain)) return null;
+
+  const distance = (left: string, right: string): number => {
+    const row = Array.from({ length: right.length + 1 }, (_, index) => index);
+    for (let i = 1; i <= left.length; i += 1) {
+      let diagonal = row[0];
+      row[0] = i;
+      for (let j = 1; j <= right.length; j += 1) {
+        const above = row[j];
+        row[j] = left[i - 1] === right[j - 1]
+          ? diagonal
+          : Math.min(diagonal + 1, row[j] + 1, row[j - 1] + 1);
+        diagonal = above;
+      }
+    }
+    return row[right.length];
+  };
+
+  const suggestion = COMMON_EMAIL_PROVIDERS.find(provider => {
+    const [providerName, providerTld] = provider.split('.');
+    const [domainName, domainTld] = domain.split('.');
+    return domainTld === providerTld && distance(domainName || '', providerName) <= 2;
+  });
+  return suggestion || null;
+}
+
 interface AuthResponse {
   accessToken: string;
   refreshToken: string;
@@ -105,6 +135,17 @@ function SignupContent() {
       return;
     }
 
+    const normalizedEmail = email.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(normalizedEmail)) {
+      setErrorMsg('Please enter a valid email address.');
+      return;
+    }
+    const suggestedProvider = emailProviderSuggestion(normalizedEmail);
+    if (suggestedProvider) {
+      setErrorMsg(`Please check your email address. Did you mean @${suggestedProvider}?`);
+      return;
+    }
+
     const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[!@#$%^&*(),.?":{}|<>]).{8,}$/;
     if (!passwordRegex.test(password)) {
       setErrorMsg('Password must be at least 8 characters with upper, lower, and special character.');
@@ -122,7 +163,7 @@ function SignupContent() {
       // Avoid a serial preflight request so signup completes in one round trip.
       const data = await apiClient.post<AuthResponse>('/auth/register', {
         name,
-        email,
+        email: normalizedEmail,
         password,
         mobileNumber: sanitizedPhone,
         role: 'customer',
