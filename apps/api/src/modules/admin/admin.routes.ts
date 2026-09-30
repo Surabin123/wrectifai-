@@ -98,7 +98,14 @@ adminRouter.post('/onboarding/garages/phone-otp/verify', async (req, res) => {
       await query('UPDATE garage_registration_otp_challenges SET failed_attempts = failed_attempts + 1, updated_at = NOW() WHERE id = $1', [challengeId]);
       return error(res, 'The OTP is incorrect. Please try again.', 'OTP_INVALID', 400);
     }
-    await query('UPDATE garage_registration_otp_challenges SET verified_at = NOW(), updated_at = NOW() WHERE id = $1', [challengeId]);
+    // Once verified, keep the challenge usable while the admin completes the
+    // multi-step registration and can retry a failed final submission.
+    await query(
+      `UPDATE garage_registration_otp_challenges
+       SET verified_at = NOW(), expires_at = NOW() + INTERVAL '24 hours', updated_at = NOW()
+       WHERE id = $1`,
+      [challengeId]
+    );
     return success(res, { challengeId, phone: row.phone, verified: true });
   } catch {
     return error(res, 'Unable to verify the OTP. Please try again.', 'OTP_VERIFY_FAILED', 500);
