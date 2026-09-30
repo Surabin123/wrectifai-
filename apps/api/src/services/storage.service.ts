@@ -28,7 +28,24 @@ import crypto from 'crypto';
 
 export class CloudinaryStorage implements FileStorage {
   constructor() {
-    if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
+    const cloudinaryUrl = process.env.CLOUDINARY_URL?.trim();
+    if (cloudinaryUrl) {
+      try {
+        const parsed = new URL(cloudinaryUrl);
+        if (parsed.protocol !== 'cloudinary:' || !parsed.hostname || !parsed.username || !parsed.password) {
+          throw new Error('incomplete credentials');
+        }
+        // Prefer the single URL as a source of truth. Render environments can
+        // retain stale individual variables that would otherwise override it.
+        cloudinary.config({
+          cloud_name: parsed.hostname,
+          api_key: decodeURIComponent(parsed.username),
+          api_secret: decodeURIComponent(parsed.password),
+        });
+      } catch {
+        throw new Error('CLOUDINARY_URL is invalid. Use cloudinary://API_KEY:API_SECRET@CLOUD_NAME.');
+      }
+    } else if (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET) {
       cloudinary.config({
         cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
         api_key: process.env.CLOUDINARY_API_KEY,
