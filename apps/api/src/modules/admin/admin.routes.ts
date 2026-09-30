@@ -779,8 +779,8 @@ adminRouter.post('/users', async (req, res) => {
     } = req.body;
 
     // --- Input validation ---
-    if (!name || !email || !password) {
-      return error(res, 'Name, email, and password are required', 'BAD_REQUEST', 400);
+    if (!name || !email || !password || !phone || !String(phone).trim()) {
+      return error(res, 'Name, email, password, and mobile number are required', 'BAD_REQUEST', 400);
     }
     const emailClean = email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailClean)) {
@@ -792,6 +792,9 @@ adminRouter.post('/users', async (req, res) => {
       return error(res, 'Password must be at least 8 characters with uppercase, lowercase, and a special character', 'BAD_REQUEST', 400);
     }
     const phoneClean = phone && phone.trim() !== '' ? phone.trim() : null;
+    if (!phoneClean || !/^\+?[1-9]\d{8,14}$/.test(phoneClean)) {
+      return error(res, 'Please enter a valid mobile number with country code.', 'BAD_REQUEST', 400);
+    }
 
     // --- Vehicle partial-entry guard (pre-transaction — returns 400, not 500) ---
     const vehicleAnySupplied = vehicleMake || vehicleModel || vehicleYear;

@@ -389,8 +389,8 @@ export default function CustomersPage() {
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
               </div>
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-slate-600">Mobile Number</label>
-                <input id="add-phone" type="tel" value={addForm.phone} onChange={e => setField('phone', e.target.value)}
+                <label className="text-xs font-semibold text-slate-600">Mobile Number <span className="text-red-500">*</span></label>
+                <input id="add-phone" type="tel" required value={addForm.phone} onChange={e => setField('phone', e.target.value)}
                   placeholder="e.g. 9876543210"
                   className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:border-blue-500" />
               </div>
