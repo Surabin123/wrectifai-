@@ -100,6 +100,12 @@ function normalizedPhone(value: string): string {
   return value.replace(/\D/g, '');
 }
 
+function maskedPhone(value?: string | null): string {
+  if (!value) return 'not provided';
+  const digits = value.replace(/\D/g, '');
+  return digits.length > 4 ? `+${digits.slice(0, Math.max(1, digits.length - 4)).replace(/^0+/, '')}******${digits.slice(-4)}` : 'provided';
+}
+
 const normalizedPhoneSql = "regexp_replace(mobile_number, '[^0-9]', '', 'g')";
 
 function checkIfPasswordResetRequired(passwordHash: string, userRoles: string[]): boolean {
@@ -175,7 +181,7 @@ export async function handleUserLoginOrRegister(email: string, name: string, dev
       isAdmin: true,
       type: 'System',
       title: 'New User Registered',
-      description: `${user.name} has registered.`
+      description: `${user.name} registered with mobile ${maskedPhone(user.mobile_number)}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
     }).catch(err => console.error('Failed to create notification', err));
   }
 
@@ -350,7 +356,7 @@ authRouter.post('/register', registerLimiter, async (req, res, next) => {
         isAdmin: true,
         type: 'System',
         title: 'New User Registered',
-        description: `${user.name} has registered.`
+        description: `${user.name} registered with mobile ${maskedPhone(user.mobile_number)}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
       }).catch(err => console.error('Failed to create notification', err));
     }
 
@@ -513,7 +519,7 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
         isAdmin: true,
         type: 'System',
         title: 'New User Registered',
-        description: `${user.name} has registered.`
+        description: `${user.name} registered with mobile ${maskedPhone(user.mobile_number)}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
       }).catch(err => console.error('Failed to create notification', err));
     }
 
