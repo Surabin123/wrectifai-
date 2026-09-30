@@ -13,11 +13,7 @@ const GARAGE_TYPES = [
   'Authorized Dealership Service Centre', 'Specialized Automotive Repair Workshop',
   'Auto Electrical & Diagnostics Workshop', 'Body Shop & Collision Repair Centre',
   'Tyre & Wheel Service Centre', 'Car Detailing & Accessories Centre',
-  'Motorcycle Repair Workshop', 'Commercial Vehicle Repair Workshop',
-  // Existing registrations can continue to select their previous labels.
-  'General Service Garage', 'Specialist Workshop', 'Authorized Service Center',
-  'Body & Paint Shop', 'Tire & Wheel Center', 'EV Service Center',
-  'Multi-Brand Service Center', 'Car Detailing & Accessories Centre', 'Other'
+  'Motorcycle Repair Workshop', 'Commercial Vehicle Repair Workshop', 'Other'
 ];
 const CITY_OPTIONS_BY_COUNTRY: Record<string, string[]> = {
   '+91': ['Bengaluru', 'Hyderabad', 'Mumbai', 'Chennai', 'Pune'],
