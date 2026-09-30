@@ -19,8 +19,13 @@ export class NotificationsService {
     let lastError: unknown;
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        const res = await query(`INSERT INTO notifications (user_id, garage_id, is_admin, type, title, description)
-          VALUES ($1, $2, $3, $4, $5, $6) RETURNING *`, [userId || null, garageId || null, isAdmin, type, title, description]);
+        // The original production schema requires channel, template_key, and
+        // status. Provide the explicit in-app values so notification inserts
+        // work against both the original schema and later migrations.
+        const res = await query(`INSERT INTO notifications
+          (user_id, garage_id, is_admin, type, title, description, channel, template_key, status)
+          VALUES ($1, $2, $3, $4, $5, $6, 'inApp', $7, 'sent') RETURNING *`,
+          [userId || null, garageId || null, isAdmin, type, title, description, `inApp.${type}`]);
         return res.rows[0];
       } catch (error) {
         lastError = error;
