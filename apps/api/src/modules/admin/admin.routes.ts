@@ -5,6 +5,7 @@ import { query, getDbPool } from '../../config/database';
 import { getPagination } from '../../utils/pagination';
 import fs from 'fs';
 import path from 'path';
+import { randomUUID } from 'crypto';
 import { getEnv } from '../../config/env';
 import { verifyFirebaseIdToken } from '../../services/firebase-id-token.service';
 
@@ -38,9 +39,71 @@ function isTemporaryRegistrationOtpValid(otp: unknown): boolean {
   return otp === '123456';
 }
 
+async function isVerifiedRegistrationPhoneChallenge(challengeId: unknown, requestedByUserId: string, phone: string): Promise<boolean> {
+  if (typeof challengeId !== 'string' || !challengeId) return false;
+  const result = await query(
+    `SELECT 1 FROM garage_registration_otp_challenges
+     WHERE id = $1 AND requested_by_user_id = $2 AND phone = $3
+       AND verified_at IS NOT NULL AND expires_at > NOW()`,
+    [challengeId, requestedByUserId, phone]
+  );
+  return result.rows.length === 1;
+}
+
 // Apply auth and admin role requirements to all routes in this sub-router
 adminRouter.use(authenticate);
 adminRouter.use(requireRole(['admin']));
+
+adminRouter.post('/onboarding/garages/phone-otp/initiate', async (req, res) => {
+  try {
+    const country = typeof req.body.country === 'string' ? req.body.country.toUpperCase() : '';
+    const phone = normalizePhone(req.body.phone, country);
+    if (!phone) return error(res, 'Enter a valid phone number for the selected country.', 'VALIDATION_ERROR', 400);
+
+    const recent = await query(
+      `SELECT 1 FROM garage_registration_otp_challenges
+       WHERE requested_by_user_id = $1 AND phone = $2 AND created_at > NOW() - INTERVAL '30 seconds' LIMIT 1`,
+      [req.user!.userId, phone]
+    );
+    if (recent.rows.length > 0) return error(res, 'Please wait 30 seconds before requesting another OTP.', 'OTP_COOLDOWN', 429);
+
+    const id = randomUUID();
+    await query(
+      `INSERT INTO garage_registration_otp_challenges (id, requested_by_user_id, phone, expires_at)
+       VALUES ($1, $2, $3, NOW() + INTERVAL '10 minutes')`,
+      [id, req.user!.userId, phone]
+    );
+    return success(res, { challengeId: id, phone, expiresInSeconds: 600, temporary: true });
+  } catch {
+    return error(res, 'Unable to start phone verification. Please try again.', 'OTP_INIT_FAILED', 500);
+  }
+});
+
+adminRouter.post('/onboarding/garages/phone-otp/verify', async (req, res) => {
+  try {
+    const { challengeId, otp } = req.body;
+    if (typeof challengeId !== 'string' || !/^\d{6}$/.test(String(otp || ''))) {
+      return error(res, 'Enter the complete six-digit OTP.', 'VALIDATION_ERROR', 400);
+    }
+    const challenge = await query(
+      `SELECT id, phone, verified_at, expires_at, failed_attempts
+       FROM garage_registration_otp_challenges WHERE id = $1 AND requested_by_user_id = $2 LIMIT 1`,
+      [challengeId, req.user!.userId]
+    );
+    const row = challenge.rows[0];
+    if (!row || new Date(row.expires_at).getTime() <= Date.now()) return error(res, 'This OTP has expired. Request a new OTP.', 'OTP_EXPIRED', 400);
+    if (row.verified_at) return success(res, { challengeId, phone: row.phone, alreadyVerified: true });
+    if (Number(row.failed_attempts) >= 5) return error(res, 'Too many incorrect attempts. Request a new OTP.', 'OTP_ATTEMPTS_EXCEEDED', 429);
+    if (!isTemporaryRegistrationOtpValid(otp)) {
+      await query('UPDATE garage_registration_otp_challenges SET failed_attempts = failed_attempts + 1, updated_at = NOW() WHERE id = $1', [challengeId]);
+      return error(res, 'The OTP is incorrect. Please try again.', 'OTP_INVALID', 400);
+    }
+    await query('UPDATE garage_registration_otp_challenges SET verified_at = NOW(), updated_at = NOW() WHERE id = $1', [challengeId]);
+    return success(res, { challengeId, phone: row.phone, verified: true });
+  } catch {
+    return error(res, 'Unable to verify the OTP. Please try again.', 'OTP_VERIFY_FAILED', 500);
+  }
+});
 
 adminRouter.get('/stats', async (req, res) => {
   try {
@@ -242,14 +305,14 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       return error(res, 'Select at least one garage service.', 'VALIDATION_ERROR', 400);
     }
 
-    const { year, otp, contactPhone } = req.body;
+    const { year, contactPhone } = req.body;
     const yearNum = Number(year);
     const currentYear = new Date().getFullYear();
     if (!year || isNaN(yearNum) || yearNum < 1800 || yearNum > currentYear) {
       return error(res, 'Garage established year is required and must be a valid year.', 'VALIDATION_ERROR', 400);
     }
 
-    let isPhoneVerified = isTemporaryRegistrationOtpValid(otp);
+    let isPhoneVerified = await isVerifiedRegistrationPhoneChallenge(ownerPhoneVerificationToken, req.user!.userId, normalizedOwnerPhone);
     if (!isPhoneVerified && typeof ownerPhoneVerificationToken === 'string') {
       const { firebaseWebApiKey } = getEnv();
       if (firebaseWebApiKey) {
@@ -263,7 +326,7 @@ adminRouter.post('/onboarding/garages', async (req, res) => {
       }
     }
     if (!isPhoneVerified) {
-      return error(res, 'Owner phone verification is required. Enter the OTP 123456 after sending it.', 'PHONE_NOT_VERIFIED', 400);
+      return error(res, 'Owner phone verification is required. Send and verify the OTP before registering the garage.', 'PHONE_NOT_VERIFIED', 400);
     }
 
     // Backend validation for documents (before DB work)

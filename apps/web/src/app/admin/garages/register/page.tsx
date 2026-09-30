@@ -102,6 +102,8 @@ export default function RegisterGaragePage() {
   const [areaSuggestions, setAreaSuggestions] = useState<string[]>([]);
   const [areaSearchTimer, setAreaSearchTimer] = useState<NodeJS.Timeout | null>(null);
   const [ownerOtpStatus, setOwnerOtpStatus] = useState<'idle' | 'sent' | 'verified'>('idle');
+  const [ownerOtpModalOpen, setOwnerOtpModalOpen] = useState(false);
+  const [ownerOtpBusy, setOwnerOtpBusy] = useState(false);
   const [newHighlight, setNewHighlight] = useState('');
 
 
@@ -260,21 +262,58 @@ export default function RegisterGaragePage() {
     setStep(prev => Math.max(prev - 1, 1));
   };
 
-  const handleSendOwnerOtp = () => {
-    const phoneError = getPhoneError(formData.sameAsGaragePhone ? formData.countryCode : formData.ownerCountryCode, formData.sameAsGaragePhone ? formData.phone : formData.ownerPhone);
+  const handleSendOwnerOtp = async () => {
+    const ownerCallingCode = formData.sameAsGaragePhone ? formData.countryCode : formData.ownerCountryCode;
+    const ownerPhone = formData.sameAsGaragePhone ? formData.phone : formData.ownerPhone;
+    const phoneError = getPhoneError(ownerCallingCode, ownerPhone);
     if (phoneError) { setErrorMsg('Enter a valid authorized representative phone number first.'); return; }
-    setOwnerOtpStatus('sent');
-    setErrorMsg('');
+    const ownerCountry = getCountryByCallingCode(ownerCallingCode);
+    if (!ownerCountry) { setErrorMsg('Select a valid country calling code first.'); return; }
+    setOwnerOtpBusy(true);
+    try {
+      const result = await apiClient<{ challengeId: string }>('/admin/onboarding/garages/phone-otp/initiate', {
+        method: 'POST',
+        body: JSON.stringify({ country: ownerCountry.isoCode, phone: `${ownerCallingCode}${ownerPhone}` }),
+      });
+      setFormData(prev => ({ ...prev, otp: '', isPhoneVerified: false, ownerPhoneVerificationToken: result.challengeId }));
+      setOwnerOtpStatus('sent');
+      setOwnerOtpModalOpen(true);
+      setErrorMsg('');
+      toast.success('OTP sent. Use the temporary development code 123456.');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Unable to send OTP. Please try again.');
+    } finally {
+      setOwnerOtpBusy(false);
+    }
   };
 
-  const handleVerifyOTP = () => {
-    if (ownerOtpStatus === 'sent' && formData.otp === '123456') {
+  const handleVerifyOTP = async () => {
+    if (ownerOtpStatus !== 'sent' || !formData.ownerPhoneVerificationToken) {
+      setErrorMsg('Send an OTP before verifying.');
+      return;
+    }
+    setOwnerOtpBusy(true);
+    try {
+      await apiClient('/admin/onboarding/garages/phone-otp/verify', {
+        method: 'POST',
+        body: JSON.stringify({ challengeId: formData.ownerPhoneVerificationToken, otp: formData.otp }),
+      });
       setFormData(prev => ({ ...prev, isPhoneVerified: true }));
       setOwnerOtpStatus('verified');
+      setOwnerOtpModalOpen(false);
       setErrorMsg('');
-    } else {
-      setErrorMsg(ownerOtpStatus === 'idle' ? 'Click Send OTP before verifying.' : 'Enter the OTP 123456 to verify the phone number.');
+      toast.success('OTP verified.');
+    } catch (err: any) {
+      setErrorMsg(err.message || 'The OTP could not be verified.');
+    } finally {
+      setOwnerOtpBusy(false);
     }
+  };
+
+  const resetOwnerPhoneVerification = () => {
+    setFormData(prev => ({ ...prev, otp: '', isPhoneVerified: false, ownerPhoneVerificationToken: '' }));
+    setOwnerOtpStatus('idle');
+    setOwnerOtpModalOpen(false);
   };
 
   const handleSubmit = async () => {
@@ -525,7 +564,7 @@ export default function RegisterGaragePage() {
                      <label className="block text-xs font-bold text-slate-700 mb-2">Phone Number <span className="text-red-500">*</span></label>
                      <div className="flex gap-2">
                        <select value={formData.countryCode} onChange={e => {
-                         setFormData({...formData, countryCode: e.target.value, city: '', isPhoneVerified: false, otp: ''}); setOwnerOtpStatus('idle');
+                         setFormData({...formData, countryCode: e.target.value, city: '', isPhoneVerified: false, otp: '', ownerPhoneVerificationToken: ''}); setOwnerOtpStatus('idle'); setOwnerOtpModalOpen(false);
                        }} className="border rounded-lg px-3 py-2.5 text-sm bg-white outline-none w-28">
                          <option value="+91">IN (+91)</option>
                          <option value="+1">US (+1)</option>
@@ -533,7 +572,7 @@ export default function RegisterGaragePage() {
                        </select>
                        <input type="text" value={formData.phone} onChange={e => {
                          const maxLen = formData.countryCode === '+971' ? 9 : 10;
-                         setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, maxLen), isPhoneVerified: false, otp: ''}); setOwnerOtpStatus('idle');
+                         setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, maxLen), isPhoneVerified: false, otp: '', ownerPhoneVerificationToken: ''}); setOwnerOtpStatus('idle'); setOwnerOtpModalOpen(false);
                        }} placeholder="Enter phone number" className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                      </div>
                    </div>
@@ -631,13 +670,13 @@ export default function RegisterGaragePage() {
                   <div>
                      <label className="block text-xs font-bold text-slate-700 mb-2">Owner Phone Number <span className="text-red-500">*</span></label>
                      <label className="flex items-center gap-2 text-sm text-slate-700 mb-2 cursor-pointer">
-                       <input type="checkbox" checked={formData.sameAsGaragePhone} onChange={(e) => { setFormData({...formData, sameAsGaragePhone: e.target.checked, isPhoneVerified: false, otp: ''}); setOwnerOtpStatus('idle'); }} className="rounded text-blue-600 focus:ring-blue-500"/>
+                       <input type="checkbox" checked={formData.sameAsGaragePhone} onChange={(e) => { setFormData({...formData, sameAsGaragePhone: e.target.checked, isPhoneVerified: false, otp: '', ownerPhoneVerificationToken: ''}); setOwnerOtpStatus('idle'); setOwnerOtpModalOpen(false); }} className="rounded text-blue-600 focus:ring-blue-500"/>
                        Same as garage phone number
                      </label>
                      {!formData.sameAsGaragePhone && (
                        <div className="flex gap-2">
                          <select value={formData.ownerCountryCode} onChange={e => {
-                           setFormData({...formData, ownerCountryCode: e.target.value, isPhoneVerified: false, otp: ''}); setOwnerOtpStatus('idle');
+                           setFormData({...formData, ownerCountryCode: e.target.value, isPhoneVerified: false, otp: '', ownerPhoneVerificationToken: ''}); setOwnerOtpStatus('idle'); setOwnerOtpModalOpen(false);
                          }} className="border rounded-lg px-3 py-2.5 text-sm bg-white outline-none w-28">
                            <option value="+91">IN (+91)</option>
                            <option value="+1">US (+1)</option>
@@ -645,7 +684,7 @@ export default function RegisterGaragePage() {
                          </select>
                          <input type="text" value={formData.ownerPhone} onChange={e => {
                            const maxLen = formData.ownerCountryCode === '+971' ? 9 : 10;
-                           setFormData({...formData, ownerPhone: e.target.value.replace(/\D/g, '').slice(0, maxLen), isPhoneVerified: false, otp: ''}); setOwnerOtpStatus('idle');
+                           setFormData({...formData, ownerPhone: e.target.value.replace(/\D/g, '').slice(0, maxLen), isPhoneVerified: false, otp: '', ownerPhoneVerificationToken: ''}); setOwnerOtpStatus('idle'); setOwnerOtpModalOpen(false);
                          }} placeholder="Enter owner phone" className="flex-1 border rounded-lg px-4 py-2.5 text-sm bg-white outline-none focus:border-blue-500" />
                        </div>
                      )}
@@ -656,13 +695,10 @@ export default function RegisterGaragePage() {
                 <div className="bg-slate-50 border border-slate-200 rounded-lg p-5 mb-8">
                   <h3 className="text-sm font-bold text-[#17307a] mb-2">Verify Phone Number</h3>
                   {!formData.isPhoneVerified ? (
-                    <div className="flex gap-4 items-center">
-                      <div className="flex gap-2 items-center">
-                        <input type="text" value={formData.otp} onChange={e => setFormData({...formData, otp: e.target.value.replace(/\D/g, '')})} maxLength={6} placeholder="Enter 6-digit OTP" className="w-36 border rounded-lg px-4 py-2 text-sm text-center outline-none focus:border-blue-500" />
-                        <span className="text-xs text-slate-400">Sent to {formData.sameAsGaragePhone ? `${formData.countryCode} ${formData.phone}` : `${formData.ownerCountryCode} ${formData.ownerPhone}`}</span>
-                      </div>
-                      {ownerOtpStatus === 'idle' ? <button onClick={handleSendOwnerOtp} className="border border-[#17307a] text-[#17307a] px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-50 transition-colors">Send OTP</button> : <span className={`px-3 py-2 rounded-lg text-xs font-bold ${ownerOtpStatus === 'verified' ? 'bg-green-100 text-green-700' : 'bg-blue-50 text-blue-700'}`}>{ownerOtpStatus === 'verified' ? 'OTP verified' : 'OTP Sent'}</span>}
-                      {ownerOtpStatus !== 'verified' && <button onClick={handleVerifyOTP} className="bg-[#17307a] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-900 transition-colors">Verify OTP</button>}
+                    <div className="flex flex-wrap gap-3 items-center">
+                      <span className="text-xs text-slate-500">{ownerOtpStatus === 'sent' ? 'OTP sent to ' : 'Verify '} {formData.sameAsGaragePhone ? `${formData.countryCode} ${formData.phone || 'the garage number'}` : `${formData.ownerCountryCode} ${formData.ownerPhone || 'the owner number'}`}</span>
+                      <button type="button" onClick={handleSendOwnerOtp} disabled={ownerOtpBusy} className="border border-[#17307a] text-[#17307a] px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-50 disabled:opacity-50 transition-colors">{ownerOtpBusy ? 'Sending…' : ownerOtpStatus === 'sent' ? 'Resend OTP' : 'Send OTP'}</button>
+                      {ownerOtpStatus === 'sent' && <button type="button" onClick={() => setOwnerOtpModalOpen(true)} className="bg-[#17307a] text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-blue-900 transition-colors">Enter OTP</button>}
                     </div>
                   ) : (
                     <div className="flex items-center gap-2 text-green-600 text-sm font-bold">
@@ -670,6 +706,18 @@ export default function RegisterGaragePage() {
                     </div>
                   )}
                 </div>
+
+                <Modal isOpen={ownerOtpModalOpen} onClose={() => setOwnerOtpModalOpen(false)} title="Verify phone number">
+                  <div className="space-y-4">
+                    <p className="text-sm text-slate-600">Enter the six-digit OTP sent to <span className="font-semibold text-slate-800">{formData.sameAsGaragePhone ? `${formData.countryCode} ${formData.phone}` : `${formData.ownerCountryCode} ${formData.ownerPhone}`}</span>.</p>
+                    <p className="rounded-lg bg-blue-50 px-3 py-2 text-xs text-blue-800">Development mode is active. Use OTP <strong>123456</strong>.</p>
+                    <input autoFocus inputMode="numeric" value={formData.otp} onChange={e => setFormData(prev => ({...prev, otp: e.target.value.replace(/\D/g, '').slice(0, 6)}))} maxLength={6} placeholder="Enter 6-digit OTP" className="w-full border rounded-lg px-4 py-3 text-center tracking-[0.4em] text-lg outline-none focus:border-blue-500" />
+                    <div className="flex items-center justify-between gap-3">
+                      <button type="button" onClick={resetOwnerPhoneVerification} className="text-sm font-semibold text-slate-600 hover:text-[#17307a]">Change number</button>
+                      <div className="flex gap-2"><button type="button" onClick={handleSendOwnerOtp} disabled={ownerOtpBusy} className="border border-[#17307a] px-3 py-2 rounded-lg text-xs font-bold text-[#17307a] disabled:opacity-50">Resend OTP</button><button type="button" onClick={handleVerifyOTP} disabled={ownerOtpBusy || formData.otp.length !== 6} className="bg-[#17307a] text-white px-4 py-2 rounded-lg text-xs font-bold disabled:opacity-50">{ownerOtpBusy ? 'Verifying…' : 'Verify & Continue'}</button></div>
+                    </div>
+                  </div>
+                </Modal>
 
                 <div className="border-t border-slate-100 pt-6">
                   <h3 className="text-md font-bold text-[#17307a] mb-4">Login Credentials</h3>
