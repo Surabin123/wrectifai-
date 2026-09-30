@@ -182,6 +182,11 @@ export function createApp() {
   app.use('/api/diagnosis/upload-media', base64Parser);
   app.use('/api/v1/users/avatar', base64Parser);
   app.use('/api/users/avatar', base64Parser);
+  // Vehicle pictures are submitted as base64 JSON from the vehicle form.
+  // Keep this scoped to vehicle requests so the rest of the API retains the
+  // smaller global request limit.
+  app.use('/api/v1/vehicles', base64Parser);
+  app.use('/api/vehicles', base64Parser);
 
   app.use(express.json({ limit: '512kb' }));
   app.use(express.urlencoded({ extended: true, limit: '512kb' }));
