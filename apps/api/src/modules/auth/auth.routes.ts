@@ -103,7 +103,19 @@ function normalizedPhone(value: string): string {
 function maskedPhone(value?: string | null): string {
   if (!value) return 'not provided';
   const digits = value.replace(/\D/g, '');
-  return digits.length > 4 ? `+${digits.slice(0, Math.max(1, digits.length - 4)).replace(/^0+/, '')}******${digits.slice(-4)}` : 'provided';
+  if (digits.length < 5) return 'provided';
+
+  // Keep the country code readable and mask only the local number. This
+  // avoids displaying values such as +992626******4119 for an Indian number.
+  if (digits.length === 12 && digits.startsWith('91')) {
+    const local = digits.slice(2);
+    return `+91 ${local.slice(0, 5)}*${local.slice(-4)}`;
+  }
+  if (digits.length === 10) {
+    return `+91 ${digits.slice(0, 5)}*${digits.slice(-4)}`;
+  }
+
+  return `+${digits.slice(0, -4)}*${digits.slice(-4)}`;
 }
 
 const normalizedPhoneSql = "regexp_replace(mobile_number, '[^0-9]', '', 'g')";
