@@ -2,13 +2,19 @@
 import { Card } from '@/components/common/card';
 import { useState, useEffect } from 'react';
 import { Button } from '@/components/common/button';
-import { Edit2, Save, CameraIcon, Check, AlertCircle, Shield, Activity, ShieldCheck, LogOut, Bell, Monitor, MonitorSmartphone, XCircle, CheckCircle2 } from 'lucide-react';
+import { Edit2, Save, CameraIcon, Check, AlertCircle, Shield, Activity, ShieldCheck, LogOut, Bell, Monitor, MonitorSmartphone, XCircle, CheckCircle2, Phone, MapPin, CalendarDays, Building2, ClipboardList, ShoppingBag, FileText } from 'lucide-react';
 import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
 import { Modal } from '@/components/common/modal';
+import Link from 'next/link';
 
 export function AdminProfileContent() {
   const { user, token, login } = useAuth();
+  const [adminStats, setAdminStats] = useState<{ registeredGarages: number; pendingApprovals: number; activeBookings: number; quotesCount: number } | null>(null);
+  const [latestLogin, setLatestLogin] = useState<{ createdAt?: string; deviceInfo?: string; status?: string } | null>(null);
+  const [activeSessionCount, setActiveSessionCount] = useState<number | null>(null);
+  const [profileSummaryError, setProfileSummaryError] = useState('');
+  const [summaryRetry, setSummaryRetry] = useState(0);
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({ name: '', email: '', mobileNumber: '', image: '' });
   const [toast, setToast] = useState<{message: string, type: 'success'|'error'} | null>(null);
@@ -99,6 +105,29 @@ export function AdminProfileContent() {
     }
   };
 
+  useEffect(() => {
+    let mounted = true;
+    const loadSummary = async () => {
+      try {
+        const [stats, logins, activeSessions] = await Promise.all([
+          apiClient.get<{ registeredGarages: number; pendingApprovals: number; activeBookings: number; quotesCount: number }>('/admin/stats'),
+          apiClient.get<Array<{ createdAt?: string; deviceInfo?: string; status?: string }>>('/users/login-activity', { params: { limit: '100', page: '1' } }),
+          apiClient.get<Array<{ id: string }>>('/users/sessions', { params: { limit: '100', page: '1' } }),
+        ]);
+        if (!mounted) return;
+        setAdminStats(stats);
+        setLatestLogin(logins.find((event) => event.status === 'success') || null);
+        setActiveSessionCount(activeSessions.length);
+        setProfileSummaryError('');
+      } catch (err) {
+        if (mounted) setProfileSummaryError(err instanceof Error ? err.message : 'Unable to load profile summary.');
+      }
+    };
+    void loadSummary();
+    window.addEventListener('focus', loadSummary);
+    return () => { mounted = false; window.removeEventListener('focus', loadSummary); };
+  }, [summaryRetry]);
+
   // Tab Data Fetching
   useEffect(() => {
     if (activeTab === 'sessions') {
@@ -175,7 +204,7 @@ export function AdminProfileContent() {
   const initials = user.name ? user.name.substring(0, 2).toUpperCase() : (user.email ? user.email.substring(0, 2).toUpperCase() : 'AD');
 
   return (
-    <div className="space-y-6 relative max-w-4xl mx-auto">
+    <div className="space-y-5 relative max-w-6xl mx-auto">
       {toast && (
         <div className={`fixed bottom-4 right-4 text-white px-4 py-2 rounded-lg shadow-lg z-50 animate-in slide-in-from-bottom-5 flex items-center gap-2 ${toast.type === 'success' ? 'bg-green-600' : 'bg-red-600'}`}>
           {toast.type === 'success' ? <Check className="w-4 h-4" /> : <AlertCircle className="w-4 h-4" />}
@@ -184,9 +213,9 @@ export function AdminProfileContent() {
       )}
       
       {/* Identity Card */}
-      <Card className="p-6 flex items-center gap-6 shadow-sm border-slate-100 rounded-[24px]">
+      <Card className="p-6 flex flex-col sm:flex-row sm:items-center gap-5 shadow-sm border-slate-200 rounded-2xl">
         <div className="relative">
-          <div className="w-24 h-24 rounded-full bg-slate-800 text-white flex items-center justify-center text-3xl font-bold overflow-hidden border-4 border-slate-100">
+          <div className="w-20 h-20 rounded-full bg-slate-800 text-white flex items-center justify-center text-2xl font-bold overflow-hidden border-4 border-slate-100">
             {formData.image || user.image ? (
               <img src={formData.image || user.image} alt="Profile" className="w-full h-full object-cover" />
             ) : (
@@ -218,21 +247,22 @@ export function AdminProfileContent() {
           )}
         </div>
         <div className="flex-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <h2 className="text-2xl font-bold text-slate-900">{user.name || 'Admin User'}</h2>
             <span className="px-2.5 py-0.5 bg-slate-800 text-white text-xs font-bold rounded-full flex items-center gap-1">
-              <Shield className="w-3 h-3" /> Platform Administrator
+              <Shield className="w-3 h-3" /> {user.roles?.includes('admin') ? 'Platform Administrator' : 'Garage Administrator'}
             </span>
           </div>
-          <div className="flex items-center gap-4 mt-3 text-sm text-slate-600">
-            <span className="flex items-center gap-1.5"><AlertCircle className="w-4 h-4" /> {user.email || 'N/A'}</span>
-            <span className="flex items-center gap-1.5"><Activity className="w-4 h-4" /> {user.mobileNumber || 'N/A'}</span>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mt-2 text-sm text-slate-600">
+            {user.mobileNumber && <span className="flex items-center gap-1.5"><Phone className="w-4 h-4" /> {user.mobileNumber}</span>}
+            {(user.city || user.country) && <span className="flex items-center gap-1.5"><MapPin className="w-4 h-4" /> {[user.city, user.country].filter(Boolean).join(', ')}</span>}
           </div>
-          <div className="flex items-center gap-2 mt-3">
-             <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-bold rounded flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-green-600"></span> Active
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+             <span className={`px-2 py-0.5 text-xs font-bold rounded flex items-center gap-1 ${user.status === 'active' ? 'bg-green-100 text-green-700' : user.status === 'suspended' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${user.status === 'active' ? 'bg-green-600' : user.status === 'suspended' ? 'bg-red-600' : 'bg-amber-600'}`}></span> {user.status || 'Status unavailable'}
              </span>
-             <span className="text-xs text-slate-400 font-medium">Since: Account Creation</span>
+             {user.createdAt && <span className="text-xs text-slate-500 flex items-center gap-1"><CalendarDays className="w-3.5 h-3.5" /> Member since {new Date(user.createdAt).toLocaleDateString(undefined, { month: 'short', year: 'numeric' })}</span>}
+             {latestLogin?.createdAt && <span className="text-xs text-slate-500" title={new Date(latestLogin.createdAt).toLocaleString()}>Last login {new Date(latestLogin.createdAt).toLocaleString()}</span>}
           </div>
         </div>
         
@@ -242,6 +272,21 @@ export function AdminProfileContent() {
           </Button>
         )}
       </Card>
+
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        {[
+          { label: 'Total garages', value: adminStats?.registeredGarages, href: '/admin/garages', icon: Building2 },
+          { label: 'Pending approvals', value: adminStats?.pendingApprovals, href: '/admin/garages', icon: ClipboardList },
+          { label: 'Active bookings', value: adminStats?.activeBookings, href: '/admin/bookings', icon: ShoppingBag },
+          { label: 'Quotes', value: adminStats?.quotesCount, href: '/admin/quotes', icon: FileText },
+        ].map(({ label, value, href, icon: Icon }) => (
+          <Link key={label} href={href} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm hover:border-blue-300 transition-colors">
+            <div className="flex items-center justify-between text-sm text-slate-600"><span>{label}</span><Icon className="w-4 h-4 text-blue-600" /></div>
+            <div className="mt-2 text-2xl font-bold text-slate-900">{value === undefined ? '—' : value}</div>
+          </Link>
+        ))}
+      </div>
+      {profileSummaryError && <div role="alert" className="text-sm text-red-600">{profileSummaryError} <button className="underline" onClick={() => setSummaryRetry((current) => current + 1)}>Retry</button></div>}
 
       {/* Tabs */}
       <div className="flex gap-4 border-b border-slate-200 overflow-x-auto no-scrollbar">
@@ -265,7 +310,8 @@ export function AdminProfileContent() {
       {/* Tab Content */}
       <div className="space-y-6">
         {activeTab === 'personal' && (
-          <Card className="p-6 shadow-sm border-slate-100 rounded-[24px]">
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.5fr)_minmax(280px,1fr)] gap-4 items-start">
+          <Card className="p-6 shadow-sm border-slate-200 rounded-2xl">
             <h3 className="text-lg font-bold text-slate-900 mb-6">Account Information</h3>
             <div className="space-y-6">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b pb-4">
@@ -347,6 +393,21 @@ export function AdminProfileContent() {
               </div>
             )}
           </Card>
+          <div className="space-y-4">
+            <Card className="p-6 shadow-sm border-slate-200 rounded-2xl">
+              <div className="flex items-center gap-2 mb-5"><ShieldCheck className="w-5 h-5 text-blue-600" /><h3 className="text-lg font-bold text-slate-900">Security snapshot</h3></div>
+              <div className="space-y-4 text-sm">
+                <div className="flex justify-between gap-3 border-b border-slate-100 pb-3"><span className="text-slate-600">Account status</span><span className="font-semibold capitalize text-slate-900">{user.status || 'Unavailable'}</span></div>
+                <div className="flex justify-between gap-3"><span className="text-slate-600">Active sessions</span><span className="font-semibold text-slate-900">{activeSessionCount === null ? 'Loading…' : `${activeSessionCount} ${activeSessionCount === 1 ? 'device' : 'devices'}`}</span></div>
+              </div>
+              <Button className="w-full mt-5 bg-blue-600 text-white hover:bg-blue-700" onClick={() => { setPwdModalOpen(true); setPwdError(''); setPwdForm({ currentPassword: '', newPassword: '', confirmPassword: '' }); }}>Change password</Button>
+            </Card>
+            <Card className="p-6 shadow-sm border-slate-200 rounded-2xl">
+              <div className="flex items-center justify-between mb-4"><h3 className="text-lg font-bold text-slate-900">Recent activity</h3><button className="text-sm font-semibold text-blue-600 hover:text-blue-700" onClick={() => setActiveTab('activity')}>View all</button></div>
+              {latestLogin ? <div className="flex gap-3 items-start"><span className="rounded-lg bg-blue-50 p-2 text-blue-600"><Activity className="w-4 h-4" /></span><div><p className="text-sm font-semibold text-slate-900">Successful sign-in</p><p className="text-xs text-slate-600 mt-1">{latestLogin.deviceInfo || 'Device details unavailable'}</p><p className="text-xs text-slate-500 mt-1">{latestLogin.createdAt ? new Date(latestLogin.createdAt).toLocaleString() : 'Time unavailable'}</p></div></div> : <p className="text-sm text-slate-500">No login activity is available.</p>}
+            </Card>
+          </div>
+          </div>
         )}
 
         {activeTab === 'security' && (

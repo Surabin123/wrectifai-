@@ -19,6 +19,7 @@ export interface User {
   roles: string[];
   mobileNumber?: string;
   status?: string;
+  createdAt?: string;
   country?: string;
   image?: string;
   address?: string;
