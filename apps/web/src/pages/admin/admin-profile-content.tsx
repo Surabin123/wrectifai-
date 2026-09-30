@@ -277,7 +277,7 @@ export function AdminProfileContent() {
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
         {[
           { label: 'Total garages', value: adminStats?.registeredGarages, href: '/admin/garages', icon: Building2 },
-          { label: 'Pending approvals', value: adminStats?.pendingApprovals, href: '/admin/garages', icon: ClipboardList },
+          { label: 'Suspended garages', value: adminStats?.pendingApprovals, href: '/admin/garages/suspended', icon: ClipboardList },
           { label: 'Active bookings', value: adminStats?.activeBookings, href: '/admin/bookings', icon: ShoppingBag },
           { label: 'Quotes', value: adminStats?.quotesCount, href: '/admin/quotes', icon: FileText },
         ].map(({ label, value, href, icon: Icon }) => (

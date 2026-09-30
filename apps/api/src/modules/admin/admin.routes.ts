@@ -129,7 +129,7 @@ adminRouter.get('/stats', async (req, res) => {
       // Keep the dashboard total aligned with the All Garages dataset: every
       // persisted garage except records explicitly marked deleted.
       query(`SELECT COUNT(*) FROM garages WHERE approval_status != 'deleted'`),
-      query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'pending'`),
+      query(`SELECT COUNT(*) FROM garages WHERE approval_status = 'suspended'`),
       query(`SELECT COUNT(*) FROM bookings WHERE status IN ('confirmed', 'inService')`),
       query(`SELECT COUNT(*) FROM quotes`),
       query(`SELECT COUNT(*) FROM quote_requests`),
@@ -678,7 +678,7 @@ adminRouter.put('/garages/:id/status', async (req, res) => {
       return error(res, 'Invalid action', 'INVALID_ACTION', 400);
     }
     const is_approved = (status === 'active');
-    const dbStatus = status === 'active' ? 'approved' : status === 'inactive' ? 'pending' : status;
+    const dbStatus = status === 'active' ? 'approved' : status;
     
     const result = await query(
       `UPDATE garages SET approval_status = $1, is_approved = $2 WHERE id = $3 RETURNING id`,
