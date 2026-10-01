@@ -38,9 +38,7 @@ export default function InventoryPage() {
     qtyAvailable: '',
     isActive: true
   });
-  
-  // Request Modal State
-  const [addTab, setAddTab] = useState<'select' | 'request'>('select');
+  const [addTab, setAddTab] = useState<'select' | 'request'>('request');
   const [platformSearch, setPlatformSearch] = useState('');
   const [requestData, setRequestData] = useState({
     name: '',
@@ -74,32 +72,32 @@ export default function InventoryPage() {
   }, []);
 
   const handleAddClick = async () => {
-    try {
-      // Fetch products to let them choose
-      const response = await apiClient.get<any>('/products'); 
-      if (Array.isArray(response)) {
-        setProducts(response);
+    setValidationError('');
+    if (inventory.length > 0) {
+      try {
+        const catalog = await apiClient.get<any>('/products');
+        if (Array.isArray(catalog)) setProducts(catalog);
+      } catch (err) {
+        console.error('Failed to load product catalog:', err);
+        setValidationError('Could not load existing products. You can still request a new product.');
       }
-      setFormData({ productId: '', price: '', qtyAvailable: '', isActive: true });
-      setRequestData({ name: '', category: '', description: '', brand: '', suggestedPrice: '', image: '' });
-      setImagePreview('');
-      setPlatformSearch('');
-      setAddTab('select');
-      setValidationError('');
-      setShowAddModal(true);
-    } catch (err) {
-      console.error('Failed to fetch products:', err);
     }
+    setFormData({ productId: '', price: '', qtyAvailable: '', isActive: true });
+    setRequestData({ name: '', category: '', description: '', brand: '', suggestedPrice: '', image: '' });
+    setImagePreview('');
+    setPlatformSearch('');
+    setAddTab(inventory.length > 0 ? 'select' : 'request');
+    setShowAddModal(true);
   };
 
   const submitAddItem = async () => {
-    if (!formData.productId) {
-      setValidationError('Please select a product.');
+    if (!formData.productId || formData.price === '' || formData.qtyAvailable === '') {
+      setValidationError('Select a product and enter its price and initial stock.');
       return;
     }
     
-    const parsedPrice = typeof formData.price === 'string' ? parseFloat(formData.price) : formData.price;
-    const parsedQty = typeof formData.qtyAvailable === 'string' ? parseInt(formData.qtyAvailable, 10) : formData.qtyAvailable;
+    const parsedPrice = Number(formData.price);
+    const parsedQty = Number(formData.qtyAvailable);
     
     if (isNaN(parsedPrice) || parsedPrice < 0) {
       setValidationError('Price must be a valid non-negative number.');
@@ -117,26 +115,27 @@ export default function InventoryPage() {
         qtyAvailable: parsedQty
       });
       setShowAddModal(false);
+      setSuccessMessage('Product added to your garage inventory.');
+      setTimeout(() => setSuccessMessage(''), 5000);
       fetchInventory();
     } catch (err) {
       console.error('Failed to add item:', err);
-      setValidationError('Failed to add product. It may already exist in your inventory.');
+      setValidationError('Failed to add product. Please check the details and try again.');
     }
   };
 
   const submitRequestProduct = async () => {
-    if (!requestData.name || !requestData.category) {
-      setValidationError('Name and category are required.');
+    if (!requestData.name.trim() || !requestData.category.trim()) {
+      setValidationError('Product name and category are required.');
       return;
     }
-    
     try {
       await apiClient.post('/garages/my-inventory/request', {
         ...requestData,
-        suggestedPrice: requestData.suggestedPrice ? parseFloat(requestData.suggestedPrice) : undefined
+        suggestedPrice: requestData.suggestedPrice ? Number(requestData.suggestedPrice) : undefined
       });
       setShowAddModal(false);
-      setSuccessMessage('Product request submitted! An admin will review it shortly.');
+      setSuccessMessage('Product request submitted for admin review.');
       setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err) {
       console.error('Failed to request product:', err);
@@ -373,66 +372,44 @@ export default function InventoryPage() {
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
-                <h3 className="font-bold text-lg text-[#17307a]">Add Product</h3>
+                <div>
+                  <h3 className="font-bold text-lg text-[#17307a]">{addTab === 'request' ? 'Request New Product' : 'Add Existing Product'}</h3>
+                  <p className="text-xs text-slate-500 mt-1">{addTab === 'request' ? 'Send a product request for review.' : 'Choose a catalog product to add to your garage inventory.'}</p>
+                </div>
                 <button onClick={() => setShowAddModal(false)}><X className="w-5 h-5 text-slate-400"/></button>
               </div>
-              
-              <div className="flex border-b border-slate-200 mb-6">
-                <button 
-                  className={`px-4 py-2 text-sm font-bold border-b-2 ${addTab === 'select' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                  onClick={() => setAddTab('select')}
-                >
-                  Select Existing
-                </button>
-                <button 
-                  className={`px-4 py-2 text-sm font-bold border-b-2 ${addTab === 'request' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
-                  onClick={() => setAddTab('request')}
-                >
-                  Request New Product
-                </button>
-              </div>
-              
+
               {validationError && (
                 <div className="mb-4 p-3 bg-red-50 text-red-600 rounded-lg text-xs font-bold">
                   {validationError}
                 </div>
               )}
-              
-              {addTab === 'select' ? (
+
+              {inventory.length > 0 && (
+                <div className="flex border-b border-slate-200 mb-5">
+                  <button className={`px-4 py-2 text-sm font-bold border-b-2 ${addTab === 'select' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`} onClick={() => { setAddTab('select'); setValidationError(''); }}>
+                    Select Existing
+                  </button>
+                  <button className={`px-4 py-2 text-sm font-bold border-b-2 ${addTab === 'request' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`} onClick={() => { setAddTab('request'); setValidationError(''); }}>
+                    Request New Product
+                  </button>
+                </div>
+              )}
+
+              {inventory.length > 0 && addTab === 'select' ? (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Search Platform Catalog</label>
-                    <input 
-                      type="text"
-                      placeholder="Search for a product..."
-                      value={platformSearch}
-                      onChange={(e) => setPlatformSearch(e.target.value)}
-                      className="w-full border rounded-lg px-3 py-2 text-sm mb-2"
-                    />
-                    
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Search Available Products</label>
+                    <input type="text" placeholder="Search for a product..." value={platformSearch} onChange={(e) => setPlatformSearch(e.target.value)} className="w-full border rounded-lg px-3 py-2 text-sm mb-2" />
                     <div className="max-h-40 overflow-y-auto border rounded-lg divide-y bg-slate-50">
-                      {products
-                        .filter(p => p.name.toLowerCase().includes(platformSearch.toLowerCase()) || p.category.toLowerCase().includes(platformSearch.toLowerCase()))
-                        .map(ps => (
-                        <div 
-                          key={ps.id} 
-                          onClick={() => setFormData({...formData, productId: ps.id, price: ps.price || ''})}
-                          className={`p-2 cursor-pointer text-sm hover:bg-blue-50 ${formData.productId === ps.id ? 'bg-blue-100 border-l-2 border-blue-600' : ''}`}
-                        >
-                          <p className="font-bold text-slate-700">{ps.name}</p>
-                          <p className="text-[10px] text-slate-500">{ps.category} • Base: {formatCurrency(ps.price)}</p>
-                        </div>
+                      {products.filter(p => p.name.toLowerCase().includes(platformSearch.toLowerCase()) || p.category.toLowerCase().includes(platformSearch.toLowerCase())).map(product => (
+                        <button key={product.id} type="button" onClick={() => setFormData({...formData, productId: product.id, price: product.price || ''})} className={`w-full text-left p-2 text-sm hover:bg-blue-50 ${formData.productId === product.id ? 'bg-blue-100 border-l-2 border-blue-600' : ''}`}>
+                          <p className="font-bold text-slate-700">{product.name}</p>
+                          <p className="text-[10px] text-slate-500">{product.category} • Base: {formatCurrency(product.price)}</p>
+                        </button>
                       ))}
                     </div>
                   </div>
-                  
-                  {formData.productId && (
-                    <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
-                       <p className="text-xs font-bold text-slate-700">{products.find(p => p.id === formData.productId)?.name}</p>
-                       <p className="text-[10px] text-slate-500 mt-1 truncate">{products.find(p => p.id === formData.productId)?.description}</p>
-                    </div>
-                  )}
-                  
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">Your Price</label>
                     <input type="text" inputMode="decimal" value={formData.price} onChange={(e) => handleNumericChange(e, 'price')} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 1500" />
@@ -441,14 +418,14 @@ export default function InventoryPage() {
                     <label className="block text-xs font-bold text-slate-700 mb-1">Initial Stock Quantity</label>
                     <input type="text" inputMode="numeric" value={formData.qtyAvailable} onChange={(e) => handleNumericChange(e, 'qtyAvailable')} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 10" />
                   </div>
-                  
                   <div className="mt-8 flex justify-end gap-3">
                     <button onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded-lg text-sm font-bold text-slate-600">Cancel</button>
-                    <button onClick={submitAddItem} disabled={!formData.productId} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Add Product</button>
+                    <button onClick={submitAddItem} disabled={!formData.productId} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Add to Inventory</button>
                   </div>
                 </div>
               ) : (
                 <div className="space-y-4">
+                  {inventory.length === 0 && <p className="text-sm text-slate-600 bg-blue-50 border border-blue-100 rounded-lg p-3">Request your first product. Once it is approved and added to inventory, you can select existing catalog products here.</p>}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">Product Name *</label>
                     <input type="text" value={requestData.name} onChange={(e) => setRequestData({...requestData, name: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Castrol GTX" />
@@ -466,7 +443,7 @@ export default function InventoryPage() {
                     {imagePreview ? (
                       <div className="relative inline-block">
                         <img src={imagePreview} alt="Preview" className="w-24 h-24 object-cover rounded-lg border border-slate-200" />
-                        <button onClick={() => { setImagePreview(''); setRequestData({...requestData, image: ''}) }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3"/></button>
+                        <button onClick={() => { setImagePreview(''); setRequestData({...requestData, image: ''}); }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3"/></button>
                       </div>
                     ) : (
                       <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
@@ -478,14 +455,11 @@ export default function InventoryPage() {
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">Suggested Price</label>
-                    <input type="text" inputMode="decimal" value={requestData.suggestedPrice} onChange={(e) => {
-                      const val = e.target.value.replace(/[^0-9.]/g, '');
-                      setRequestData({...requestData, suggestedPrice: val});
-                    }} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Optional" />
+                    <input type="text" inputMode="decimal" value={requestData.suggestedPrice} onChange={(e) => setRequestData({...requestData, suggestedPrice: e.target.value.replace(/[^0-9.]/g, '')})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Optional" />
                   </div>
                   <div className="mt-8 flex justify-end gap-3">
                     <button onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded-lg text-sm font-bold text-slate-600">Cancel</button>
-                    <button onClick={submitRequestProduct} disabled={!requestData.name || !requestData.category} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Submit Request</button>
+                    <button onClick={submitRequestProduct} disabled={!requestData.name || !requestData.category} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Request Product</button>
                   </div>
                 </div>
               )}
