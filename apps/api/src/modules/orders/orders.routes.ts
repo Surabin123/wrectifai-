@@ -6,6 +6,9 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { validateOffer, recordOfferRedemption } from '../offers/offers.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { commitOrderInventory, markProductOrderPaid, releaseOrderInventory, reserveOrderInventory } from './order-inventory.service';
+import { fetchRazorpayPayment, issueRazorpayRefund } from '../payments/razorpay.service';
+import { findCheckoutOrder, insertProductOrder } from './order-checkout.service';
 
 export const ordersRouter = Router();
 
@@ -21,10 +24,14 @@ ordersRouter.post('/', authenticate, async (req, res) => {
   const customerId = req.user?.userId;
   if (!customerId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
 
-  const { items, garageId, offerCode, paymentMethod, checkoutSessionId } = req.body;
+  const { items, garageId, offerCode, paymentMethod } = req.body;
+  const checkoutSessionId = String(req.body?.checkoutSessionId || req.get('Idempotency-Key') || '').trim();
   
   if (!items || !items.length || !garageId) {
     return error(res, 'Missing required fields', 'BAD_REQUEST', 400);
+  }
+  if (!checkoutSessionId || checkoutSessionId.length > 255) {
+    return error(res, 'A valid checkout session ID is required', 'BAD_REQUEST', 400);
   }
 
   const pool = getDbPool();
@@ -33,20 +40,11 @@ ordersRouter.post('/', authenticate, async (req, res) => {
   try {
     await client.query('BEGIN');
     
-    // 0. Idempotency Check: if checkoutSessionId supplied or an active unpaid order exists for this exact checkout session
-    if (checkoutSessionId) {
-      const existingOrderRes = await client.query(
-        `SELECT o.*, p_pay.method as payment_method 
-         FROM orders o 
-         LEFT JOIN payments p_pay ON o.id = p_pay.order_id
-         WHERE o.customer_id = $1 AND o.garage_id = $2 AND o.payment_status = 'PENDING'
-           AND o.shipping_address->>'checkoutSessionId' = $3
-         ORDER BY o.created_at DESC LIMIT 1`,
-        [customerId, garageId, checkoutSessionId]
-      );
-
-      if (existingOrderRes.rows.length > 0) {
-        const existingOrder = existingOrderRes.rows[0];
+    // Serialize a checkout key in PostgreSQL so separate API instances cannot
+    // both create an order for the same customer/session.
+    {
+      const existingOrder = await findCheckoutOrder(client, customerId, garageId, checkoutSessionId);
+      if (existingOrder) {
         await client.query('COMMIT');
         return success(res, {
           orderId: existingOrder.id,
@@ -74,7 +72,7 @@ ordersRouter.post('/', authenticate, async (req, res) => {
         `SELECT gi.id, gi.qty_available, COALESCE(gi.price, p.price) as price, p.name 
          FROM garage_inventory gi 
          JOIN products p ON gi.product_id = p.id 
-         WHERE gi.product_id = $1 AND gi.garage_id = $2`,
+         WHERE gi.product_id = $1 AND gi.garage_id = $2 AND gi.is_active IS TRUE`,
         [item.productId, garageId]
       );
       
@@ -132,12 +130,19 @@ ordersRouter.post('/', authenticate, async (req, res) => {
     const currency = garageRes.rows[0].currency;
 
     // 2. Create the Order (Default status: PENDING_ACCEPTANCE, payment_status: PENDING)
-    const orderResult = await client.query(
-      `INSERT INTO orders (customer_id, garage_id, order_number, status, payment_status, subtotal, shipping_cost, tax, total, currency, fulfillment_mode, shipping_address)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id`,
-      [customerId, garageId, orderNumber, 'PENDING_ACCEPTANCE', 'PENDING', subtotal, shippingCost, tax, total, currency, 'inHouse', pickupDetails]
-    );
-    const orderId = orderResult.rows[0].id;
+    const orderId = await insertProductOrder(client, {
+      customerId,
+      garageId,
+      orderNumber,
+      subtotal,
+      shippingCost,
+      tax,
+      total,
+      currency,
+      shippingAddress: pickupDetails,
+      checkoutSessionId: checkoutSessionId || null,
+      reservationExpiresAt: paymentMethod === 'cod' ? null : new Date(Date.now() + 15 * 60 * 1000),
+    });
     
     // 3. Record offer redemption
     if (offerId && discountApplied > 0) {
@@ -156,21 +161,17 @@ ordersRouter.post('/', authenticate, async (req, res) => {
     // 5. If COD, create payment record
     if (paymentMethod === 'cod') {
       await client.query(
-        `INSERT INTO payments (customer_user_id, order_id, method, transaction_id, amount, currency, status)
+        `INSERT INTO payments (payer_user_id, order_id, provider, provider_intent_id, amount, currency, status)
          VALUES ($1, $2, 'cod', $3, $4, $5, 'created')`,
         [customerId, orderId, `cod_${orderId}`, total, currency]
       );
-      // Deduct inventory immediately for COD
-      const itemsRes = await client.query(`SELECT * FROM order_items WHERE order_id = $1`, [orderId]);
-      for (const item of itemsRes.rows) {
-      const stockUpdate = await client.query(
-        `UPDATE garage_inventory SET qty_available = qty_available - $1, updated_at = NOW()
-           WHERE product_id = $2 AND garage_id = $3 AND qty_available >= $1`,
-          [item.quantity, item.product_id, garageId]
-        );
-        if (stockUpdate.rowCount !== 1) throw new Error(`Insufficient stock for product ${item.product_id}`);
-      }
     }
+
+    // Online and COD checkouts share the same atomic PostgreSQL reservation.
+    await reserveOrderInventory(client, garageId, processedItems.map(item => ({
+      product_id: item.productId,
+      quantity: item.quantity
+    })));
     
     await client.query('COMMIT');
     await NotificationsService.createNotification({
@@ -214,48 +215,70 @@ ordersRouter.post('/:id/pay', authenticate, async (req, res) => {
   
   if (!customerId) return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
 
+  const pool = getDbPool();
+  const client = await pool.connect();
   try {
-    const pool = getDbPool();
-    const orderRes = await pool.query(`SELECT * FROM orders WHERE id = $1 AND customer_id = $2`, [orderId, customerId]);
-    if (orderRes.rows.length === 0) return error(res, 'Order not found', 'NOT_FOUND', 404);
-    
-    const order = orderRes.rows[0];
-    if (order.payment_status === 'PAID') {
-      return error(res, 'Order is already paid', 'BAD_REQUEST', 400);
+    await client.query('BEGIN');
+    const orderRes = await client.query(`SELECT * FROM orders WHERE id = $1 AND customer_id = $2 FOR UPDATE`, [orderId, customerId]);
+    if (orderRes.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return error(res, 'Order not found', 'NOT_FOUND', 404);
     }
-    
-    const amountInPaise = Math.round(parseFloat(order.total) * 100);
-    const intentToken = `order_intent_${orderId}`;
-    const existingIntent = await pool.query(
+    const order = orderRes.rows[0];
+    if (['PAID', 'REFUND_PENDING', 'REFUNDED'].includes(order.payment_status) || order.status === 'CANCELLED') {
+      await client.query('ROLLBACK');
+      return error(res, 'This order cannot be paid in its current state', 'BAD_REQUEST', 400);
+    }
+
+    const amountInPaise = Math.round(Number(order.total) * 100);
+    if (order.inventory_status === 'RESERVED' && order.reservation_expires_at && new Date(order.reservation_expires_at).getTime() <= Date.now()) {
+      await releaseOrderInventory(client, orderId, ['RESERVED']);
+      await client.query(`UPDATE orders SET payment_status = 'FAILED' WHERE id = $1`, [orderId]);
+      await client.query(`UPDATE payments SET status = 'failed', updated_at = NOW() WHERE order_id = $1 AND status = 'created'`, [orderId]);
+      order.inventory_status = 'RELEASED';
+      order.payment_status = 'FAILED';
+    }
+    const existingIntent = await client.query(
       `SELECT provider_order_id FROM payments WHERE order_id = $1 AND status = 'created' AND provider_order_id IS NOT NULL ORDER BY created_at DESC LIMIT 1`, [orderId]
     );
     if (existingIntent.rows[0]?.provider_order_id) {
+      await client.query('COMMIT');
       return success(res, { providerOrderId: existingIntent.rows[0].provider_order_id, amount: amountInPaise, currency: order.currency });
     }
-    await pool.query(
-      `INSERT INTO payments (customer_user_id, order_id, method, transaction_id, amount, currency, status)
-       VALUES ($1, $2, 'razorpay', $3, $4, $5, 'created') ON CONFLICT (transaction_id) DO NOTHING`,
-      [customerId, orderId, intentToken, parseFloat(order.total), order.currency]
+
+    if (order.inventory_status === 'RELEASED') {
+      const lines = await client.query('SELECT product_id, quantity FROM order_items WHERE order_id = $1', [orderId]);
+      await reserveOrderInventory(client, order.garage_id, lines.rows);
+      await client.query(
+        `UPDATE orders SET inventory_status = 'RESERVED', reservation_expires_at = NOW() + INTERVAL '15 minutes',
+           payment_status = 'PENDING', updated_at = NOW() WHERE id = $1`, [orderId]
+      );
+    }
+
+    await client.query(
+      `UPDATE orders SET reservation_expires_at = NOW() + INTERVAL '15 minutes', updated_at = NOW()
+       WHERE id = $1 AND inventory_status = 'RESERVED'`, [orderId]
     );
-    
+
     const rzpOrder = await getRazorpayClient().orders.create({
       amount: amountInPaise,
       currency: order.currency,
       receipt: order.order_number,
       notes: { order_id: order.id }
     });
-    
-    // Record payment intent
-    await pool.query(
-      `UPDATE payments SET provider_order_id = $1, transaction_id = $1
-       WHERE order_id = $2 AND transaction_id = $3 AND status = 'created'`,
-      [rzpOrder.id, orderId, intentToken]
+    await client.query(
+      `INSERT INTO payments (payer_user_id, order_id, provider, provider_intent_id, provider_order_id, amount, currency, status)
+       VALUES ($1, $2, 'razorpay', $3, $3, $4, $5, 'created')`,
+      [customerId, orderId, rzpOrder.id, Number(order.total), order.currency]
     );
-    
+    await client.query('COMMIT');
     return success(res, { providerOrderId: rzpOrder.id, amount: amountInPaise, currency: order.currency });
   } catch (err: any) {
+    await client.query('ROLLBACK').catch(() => undefined);
     console.error('Razorpay order creation error:', err);
     return error(res, err?.error?.description || err?.message || 'Failed to initialize payment', 'PAYMENT_INIT_ERROR', 500);
+  } finally {
+    client.release();
   }
 });
 
@@ -269,7 +292,7 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
   }
   
   try {
-    // 1. Verify Signature
+    // 1. Verify signature, then confirm the provider-side captured amount and currency.
     const secret = process.env.RAZORPAY_KEY_SECRET || '';
     if (!secret) return error(res, 'Payment provider is not configured', 'CONFIGURATION_ERROR', 500);
     const generatedSignature = crypto
@@ -279,6 +302,11 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
       
     if (generatedSignature !== providerSignature) {
       return error(res, 'Invalid payment signature', 'PAYMENT_VERIFICATION_FAILED', 400);
+    }
+
+    const providerPayment = await fetchRazorpayPayment(providerPaymentId);
+    if (providerPayment.order_id !== providerOrderId || providerPayment.status !== 'captured') {
+      return error(res, 'Payment is not captured for this order', 'PAYMENT_VERIFICATION_FAILED', 400);
     }
     
     const pool = getDbPool();
@@ -295,48 +323,19 @@ ordersRouter.post('/verify-payment', authenticate, async (req, res) => {
         await client.query('ROLLBACK');
         return error(res, 'Order not found or unauthorized', 'NOT_FOUND', 404);
       }
-      if (orderRes.rows[0].payment_status === 'PAID') {
-        await client.query('ROLLBACK');
-        return success(res, { verified: true, orderId, paymentStatus: 'PAID' });
-      }
-      
-      // Bind the provider payment exactly once. A retry must not overwrite a
-      // different provider payment for the same local intent.
-      await client.query(
-        `UPDATE payments SET status = 'succeeded', provider_payment_id = $1, updated_at = NOW()
-         WHERE order_id = $3 AND transaction_id = $2 AND status <> 'succeeded'`,
-        [providerPaymentId, providerOrderId, orderId]
+      const paymentResult = await markProductOrderPaid(
+        client,
+        orderId,
+        providerOrderId,
+        providerPaymentId,
+        Number(providerPayment.amount),
+        String(providerPayment.currency)
       );
-      
-      // Update Order: payment_status = PAID, status = PENDING_ACCEPTANCE (do NOT auto accept!)
-      const paidOrderRes = await client.query(
-        `UPDATE orders SET payment_status = 'PAID', status = 'PENDING_ACCEPTANCE', updated_at = NOW()
-         WHERE id = $1 AND customer_id = $2 AND payment_status = 'PENDING' RETURNING *`,
-        [orderId, customerId]
-      );
-      const order = paidOrderRes.rows[0];
-      if (!order) throw new Error('Order payment state changed concurrently');
-      
-      // Deduct inventory
-      const itemsRes = await client.query(`SELECT * FROM order_items WHERE order_id = $1`, [orderId]);
-      for (const item of itemsRes.rows) {
-        const stockUpdate = await client.query(
-          `UPDATE garage_inventory SET qty_available = qty_available - $1, updated_at = NOW()
-           WHERE product_id = $2 AND garage_id = $3 AND qty_available >= $1`,
-          [item.quantity, item.product_id, order.garage_id]
-        );
-        if (stockUpdate.rowCount !== 1) throw new Error(`Insufficient stock for product ${item.product_id}`);
-      }
-      
-      // Generate Invoice
-      const invoiceNumber = `INV-ORD-${Date.now()}`;
-      await client.query(
-        `INSERT INTO invoices (order_id, invoice_number, subtotal, tax_amount, total_amount, currency)
-         VALUES ($1, $2, $3, $4, $5, $6)`,
-        [orderId, invoiceNumber, order.subtotal, order.tax, order.total, order.currency]
-      );
-      
       await client.query('COMMIT');
+      if (paymentResult.status !== 'PAID') {
+        return error(res, 'Payment was captured after its stock reservation expired. It is held for refund reconciliation.', 'REFUND_RECONCILIATION_REQUIRED', 409);
+      }
+      const order = paymentResult.order;
       return success(res, { 
         verified: true, 
         orderId: order.id,
@@ -375,7 +374,7 @@ ordersRouter.get('/garage', authenticate, requireRole(['garage', 'admin']), asyn
     const ordersRes = await pool.query(`
       SELECT o.*, g.name as garage_name, g.address as garage_address, g.city as garage_city, g.location as garage_location,
         o.payment_status as payment_status,
-        COALESCE(p_pay.method, 'online') as payment_method,
+        COALESCE(p_pay.provider, 'online') as payment_method,
         p_pay.provider_payment_id as payment_transaction_id,
         json_agg(json_build_object(
           'id', oi.id,
@@ -390,10 +389,10 @@ ordersRouter.get('/garage', authenticate, requireRole(['garage', 'admin']), asyn
       JOIN garages g ON o.garage_id = g.id
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN products p ON oi.product_id = p.id
-      LEFT JOIN payments p_pay ON o.id = p_pay.order_id
+      LEFT JOIN LATERAL (SELECT provider, provider_payment_id FROM payments WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1) p_pay ON TRUE
       LEFT JOIN delivery_assignments da ON o.id = da.order_id
       WHERE o.garage_id = $1
-      GROUP BY o.id, g.id, da.id, p_pay.method, p_pay.provider_payment_id
+      GROUP BY o.id, g.id, da.id, p_pay.provider, p_pay.provider_payment_id
       ORDER BY o.created_at DESC
       LIMIT ${limit}
     `, [garageId]);
@@ -406,6 +405,110 @@ ordersRouter.get('/garage', authenticate, requireRole(['garage', 'admin']), asyn
 });
 
 // PUT /api/v1/orders/:id/status - Update order fulfillment status
+ordersRouter.post('/:id/refund', authenticate, requireRole(['admin']), async (req, res) => {
+  const pool = getDbPool();
+  const client = await pool.connect();
+  let refundPayment: any;
+  try {
+    await client.query('BEGIN');
+    const result = await client.query(
+      `SELECT o.id, o.payment_status, o.total, p.id AS payment_id, p.provider, p.provider_payment_id, p.provider_refund_id, p.status AS provider_status
+       FROM orders o JOIN payments p ON p.order_id = o.id
+       WHERE o.id = $1 ORDER BY CASE WHEN p.status IN ('refund_pending', 'succeeded') THEN 0 ELSE 1 END, p.created_at DESC LIMIT 1 FOR UPDATE OF o, p`,
+      [req.params.id]
+    );
+    if (!result.rows.length) {
+      await client.query('ROLLBACK');
+      return error(res, 'Product order payment not found', 'NOT_FOUND', 404);
+    }
+    const order = result.rows[0];
+    if (order.payment_status === 'REFUNDED' || order.provider_status === 'refunded') {
+      await client.query('COMMIT');
+      return success(res, { refunded: true, alreadyProcessed: true });
+    }
+    if ((order.provider_status === 'refund_pending' || order.payment_status === 'REFUND_PENDING') && order.provider_refund_id) {
+      await client.query('COMMIT');
+      return success(res, { refundPending: true, message: 'Refund is already being reconciled.' });
+    }
+    const capturedPaymentNeedsReconciliation = order.provider_status === 'refund_pending' &&
+      !order.provider_refund_id && ['REFUND_PENDING', 'PAID'].includes(order.payment_status);
+    if (order.provider === 'cod' || !order.provider_payment_id ||
+        (!capturedPaymentNeedsReconciliation && (order.provider_status !== 'succeeded' || order.payment_status !== 'PAID'))) {
+      await client.query('ROLLBACK');
+      return error(res, 'Only captured, paid online product orders can be refunded here', 'BAD_REQUEST', 400);
+    }
+    refundPayment = order;
+    await client.query(`UPDATE payments SET status = 'refund_pending', refund_reason = $1, updated_at = NOW() WHERE id = $2`, [req.body?.reason || 'Product order refund', order.payment_id]);
+    if (order.payment_status === 'PAID') {
+      await client.query(`UPDATE orders SET payment_status = 'REFUND_PENDING', updated_at = NOW() WHERE id = $1`, [order.id]);
+    }
+    await client.query('COMMIT');
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => undefined);
+    console.error('Product order refund setup failed:', err);
+    return error(res, 'Failed to start product order refund', 'INTERNAL_SERVER_ERROR', 500);
+  } finally {
+    client.release();
+  }
+
+  try {
+    const refund = await issueRazorpayRefund(
+      refundPayment.provider_payment_id,
+      Math.round(Number(refundPayment.total) * 100)
+    );
+    const resultClient = await pool.connect();
+    let resultingOrderPaymentStatus = refundPayment.payment_status;
+    try {
+      await resultClient.query('BEGIN');
+      await resultClient.query('SELECT id FROM orders WHERE id = $1 FOR UPDATE', [refundPayment.id]);
+      const processed = refund.status === 'processed';
+      await resultClient.query(
+        `UPDATE payments SET status = $1, provider_refund_id = $2, updated_at = NOW() WHERE id = $3 AND status = 'refund_pending'`,
+        [processed ? 'refunded' : 'refund_pending', refund.id, refundPayment.payment_id]
+      );
+      const remainingSuccessfulPayment = await resultClient.query(
+        `SELECT id FROM payments WHERE order_id = $1 AND status = 'succeeded' LIMIT 1`, [refundPayment.id]
+      );
+      if (processed && remainingSuccessfulPayment.rowCount === 0) {
+        await resultClient.query(`UPDATE orders SET payment_status = 'REFUNDED', updated_at = NOW() WHERE id = $1`, [refundPayment.id]);
+        await releaseOrderInventory(resultClient, refundPayment.id);
+        resultingOrderPaymentStatus = 'REFUNDED';
+      } else if (processed) {
+        await resultClient.query(`UPDATE orders SET payment_status = 'PAID', updated_at = NOW() WHERE id = $1`, [refundPayment.id]);
+        resultingOrderPaymentStatus = 'PAID';
+      } else if (!processed && refundPayment.payment_status === 'PAID') {
+        resultingOrderPaymentStatus = 'REFUND_PENDING';
+      }
+      await resultClient.query('COMMIT');
+    } catch (err) {
+      await resultClient.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      resultClient.release();
+    }
+    return success(res, { refund, paymentStatus: resultingOrderPaymentStatus });
+  } catch (err) {
+    const failureClient = await pool.connect();
+    try {
+      await failureClient.query('BEGIN');
+      await failureClient.query('SELECT id FROM orders WHERE id = $1 FOR UPDATE', [refundPayment.id]);
+      await failureClient.query(`UPDATE payments SET status = 'refund_failed', updated_at = NOW() WHERE id = $1 AND status = 'refund_pending'`, [refundPayment.payment_id]);
+      const remainingSuccessfulPayment = await failureClient.query(
+        `SELECT id FROM payments WHERE order_id = $1 AND status = 'succeeded' LIMIT 1`, [refundPayment.id]
+      );
+      await failureClient.query(
+        `UPDATE orders SET payment_status = $1, updated_at = NOW() WHERE id = $2 AND payment_status = 'REFUND_PENDING'`,
+        [remainingSuccessfulPayment.rowCount ? 'PAID' : 'REFUND_FAILED', refundPayment.id]
+      );
+      await failureClient.query('COMMIT');
+    } finally {
+      failureClient.release();
+    }
+    console.error('Product order refund failed:', err);
+    return error(res, 'Refund could not be initiated; reconcile this captured payment with Razorpay.', 'REFUND_FAILED', 502);
+  }
+});
+
 ordersRouter.put('/:id/status', authenticate, requireRole(['garage', 'admin']), async (req, res) => {
   const { id } = req.params;
   const { status: requestedStatus } = req.body;
@@ -415,18 +518,21 @@ ordersRouter.put('/:id/status', authenticate, requireRole(['garage', 'admin']), 
     return error(res, 'Status is required', 'BAD_REQUEST', 400);
   }
 
+  let client: any = null;
   try {
     const pool = getDbPool();
+    client = await pool.connect();
+    await client.query('BEGIN');
 
-    // Check if order exists and verify garage ownership
-    const checkRes = await pool.query(`
-      SELECT o.id, o.status, o.payment_status, g.owner_user_id
-      FROM orders o 
-      JOIN garages g ON o.garage_id = g.id 
-      WHERE o.id = $1
+    // Lock the order so concurrent state changes cannot restore inventory twice.
+    const checkRes = await client.query(`
+      SELECT o.id, o.status, o.payment_status, o.inventory_status, g.owner_user_id
+      FROM orders o JOIN garages g ON o.garage_id = g.id
+      WHERE o.id = $1 FOR UPDATE OF o
     `, [id]);
 
     if (checkRes.rows.length === 0) {
+      await client.query('ROLLBACK');
       return error(res, 'Order not found', 'NOT_FOUND', 404);
     }
 
@@ -434,6 +540,7 @@ ordersRouter.put('/:id/status', authenticate, requireRole(['garage', 'admin']), 
 
     const isAdmin = req.user?.roles?.includes('admin');
     if (!isAdmin && order.owner_user_id !== userId) {
+      await client.query('ROLLBACK');
       return error(res, 'Unauthorized: Garage does not own this order', 'FORBIDDEN', 403);
     }
 
@@ -447,7 +554,10 @@ ordersRouter.put('/:id/status', authenticate, requireRole(['garage', 'admin']), 
     };
 
     const targetStatus = statusMap[String(requestedStatus).toUpperCase().replace(/\s+/g, '_')];
-    if (!targetStatus) return error(res, 'Invalid order status', 'BAD_REQUEST', 400);
+    if (!targetStatus) {
+      await client.query('ROLLBACK');
+      return error(res, 'Invalid order status', 'BAD_REQUEST', 400);
+    }
 
     const allowedTransitions: Record<string, string[]> = {
       PENDING_ACCEPTANCE: ['ACCEPTED', 'CANCELLED'],
@@ -457,17 +567,30 @@ ordersRouter.put('/:id/status', authenticate, requireRole(['garage', 'admin']), 
       CANCELLED: []
     };
     if (!(allowedTransitions[order.status] || []).includes(targetStatus)) {
+      await client.query('ROLLBACK');
       return error(res, `Order cannot move from ${order.status} to ${targetStatus}`, 'INVALID_STATUS_TRANSITION', 400);
     }
-    if (targetStatus === 'COLLECTED' && order.payment_status !== 'PAID') return error(res, 'Payment must be confirmed before collection', 'BAD_REQUEST', 400);
+    if (targetStatus === 'COLLECTED' && order.payment_status !== 'PAID') {
+      await client.query('ROLLBACK');
+      return error(res, 'Payment must be confirmed before collection', 'BAD_REQUEST', 400);
+    }
 
-    const updateRes = await pool.query(
+    if (targetStatus === 'CANCELLED') {
+      await releaseOrderInventory(client, id);
+      await client.query(`UPDATE payments SET status = 'failed', updated_at = NOW() WHERE order_id = $1 AND status = 'created'`, [id]);
+      if (order.payment_status === 'PENDING') {
+        await client.query(`UPDATE orders SET payment_status = 'FAILED' WHERE id = $1`, [id]);
+      }
+    }
+
+    const updateRes = await client.query(
       'UPDATE orders SET status = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
       [targetStatus, id]
     );
 
-    const customerResult = await pool.query(`SELECT o.customer_id, o.order_number, g.name AS garage_name, g.city
+    const customerResult = await client.query(`SELECT o.customer_id, o.order_number, g.name AS garage_name, g.city
                                               FROM orders o JOIN garages g ON g.id = o.garage_id WHERE o.id = $1`, [id]);
+    await client.query('COMMIT');
     const statusLabel = targetStatus === 'ACCEPTED' ? 'Received by Garage' : targetStatus === 'READY_FOR_COLLECTION' ? 'Ready for Collection' : targetStatus.charAt(0) + targetStatus.slice(1).toLowerCase();
     await NotificationsService.createNotification({
       userId: customerResult.rows[0]?.customer_id,
@@ -477,8 +600,11 @@ ordersRouter.put('/:id/status', authenticate, requireRole(['garage', 'admin']), 
     }).catch(err => console.error('Order status notification failed:', err));
     return success(res, updateRes.rows[0]);
   } catch (err) {
+    if (client) await client.query('ROLLBACK').catch(() => undefined);
     console.error('Update order status error', err);
     return error(res, 'Failed to update order status', 'INTERNAL_SERVER_ERROR', 500);
+  } finally {
+    if (client) client.release();
   }
 });
 
@@ -497,7 +623,7 @@ ordersRouter.post('/:id/confirm-cash', authenticate, requireRole(['garage', 'adm
       SELECT o.id, o.garage_id, o.status, o.payment_status, g.owner_user_id
       FROM orders o
       JOIN garages g ON o.garage_id = g.id
-      WHERE o.id = $1
+      WHERE o.id = $1 FOR UPDATE OF o
     `, [id]);
 
     if (orderRes.rows.length === 0) {
@@ -517,6 +643,16 @@ ordersRouter.post('/:id/confirm-cash', authenticate, requireRole(['garage', 'adm
       await client.query('ROLLBACK');
       return error(res, 'Cash can only be confirmed when the order is ready for collection', 'BAD_REQUEST', 400);
     }
+
+    const cashPayment = await client.query(
+      `SELECT id FROM payments WHERE order_id = $1 AND provider = 'cod' AND status IN ('created', 'succeeded') FOR UPDATE`,
+      [id]
+    );
+    if (!cashPayment.rows.length) {
+      await client.query('ROLLBACK');
+      return error(res, 'This order does not have a pending cash-on-collection payment', 'BAD_REQUEST', 400);
+    }
+    await commitOrderInventory(client, id);
 
     // Update payment_status to PAID
     await client.query(
@@ -551,7 +687,7 @@ ordersRouter.get('/customer/me', authenticate, async (req, res) => {
     const ordersRes = await pool.query(`
       SELECT o.*, g.name as garage_name, g.address as garage_address, g.city as garage_city, g.location as garage_location,
         o.payment_status as payment_status,
-        COALESCE(p_pay.method, 'online') as payment_method,
+        COALESCE(p_pay.provider, 'online') as payment_method,
         p_pay.provider_payment_id as payment_transaction_id,
         json_agg(json_build_object(
           'id', oi.id,
@@ -565,10 +701,10 @@ ordersRouter.get('/customer/me', authenticate, async (req, res) => {
       JOIN garages g ON o.garage_id = g.id
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN products p ON oi.product_id = p.id
-      LEFT JOIN payments p_pay ON o.id = p_pay.order_id
+      LEFT JOIN LATERAL (SELECT provider, provider_payment_id FROM payments WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1) p_pay ON TRUE
       LEFT JOIN delivery_assignments da ON o.id = da.order_id
       WHERE o.customer_id = $1
-      GROUP BY o.id, g.id, da.id, p_pay.method, p_pay.provider_payment_id
+      GROUP BY o.id, g.id, da.id, p_pay.provider, p_pay.provider_payment_id
       ORDER BY o.created_at DESC
     `, [customerId]);
 
@@ -591,7 +727,7 @@ ordersRouter.get('/:id', authenticate, async (req, res) => {
       SELECT o.*, 
         g.name as garage_name, g.address as garage_address, g.city as garage_city, g.location as garage_location,
         o.payment_status as payment_status,
-        COALESCE(p_pay.method, 'online') as payment_method,
+        COALESCE(p_pay.provider, 'online') as payment_method,
         p_pay.provider_payment_id as payment_transaction_id,
         COALESCE(
           json_agg(
@@ -612,10 +748,10 @@ ordersRouter.get('/:id', authenticate, async (req, res) => {
       LEFT JOIN garages g ON o.garage_id = g.id
       LEFT JOIN order_items oi ON o.id = oi.order_id
       LEFT JOIN products p ON oi.product_id = p.id
-      LEFT JOIN payments p_pay ON o.id = p_pay.order_id
+      LEFT JOIN LATERAL (SELECT provider, provider_payment_id FROM payments WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1) p_pay ON TRUE
       LEFT JOIN delivery_assignments da ON o.id = da.order_id
       WHERE o.id = $1 AND ($3::boolean = TRUE OR o.customer_id = $2 OR g.owner_user_id = $2)
-      GROUP BY o.id, g.id, p_pay.method, p_pay.provider_payment_id, da.status
+      GROUP BY o.id, g.id, da.id, p_pay.provider, p_pay.provider_payment_id, da.status
     `, [id, customerId, req.user?.roles?.includes('admin') || false]);
 
     if (ordersRes.rows.length === 0) {
@@ -657,7 +793,7 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
     let queryStr = `
       SELECT o.*, 
         o.payment_status as payment_status,
-        COALESCE(p_pay.method, 'online') as payment_method,
+        COALESCE(p_pay.provider, 'online') as payment_method,
         p_pay.provider_payment_id as payment_transaction_id,
         COALESCE(
           json_agg(
@@ -679,7 +815,7 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
       LEFT JOIN products p ON oi.product_id = p.id
       LEFT JOIN garages g ON o.garage_id = g.id
       LEFT JOIN users u ON o.customer_id = u.id
-      LEFT JOIN payments p_pay ON o.id = p_pay.order_id
+      LEFT JOIN LATERAL (SELECT provider, provider_payment_id FROM payments WHERE order_id = o.id ORDER BY created_at DESC LIMIT 1) p_pay ON TRUE
     `;
     
     const conditions: string[] = [];
@@ -710,7 +846,7 @@ ordersRouter.get('/admin/all', authenticate, requireRole(['admin']), async (req,
     }
     
     queryStr += `
-      GROUP BY o.id, g.name, u.name, p_pay.method, p_pay.provider_payment_id
+      GROUP BY o.id, g.name, u.name, p_pay.provider, p_pay.provider_payment_id
       ORDER BY o.created_at DESC
     `;
 

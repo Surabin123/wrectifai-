@@ -8,6 +8,7 @@ import Razorpay from 'razorpay';
 import crypto from 'crypto';
 import { ReferralService } from '../../services/referral.service';
 import { processCashback } from '../offers/offers.service';
+import { failProductOrderPayment, markProductOrderPaid, releaseOrderInventory } from '../orders/order-inventory.service';
 
 export const paymentsRouter = Router();
 const env = getEnv();
@@ -506,17 +507,17 @@ paymentsRouter.post('/webhook', async (req, res) => {
         // Recovery path for orders/top-ups whose local binding failed after
         // Razorpay accepted the payment. Provider order IDs are unique.
         const paymentRes = await client.query(
-          `SELECT id, order_id, customer_user_id, amount FROM payments
-           WHERE provider_order_id = $1 FOR UPDATE`, [providerIntentId]
+          `SELECT id, order_id, payer_user_id, amount, currency FROM payments
+           WHERE provider_order_id = $1`, [providerIntentId]
         );
         if (paymentRes.rows.length > 0 && paymentRes.rows[0].order_id) {
-          await client.query(
-            `UPDATE payments SET provider_payment_id = $1, status = CASE WHEN status IN ('refunded','succeeded') THEN status ELSE 'succeeded' END, updated_at = NOW()
-             WHERE id = $2`, [paymentEntity.id, paymentRes.rows[0].id]
-          );
-          await client.query(
-            `UPDATE orders SET payment_status = 'PAID', status = CASE WHEN status = 'PENDING' THEN 'PENDING_ACCEPTANCE' ELSE status END, updated_at = NOW()
-             WHERE id = $1 AND payment_status NOT IN ('PAID','REFUNDED')`, [paymentRes.rows[0].order_id]
+          await markProductOrderPaid(
+            client,
+            paymentRes.rows[0].order_id,
+            providerIntentId,
+            paymentEntity.id,
+            Number(paymentEntity.amount),
+            String(paymentEntity.currency)
           );
         }
         const topupRes = await client.query(
@@ -542,10 +543,16 @@ paymentsRouter.post('/webhook', async (req, res) => {
             WHERE booking_id=$3 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.bookingId]);
         }
         if (notes.order_id) {
-          await client.query(`UPDATE payments SET provider_order_id=$1, provider_payment_id=$2, transaction_id=$1, status='succeeded'
-            WHERE order_id=$3 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.order_id]);
-          await client.query(`UPDATE orders SET payment_status='PAID', status=CASE WHEN status='PENDING' THEN 'PENDING_ACCEPTANCE' ELSE status END, updated_at=NOW()
-            WHERE id=$1 AND payment_status NOT IN ('PAID','REFUNDED')`, [notes.order_id]);
+          await client.query(`UPDATE payments SET provider_order_id=$1, provider_intent_id=$1
+            WHERE order_id=$2 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, notes.order_id]);
+          await markProductOrderPaid(
+            client,
+            notes.order_id,
+            providerIntentId,
+            paymentEntity.id,
+            Number(paymentEntity.amount),
+            String(paymentEntity.currency)
+          );
         }
         if (notes.type === 'wallet_topup' && notes.userId) {
           if (notes.intentToken) {
@@ -602,6 +609,14 @@ paymentsRouter.post('/webhook', async (req, res) => {
             );
           }
         }
+      } else {
+        const orderPayment = await client.query(
+          `SELECT p.id, p.order_id FROM payments p WHERE p.provider_order_id = $1 AND p.order_id IS NOT NULL`,
+          [providerIntentId]
+        );
+        if (orderPayment.rows.length > 0) {
+          await failProductOrderPayment(client, orderPayment.rows[0].order_id, providerIntentId);
+        }
       }
     } else if (webhookBody.event === 'refund.processed') {
       const refundEntity = webhookBody.payload?.refund?.entity;
@@ -609,17 +624,36 @@ paymentsRouter.post('/webhook', async (req, res) => {
       const refundId = refundEntity?.id;
 
       if (paymentId) {
+        const productPayment = await client.query(
+          `SELECT order_id FROM payments WHERE provider_payment_id = $1 AND order_id IS NOT NULL`, [paymentId]
+        );
+        if (productPayment.rows[0]?.order_id) {
+          await client.query('SELECT id FROM orders WHERE id = $1 FOR UPDATE', [productPayment.rows[0].order_id]);
+        }
         const updateRes = await client.query(
-          "UPDATE payments SET status = 'refunded', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refunded' RETURNING booking_id, amount",
+          "UPDATE payments SET status = 'refunded', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refunded' RETURNING booking_id, order_id, amount",
           [refundId, paymentId]
         );
         if (updateRes.rows.length > 0) {
           const bookingId = updateRes.rows[0].booking_id;
+          const orderId = updateRes.rows[0].order_id;
           const refundedAmount = updateRes.rows[0].amount;
-          await client.query("UPDATE bookings SET payment_status = 'REFUNDED', updated_at = NOW() WHERE id = $1", [bookingId]);
+          if (orderId) {
+            const remainingSuccessfulPayment = await client.query(
+              `SELECT id FROM payments WHERE order_id = $1 AND status = 'succeeded' LIMIT 1`, [orderId]
+            );
+            if (remainingSuccessfulPayment.rowCount) {
+              await client.query("UPDATE orders SET payment_status = 'PAID', updated_at = NOW() WHERE id = $1", [orderId]);
+            } else {
+              await client.query("UPDATE orders SET payment_status = 'REFUNDED', updated_at = NOW() WHERE id = $1", [orderId]);
+              await releaseOrderInventory(client, orderId);
+            }
+          } else if (bookingId) {
+            await client.query("UPDATE bookings SET payment_status = 'REFUNDED', updated_at = NOW() WHERE id = $1", [bookingId]);
+          }
 
           // Create credit note
-          const invoiceRes = await client.query('SELECT * FROM invoices WHERE booking_id = $1 AND type = \'invoice\'', [bookingId]);
+          const invoiceRes = bookingId ? await client.query('SELECT * FROM invoices WHERE booking_id = $1 AND type = \'invoice\'', [bookingId]) : { rows: [] };
           if (invoiceRes.rows.length > 0) {
             const origInv = invoiceRes.rows[0];
             await client.query(
@@ -646,12 +680,29 @@ paymentsRouter.post('/webhook', async (req, res) => {
       const refundId = refundEntity?.id;
 
       if (paymentId) {
+        const productPayment = await client.query(
+          `SELECT order_id FROM payments WHERE provider_payment_id = $1 AND order_id IS NOT NULL`, [paymentId]
+        );
+        if (productPayment.rows[0]?.order_id) {
+          await client.query('SELECT id FROM orders WHERE id = $1 FOR UPDATE', [productPayment.rows[0].order_id]);
+        }
         const updateRes = await client.query(
-          "UPDATE payments SET status = 'refund_failed', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refund_failed' RETURNING booking_id",
+          "UPDATE payments SET status = 'refund_failed', provider_refund_id = $1, updated_at = NOW() WHERE provider_payment_id = $2 AND status != 'refund_failed' RETURNING booking_id, order_id",
           [refundId, paymentId]
         );
         if (updateRes.rows.length > 0) {
-          await client.query("UPDATE bookings SET payment_status = 'REFUND_FAILED', updated_at = NOW() WHERE id = $1", [updateRes.rows[0].booking_id]);
+          if (updateRes.rows[0].order_id) {
+            const orderId = updateRes.rows[0].order_id;
+            const remainingSuccessfulPayment = await client.query(
+              `SELECT id FROM payments WHERE order_id = $1 AND status = 'succeeded' LIMIT 1`, [orderId]
+            );
+            await client.query(
+              `UPDATE orders SET payment_status = $1, updated_at = NOW() WHERE id = $2`,
+              [remainingSuccessfulPayment.rowCount ? 'PAID' : 'REFUND_FAILED', orderId]
+            );
+          } else if (updateRes.rows[0].booking_id) {
+            await client.query("UPDATE bookings SET payment_status = 'REFUND_FAILED', updated_at = NOW() WHERE id = $1", [updateRes.rows[0].booking_id]);
+          }
         }
       }
     }

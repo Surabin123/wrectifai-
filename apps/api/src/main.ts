@@ -3,7 +3,8 @@ import { resolve } from 'path';
 require('dotenv').config({ path: resolve(__dirname, '../../../../.env') });
 import { getEnv } from './config/env';
 import { createApp } from './app';
-import { closeDbPool } from './config/database';
+import { closeDbPool, getDbPool } from './config/database';
+import { releaseExpiredOrderReservations } from './modules/orders/order-inventory.service';
 import dns from 'dns';
 
 // Fix ENOTFOUND errors on some Windows setups where IPv6 fails
@@ -18,8 +19,31 @@ async function startServer() {
       console.log(`[api] listening on http://${host}:${port}`);
     });
 
+    let reservationCleanupRunning = false;
+    const cleanupExpiredReservations = async () => {
+      if (reservationCleanupRunning) return;
+      reservationCleanupRunning = true;
+      let client: Awaited<ReturnType<ReturnType<typeof getDbPool>['connect']>> | null = null;
+      try {
+        client = await getDbPool().connect();
+        await client.query('BEGIN');
+        await releaseExpiredOrderReservations(client);
+        await client.query('COMMIT');
+      } catch (err) {
+        if (client) await client.query('ROLLBACK').catch(() => undefined);
+        console.error('[orders] expired inventory reservation cleanup failed:', err);
+      } finally {
+        reservationCleanupRunning = false;
+        client?.release();
+      }
+    };
+    const reservationCleanupTimer = setInterval(() => void cleanupExpiredReservations(), 60_000);
+    reservationCleanupTimer.unref();
+    void cleanupExpiredReservations();
+
     const shutdown = async (signal: string) => {
       console.log(`\n${signal} received. Starting graceful shutdown...`);
+      clearInterval(reservationCleanupTimer);
       server.close(async () => {
         console.log('HTTP server closed.');
         try {

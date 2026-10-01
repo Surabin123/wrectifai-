@@ -129,8 +129,17 @@ export function CartPage() {
       const garageId = cartItems[0].garageId;
       if (!garageId) throw new Error("Items are missing garage information");
       
-      const checkoutSessionId = (window as any)._cartCheckoutSessionId || `session_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+      const checkoutFingerprint = JSON.stringify({
+        garageId,
+        items: cartItems.map(item => ({ productId: item.id, quantity: item.quantity || 1 })),
+        offerCode: promoCodeApplied || null,
+      });
+      const sameCheckout = (window as any)._cartCheckoutFingerprint === checkoutFingerprint;
+      const checkoutSessionId = sameCheckout && (window as any)._cartCheckoutSessionId
+        ? (window as any)._cartCheckoutSessionId
+        : `session_${Date.now()}_${Math.random().toString(36).substring(2, 12)}`;
       (window as any)._cartCheckoutSessionId = checkoutSessionId;
+      (window as any)._cartCheckoutFingerprint = checkoutFingerprint;
 
       const payload = {
         garageId,
@@ -158,6 +167,8 @@ export function CartPage() {
         setPaymentTransactionId(undefined);
         setIsCheckoutModalOpen(true);
         updateCart([]);
+        delete (window as any)._cartCheckoutSessionId;
+        delete (window as any)._cartCheckoutFingerprint;
         return;
       }
       
@@ -217,6 +228,8 @@ export function CartPage() {
             setPaymentTransactionId(response.razorpay_payment_id);
             setIsCheckoutModalOpen(true);
             updateCart([]);
+            delete (window as any)._cartCheckoutSessionId;
+            delete (window as any)._cartCheckoutFingerprint;
           } catch (err) {
             console.error('Verification failed', err);
             setErrorMsg('Payment verification failed. Please contact support.');
