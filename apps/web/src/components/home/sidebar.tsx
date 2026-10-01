@@ -32,6 +32,11 @@ export function Sidebar({
   hideBottomWidget?: boolean;
 }) {
   const pathname = usePathname();
+  const homeHref = pathname?.startsWith('/admin')
+    ? '/admin/dashboard'
+    : pathname?.startsWith('/garage')
+      ? '/garage/dashboard'
+      : '/dashboard';
   const [referralReward, setReferralReward] = useState<{ amount: number; currency: string; isEnabled: boolean }>({
     amount: 500,
     currency: 'INR',
@@ -81,7 +86,7 @@ export function Sidebar({
         )}
       >
         <Link
-          href="/"
+          href={homeHref}
           className={cn(
             'transition-all',
             collapsed

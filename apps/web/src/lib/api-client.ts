@@ -47,7 +47,16 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
   const timeout = globalThis.setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
   const signal = init.signal || controller.signal;
   try {
-    return await fetch(input, { ...init, signal });
+    const response = await fetch(input, { ...init, signal });
+    // Keep the deadline active while the response body streams. Clearing it
+    // after headers alone still allows a stalled JSON body to block navigation.
+    if (typeof response.text !== 'function') return response;
+    const body = await response.text();
+    return new Response(body || null, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: response.headers,
+    });
   } finally {
     globalThis.clearTimeout(timeout);
   }

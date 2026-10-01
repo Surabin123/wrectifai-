@@ -68,6 +68,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const operation = authOperationRef.current;
 
     async function initAuth() {
+      // Restore the current tab's signed session immediately. A full-page
+      // navigation back to / should not wait for the API just to decide where
+      // to route; /auth/me below still verifies the session with the server.
+      const sessionToken = sessionStorage.getItem('wrectifai_session_access_token') ||
+        sessionStorage.getItem('wrectifai_demo_access_token');
+      const sessionClaims = sessionToken ? decodeJwt(sessionToken) : null;
+      if (sessionClaims?.userId && (!sessionClaims.exp || sessionClaims.exp * 1000 > Date.now())) {
+        const sessionUser: User = {
+          id: sessionClaims.userId,
+          email: sessionClaims.email,
+          name: sessionClaims.name || (sessionClaims.email ? sessionClaims.email.split('@')[0] : 'User'),
+          roles: Array.isArray(sessionClaims.roles) ? sessionClaims.roles : [],
+          garageId: sessionClaims.garageId,
+        };
+        setToken(sessionToken);
+        setUser(sessionUser);
+        setIsAuthenticated(true);
+        setIsLoading(false);
+      }
+
       try {
         const { apiClient } = await import('./api-client');
         const data = await apiClient<{ user: User }>('/auth/me');
@@ -86,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             setUser(null);
             setToken(null);
             setIsAuthenticated(false);
-          } else {
+          } else if (!sessionClaims?.userId || (sessionClaims.exp && sessionClaims.exp * 1000 <= Date.now())) {
             // For temporary failures (network down, 5xx), we cannot authenticate them right now,
             // but we don't aggressively clear their state via a full logout.
             // They will simply be unauthenticated for this session attempt.
