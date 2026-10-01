@@ -65,14 +65,23 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
         v.model as "vehicleModel",
         v.year as "vehicleYear",
         v.vin as "vehicleVin",
-        q.details->>'etaNote' as "estimatedDays",
+        COALESCE(q.details->>'etaNote', q.eta_days::text,
+          (SELECT CASE
+             WHEN service_item->>'durationUnit' ILIKE 'day%' THEN (service_item->>'durationMins')
+             WHEN service_item->>'durationUnit' ILIKE 'hour%' THEN GREATEST(1, CEIL((service_item->>'durationMins')::numeric / 24.0))::text
+             WHEN service_item->>'durationMins' IS NOT NULL AND service_item->>'durationUnit' ILIKE 'hour%' THEN GREATEST(1, CEIL((service_item->>'durationMins')::numeric / 24.0))::text
+             WHEN service_item->>'durationMins' IS NOT NULL THEN GREATEST(1, CEIL((service_item->>'durationMins')::numeric / 1440.0))::text
+             ELSE NULL
+           END
+           FROM jsonb_array_elements(COALESCE(b.service_details->'breakdown'->'labor', '[]'::jsonb)) service_item
+           ORDER BY (service_item->>'durationMins')::numeric DESC NULLS LAST LIMIT 1)) as "estimatedDays",
         COALESCE(qr.issue_summary, b.customer_note) as "issueDescription",
         qr.preferred_date as "preferredDate",
         u.name as "customerName",
         u.mobile_number as "customerPhone",
         u.email as "customerEmail",
         p.city as "customerCity",
-        g.city as "garageCity"
+        COALESCE(NULLIF(g.city, ''), NULLIF(g.location->>'city', ''), NULLIF(g.location->>'locality', '')) as "garageCity"
        FROM bookings b
        JOIN garages g ON b.garage_id = g.id
        JOIN vehicles v ON b.vehicle_id = v.id
@@ -315,7 +324,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
 
     if (serviceIds && serviceIds.length > 0) {
       const servicesCheck = await query(
-        `SELECT id, name, price FROM services WHERE id = ANY($1) AND garage_id = $2 AND is_active = true`,
+        `SELECT id, name, price, duration_mins, duration_unit FROM services WHERE id = ANY($1) AND garage_id = $2 AND is_active = true`,
         [serviceIds, garageId]
       );
       if (servicesCheck.rows.length !== serviceIds.length) {
@@ -326,7 +335,14 @@ function parseTimeToMinutes(timeStr: any): number | null {
       const laborItems = servicesCheck.rows.map(s => {
         const p = Number(s.price) || 0;
         computedTotal += p;
-        return { name: s.name, price: p, quantity: 1, total: p };
+        return {
+          name: s.name,
+          price: p,
+          quantity: 1,
+          total: p,
+          durationMins: s.duration_mins,
+          durationUnit: s.duration_unit,
+        };
       });
 
       totalAmount = computedTotal;
@@ -539,7 +555,17 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
               b.scheduled_at as "scheduledAt", b.status, b.total_amount as "totalAmount", b.currency as "currency", b.created_at as "createdAt",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin",
               u.name as "customerName", u.mobile_number as "customerPhone", NULL::text as "customerAvatar",
-              q.details as "quoteDetails", q.amount as "quoteAmount", q.eta_days as "estimatedDays",
+              q.details as "quoteDetails", q.amount as "quoteAmount",
+              COALESCE(q.details->>'etaNote', q.eta_days::text,
+                (SELECT CASE
+                   WHEN service_item->>'durationUnit' ILIKE 'day%' THEN service_item->>'durationMins'
+                   WHEN service_item->>'durationUnit' ILIKE 'hour%' THEN GREATEST(1, CEIL((service_item->>'durationMins')::numeric / 24.0))::text
+                   WHEN service_item->>'durationMins' IS NOT NULL AND service_item->>'durationUnit' ILIKE 'hour%' THEN GREATEST(1, CEIL((service_item->>'durationMins')::numeric / 24.0))::text
+                   WHEN service_item->>'durationMins' IS NOT NULL THEN GREATEST(1, CEIL((service_item->>'durationMins')::numeric / 1440.0))::text
+                   ELSE NULL
+                 END
+                 FROM jsonb_array_elements(COALESCE(b.service_details->'breakdown'->'labor', '[]'::jsonb)) service_item
+                 ORDER BY (service_item->>'durationMins')::numeric DESC NULLS LAST LIMIT 1)) as "estimatedDays",
               b.customer_note as "customerNote",
               COALESCE(qr.issue_summary, b.customer_note) as "issueSummary",
               COALESCE(qr.issue_summary, b.customer_note) as "issueDescription"
@@ -693,7 +719,7 @@ bookingsRouter.get('/:bookingId', authenticate, async (req, res) => {
         u.mobile_number as "customerPhone",
         u.email as "customerEmail",
         p.city as "customerCity",
-        g.city as "garageCity"
+        COALESCE(NULLIF(g.city, ''), NULLIF(g.location->>'city', ''), NULLIF(g.location->>'locality', '')) as "garageCity"
        FROM bookings b
        JOIN garages g ON b.garage_id = g.id
        JOIN vehicles v ON b.vehicle_id = v.id

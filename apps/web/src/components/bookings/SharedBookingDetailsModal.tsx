@@ -127,31 +127,17 @@ export function SharedBookingDetailsModal({ booking, onClose, actions, userRole 
           </div>
         </div>
 
-        {/* Cost & Quote Details */}
+        {/* Booking price */}
         <div className="border-t border-slate-200 pt-4 grid grid-cols-2 gap-4">
           <div className="space-y-1">
-            <p className="text-[10px] uppercase font-bold text-slate-500">Labour Cost</p>
-            <p className="font-semibold text-slate-900">{formatCurrency(booking.laborCost || 0, booking.currency || 'USD')}</p>
-          </div>
-          <div className="space-y-1">
-            <p className="text-[10px] uppercase font-bold text-slate-500">Parts Cost</p>
-            <p className="font-semibold text-slate-900">{formatCurrency(booking.partsCost || 0, booking.currency || 'USD')}</p>
-          </div>
-          {(booking.otherCost ?? 0) > 0 && (
-            <div className="space-y-1">
-              <p className="text-[10px] uppercase font-bold text-slate-500">Other Charges</p>
-              <p className="font-semibold text-slate-900">{formatCurrency(booking.otherCost || 0, booking.currency || 'USD')}</p>
-            </div>
-          )}
-          <div className="space-y-1">
             <p className="text-[10px] uppercase font-bold text-slate-500">Estimated Time</p>
-            <p className="font-semibold text-slate-900">{booking.estimatedDays ? `${booking.estimatedDays} days` : 'N/A'}</p>
+            <p className="font-semibold text-slate-900">{booking.estimatedDays ? (/^\d+$/.test(String(booking.estimatedDays).trim()) ? `${String(booking.estimatedDays).trim()} Days` : booking.estimatedDays) : 'N/A'}</p>
           </div>
 
           <div className="space-y-1 col-span-2 bg-blue-50 p-4 rounded-lg border border-blue-100 flex justify-between items-center mt-2">
             <p className="font-bold text-[#17307a]">Total Amount</p>
             <p className="font-bold text-2xl text-[#2451f6]">
-              {formatCurrency(booking.totalAmount || 0, booking.currency || 'USD')}
+              {booking.totalAmount == null ? 'N/A' : formatCurrency(booking.totalAmount, booking.currency)}
             </p>
           </div>
         </div>
