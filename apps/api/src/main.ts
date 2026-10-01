@@ -3,7 +3,7 @@ import { resolve } from 'path';
 require('dotenv').config({ path: resolve(__dirname, '../../../../.env') });
 import { getEnv } from './config/env';
 import { createApp } from './app';
-import { closeDbPool, getDbPool } from './config/database';
+import { closeDbPool, withTransaction } from './config/database';
 import { releaseExpiredOrderReservations } from './modules/orders/order-inventory.service';
 import dns from 'dns';
 
@@ -23,18 +23,14 @@ async function startServer() {
     const cleanupExpiredReservations = async () => {
       if (reservationCleanupRunning) return;
       reservationCleanupRunning = true;
-      let client: Awaited<ReturnType<ReturnType<typeof getDbPool>['connect']>> | null = null;
       try {
-        client = await getDbPool().connect();
-        await client.query('BEGIN');
-        await releaseExpiredOrderReservations(client);
-        await client.query('COMMIT');
+        await withTransaction(async (client) => {
+          await releaseExpiredOrderReservations(client);
+        });
       } catch (err) {
-        if (client) await client.query('ROLLBACK').catch(() => undefined);
         console.error('[orders] expired inventory reservation cleanup failed:', err);
       } finally {
         reservationCleanupRunning = false;
-        client?.release();
       }
     };
     const reservationCleanupTimer = setInterval(() => void cleanupExpiredReservations(), 60_000);
