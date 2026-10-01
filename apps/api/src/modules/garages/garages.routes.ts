@@ -669,9 +669,20 @@ garagesRouter.post('/my-inventory/request', authenticate, async (req, res) => {
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
     const { name, category, description, brand, suggestedPrice, image } = req.body;
-    
-    if (!name || !category) {
-      return error(res, 'Name and category are required', 'BAD_REQUEST', 400);
+    const cleanName = typeof name === 'string' ? name.trim() : '';
+    const cleanCategory = typeof category === 'string' ? category.trim() : '';
+    const cleanDescription = typeof description === 'string' ? description.trim() : '';
+    const cleanBrand = typeof brand === 'string' ? brand.trim() : '';
+    const parsedSuggestedPrice = Number(suggestedPrice);
+
+    if (!cleanName || !cleanCategory || !cleanDescription || !cleanBrand || !image || suggestedPrice === undefined || suggestedPrice === null || suggestedPrice === '') {
+      return error(res, 'All product request fields are required', 'BAD_REQUEST', 400);
+    }
+    if (cleanName.length > 255 || cleanCategory.length > 100 || cleanBrand.length > 100 || cleanDescription.length > 5000) {
+      return error(res, 'Product request fields exceed the allowed length', 'BAD_REQUEST', 400);
+    }
+    if (!Number.isFinite(parsedSuggestedPrice) || parsedSuggestedPrice < 0 || typeof image !== 'string' || !image.trim() || image.length > 7 * 1024 * 1024) {
+      return error(res, 'Invalid suggested price or product image', 'BAD_REQUEST', 400);
     }
     
     let processedImage = image;
@@ -696,7 +707,7 @@ garagesRouter.post('/my-inventory/request', authenticate, async (req, res) => {
     const result = await query(
       `INSERT INTO product_requests (garage_id, name, category, description, brand, image, suggested_price)
        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [garageId, name, category, description, brand || null, processedImage, suggestedPrice || null]
+      [garageId, cleanName, cleanCategory, cleanDescription, cleanBrand, processedImage, parsedSuggestedPrice]
     );
 
     return success(res, result.rows[0], 201);

@@ -125,14 +125,23 @@ export default function InventoryPage() {
   };
 
   const submitRequestProduct = async () => {
-    if (!requestData.name.trim() || !requestData.category.trim()) {
-      setValidationError('Product name and category are required.');
+    if (!requestData.name.trim() || !requestData.category.trim() || !requestData.brand.trim() || !requestData.image || !requestData.description.trim() || requestData.suggestedPrice === '') {
+      setValidationError('Please complete every field, including a product image.');
+      return;
+    }
+    const suggestedPrice = Number(requestData.suggestedPrice);
+    if (!Number.isFinite(suggestedPrice) || suggestedPrice < 0) {
+      setValidationError('Enter a valid non-negative suggested price.');
       return;
     }
     try {
       await apiClient.post('/garages/my-inventory/request', {
         ...requestData,
-        suggestedPrice: requestData.suggestedPrice ? Number(requestData.suggestedPrice) : undefined
+        name: requestData.name.trim(),
+        category: requestData.category.trim(),
+        brand: requestData.brand.trim(),
+        description: requestData.description.trim(),
+        suggestedPrice
       });
       setShowAddModal(false);
       setSuccessMessage('Product request submitted for admin review.');
@@ -428,38 +437,38 @@ export default function InventoryPage() {
                   {inventory.length === 0 && <p className="text-sm text-slate-600 bg-blue-50 border border-blue-100 rounded-lg p-3">Request your first product. Once it is approved and added to inventory, you can select existing catalog products here.</p>}
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">Product Name *</label>
-                    <input type="text" value={requestData.name} onChange={(e) => setRequestData({...requestData, name: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Castrol GTX" />
+                    <input type="text" required value={requestData.name} onChange={(e) => setRequestData({...requestData, name: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Castrol GTX" />
                   </div>
                   <div>
                     <label className="block text-xs font-bold text-slate-700 mb-1">Category *</label>
-                    <input type="text" value={requestData.category} onChange={(e) => setRequestData({...requestData, category: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Consumables" />
+                    <input type="text" required value={requestData.category} onChange={(e) => setRequestData({...requestData, category: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Consumables" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Brand</label>
-                    <input type="text" value={requestData.brand} onChange={(e) => setRequestData({...requestData, brand: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Castrol" />
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Brand *</label>
+                    <input type="text" required value={requestData.brand} onChange={(e) => setRequestData({...requestData, brand: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Castrol" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Product Image</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Product Image *</label>
                     {imagePreview ? (
                       <div className="relative inline-block">
                         <img src={imagePreview} alt="Preview" className="w-24 h-24 object-cover rounded-lg border border-slate-200" />
                         <button onClick={() => { setImagePreview(''); setRequestData({...requestData, image: ''}); }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1"><X className="w-3 h-3"/></button>
                       </div>
                     ) : (
-                      <input type="file" accept="image/*" onChange={handleImageUpload} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+                      <input type="file" accept="image/*" required onChange={handleImageUpload} className="w-full text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
                     )}
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Description</label>
-                    <textarea value={requestData.description} onChange={(e) => setRequestData({...requestData, description: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm min-h-[60px]" />
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Description *</label>
+                    <textarea required value={requestData.description} onChange={(e) => setRequestData({...requestData, description: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm min-h-[60px]" />
                   </div>
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Suggested Price</label>
-                    <input type="text" inputMode="decimal" value={requestData.suggestedPrice} onChange={(e) => setRequestData({...requestData, suggestedPrice: e.target.value.replace(/[^0-9.]/g, '')})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Optional" />
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Suggested Price *</label>
+                    <input type="text" inputMode="decimal" required value={requestData.suggestedPrice} onChange={(e) => setRequestData({...requestData, suggestedPrice: e.target.value.replace(/[^0-9.]/g, '')})} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 1500" />
                   </div>
                   <div className="mt-8 flex justify-end gap-3">
                     <button onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded-lg text-sm font-bold text-slate-600">Cancel</button>
-                    <button onClick={submitRequestProduct} disabled={!requestData.name || !requestData.category} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Request Product</button>
+                    <button onClick={submitRequestProduct} disabled={!requestData.name.trim() || !requestData.category.trim() || !requestData.brand.trim() || !requestData.image || !requestData.description.trim() || requestData.suggestedPrice === ''} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Request Product</button>
                   </div>
                 </div>
               )}
