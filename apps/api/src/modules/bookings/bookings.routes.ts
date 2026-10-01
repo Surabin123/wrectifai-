@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
-import { query } from '../../config/database';
+import { query, withTransaction } from '../../config/database';
 import { validateOffer, recordOfferRedemption, processCashback } from '../offers/offers.service';
 import { holdWalletBalance } from '../wallet/wallet.service';
 import { createRazorpayOrder } from '../payments/razorpay.service';
@@ -221,17 +221,30 @@ function parseTimeToMinutes(timeStr: any): number | null {
       return error(res, 'This garage is not available for new bookings.', 'FORBIDDEN', 403);
     }
 
-    // Calendar-day uniqueness is also enforced by a unique database index;
-    // this check provides the friendly validation response before insertion.
+    // An in-progress job occupies the vehicle until collection. Completed,
+    // cancelled, and collected records are historical and do not block it.
     const duplicateBooking = await query(
       `SELECT id FROM bookings
-       WHERE vehicle_id = $1
-         AND (scheduled_at AT TIME ZONE 'Asia/Kolkata')::date = ($2::timestamptz AT TIME ZONE 'Asia/Kolkata')::date
-         AND status <> 'cancelled'
+       WHERE vehicle_id = $1 AND customer_id = $2
+         AND status IN ('in_progress', 'readyForCollection')
        LIMIT 1`,
-      [vehicleId, scheduledAt]
+      [vehicleId, customerId]
     );
     if (duplicateBooking.rows.length > 0) {
+      return error(res, 'This vehicle already has an active service booking. You can book it again after the current job is completed and the vehicle has been collected.', 'ACTIVE_VEHICLE_BOOKING', 409);
+    }
+
+    // Preserve appointment-day conflicts for pending/future bookings, without
+    // treating completed jobs as conflicts.
+    const sameDayBooking = await query(
+      `SELECT id FROM bookings
+       WHERE vehicle_id = $1 AND customer_id = $2
+         AND status IN ('requested', 'confirmed')
+         AND (scheduled_at AT TIME ZONE 'Asia/Kolkata')::date = ($3::timestamptz AT TIME ZONE 'Asia/Kolkata')::date
+       LIMIT 1`,
+      [vehicleId, customerId, scheduledAt]
+    );
+    if (sameDayBooking.rows.length > 0) {
       return error(res, 'This vehicle already has a booking for this date. Please select another date.', 'DUPLICATE_BOOKING_DATE', 409);
     }
 
@@ -380,28 +393,61 @@ function parseTimeToMinutes(timeStr: any): number | null {
     const status = 'requested';
     const paymentStatus = 'UNPAID';
 
-    const result = await query(
-      `INSERT INTO bookings (customer_id, garage_id, vehicle_id, quote_id, booking_type, scheduled_at, status, payment_status, total_amount, currency, customer_note, offer_id, discount_applied, wallet_used, service_details)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-       RETURNING id, customer_id as "customerId", garage_id as "garageId", vehicle_id as "vehicleId", quote_id as "quoteId", booking_type as "bookingType", scheduled_at as "scheduledAt", status, payment_status as "paymentStatus", total_amount as "totalAmount", currency, created_at as "createdAt"`,
-      [
-        customerId,
-        garageId,
-        vehicleId,
-        quoteId || null,
-        bookingType,
-        scheduledAt,
-        status,
-        paymentStatus,
-        finalAmount,
-        currency || garageData.business_currency || 'INR',
-        finalServiceType,
-        offerId,
-        discountApplied,
-        heldWalletAmount,
-        serviceDetailsJSON
-      ]
-    );
+    // Serialize by vehicle and repeat both checks inside the same transaction
+    // as the insert. The database trigger applies the same rules to other writers.
+    const insertOutcome = await withTransaction(async (client) => {
+      await client.query('SELECT pg_advisory_xact_lock(hashtextextended($1::text, 0))', [vehicleId]);
+
+      const activeJob = await client.query(
+        `SELECT id FROM bookings
+         WHERE vehicle_id = $1 AND customer_id = $2
+           AND status IN ('in_progress', 'readyForCollection')
+         LIMIT 1`,
+        [vehicleId, customerId]
+      );
+      if (activeJob.rows.length > 0) return { conflict: 'active' as const };
+
+      const sameDayAppointment = await client.query(
+        `SELECT id FROM bookings
+         WHERE vehicle_id = $1 AND customer_id = $2
+           AND status IN ('requested', 'confirmed')
+           AND (scheduled_at AT TIME ZONE 'Asia/Kolkata')::date = ($3::timestamptz AT TIME ZONE 'Asia/Kolkata')::date
+         LIMIT 1`,
+        [vehicleId, customerId, scheduledAt]
+      );
+      if (sameDayAppointment.rows.length > 0) return { conflict: 'date' as const };
+
+      const result = await client.query(
+        `INSERT INTO bookings (customer_id, garage_id, vehicle_id, quote_id, booking_type, scheduled_at, status, payment_status, total_amount, currency, customer_note, offer_id, discount_applied, wallet_used, service_details)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+         RETURNING id, customer_id as "customerId", garage_id as "garageId", vehicle_id as "vehicleId", quote_id as "quoteId", booking_type as "bookingType", scheduled_at as "scheduledAt", status, payment_status as "paymentStatus", total_amount as "totalAmount", currency, created_at as "createdAt"`,
+        [
+          customerId,
+          garageId,
+          vehicleId,
+          quoteId || null,
+          bookingType,
+          scheduledAt,
+          status,
+          paymentStatus,
+          finalAmount,
+          currency || garageData.business_currency || 'INR',
+          finalServiceType,
+          offerId,
+          discountApplied,
+          heldWalletAmount,
+          serviceDetailsJSON
+        ]
+      );
+      return { result };
+    });
+
+    if ('conflict' in insertOutcome) {
+      return insertOutcome.conflict === 'active'
+        ? error(res, 'This vehicle already has an active service booking. You can book it again after the current job is completed and the vehicle has been collected.', 'ACTIVE_VEHICLE_BOOKING', 409)
+        : error(res, 'This vehicle already has a booking for this date. Please select another date.', 'DUPLICATE_BOOKING_DATE', 409);
+    }
+    const result = insertOutcome.result;
 
     const booking = result.rows[0];
     const bookingId = booking.id;
@@ -462,6 +508,9 @@ function parseTimeToMinutes(timeStr: any): number | null {
     );
   } catch (err) {
     console.error('Booking creation error:', err);
+    if ((err as any)?.code === '23505' && (err as any)?.constraint === 'uq_active_vehicle_service') {
+      return error(res, 'This vehicle already has an active service booking. You can book it again after the current job is completed and the vehicle has been collected.', 'ACTIVE_VEHICLE_BOOKING', 409);
+    }
     if ((err as any)?.code === '23505') {
       return error(res, 'This vehicle already has a booking for this date. Please select another date.', 'DUPLICATE_BOOKING_DATE', 409);
     }

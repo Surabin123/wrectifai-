@@ -5,12 +5,25 @@ import { Pool } from 'pg';
 let dbQueryResults: any = { rows: [] };
 let lastQueryText = '';
 let lastQueryParams: any[] = [];
+let existingVehicleBookingStatus: string | null = null;
+let existingSameDayAppointment = false;
+let insertedBookingCount = 0;
 
-mock.method(Pool.prototype, 'query', async (text: string, params?: any[]) => {
+const mockedQuery = async (text: string, params?: any[]) => {
   lastQueryText = text;
   lastQueryParams = params || [];
 
   const lowerText = text.toLowerCase();
+
+  if (lowerText.includes('pg_advisory_xact_lock')) return { rows: [] };
+
+  if (lowerText.includes('from bookings') && lowerText.includes("status in ('in_progress', 'readyforcollection')")) {
+    return { rows: ['in_progress', 'readyForCollection'].includes(existingVehicleBookingStatus || '') ? [{ id: 'active-job' }] : [] };
+  }
+
+  if (lowerText.includes('from bookings') && lowerText.includes("status in ('requested', 'confirmed')")) {
+    return { rows: existingSameDayAppointment ? [{ id: 'same-day-appointment' }] : [] };
+  }
 
   if (lowerText.includes('payment_status, customer_id') || lowerText.includes('for update')) {
     return { rows: [{ payment_status: 'unpaid', customer_id: 'test-user-uuid', old_status: 'in_progress', total_amount: 150.0, currency: 'INR' }] };
@@ -32,6 +45,7 @@ mock.method(Pool.prototype, 'query', async (text: string, params?: any[]) => {
   }
 
   if (text.includes('INSERT INTO bookings')) {
+    insertedBookingCount++;
     return {
       rows: [
         {
@@ -42,9 +56,9 @@ mock.method(Pool.prototype, 'query', async (text: string, params?: any[]) => {
           quoteId: params?.[3],
           bookingType: params?.[4],
           scheduledAt: params?.[5],
-          status: 'confirmed',
-          totalAmount: params?.[6],
-          currency: params?.[7] || 'USD',
+          status: params?.[6],
+          totalAmount: params?.[8],
+          currency: params?.[9] || 'USD',
           createdAt: new Date().toISOString(),
         },
       ],
@@ -87,7 +101,10 @@ mock.method(Pool.prototype, 'query', async (text: string, params?: any[]) => {
   }
 
   return { rows: [] };
-});
+};
+
+mock.method(Pool.prototype, 'query', mockedQuery);
+mock.method(Pool.prototype, 'connect', async () => ({ query: mockedQuery, release: () => undefined } as any));
 
 import express from 'express';
 import { bookingsRouter } from './bookings.routes';
@@ -192,6 +209,7 @@ test('bookings routes - GET /bookings/:id returns single booking', async () => {
 });
 
 test('bookings routes - POST /bookings creates an instant booking', async () => {
+  existingVehicleBookingStatus = null;
   const payload = {
     garageId: 'g1',
     vehicleId: 'v1',
@@ -204,6 +222,66 @@ test('bookings routes - POST /bookings creates an instant booking', async () => 
   assert.strictEqual(response.status, 201);
   assert.strictEqual(response.body.data.id, 'mock-booking-uuid-123');
   assert.strictEqual(response.body.data.bookingType, 'instant');
+});
+
+function bookingPayload(scheduledAt: string, extra: Record<string, unknown> = {}) {
+  return {
+    garageId: 'g1',
+    vehicleId: 'v1',
+    scheduledAt,
+    totalAmount: 150,
+    bookingType: 'instant',
+    ...extra,
+  };
+}
+
+test('active in-progress vehicle is blocked even when the requested appointment is on another day', async () => {
+  existingVehicleBookingStatus = 'in_progress';
+  const response = await request('POST', '/bookings', bookingPayload('2030-05-12T17:00:00+05:30'));
+  assert.strictEqual(response.status, 409);
+  assert.strictEqual(response.body.error.code, 'ACTIVE_VEHICLE_BOOKING');
+  assert.match(response.body.error.message, /active service booking/i);
+});
+
+test('vehicle ready for collection remains blocked until its persisted status becomes collected', async () => {
+  existingVehicleBookingStatus = 'readyForCollection';
+  const blocked = await request('POST', '/bookings', bookingPayload('2030-05-12T17:00:00+05:30'));
+  assert.strictEqual(blocked.status, 409);
+
+  existingVehicleBookingStatus = 'collected';
+  const released = await request('POST', '/bookings', bookingPayload('2030-05-12T17:00:00+05:30'));
+  assert.strictEqual(released.status, 201);
+});
+
+test('cancelled bookings do not block a new booking', async () => {
+  existingVehicleBookingStatus = 'cancelled';
+  const response = await request('POST', '/bookings', bookingPayload('2030-05-12T17:00:00+05:30'));
+  assert.strictEqual(response.status, 201);
+});
+
+test('old completed bookings do not block a new booking', async () => {
+  existingVehicleBookingStatus = 'completed';
+  const response = await request('POST', '/bookings', bookingPayload('2030-05-12T17:00:00+05:30'));
+  assert.strictEqual(response.status, 201);
+});
+
+test('requesting another service while a vehicle is active cannot create a second booking', async () => {
+  existingVehicleBookingStatus = 'in_progress';
+  const before = insertedBookingCount;
+  const response = await request('POST', '/bookings', bookingPayload('2030-05-12T17:00:00+05:30', { serviceIds: ['additional-service'] }));
+  assert.strictEqual(response.status, 409);
+  assert.strictEqual(insertedBookingCount, before);
+});
+
+test('same-day appointment conflict remains, while another date is allowed before service starts', async () => {
+  existingVehicleBookingStatus = null;
+  existingSameDayAppointment = true;
+  const sameDay = await request('POST', '/bookings', bookingPayload('2030-05-12T17:00:00+05:30'));
+  assert.strictEqual(sameDay.status, 409);
+
+  existingSameDayAppointment = false;
+  const otherDay = await request('POST', '/bookings', bookingPayload('2030-05-13T17:00:00+05:30'));
+  assert.strictEqual(otherDay.status, 201);
 });
 
 test('bookings routes - PATCH /bookings/:id/status updates status', async () => {
