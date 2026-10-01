@@ -155,7 +155,7 @@ garagesRouter.get('/:id/inventory', async (req, res) => {
   try {
     const { limit, offset } = getPagination(req);
     const result = await query(
-      `SELECT gi.id as inventory_id, p.id as product_id, p.name, p.category, p.description, p.is_diy_kit, p.image,
+      `SELECT gi.id as inventory_id, p.id as product_id, p.name, p.category, p.description, p.brand, p.is_diy_kit, p.image,
               p.compatible_vehicle_rules as "compatibleVehicleRules",
               gi.qty_available, COALESCE(gi.price, p.price) as price, gi.is_active
        FROM garage_inventory gi
@@ -547,7 +547,7 @@ garagesRouter.get('/my-inventory', authenticate, async (req, res) => {
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(
-      `SELECT gi.id as inventory_id, p.id as product_id, p.name, p.category, p.description, p.is_diy_kit, p.image,
+      `SELECT gi.id as inventory_id, p.id as product_id, p.name, p.category, p.description, p.brand, p.is_diy_kit, p.image,
               gi.qty_available, COALESCE(gi.price, p.price) as price, gi.is_active
        FROM garage_inventory gi
        JOIN products p ON gi.product_id = p.id
@@ -583,12 +583,26 @@ garagesRouter.post('/my-inventory', authenticate, async (req, res) => {
 
     // Check if it already exists
     const existing = await query(
-      `SELECT id FROM garage_inventory WHERE garage_id = $1 AND product_id = $2`,
+      `SELECT gi.id
+       FROM products p
+       JOIN sellers s ON s.id = p.seller_id
+       LEFT JOIN garage_inventory gi ON gi.product_id = p.id AND gi.garage_id = $1
+       WHERE p.id = $2
+         AND (s.seller_type = 'platform' OR (s.seller_type = 'garage' AND s.garage_id = $1))
+         AND gi.id IS NULL`,
       [garageId, productId]
     );
 
-    if (existing.rows.length > 0) {
-      return error(res, 'Product already in your inventory', 'ALREADY_EXISTS', 400);
+    const accessibleProduct = existing.rows.length > 0;
+    if (!accessibleProduct) {
+      const alreadyAdded = await query(
+        `SELECT id FROM garage_inventory WHERE garage_id = $1 AND product_id = $2`,
+        [garageId, productId]
+      );
+      if (alreadyAdded.rows.length > 0) {
+        return error(res, 'Product already in your inventory', 'ALREADY_EXISTS', 400);
+      }
+      return error(res, 'Product not found or unavailable to this garage', 'NOT_FOUND', 404);
     }
 
     const result = await query(
@@ -704,16 +718,54 @@ garagesRouter.post('/my-inventory/request', authenticate, async (req, res) => {
       }
     }
 
-    const result = await query(
-      `INSERT INTO product_requests (garage_id, name, category, description, brand, image, suggested_price)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [garageId, cleanName, cleanCategory, cleanDescription, cleanBrand, processedImage, parsedSuggestedPrice]
-    );
+    const client = await getDbPool().connect();
+    try {
+      await client.query('BEGIN');
 
-    return success(res, result.rows[0], 201);
+      const duplicate = await client.query(
+        `SELECT p.id
+         FROM products p
+         JOIN sellers s ON s.id = p.seller_id
+         JOIN garage_inventory gi ON gi.product_id = p.id AND gi.garage_id = $1
+         WHERE LOWER(p.name) = LOWER($2)
+         LIMIT 1`,
+        [garageId, cleanName]
+      );
+      if (duplicate.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return error(res, 'A product with this name is already in your inventory', 'ALREADY_EXISTS', 409);
+      }
+
+      const seller = await client.query(
+        `INSERT INTO sellers (seller_type, garage_id, approval_status)
+         VALUES ('garage', $1, 'approved')
+         RETURNING id`,
+        [garageId]
+      );
+      const product = await client.query(
+        `INSERT INTO products (seller_id, name, description, category, brand, price, image, is_active)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, true)
+         RETURNING id, name, category, description, brand, price, image`,
+        [seller.rows[0].id, cleanName, cleanDescription, cleanCategory, cleanBrand, parsedSuggestedPrice, processedImage]
+      );
+      const inventory = await client.query(
+        `INSERT INTO garage_inventory (garage_id, product_id, price, qty_available, is_active)
+         VALUES ($1, $2, $3, 0, true)
+         RETURNING id AS inventory_id, product_id, price, qty_available, is_active`,
+        [garageId, product.rows[0].id, parsedSuggestedPrice]
+      );
+
+      await client.query('COMMIT');
+      return success(res, { ...product.rows[0], ...inventory.rows[0] }, 201);
+    } catch (err) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     console.error(err);
-    return error(res, 'Failed to submit product request', 'DATABASE_ERROR', 500);
+    return error(res, 'Failed to add product to inventory', 'DATABASE_ERROR', 500);
   }
 });
 

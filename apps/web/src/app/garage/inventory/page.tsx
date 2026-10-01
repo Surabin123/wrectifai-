@@ -144,11 +144,12 @@ export default function InventoryPage() {
         suggestedPrice
       });
       setShowAddModal(false);
-      setSuccessMessage('Product request submitted for admin review.');
+      setSuccessMessage('Product added to your garage inventory.');
       setTimeout(() => setSuccessMessage(''), 5000);
+      fetchInventory();
     } catch (err) {
       console.error('Failed to request product:', err);
-      setValidationError('Failed to submit product request.');
+      setValidationError('Failed to add product. Please check the details and try again.');
     }
   };
 
@@ -382,8 +383,8 @@ export default function InventoryPage() {
             <div className="bg-white rounded-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
               <div className="flex justify-between items-center mb-4">
                 <div>
-                  <h3 className="font-bold text-lg text-[#17307a]">{addTab === 'request' ? 'Request New Product' : 'Add Existing Product'}</h3>
-                  <p className="text-xs text-slate-500 mt-1">{addTab === 'request' ? 'Enter the details for a product you want in your garage inventory.' : 'Choose a catalog product to add to your garage inventory.'}</p>
+                  <h3 className="font-bold text-lg text-[#17307a]">{addTab === 'request' ? 'Add New Product' : 'Add Existing Product'}</h3>
+                  <p className="text-xs text-slate-500 mt-1">{addTab === 'request' ? 'Add a product directly to your garage inventory.' : 'Choose a platform catalog product to add to your garage inventory.'}</p>
                 </div>
                 <button onClick={() => setShowAddModal(false)}><X className="w-5 h-5 text-slate-400"/></button>
               </div>
@@ -400,7 +401,7 @@ export default function InventoryPage() {
                     Select Existing
                   </button>
                   <button className={`px-4 py-2 text-sm font-bold border-b-2 ${addTab === 'request' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-500'}`} onClick={() => { setAddTab('request'); setValidationError(''); }}>
-                    Request New Product
+                    Add New Product
                   </button>
                 </div>
               )}
@@ -468,7 +469,7 @@ export default function InventoryPage() {
                   </div>
                   <div className="mt-8 flex justify-end gap-3">
                     <button onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded-lg text-sm font-bold text-slate-600">Cancel</button>
-                    <button onClick={submitRequestProduct} disabled={!requestData.name.trim() || !requestData.category.trim() || !requestData.brand.trim() || !requestData.image || !requestData.description.trim() || requestData.suggestedPrice === ''} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Request Product</button>
+                    <button onClick={submitRequestProduct} disabled={!requestData.name.trim() || !requestData.category.trim() || !requestData.brand.trim() || !requestData.image || !requestData.description.trim() || requestData.suggestedPrice === ''} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Add Product</button>
                   </div>
                 </div>
               )}

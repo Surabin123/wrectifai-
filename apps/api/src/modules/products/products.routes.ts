@@ -11,9 +11,10 @@ productsRouter.get('/', async (req, res) => {
   try {
     const { limit, offset } = getPagination(req);
     const result = await query(
-      `SELECT id, name, category, description, price, is_diy_kit, image, compatible_vehicle_rules 
-       FROM products 
-       WHERE is_active = true 
+      `SELECT p.id, p.name, p.category, p.description, p.price, p.is_diy_kit, p.image, p.compatible_vehicle_rules
+       FROM products p
+       JOIN sellers s ON s.id = p.seller_id
+       WHERE p.is_active = true AND s.seller_type = 'platform'
        ORDER BY name ASC LIMIT $1 OFFSET $2`,
       [limit, offset]
     );
