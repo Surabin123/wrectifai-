@@ -40,6 +40,18 @@ export const responseInterceptors: ResponseInterceptor[] = [];
 let refreshPromise: Promise<string> | null = null;
 let csrfTokenCache: string | null = null;
 const isDemoAuthEnabled = process.env.NEXT_PUBLIC_DEMO_AUTH_ENABLED === 'true';
+const API_REQUEST_TIMEOUT_MS = 15000;
+
+async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), API_REQUEST_TIMEOUT_MS);
+  const signal = init.signal || controller.signal;
+  try {
+    return await fetch(input, { ...init, signal });
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
+}
 
 function readXsrfCookie(): string | null {
   if (typeof document === 'undefined') return null;
@@ -60,7 +72,7 @@ async function ensureXsrfToken(baseUrl: string): Promise<string | null> {
   }
 
   try {
-    const response = await fetch(`${baseUrl}/auth/csrf-token`, {
+    const response = await fetchWithTimeout(`${baseUrl}/auth/csrf-token`, {
       method: 'GET',
       credentials: isDemoAuthEnabled ? 'omit' : 'include',
     });
@@ -138,7 +150,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
 
   let response: Response;
   try {
-    response = await fetch(url, { ...config, headers: { ...config.headers } });
+    response = await fetchWithTimeout(url, { ...config, headers: { ...config.headers } });
   } catch (err) {
     throw new ApiError(err instanceof Error ? err.message : 'Network error', 0);
   }
@@ -162,7 +174,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
             const sessionRefreshToken = typeof sessionStorage !== 'undefined'
               ? (sessionStorage.getItem('wrectifai_session_refresh_token') || sessionStorage.getItem('wrectifai_demo_refresh_token'))
               : null;
-            const refreshRes = await fetch(`${baseUrl}/auth/refresh`, {
+            const refreshRes = await fetchWithTimeout(`${baseUrl}/auth/refresh`, {
               method: 'POST',
               credentials: isDemoAuthEnabled ? 'omit' : 'include',
               headers: {
@@ -217,7 +229,7 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
         ...(retryToken ? { 'Authorization': `Bearer ${retryToken}` } : {}),
       };
 
-      const retryRes = await fetch(url, { ...config, headers: retryHeaders });
+      const retryRes = await fetchWithTimeout(url, { ...config, headers: retryHeaders });
       return handleResponse<T>(retryRes);
     }
   }
