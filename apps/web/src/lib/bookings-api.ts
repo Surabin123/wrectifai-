@@ -6,6 +6,8 @@ export interface Booking {
   garageId: string;
   vehicleId: string;
   quoteId?: string | null;
+  laborCost?: number | null;
+  partsCost?: number | null;
   bookingType: 'instant' | 'quoteBased';
   scheduledAt: string;
   status: 'requested' | 'confirmed' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'readyForCollection' | 'collected';

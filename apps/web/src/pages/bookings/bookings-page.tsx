@@ -608,6 +608,8 @@ export function BookingsPage() {
         <SharedBookingDetailsModal
           booking={{
             id: viewDetailsBooking.id,
+            quoteId: viewDetailsBooking.quoteId,
+            bookingType: viewDetailsBooking.bookingType,
             garageName: viewDetailsBooking.garageName,
             garageCity: viewDetailsBooking.garageCity,
             createdAt: viewDetailsBooking.createdAt,
@@ -619,6 +621,9 @@ export function BookingsPage() {
             totalAmount: viewDetailsBooking.totalAmount,
             currency: viewDetailsBooking.currency,
             estimatedDays: viewDetailsBooking.estimatedDays,
+            laborCost: viewDetailsBooking.laborCost,
+            partsCost: viewDetailsBooking.partsCost,
+            showCostBreakdown: Boolean(viewDetailsBooking.quoteId || viewDetailsBooking.bookingType === 'quoteBased'),
             scheduledAt: viewDetailsBooking.preferredDate || viewDetailsBooking.scheduledAt,
             status: viewDetailsBooking.status,
             paymentStatus: viewDetailsBooking.paymentStatus,

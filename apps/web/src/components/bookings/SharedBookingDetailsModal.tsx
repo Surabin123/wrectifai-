@@ -6,6 +6,8 @@ import { formatDate } from '@/lib/utils';
 
 export interface SharedBookingDetails {
   id?: string;
+  quoteId?: string | null;
+  bookingType?: string;
   paymentStatus?: string;
   customerName?: string;
   customerPhone?: string;
@@ -28,6 +30,7 @@ export interface SharedBookingDetails {
   scheduledAt?: string;
   createdAt?: string;
   status?: string;
+  showCostBreakdown?: boolean;
 }
 
 interface Props {
@@ -127,8 +130,20 @@ export function SharedBookingDetailsModal({ booking, onClose, actions, userRole 
           </div>
         </div>
 
-        {/* Booking price */}
+        {/* Show the component breakdown only for bookings originating from an approved quote. */}
         <div className="border-t border-slate-200 pt-4 grid grid-cols-2 gap-4">
+          {booking.showCostBreakdown && (
+            <>
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-bold text-slate-500">Labour Cost</p>
+                <p className="font-semibold text-slate-900">{formatCurrency(booking.laborCost ?? 0, booking.currency)}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-bold text-slate-500">Parts Cost</p>
+                <p className="font-semibold text-slate-900">{formatCurrency(booking.partsCost ?? 0, booking.currency)}</p>
+              </div>
+            </>
+          )}
           <div className="space-y-1">
             <p className="text-[10px] uppercase font-bold text-slate-500">Estimated Time</p>
             <p className="font-semibold text-slate-900">{booking.estimatedDays ? (/^\d+$/.test(String(booking.estimatedDays).trim()) ? `${String(booking.estimatedDays).trim()} Days` : booking.estimatedDays) : 'N/A'}</p>
