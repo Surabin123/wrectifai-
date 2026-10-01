@@ -241,11 +241,11 @@ quotesRouter.get('/garage/stats', authenticate, async (req, res) => {
       return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
     }
 
-    // Incoming Requests = Pending/Confirmed bookings (matches /garage-incoming)
-    const incomingRes = await query(`SELECT COUNT(*) FROM bookings WHERE garage_id = $1 AND status IN ('requested', 'confirmed')`, [garageId]);
+    // Requests remain incoming until the garage accepts them.
+    const incomingRes = await query(`SELECT COUNT(*) FROM bookings WHERE garage_id = $1 AND status = 'requested'`, [garageId]);
     
-    // Active Jobs (Bookings) = All non-terminal bookings
-    const activeJobsRes = await query(`SELECT COUNT(*) FROM bookings WHERE garage_id = $1 AND status NOT IN ('completed', 'cancelled', 'collected')`, [garageId]);
+    // Active Jobs are services the garage has actually started, matching /garage/active-jobs.
+    const activeJobsRes = await query(`SELECT COUNT(*) FROM bookings WHERE garage_id = $1 AND status = 'in_progress'`, [garageId]);
     
     // Generated Quotes = Unique quotes submitted by this garage (ignoring duplicate quote-request records)
     const generatedQuotesRes = await query(`SELECT COUNT(DISTINCT quote_request_id) FROM quotes WHERE garage_id = $1`, [garageId]);

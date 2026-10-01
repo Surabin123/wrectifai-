@@ -538,7 +538,7 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
       `SELECT b.id, b.customer_id as "customerId", b.vehicle_id as "vehicleId", b.quote_id as "quoteId",
               b.scheduled_at as "scheduledAt", b.status, b.total_amount as "totalAmount", b.currency as "currency", b.created_at as "createdAt",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin",
-              u.name as "customerName", u.mobile_number as "customerPhone", p.avatar_url as "customerAvatar",
+              u.name as "customerName", u.mobile_number as "customerPhone", NULL::text as "customerAvatar",
               q.details as "quoteDetails", q.amount as "quoteAmount", q.eta_days as "estimatedDays",
               b.customer_note as "customerNote",
               COALESCE(qr.issue_summary, b.customer_note) as "issueSummary",
@@ -549,7 +549,7 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
        LEFT JOIN profiles p ON u.id = p.user_id
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
-       WHERE b.garage_id = $1 AND b.status IN ('requested', 'confirmed')
+       WHERE b.garage_id = $1 AND b.status = 'requested'
        ORDER BY b.created_at DESC LIMIT 100`,
       [garageId]
     );

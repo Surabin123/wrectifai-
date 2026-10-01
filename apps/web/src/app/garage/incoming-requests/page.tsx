@@ -10,6 +10,7 @@ import { formatCurrency } from '@/lib/currency';
 export default function IncomingRequestsPage() {
   const [bookings, setBookings] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
   const [selectedBooking, setSelectedBooking] = useState<any>(null);
   const [isUpdating, setIsUpdating] = useState(false);
 
@@ -19,11 +20,13 @@ export default function IncomingRequestsPage() {
 
   async function loadBookings() {
     setLoading(true);
+    setLoadError('');
     try {
       const data = await getGarageIncomingBookings();
       setBookings(data || []);
     } catch (err) {
       console.error(err);
+      setLoadError('Could not load incoming bookings. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -83,6 +86,10 @@ export default function IncomingRequestsPage() {
                    {loading ? (
                        <tr>
                           <td colSpan={5} className="p-8 text-center text-slate-500">Loading bookings...</td>
+                       </tr>
+                   ) : loadError ? (
+                       <tr>
+                          <td colSpan={5} className="p-8 text-center text-red-600">{loadError}</td>
                        </tr>
                    ) : bookings.length === 0 ? (
                        <tr>

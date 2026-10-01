@@ -8,12 +8,17 @@ let lastQueryParams: any[] = [];
 let existingVehicleBookingStatus: string | null = null;
 let existingSameDayAppointment = false;
 let insertedBookingCount = 0;
+let lastIncomingBookingsQuery = '';
 
 const mockedQuery = async (text: string, params?: any[]) => {
   lastQueryText = text;
   lastQueryParams = params || [];
 
   const lowerText = text.toLowerCase();
+
+  if (lowerText.includes('from bookings b') && lowerText.includes('customeravatar')) {
+    lastIncomingBookingsQuery = text;
+  }
 
   if (lowerText.includes('pg_advisory_xact_lock')) return { rows: [] };
 
@@ -183,6 +188,20 @@ test('bookings routes - GET /bookings returns list', async () => {
   assert.strictEqual(response.body.data.length, 1);
   assert.strictEqual(response.body.data[0].garageName, 'Test Garage');
   assert.strictEqual(response.body.data[0].totalAmount, 150.0);
+});
+
+test('garage incoming bookings returns only unaccepted requests and uses existing profile columns', async () => {
+  lastIncomingBookingsQuery = '';
+  dbQueryResults = {
+    bookings: [{ id: 'pending-booking', status: 'requested', customerName: 'Test Customer' }],
+  };
+
+  const response = await request('GET', '/bookings/garage-incoming');
+
+  assert.strictEqual(response.status, 200);
+  assert.strictEqual(response.body.data.length, 1);
+  assert.match(lastIncomingBookingsQuery, /b\.status = 'requested'/i);
+  assert.doesNotMatch(lastIncomingBookingsQuery, /avatar_url/i);
 });
 
 test('bookings routes - GET /bookings/:id returns single booking', async () => {
