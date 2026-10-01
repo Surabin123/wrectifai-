@@ -4,7 +4,9 @@ import { Pool } from 'pg';
 
 // Setup Mock DB responses
 let dbQueryResults: any = { rows: [] };
+const executedQueries: string[] = [];
 const handleQuery = async (text: string, params?: any[]) => {
+  executedQueries.push(text);
   if (text.includes('SELECT status FROM users')) {
     return { rows: [{ status: 'active' }] };
   }
@@ -150,4 +152,28 @@ test('auth routes - POST /auth/logout invalidates refresh token', async () => {
 
   assert.strictEqual(response.status, 200);
   assert.strictEqual(response.body.data.message, 'Logged out successfully');
+});
+
+test('auth routes - OTP login for an unknown phone asks the user to sign up without creating an account', async () => {
+  const previousDemoAuth = process.env.DEMO_AUTH_ENABLED;
+  process.env.DEMO_AUTH_ENABLED = 'true';
+  dbQueryResults = { users: [] };
+  executedQueries.length = 0;
+
+  try {
+    const response = await request('POST', '/auth/login', {
+      mobileNumber: '+919876543210',
+      otp: process.env.DEMO_OTP || '123456',
+    });
+
+    assert.strictEqual(response.status, 401);
+    assert.match(response.body.error.message, /please sign up first/i);
+    assert.equal(executedQueries.some((query) => query.includes('INSERT INTO users')), false);
+  } finally {
+    if (previousDemoAuth === undefined) {
+      delete process.env.DEMO_AUTH_ENABLED;
+    } else {
+      process.env.DEMO_AUTH_ENABLED = previousDemoAuth;
+    }
+  }
 });

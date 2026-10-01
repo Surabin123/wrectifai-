@@ -414,7 +414,6 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
 
     const txResult = await withTransaction(async (client) => {
       let userRecord;
-      let isNewRecord = false;
       
       if (provider) {
         if (provider !== 'google' && provider !== 'apple') {
@@ -479,16 +478,7 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
               userRecord.name = userRecord.name || 'User';
             }
           } else {
-            isNewRecord = true;
-            const userResult = await client.query(
-              "INSERT INTO users (mobile_number, name, status) VALUES ($1, $2, 'active') RETURNING id, mobile_number, name, status, email",
-              [mobileNumber, mobileNumber === '9876543210' ? 'User' : 'Customer']
-            );
-            userRecord = userResult.rows[0];
-            const roleResult = await client.query("SELECT id FROM roles WHERE code = 'customer'");
-            if (roleResult.rows.length > 0) {
-              await client.query('INSERT INTO user_roles (user_id, role_id) VALUES ($1, $2) ON CONFLICT DO NOTHING', [userRecord.id, roleResult.rows[0].id]);
-            }
+            throw new Error('Account not found. Please sign up first.');
           }
         } else {
           throw new Error('Invalid phone number or OTP');
@@ -521,10 +511,10 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
         }
       }
 
-      return { user: userRecord, isNew: isNewRecord, roles: rolesArray, garageName: gName, garageId: gId, garages: gList };
+      return { user: userRecord, roles: rolesArray, garageName: gName, garageId: gId, garages: gList };
     });
 
-    const { user, isNew, roles, garageName, garageId, garages } = txResult;
+    const { user, roles, garageName, garageId, garages } = txResult;
 
     requiresPasswordChange = checkIfPasswordResetRequired(user.password_hash, roles);
 
@@ -542,15 +532,6 @@ authRouter.post('/login', loginLimiter, async (req, res, next) => {
     ).catch(e => console.error('Failed to log activity', e));
 
     const csrfToken = setTokensInCookies(res, accessToken, refreshToken);
-
-    if (isNew && roles.includes('customer')) {
-      await NotificationsService.createNotification({
-        isAdmin: true,
-        type: 'System',
-        title: 'New User Registered',
-      description: `${user.name} registered with mobile ${formatPhoneForDisplay(user.mobile_number)}${user.email ? ` and email ${user.email}` : ''}. [ID:${user.id}]`
-      }).catch(err => console.error('Failed to create notification', err));
-    }
 
     return success(res, {
       // The web client supports cross-origin deployments. It must receive the
