@@ -169,6 +169,10 @@ export function createApp() {
   const base64Parser = express.json({ limit: '10mb' });
   app.use('/api/v1/garages/upload-image', base64Parser);
   app.use('/api/garages/upload-image', base64Parser);
+  // Product requests include a small, validated base64 image (max 2 MB file).
+  // Parse these before the 512 KB global JSON limit without widening other routes.
+  app.use('/api/v1/garages/my-inventory/request', base64Parser);
+  app.use('/api/garages/my-inventory/request', base64Parser);
   app.use('/api/v1/garages/documents', base64Parser);
   app.use('/api/garages/documents', base64Parser);
   app.use('/api/v1/garages/my-documents', base64Parser);
