@@ -442,8 +442,8 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
     }
 
     const result = await query(
-      `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details, parts_cost, labor_cost, total_cost, eta_note, eta_days, comparison_label, expires_at)
-       VALUES ($1, $2, $3, $4, 'active', $5, $6, $7, $8, $9, $10, $11, NOW() + ($12 * INTERVAL '1 day'))
+      `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details, eta_days)
+       VALUES ($1, $2, $3, $4, 'active', $5, $6)
        RETURNING id`,
       [
         req.params.quoteRequestId, 
@@ -461,15 +461,10 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
           etaNote: estimatedTime,
           availability: availability,
           pickupDrop: pickupDrop,
-          warranty: warranty
+          warranty: warranty,
+          validityDays: Number(validityDays)
         }),
-        Number(partsCost || 0),
-        Number(labourCost || 0),
-        amount,
-        estimatedTime,
-        parseInt(estimatedTime) || null,
-        'Standard Quote',
-        Number(validityDays || 1)
+        parseInt(estimatedTime) || null
       ]
     );
 

@@ -5,6 +5,15 @@ import { apiClient } from '@/lib/api-client';
 import { AlertCircle } from 'lucide-react';
 import type { BusinessHours } from '@/utils/working-hours';
 
+function toIndiaAppointmentTimestamp(date: string, time: string) {
+  const match = time.trim().match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
+  if (!match) return `${date}T${time}`;
+  let hour = Number(match[1]);
+  if (match[3].toUpperCase() === 'PM' && hour !== 12) hour += 12;
+  if (match[3].toUpperCase() === 'AM' && hour === 12) hour = 0;
+  return `${date}T${String(hour).padStart(2, '0')}:${match[2]}:00+05:30`;
+}
+
 export function BookingModal({ 
   isOpen, 
   onClose, 
@@ -83,7 +92,7 @@ export function BookingModal({
         garageId,
         vehicleId: selectedVehicleId,
         issueSummary: issueDescription.trim(),
-        preferredDate: `${selectedDate} ${selectedTime}`
+        preferredDate: toIndiaAppointmentTimestamp(selectedDate, selectedTime)
       });
 
       if (onSubmitSuccess) onSubmitSuccess();
