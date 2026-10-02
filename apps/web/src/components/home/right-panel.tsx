@@ -76,7 +76,7 @@ function OverviewPanel() {
       value: String(ordersCount),
       description: ordersCount === 0 ? 'No Part Orders' : (ordersCount === 1 ? '1 Order In Transit' : `${ordersCount} Orders`),
       cta: 'View All',
-      href: '/offers',
+      href: '/orders',
       icon: Package,
       colors: 'from-[#f97316] to-[#f59e0b]',
     },

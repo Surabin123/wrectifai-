@@ -223,7 +223,9 @@ usersRouter.get('/customer/stats', authenticate, async (req, res) => {
     const bookingsRes = await query(`
       SELECT COUNT(*) as count, MIN(scheduled_at) as next_booking
       FROM bookings 
-      WHERE customer_id = $1 AND status IN ('pendingPayment', 'confirmed', 'in_progress', 'pending', 'accepted')
+      WHERE customer_id = $1
+        AND scheduled_at >= NOW()
+        AND status IN ('pendingPayment', 'confirmed', 'in_progress', 'pending', 'accepted')
     `, [customerId]);
 
     // Pending Quotes Count (Quote requests with actual quotes that are not booked)
@@ -242,12 +244,16 @@ usersRouter.get('/customer/stats', authenticate, async (req, res) => {
       SELECT COUNT(*) as count FROM vehicles WHERE customer_id = $1
     `, [customerId]);
 
+    const ordersRes = await query(`
+      SELECT COUNT(*) as count FROM orders WHERE customer_id = $1 AND status <> 'cancelled'
+    `, [customerId]);
+
     return success(res, {
       bookingsCount: Number(bookingsRes.rows[0].count || 0),
       nextBooking: bookingsRes.rows[0].next_booking,
       quotesCount: Number(quotesRes.rows[0].count || 0),
       vehiclesCount: Number(vehiclesRes.rows[0].count || 0),
-      ordersCount: 0
+      ordersCount: Number(ordersRes.rows[0].count || 0)
     });
   } catch (err) {
     console.error('Failed to fetch customer stats', err);
