@@ -69,6 +69,10 @@ notificationsRouter.post('/read-all', authenticate, async (req, res) => {
   try {
     const userId = req.user?.userId;
     const userRoles = req.user?.roles || [];
+
+    if (!userId) {
+      return error(res, 'Unauthorized', 'UNAUTHORIZED', 401);
+    }
     
     if (userRoles.includes('admin')) {
       await NotificationsService.markAllAsRead(undefined, undefined, true);
