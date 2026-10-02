@@ -23,8 +23,16 @@ interface VehicleSelectorProps {
 }
 
 export function VehicleSelector({ value, onChange, className = '', error }: VehicleSelectorProps) {
-  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
+    if (typeof window === 'undefined') return [];
+    try {
+      const cached = JSON.parse(localStorage.getItem('wrectifai_vehicles_cache') || '[]');
+      return Array.isArray(cached) ? cached : [];
+    } catch {
+      return [];
+    }
+  });
+  const [loading, setLoading] = useState(() => vehicles.length === 0);
   const [errorText, setErrorText] = useState<string | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const hasAutoSelected = useRef(false);
@@ -51,6 +59,7 @@ export function VehicleSelector({ value, onChange, className = '', error }: Vehi
       if (!active.current) return;
 
       setVehicles(data || []);
+      localStorage.setItem('wrectifai_vehicles_cache', JSON.stringify(data || []));
 
       const currentValue = valueRef.current;
       if (!hasAutoSelected.current && data && data.length > 0 && !currentValue && typeof window !== 'undefined') {
