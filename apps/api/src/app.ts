@@ -173,6 +173,8 @@ export function createApp() {
   // Parse these before the 512 KB global JSON limit without widening other routes.
   app.use('/api/v1/garages/my-inventory/request', base64Parser);
   app.use('/api/garages/my-inventory/request', base64Parser);
+  app.use('/api/v1/garages/my-offers', base64Parser);
+  app.use('/api/garages/my-offers', base64Parser);
   app.use('/api/v1/garages/documents', base64Parser);
   app.use('/api/garages/documents', base64Parser);
   app.use('/api/v1/garages/my-documents', base64Parser);

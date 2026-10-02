@@ -24,6 +24,7 @@ interface Offer {
   offer_type: 'SERVICE' | 'PARTS' | 'COMBO' | 'GLOBAL';
   applicable_item_id?: string;
   terms_conditions?: string;
+  image?: string;
 }
 
 interface Deal {
@@ -74,6 +75,7 @@ export default function GarageOffersContent() {
     title: '', badge: '', description: '', numericPrice: '' as any, active: true
   });
   const [imagePreview, setImagePreview] = useState('');
+  const [offerImagePreview, setOfferImagePreview] = useState('');
 
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -142,6 +144,18 @@ export default function GarageOffersContent() {
     }
   };
 
+  const handleOfferImageUpload = (e: any) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setOfferImagePreview(base64);
+      setOfferForm({ ...offerForm, image: base64 });
+    };
+    reader.readAsDataURL(file);
+  };
+
   const getLocalDatetime = (isoString?: string) => {
     if (!isoString) return '';
     const date = new Date(isoString);
@@ -162,7 +176,7 @@ export default function GarageOffersContent() {
 
   const submitOffer = async () => {
     try {
-      if (!offerForm.code || !offerForm.title || offerForm.discount_value === undefined) {
+      if (!offerForm.code || !offerForm.title || !offerForm.description || offerForm.discount_value === undefined || !offerForm.valid_from || !offerForm.valid_until || !offerForm.image) {
         throw new Error('Please fill all required fields.');
       }
       if (!offerForm.valid_from || !offerForm.valid_until) {
@@ -188,7 +202,7 @@ export default function GarageOffersContent() {
 
   const submitDeal = async () => {
     try {
-      if (!dealForm.title || dealForm.numericPrice === undefined) {
+      if (!dealForm.title || !dealForm.badge || !dealForm.description || dealForm.numericPrice === undefined || dealForm.strikePrice === undefined || !dealForm.validFrom || !dealForm.validTill || !dealForm.image) {
         throw new Error('Please fill all required fields.');
       }
       if (isEditDeal && selectedDeal) {
@@ -228,6 +242,7 @@ export default function GarageOffersContent() {
             onClick={() => {
               if (activeTab === 'offers') {
                 setOfferForm({ code: '', title: '', description: '', discount_type: 'PERCENTAGE', discount_value: '' as any, offer_type: 'SERVICE', active: true });
+                setOfferImagePreview('');
                 setIsEditOffer(false); setShowOfferModal(true); setErrorMsg('');
               } else {
                 setDealForm({ title: '', badge: '', description: '', numericPrice: '' as any, active: true });
@@ -264,7 +279,7 @@ export default function GarageOffersContent() {
               <Card key={o.id} className="overflow-hidden flex flex-col border-slate-200">
                 <div className="p-5 flex-1 relative group">
                   <div className="absolute top-3 right-3 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                    <button onClick={() => { setSelectedOffer(o); setOfferForm(o); setIsEditOffer(true); setShowOfferModal(true); }} className="p-1.5 rounded-full bg-white shadow hover:bg-slate-50 text-slate-700" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
+                    <button onClick={() => { setSelectedOffer(o); setOfferForm(o); setOfferImagePreview(o.image || ''); setIsEditOffer(true); setShowOfferModal(true); }} className="p-1.5 rounded-full bg-white shadow hover:bg-slate-50 text-slate-700" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
                     <button onClick={() => toggleOfferStatus(o)} className="p-1.5 rounded-full bg-white shadow hover:bg-slate-50 text-slate-700" title={o.active ? 'Deactivate' : 'Activate'}>{o.active ? <XCircle className="w-3.5 h-3.5 text-amber-500" /> : <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />}</button>
                     <button onClick={() => setDeleteModal({ isOpen: true, id: o.id, title: o.title, type: 'offer' })} className="p-1.5 rounded-full bg-white shadow hover:bg-red-50 text-red-600" title="Delete"><Trash2 className="w-3.5 h-3.5" /></button>
                   </div>
@@ -349,42 +364,50 @@ export default function GarageOffersContent() {
           {errorMsg && <div className="p-3 bg-red-50 text-red-600 text-sm rounded-lg">{errorMsg}</div>}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Promo Code</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Promo Code *</label>
               <input type="text" value={offerForm.code} onChange={e => setOfferForm({ ...offerForm, code: e.target.value.toUpperCase() })} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. SUMMER20" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Target Category</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Target Category *</label>
               <select value={offerForm.offer_type} onChange={e => setOfferForm({ ...offerForm, offer_type: e.target.value as any })} className="w-full border rounded-lg px-3 py-2 text-sm">
                 <option value="SERVICE">Services</option><option value="PARTS">Products</option><option value="COMBO">Combos</option><option value="GLOBAL">Global/All</option>
               </select>
             </div>
           </div>
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Display Title</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Display Title *</label>
             <input type="text" value={offerForm.title} onChange={e => setOfferForm({ ...offerForm, title: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 20% Off AC Service" />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Description *</label>
+            <textarea value={offerForm.description || ''} onChange={e => setOfferForm({ ...offerForm, description: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm min-h-[60px]" placeholder="Describe this promotion" />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Discount Type</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Discount Type *</label>
               <select value={offerForm.discount_type} onChange={e => setOfferForm({ ...offerForm, discount_type: e.target.value as any })} className="w-full border rounded-lg px-3 py-2 text-sm">
                 <option value="PERCENTAGE">Percentage (%)</option>
                 <option value="FIXED">Flat Off ({currencyCode})</option>
               </select>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Discount Value</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Discount Value *</label>
               <input type="number" value={offerForm.discount_value === undefined ? '' : offerForm.discount_value} onChange={e => setOfferForm({ ...offerForm, discount_value: e.target.value ? Number(e.target.value) : '' as any })} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Valid From</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Valid From *</label>
               <input type="datetime-local" value={getLocalDatetime(offerForm.valid_from)} onChange={e => handleDatetimeChange(e, 'valid_from', setOfferForm, offerForm)} min={getLocalDatetime(new Date().toISOString())} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Valid Until</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Valid Until *</label>
               <input type="datetime-local" value={getLocalDatetime(offerForm.valid_until)} onChange={e => handleDatetimeChange(e, 'valid_until', setOfferForm, offerForm)} min={offerForm.valid_from ? getLocalDatetime(offerForm.valid_from) : getLocalDatetime(new Date().toISOString())} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Promo Image *</label>
+            {offerImagePreview ? <img src={offerImagePreview} alt="Promo preview" className="w-24 h-24 object-cover rounded-lg border" /> : <input type="file" accept="image/*" onChange={handleOfferImageUpload} className="w-full text-sm text-slate-500" />}
           </div>
           <div className="flex justify-end gap-3 pt-4 border-t">
             <button onClick={() => setShowOfferModal(false)} className="px-4 py-2 text-slate-600 border rounded-lg text-sm">Cancel</button>
@@ -407,41 +430,42 @@ export default function GarageOffersContent() {
               )}
               <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
             </div>
+            <span className="self-start text-xs font-bold text-slate-700">Combo Image *</span>
             <div className="flex-1 space-y-3">
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Combo Title</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Combo Title *</label>
                 <input type="text" value={dealForm.title} onChange={e => setDealForm({ ...dealForm, title: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. Complete Summer AC Care" />
               </div>
               <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Badge / Tag (e.g., POPULAR)</label>
+                <label className="block text-xs font-bold text-slate-700 mb-1">Badge / Tag (e.g., POPULAR) *</label>
                 <input type="text" value={dealForm.badge} onChange={e => setDealForm({ ...dealForm, badge: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. BEST SELLER" />
               </div>
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 mb-1">Short Description</label>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Short Description *</label>
             <textarea value={dealForm.description || ''} onChange={e => setDealForm({ ...dealForm, description: e.target.value })} className="w-full border rounded-lg px-3 py-2 text-sm min-h-[60px]" placeholder="What is included in this combo?" />
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Final Deal Price ({currencyCode})</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Final Deal Price ({currencyCode}) *</label>
               <input type="number" value={dealForm.numericPrice === undefined ? '' : dealForm.numericPrice} onChange={e => setDealForm({ ...dealForm, numericPrice: e.target.value ? Number(e.target.value) : '' as any })} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Original Strike Price ({currencyCode}, Optional)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Original Strike Price ({currencyCode}) *</label>
               <input type="number" value={dealForm.strikePrice === undefined ? '' : dealForm.strikePrice} onChange={e => setDealForm({ ...dealForm, strikePrice: e.target.value ? Number(e.target.value) : undefined })} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="Optional" />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Valid From (Optional)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Valid From *</label>
               <input type="datetime-local" value={getLocalDatetime(dealForm.validFrom)} onChange={e => handleDatetimeChange(e, 'validFrom', setDealForm, dealForm)} min={getLocalDatetime(new Date().toISOString())} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Valid Until (Optional)</label>
+              <label className="block text-xs font-bold text-slate-700 mb-1">Valid Until *</label>
               <input type="datetime-local" value={getLocalDatetime(dealForm.validTill)} onChange={e => handleDatetimeChange(e, 'validTill', setDealForm, dealForm)} min={dealForm.validFrom ? getLocalDatetime(dealForm.validFrom) : getLocalDatetime(new Date().toISOString())} className="w-full border rounded-lg px-3 py-2 text-sm" />
             </div>
           </div>

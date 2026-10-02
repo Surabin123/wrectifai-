@@ -382,7 +382,7 @@ export default function ServicesPage() {
               {addTab === 'select' ? (
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Search Platform Catalog</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Search Platform Catalog *</label>
                     <input 
                       type="text"
                       placeholder="Search for a service..."
@@ -415,16 +415,16 @@ export default function ServicesPage() {
                   )}
                   
                   <div>
-                    <label className="block text-xs font-bold text-slate-700 mb-1">Your Price</label>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">Your Price *</label>
                     <input type="text" inputMode="decimal" value={formData.price} onChange={(e) => handleNumericChange(e, 'price')} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 1500" />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Duration Value</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Duration Value *</label>
                       <input type="text" inputMode="numeric" value={formData.durationMins} onChange={(e) => handleNumericChange(e, 'durationMins')} className="w-full border rounded-lg px-3 py-2 text-sm" placeholder="e.g. 60" />
                     </div>
                     <div>
-                      <label className="block text-xs font-bold text-slate-700 mb-1">Unit</label>
+                      <label className="block text-xs font-bold text-slate-700 mb-1">Unit *</label>
                       <select value={formData.durationUnit} onChange={(e) => setFormData({...formData, durationUnit: e.target.value})} className="w-full border rounded-lg px-3 py-2 text-sm">
                         <option value="Minutes">Minutes</option>
                         <option value="Hours">Hours</option>
@@ -435,7 +435,7 @@ export default function ServicesPage() {
                   
                   <div className="mt-8 flex justify-end gap-3">
                     <button onClick={() => setShowAddModal(false)} className="px-4 py-2 border rounded-lg text-sm font-bold text-slate-600">Cancel</button>
-                    <button onClick={submitAddService} disabled={!formData.platformServiceId} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Add Service</button>
+                    <button onClick={submitAddService} disabled={!formData.platformServiceId || !formData.price || !formData.durationMins || !formData.durationUnit} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold disabled:opacity-50">Add Service</button>
                   </div>
                 </div>
               ) : (

@@ -71,8 +71,8 @@ garageOffersRouter.post('/my-offers', authenticate, async (req, res) => {
       active, offer_type, applicable_item_id, terms_conditions, image
     } = req.body;
 
-    if (!code || !title || !discount_type || discount_value === undefined) {
-      return error(res, 'Missing required fields', 'BAD_REQUEST', 400);
+    if (!code || !title || !description || !discount_type || discount_value === undefined || !valid_from || !valid_until || !image) {
+      return error(res, 'Code, title, description, discount, validity dates, and image are required', 'BAD_REQUEST', 400);
     }
 
     if (applicable_item_id) {
@@ -315,8 +315,8 @@ garageOffersRouter.post('/my-deals', authenticate, async (req, res) => {
       bullets, image, active, validFrom, validTill 
     } = req.body;
 
-    if (!title || numericPrice === undefined) {
-      return error(res, 'Title and numeric price are required', 'BAD_REQUEST', 400);
+    if (!title || !badge || !description || numericPrice === undefined || strikePrice === undefined || !image || !validFrom || !validTill) {
+      return error(res, 'Title, badge, description, prices, validity dates, and image are required', 'BAD_REQUEST', 400);
     }
 
     let processedImage = image;
