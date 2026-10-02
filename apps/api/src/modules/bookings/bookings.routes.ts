@@ -60,7 +60,7 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
           WHERE pay.booking_id = b.id
             AND pay.method = 'cash'
             AND pay.status = 'pending'
-          ORDER BY pay.created_at DESC
+          ORDER BY pay.id DESC
           LIMIT 1
         ) as "cashPaymentStatus",
         b.total_amount as "totalAmount",
