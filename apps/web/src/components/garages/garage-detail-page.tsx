@@ -45,7 +45,7 @@ import { Modal } from '@/components/common/modal';
 import { formatCurrency } from '@/lib/currency';
 import { useAuth } from '@/lib/auth-context';
 import { resolveImageUrl } from '@/lib/utils';
-import { getDaySchedule } from '@/utils/working-hours';
+import { getDaySchedule, parseTimeToMinutes } from '@/utils/working-hours';
 
 interface GarageDetailPageProps {
   garage: Garage;
@@ -240,8 +240,13 @@ export function GarageDetailPage({
     if (!currentSchedule.isOpen || currentSchedule.availableTimeSlots.length === 0) {
       return [];
     }
-    return currentSchedule.availableTimeSlots.map(s => s.label);
-  }, [currentSchedule]);
+    const today = new Date();
+    const isToday = selectedDateObj?.fullDate === `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+    const currentMinutes = today.getHours() * 60 + today.getMinutes();
+    return currentSchedule.availableTimeSlots
+      .filter(s => !isToday || (parseTimeToMinutes(s.label) ?? -1) > currentMinutes)
+      .map(s => s.label);
+  }, [currentSchedule, selectedDateObj]);
 
   const [selectedSlot, setSelectedSlot] = useState('');
 
@@ -423,6 +428,8 @@ export function GarageDetailPage({
         garageId={garage.id || ''} 
         businessHours={garage.businessHours}
         garageName={garage.name}
+        selectedDate={selectedDateObj?.fullDate || ''}
+        selectedTime={selectedSlot}
         onSubmitSuccess={() => {
           setRequestStatus('booking_success');
         }} 

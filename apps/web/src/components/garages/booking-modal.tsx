@@ -1,9 +1,9 @@
 'use client';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect } from 'react';
 import { Modal } from '@/components/common/modal';
 import { apiClient } from '@/lib/api-client';
-import { getDaySchedule, parseTimeToMinutes, type BusinessHours } from '@/utils/working-hours';
-import { AlertCircle, Clock } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
+import type { BusinessHours } from '@/utils/working-hours';
 
 export function BookingModal({ 
   isOpen, 
@@ -13,6 +13,8 @@ export function BookingModal({
   garageName: initialGarageName,
   comboId,
   comboTitle,
+  selectedDate = '',
+  selectedTime = '',
   onSubmitSuccess 
 }: { 
   isOpen: boolean; 
@@ -22,17 +24,16 @@ export function BookingModal({
   garageName?: string;
   comboId?: string;
   comboTitle?: string;
+  selectedDate?: string;
+  selectedTime?: string;
   onSubmitSuccess?: () => void; 
 }) {
   const [vehicles, setVehicles] = useState<any[]>([]);
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
-  const [preferredDate, setPreferredDate] = useState('');
-  const [preferredTime, setPreferredTime] = useState('');
   const [issueDescription, setIssueDescription] = useState(comboTitle || '');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const [garageHours, setGarageHours] = useState<BusinessHours | undefined>(initialBusinessHours);
   const [garageName, setGarageName] = useState<string>(initialGarageName || '');
 
   useEffect(() => {
@@ -46,7 +47,6 @@ export function BookingModal({
       if (garageId) {
         apiClient.get<any>(`/garages/${garageId}`).then(data => {
           if (data) {
-            if (data.businessHours) setGarageHours(data.businessHours);
             if (data.name) setGarageName(data.name);
           }
         }).catch(console.error);
@@ -60,27 +60,6 @@ export function BookingModal({
     }
   }, [isOpen, garageId, comboTitle]);
 
-  const schedule = useMemo(() => {
-    return getDaySchedule(garageHours, preferredDate);
-  }, [garageHours, preferredDate]);
-
-  // When date changes, update time or show closed status
-  useEffect(() => {
-    if (preferredDate) {
-      if (!schedule.isOpen) {
-        setPreferredTime('');
-      } else if (schedule.availableTimeSlots.length > 0) {
-        // If current selected time is not valid, set to first slot
-        const valid = schedule.availableTimeSlots.some(s => s.value === preferredTime);
-        if (!valid) {
-          setPreferredTime(schedule.availableTimeSlots[0].value);
-        }
-      }
-    }
-  }, [preferredDate, schedule]);
-
-  const todayStr = new Date().toISOString().split('T')[0];
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
@@ -93,28 +72,18 @@ export function BookingModal({
       setErrorMsg('Please select a vehicle.');
       return;
     }
-    if (!preferredDate || !preferredTime) {
-      setErrorMsg('Please select a preferred date and time.');
+    if (!selectedDate || !selectedTime) {
+      setErrorMsg('Please select an available appointment date and time first.');
       return;
     }
-    if (!schedule.isOpen) {
-      setErrorMsg(`Booking is unavailable because ${garageName || 'the garage'} is closed on ${schedule.dayDisplay}.`);
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      const { createBooking } = await import('@/lib/bookings-api');
-      const scheduledAt = `${preferredDate}T${preferredTime}:00`;
-      
-      await createBooking({
+      const { createQuoteRequest } = await import('@/lib/quotes-api');
+      await createQuoteRequest({
         garageId,
         vehicleId: selectedVehicleId,
-        scheduledAt,
-        serviceType: issueDescription,
-        totalAmount: 0,
-        bookingType: 'quoteBased',
-        comboId
+        issueSummary: issueDescription.trim(),
+        preferredDate: `${selectedDate} ${selectedTime}`
       });
 
       if (onSubmitSuccess) onSubmitSuccess();
@@ -153,7 +122,7 @@ export function BookingModal({
         </div>
 
         <div className="mb-4">
-          <label className="mb-1 block text-sm font-semibold text-gray-700">Service or Issue Description</label>
+          <label className="mb-1 block text-sm font-semibold text-gray-700">Service or Issue Description <span className="text-red-500">*</span></label>
           <textarea
             className="w-full rounded-xl border border-gray-300 p-2.5 text-sm disabled:bg-gray-100 disabled:text-gray-500 focus:outline-none focus:border-blue-500"
             rows={3}
@@ -164,81 +133,17 @@ export function BookingModal({
           />
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-semibold mb-1">Preferred Date</label>
-            <input 
-              type="date" 
-              required 
-              min={todayStr}
-              value={preferredDate} 
-              onChange={e => setPreferredDate(e.target.value)} 
-              className="w-full p-2.5 border rounded-xl text-sm bg-white focus:outline-none focus:border-blue-500" 
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-1">Preferred Time</label>
-            {preferredDate && !schedule.isOpen ? (
-              <div className="p-2.5 border border-red-200 bg-red-50 text-red-700 rounded-xl text-xs font-bold flex items-center gap-1.5 h-[42px]">
-                <span>Closed on {schedule.dayDisplay}</span>
-              </div>
-            ) : schedule.availableTimeSlots.length > 0 ? (
-              <select
-                value={preferredTime}
-                onChange={e => setPreferredTime(e.target.value)}
-                required
-                className="w-full p-2.5 border rounded-xl text-sm bg-white focus:outline-none focus:border-blue-500"
-              >
-                {schedule.availableTimeSlots.map(slot => (
-                  <option key={slot.value} value={slot.value}>{slot.label}</option>
-                ))}
-              </select>
-            ) : (
-              <input 
-                type="time" 
-                required 
-                value={preferredTime} 
-                onChange={e => setPreferredTime(e.target.value)} 
-                className="w-full p-2.5 border rounded-xl text-sm bg-white focus:outline-none focus:border-blue-500" 
-              />
-            )}
-          </div>
-        </div>
-
-        {preferredDate && (
-          <div className={`p-3 rounded-xl text-xs font-semibold flex items-center gap-2 ${
-            !schedule.isOpen 
-              ? 'bg-red-50 text-red-700 border border-red-200' 
-              : 'bg-blue-50 text-blue-800 border border-blue-100'
-          }`}>
-            <Clock className="w-4 h-4 shrink-0" />
-            <span>
-              {!schedule.isOpen 
-                ? `${garageName || 'This garage'} is CLOSED on ${schedule.dayDisplay}s. Please select an open day.`
-                : `Working Hours on ${schedule.dayDisplay}: ${schedule.startStr || '09:00 AM'} - ${schedule.endStr || '07:00 PM'}`}
-            </span>
-          </div>
-        )}
-
-        <div>
-          <label className="block text-sm font-semibold mb-1">Issue Description / Notes <span className="text-red-500">*</span></label>
-          <textarea 
-            value={issueDescription} 
-            onChange={e => setIssueDescription(e.target.value)}
-            className="w-full p-3 border rounded-xl text-sm h-24 focus:outline-none focus:border-blue-500"
-            placeholder="Describe any issues or specific instructions..."
-            required
-          />
+        <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-800">
+          Appointment requested for <strong>{selectedDate}</strong> at <strong>{selectedTime}</strong> at {garageName || 'this garage'}.
         </div>
 
         <div className="flex justify-end pt-2">
           <button 
             type="submit" 
-            disabled={isSubmitting || !selectedVehicleId || !preferredDate || !preferredTime || !schedule.isOpen} 
+            disabled={isSubmitting || !selectedVehicleId || !issueDescription.trim() || !selectedDate || !selectedTime}
             className="px-6 py-2.5 bg-[#1a56db] text-white rounded-xl font-bold text-sm disabled:opacity-50 hover:bg-blue-700 transition-colors"
           >
-            {isSubmitting ? 'Submitting...' : 'Book Now'}
+            {isSubmitting ? 'Submitting...' : 'Request Quote'}
           </button>
         </div>
       </form>

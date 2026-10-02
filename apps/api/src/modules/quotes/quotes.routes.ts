@@ -513,8 +513,12 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
 quotesRouter.post('/requests', authenticate, async (req, res) => {
   try {
     const { vehicleId, issueSummary, diagnosisRequestId, preferredDate, garageId } = req.body;
-    if (!vehicleId || !issueSummary || !garageId) {
-      return error(res, 'Vehicle ID, Garage ID and Issue Summary are required', 'BAD_REQUEST', 400);
+    if (!vehicleId || !issueSummary || !garageId || !preferredDate) {
+      return error(res, 'Vehicle ID, Garage ID, Issue Summary and appointment time are required', 'BAD_REQUEST', 400);
+    }
+    const requestedAt = new Date(preferredDate);
+    if (Number.isNaN(requestedAt.getTime()) || requestedAt <= new Date()) {
+      return error(res, 'Appointment time must be a valid future date and time', 'BAD_REQUEST', 400);
     }
 
     const customerId = req.user?.userId;
