@@ -6,6 +6,12 @@ import { query } from '../../config/database';
 
 export const notificationsRouter = Router();
 
+async function resolveNotificationGarageId(userId: string, tokenGarageId?: string) {
+  if (tokenGarageId) return tokenGarageId;
+  const garageRes = await query('SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1', [userId]);
+  return garageRes.rows[0]?.id;
+}
+
 // Get notifications based on role
 notificationsRouter.get('/', authenticate, async (req, res) => {
   try {
@@ -25,8 +31,7 @@ notificationsRouter.get('/', authenticate, async (req, res) => {
     } else if (userRoles.includes('garage')) {
       // Find garage ID if needed, but since we map user to garage, we need to pass garageId via query for now
       // Or if the user has garageId in token. Let's assume garageId is passed in query for garage role
-      const garageRes = await query('SELECT id FROM garages WHERE owner_user_id = $1 LIMIT 1', [userId]);
-      const garageId = garageRes.rows[0]?.id;
+      const garageId = await resolveNotificationGarageId(userId, req.user?.garageId);
       if (garageId) {
         notifications = await NotificationsService.getGarageNotifications(garageId, page, limit);
       } else {
@@ -48,10 +53,10 @@ notificationsRouter.patch('/:id/read', authenticate, async (req, res) => {
   try {
     const userId = req.user?.userId;
     const roles = req.user?.roles || [];
-    const garageRes = userId && roles.includes('garage')
-      ? await query('SELECT id FROM garages WHERE owner_user_id = $1 LIMIT 1', [userId])
-      : { rows: [] };
-    await NotificationsService.markAsRead(req.params.id, userId, garageRes.rows[0]?.id, roles.includes('admin'));
+    const garageId = userId && roles.includes('garage')
+      ? await resolveNotificationGarageId(userId, req.user?.garageId)
+      : undefined;
+    await NotificationsService.markAsRead(req.params.id, userId, garageId, roles.includes('admin'));
     return success(res, { success: true });
   } catch (err) {
     console.error('Error marking notification as read:', err);
@@ -68,8 +73,7 @@ notificationsRouter.post('/read-all', authenticate, async (req, res) => {
     if (userRoles.includes('admin')) {
       await NotificationsService.markAllAsRead(undefined, undefined, true);
     } else if (userRoles.includes('garage')) {
-      const garageRes = await query('SELECT id FROM garages WHERE owner_user_id = $1 LIMIT 1', [userId]);
-      const garageId = garageRes.rows[0]?.id;
+      const garageId = await resolveNotificationGarageId(userId, req.user?.garageId);
       if (!garageId) return error(res, 'Garage not found for this user', 'FORBIDDEN', 403);
       await NotificationsService.markAllAsRead(undefined, garageId, undefined);
     } else {
@@ -88,8 +92,8 @@ async function notificationScope(req: any) {
   const roles = req.user?.roles || [];
   if (roles.includes('admin')) return { userId, isAdmin: true, garageId: undefined };
   if (roles.includes('garage')) {
-    const garageRes = await query('SELECT id FROM garages WHERE owner_user_id = $1 LIMIT 1', [userId]);
-    return { userId, isAdmin: false, garageId: garageRes.rows[0]?.id };
+    const garageId = await resolveNotificationGarageId(userId, req.user?.garageId);
+    return { userId, isAdmin: false, garageId };
   }
   return { userId, isAdmin: false, garageId: undefined };
 }
