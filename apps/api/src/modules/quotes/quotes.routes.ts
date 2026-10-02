@@ -73,7 +73,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage", v.fuel_type as "vehicleFuelType",
               b.id as "bookingId", b.status as "bookingStatus", b.created_at as "bookingCreatedAt", b.scheduled_at as "bookingScheduledAt",
               u.name as "customerName", u.mobile_number as "customerPhone", u.email as "customerEmail",
-              g.city as "garageCity", p.city as "customerCity"
+              g.city as "garageCity", COALESCE(p.city, u.location) as "customerCity"
        FROM quotes q
        JOIN garages g ON q.garage_id = g.id
        JOIN quote_requests qr ON q.quote_request_id = qr.id
