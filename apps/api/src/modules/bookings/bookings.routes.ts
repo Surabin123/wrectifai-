@@ -54,7 +54,15 @@ bookingsRouter.get('/', authenticate, async (req, res) => {
         b.scheduled_at as "scheduledAt",
         b.status,
         b.payment_status as "paymentStatus",
-        NULL::text as "cashPaymentStatus",
+        (
+          SELECT pay.status
+          FROM payments pay
+          WHERE pay.booking_id = b.id
+            AND pay.method = 'cash'
+            AND pay.status = 'pending'
+          ORDER BY pay.created_at DESC
+          LIMIT 1
+        ) as "cashPaymentStatus",
         b.total_amount as "totalAmount",
         b.currency,
         q.labor_cost as "laborCost",

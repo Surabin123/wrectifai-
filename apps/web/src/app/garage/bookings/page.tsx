@@ -23,6 +23,8 @@ export default function BookingsPage() {
   const [bookingForCollection, setBookingForCollection] = useState<string | null>(null);
   const { user } = useAuth();
   const [collectionTime, setCollectionTime] = useState('');
+  const [updatingBookingId, setUpdatingBookingId] = useState<string | null>(null);
+  const [statusError, setStatusError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchBookings()
@@ -37,9 +39,15 @@ export default function BookingsPage() {
   }, []);
 
   const handleUpdateStatus = async (id: string, newStatus: string, extraData?: string) => {
+    setStatusError(null);
+    setUpdatingBookingId(id);
     try {
       await updateBookingStatus(id, newStatus, extraData);
-      setBookings(prev => prev.map(b => b.id === id ? { ...b, status: newStatus } : b));
+      // Re-read the row from the API so payment status, invoice state, and
+      // server-side status transitions are reflected instead of guessing them
+      // from the button that was clicked.
+      const refreshedBookings = await fetchBookings();
+      setBookings(refreshedBookings);
       localStorage.setItem('wrectifai_sync_bookings', Date.now().toString());
       
       // Dispatch Notifications
@@ -83,7 +91,9 @@ export default function BookingsPage() {
       }
     } catch (err) {
       console.error(err);
-      console.error('Failed to update status');
+      setStatusError(err instanceof Error ? err.message : 'Failed to update booking status. Please try again.');
+    } finally {
+      setUpdatingBookingId(null);
     }
   };
 
@@ -111,6 +121,11 @@ export default function BookingsPage() {
           </div>
           
           <Card className="p-6">
+            {statusError && (
+              <div role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {statusError}
+              </div>
+            )}
             {loading ? (
               <p className="text-center text-slate-500 py-10">Loading bookings...</p>
             ) : bookings.length === 0 ? (
@@ -153,16 +168,16 @@ export default function BookingsPage() {
                             </button>
                           )}
                           {b.status === 'in_progress' && (
-                            <button onClick={() => handleUpdateStatus(b.id, 'completed')} className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded font-semibold hover:bg-green-200">
-                              Complete Job
+                            <button onClick={() => handleUpdateStatus(b.id, 'completed')} disabled={updatingBookingId === b.id} className="text-xs bg-green-100 text-green-700 px-3 py-1 rounded font-semibold hover:bg-green-200 disabled:cursor-not-allowed disabled:opacity-60">
+                              {updatingBookingId === b.id ? 'Completing…' : 'Complete Job'}
                             </button>
                           )}
-                          {b.status === 'completed' && b.paymentStatus === 'PENDING_CASH' && (
+                          {b.status === 'completed' && (b.paymentStatus === 'PENDING_CASH' || b.paymentStatus === 'PAYMENT_DUE' || b.paymentStatus === 'UNPAID') && (
                             <button onClick={() => handleConfirmCash(b.id)} className="text-xs bg-emerald-100 text-emerald-700 px-3 py-1 rounded font-semibold hover:bg-emerald-200 ml-2">
                               Confirm Cash
                             </button>
                           )}
-                          {b.status === 'completed' && (b.paymentStatus !== 'PENDING_CASH' || !b.paymentStatus) && (
+                          {b.status === 'completed' && b.paymentStatus === 'PAID' && (
                             <button onClick={() => { setBookingForCollection(b.id); setCollectionTime(''); setCollectionModalOpen(true); }} className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded font-semibold hover:bg-yellow-200 ml-2">
                               Ready for Collection
                             </button>
