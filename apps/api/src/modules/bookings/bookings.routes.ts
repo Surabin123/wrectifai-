@@ -557,24 +557,11 @@ bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
               b.scheduled_at as "scheduledAt", b.status, b.total_amount as "totalAmount", b.currency as "currency", b.created_at as "createdAt",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin",
               u.name as "customerName", u.mobile_number as "customerPhone", NULL::text as "customerAvatar",
-              q.details as "quoteDetails", q.amount as "quoteAmount",
-              COALESCE(q.details->>'etaNote', q.eta_days::text,
-                (SELECT CASE
-                   WHEN service_item->>'durationUnit' ILIKE 'day%' THEN service_item->>'durationMins'
-                   WHEN service_item->>'durationUnit' ILIKE 'hour%' THEN GREATEST(1, CEIL((service_item->>'durationMins')::numeric / 24.0))::text
-                   WHEN service_item->>'durationMins' IS NOT NULL AND service_item->>'durationUnit' ILIKE 'hour%' THEN GREATEST(1, CEIL((service_item->>'durationMins')::numeric / 24.0))::text
-                   WHEN service_item->>'durationMins' IS NOT NULL THEN GREATEST(1, CEIL((service_item->>'durationMins')::numeric / 1440.0))::text
-                   ELSE NULL
-                 END
-                 FROM jsonb_array_elements(COALESCE(b.service_details->'breakdown'->'labor', '[]'::jsonb)) service_item
-                 ORDER BY (service_item->>'durationMins')::numeric DESC NULLS LAST LIMIT 1)) as "estimatedDays",
-              b.customer_note as "customerNote",
-              COALESCE(qr.issue_summary, b.customer_note) as "issueSummary",
-              COALESCE(qr.issue_summary, b.customer_note) as "issueDescription"
+              q.details as "quoteDetails", q.amount as "quoteAmount", q.eta_days as "estimatedDays",
+              qr.issue_summary as "issueSummary", qr.issue_summary as "issueDescription"
        FROM bookings b
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN users u ON b.customer_id = u.id
-       LEFT JOIN profiles p ON u.id = p.user_id
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
        WHERE b.garage_id = $1 AND b.status = 'requested'
