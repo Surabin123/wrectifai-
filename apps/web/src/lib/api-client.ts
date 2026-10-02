@@ -40,7 +40,9 @@ export const responseInterceptors: ResponseInterceptor[] = [];
 let refreshPromise: Promise<string> | null = null;
 let csrfTokenCache: string | null = null;
 const isDemoAuthEnabled = process.env.NEXT_PUBLIC_DEMO_AUTH_ENABLED === 'true';
-const API_REQUEST_TIMEOUT_MS = 15000;
+// Hosted API instances can be cold-started after inactivity. Keep the client
+// from aborting a legitimate login while the server is waking up.
+const API_REQUEST_TIMEOUT_MS = 60000;
 
 async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}): Promise<Response> {
   const controller = new AbortController();
@@ -161,7 +163,11 @@ export async function apiClient<T = unknown>(path: string, options: RequestOptio
   try {
     response = await fetchWithTimeout(url, { ...config, headers: { ...config.headers } });
   } catch (err) {
-    throw new ApiError(err instanceof Error ? err.message : 'Network error', 0);
+    const message = err instanceof Error ? err.message : 'Network error';
+    if (err instanceof Error && (err.name === 'AbortError' || message === 'signal is aborted without reason')) {
+      throw new ApiError('The authentication server took too long to respond. Please try again.', 408, 'REQUEST_TIMEOUT');
+    }
+    throw new ApiError(message, 0);
   }
 
   // 3. Run response interceptors
