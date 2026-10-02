@@ -10,6 +10,8 @@ import { formatCurrency } from '@/lib/currency';
 export default function GarageOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -28,6 +30,9 @@ export default function GarageOrdersPage() {
   }
 
   const handleUpdateStatus = async (id: string, status: string) => {
+    if (updatingOrderId === id) return;
+    setActionError(null);
+    setUpdatingOrderId(id);
     try {
       await apiClient(`/orders/${id}/status`, {
         method: 'PUT',
@@ -36,11 +41,16 @@ export default function GarageOrdersPage() {
       await loadData();
     } catch (err: any) {
       console.error('Failed to update status', err);
-      alert(err.message || 'Failed to update order status');
+      setActionError(err.message || 'Failed to update order status');
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
   const handleConfirmCash = async (id: string) => {
+    if (updatingOrderId === id) return;
+    setActionError(null);
+    setUpdatingOrderId(id);
     try {
       await apiClient(`/orders/${id}/confirm-cash`, {
         method: 'POST'
@@ -48,7 +58,9 @@ export default function GarageOrdersPage() {
       await loadData();
     } catch (err: any) {
       console.error('Failed to confirm cash', err);
-      alert(err.message || 'Failed to confirm cash receipt');
+      setActionError(err.message || 'Failed to confirm cash receipt');
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
@@ -83,6 +95,11 @@ export default function GarageOrdersPage() {
              <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                <h1 className="text-lg font-bold text-slate-800">Customer Product Orders</h1>
              </div>
+             {actionError && (
+               <div role="alert" className="mx-4 mt-4 rounded border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                 {actionError}
+               </div>
+             )}
              
              <div className="overflow-x-auto">
                <table className="w-full text-left border-collapse text-sm">
@@ -114,16 +131,18 @@ export default function GarageOrdersPage() {
                            <div className="flex flex-col gap-2 items-center justify-center">
                              {fulStatus === 'PENDING_ACCEPTANCE' && (
                                <button 
-                                 onClick={() => handleUpdateStatus(order.id, 'ACCEPTED')} 
+                                 onClick={() => handleUpdateStatus(order.id, 'ACCEPTED')}
+                                 disabled={updatingOrderId === order.id}
                                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded text-xs shadow-sm transition-colors"
                                >
-                                 Accept Order
+                                 {updatingOrderId === order.id ? 'Updating...' : 'Accept Order'}
                                </button>
                              )}
 
                              {fulStatus === 'ACCEPTED' && (
                                <button 
                                  onClick={() => handleUpdateStatus(order.id, 'READY_FOR_COLLECTION')}
+                                 disabled={updatingOrderId === order.id}
                                  className="px-3 py-1.5 bg-purple-600 hover:bg-purple-700 text-white font-semibold rounded text-xs shadow-sm transition-colors"
                                >
                                  Ready for Collection
@@ -133,6 +152,7 @@ export default function GarageOrdersPage() {
                              {fulStatus === 'READY_FOR_COLLECTION' && !isPaid && (
                                <button 
                                  onClick={() => handleConfirmCash(order.id)} 
+                                 disabled={updatingOrderId === order.id}
                                  className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-semibold rounded text-xs shadow-sm transition-colors"
                                >
                                  Confirm Cash Received
@@ -142,6 +162,7 @@ export default function GarageOrdersPage() {
                              {fulStatus === 'READY_FOR_COLLECTION' && isPaid && (
                                <button 
                                  onClick={() => handleUpdateStatus(order.id, 'COLLECTED')}
+                                 disabled={updatingOrderId === order.id}
                                  className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded text-xs shadow-sm transition-colors"
                                >
                                  Confirm Collection
