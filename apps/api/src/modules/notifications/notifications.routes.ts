@@ -31,7 +31,7 @@ notificationsRouter.get('/', authenticate, async (req, res) => {
     } else if (userRoles.includes('garage')) {
       // Find garage ID if needed, but since we map user to garage, we need to pass garageId via query for now
       // Or if the user has garageId in token. Let's assume garageId is passed in query for garage role
-      const garageId = await resolveNotificationGarageId(userId, req.user?.garageId);
+      const garageId = await resolveNotificationGarageId(userId!, req.user?.garageId);
       if (garageId) {
         notifications = await NotificationsService.getGarageNotifications(garageId, page, limit);
       } else {
@@ -54,7 +54,7 @@ notificationsRouter.patch('/:id/read', authenticate, async (req, res) => {
     const userId = req.user?.userId;
     const roles = req.user?.roles || [];
     const garageId = userId && roles.includes('garage')
-      ? await resolveNotificationGarageId(userId, req.user?.garageId)
+      ? await resolveNotificationGarageId(userId!, req.user?.garageId)
       : undefined;
     await NotificationsService.markAsRead(req.params.id, userId, garageId, roles.includes('admin'));
     return success(res, { success: true });
@@ -77,7 +77,7 @@ notificationsRouter.post('/read-all', authenticate, async (req, res) => {
     if (userRoles.includes('admin')) {
       await NotificationsService.markAllAsRead(undefined, undefined, true);
     } else if (userRoles.includes('garage')) {
-      const garageId = await resolveNotificationGarageId(userId, req.user?.garageId);
+      const garageId = await resolveNotificationGarageId(userId!, req.user?.garageId);
       if (!garageId) return error(res, 'Garage not found for this user', 'FORBIDDEN', 403);
       await NotificationsService.markAllAsRead(undefined, garageId, undefined);
     } else {
@@ -96,7 +96,7 @@ async function notificationScope(req: any) {
   const roles = req.user?.roles || [];
   if (roles.includes('admin')) return { userId, isAdmin: true, garageId: undefined };
   if (roles.includes('garage')) {
-    const garageId = await resolveNotificationGarageId(userId, req.user?.garageId);
+    const garageId = await resolveNotificationGarageId(userId!, req.user?.garageId);
     return { userId, isAdmin: false, garageId };
   }
   return { userId, isAdmin: false, garageId: undefined };
