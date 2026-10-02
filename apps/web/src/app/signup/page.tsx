@@ -72,6 +72,9 @@ function SignupContent() {
   const completeLogin = (data: AuthResponse) => {
     setLocationCookie('wrectifai_country_code', countryCode);
     login(data.accessToken, data.refreshToken, data.user);
+    if (typeof window !== 'undefined' && data.user.roles?.includes('customer')) {
+      sessionStorage.setItem('wrectifai_profile_setup_required', 'true');
+    }
     setIsSubmitting(false);
     window.location.replace(getDashboardPath(data.user));
   };

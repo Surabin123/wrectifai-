@@ -67,6 +67,9 @@ export function ProfileContent() {
     try {
       const updatedUser = await apiClient.put<any>('/users/profile', formData);
       setIsEditing(false);
+      if (formData.city.trim() && formData.address.trim() && formData.state.trim() && formData.pincode.trim()) {
+        sessionStorage.removeItem('wrectifai_profile_setup_required');
+      }
       showToast('Profile updated successfully', 'success');
       // Refresh the in-memory user context with the persisted data from the API response.
       // This ensures the displayed profile matches what /auth/me will return on next page load/refresh.

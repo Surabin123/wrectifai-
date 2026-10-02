@@ -2,7 +2,7 @@
 
 import { useAuth } from '@/lib/auth-context';
 import { useRouter, usePathname } from 'next/navigation';
-import { useEffect, useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 
 function noop() {
   return noop;
@@ -16,6 +16,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [profileSetupRequired, setProfileSetupRequired] = useState(false);
 
   const isPublicPath = pathname === '/login' || pathname === '/signup' || pathname === '/';
 
@@ -108,6 +109,14 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, isAuthenticated, user, isPublicPath, router, pathname]);
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || !user?.roles?.includes('customer') || pathname === '/profile') {
+      setProfileSetupRequired(false);
+      return;
+    }
+    setProfileSetupRequired(sessionStorage.getItem('wrectifai_profile_setup_required') === 'true');
+  }, [pathname, user]);
+
   if (isLoading) {
     if (isPublicPath) {
       return <>{children}</>;
@@ -127,5 +136,26 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      {children}
+      {profileSetupRequired && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/45 px-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+            <h2 className="text-xl font-bold text-[#17307a]">Complete your profile</h2>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              Add your city and contact details before booking services, requesting quotes, or placing product orders.
+            </p>
+            <button
+              type="button"
+              onClick={() => router.push('/profile')}
+              className="mt-5 w-full rounded-lg bg-[#1a56db] px-4 py-3 text-sm font-semibold text-white hover:bg-[#1546b5]"
+            >
+              Complete Profile
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
