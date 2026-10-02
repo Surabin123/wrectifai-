@@ -558,7 +558,7 @@ export function BookingsPage() {
                         Confirm Collection
                       </Button>
                     )}
-                    {(b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected') && (
+                    {b.paymentStatus === 'PAID' && (b.status === 'completed' || b.status === 'readyForCollection' || b.status === 'collected') && (
                       <Button
                         onClick={() => handleViewInvoice(b.id)}
                         disabled={loadingInvoice}
