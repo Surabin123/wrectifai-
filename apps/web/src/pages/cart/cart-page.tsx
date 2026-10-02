@@ -332,7 +332,7 @@ export function CartPage() {
               <div className="space-y-6">
                 <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
                   <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-blue-600"/> Garage Collection</h3>
-                  <p className="text-sm text-slate-600">This order must be collected from <strong>{cartItems[0]?.garageName || 'the selected garage'}</strong>. The collection location and status will appear in <button type="button" onClick={() => router.push('/orders')} className="font-bold text-blue-600 hover:underline">My Orders</button>.</p>
+                  <p className="text-sm text-slate-600">Collection garage: <strong>{cartItems[0]?.garageName || 'the selected garage'}</strong></p>
                 </Card>
 
                 <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
