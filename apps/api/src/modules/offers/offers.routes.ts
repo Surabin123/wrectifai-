@@ -41,7 +41,7 @@ offersRouter.get('/', async (req, res) => {
     const result = await query(
       `SELECT o.id, o.code, o.title, o.description, o.discount_type, o.discount_value, 
               o.max_discount, o.min_order_amount, o.valid_from, o.valid_until, 
-              o.offer_type, o.applicable_item_id, o.terms_conditions,
+              o.offer_type, o.applicable_item_id, o.terms_conditions, o.image,
               g.name as "garageName"
        FROM offers o
        LEFT JOIN garages g ON o.garage_id = g.id

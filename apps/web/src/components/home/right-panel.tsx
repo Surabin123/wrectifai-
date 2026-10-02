@@ -243,7 +243,7 @@ function OfferCard({
   const cardColor = theme.bgColor;
 
   return (
-    <Link href="/deals" className="block">
+    <Link href="/offers" className="block">
       <Card
         className="overflow-hidden border-0 p-0 shadow-none transition-transform hover:scale-[1.02]"
         style={{ backgroundColor: cardColor }}
@@ -363,10 +363,10 @@ function OffersPanel() {
               eyebrow: offer.offer_type || 'OFFER',
               title: offer.title,
               price: offer.discount_type === 'PERCENTAGE'
-                ? `${offer.discount_value}% OFF`
+                ? `${Number(offer.discount_value)}% OFF`
                 : `${formatCurrency(Number(offer.discount_value || 0), userPhone) } OFF`,
               strikePrice: undefined,
-              discount: offer.discount_type === 'PERCENTAGE' ? `${offer.discount_value}% OFF` : 'OFFER',
+              discount: offer.discount_type === 'PERCENTAGE' ? `${Number(offer.discount_value)}% OFF` : 'OFFER',
               themePreset: 'blue',
               icon: 'Tag',
               image: offer.image,
