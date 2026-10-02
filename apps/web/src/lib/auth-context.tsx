@@ -88,6 +88,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setIsLoading(false);
       }
 
+      // A fresh visitor on the login/signup page has no session to verify.
+      // Do not call the protected endpoint in that case: on a separately
+      // deployed frontend an unavailable API would otherwise wait for the
+      // request timeout and expose "signal is aborted" to the user.
+      if (!sessionToken || !sessionClaims?.userId) {
+        if (mounted && authOperationRef.current === operation) setIsLoading(false);
+        return;
+      }
+
       try {
         const { apiClient } = await import('./api-client');
         const data = await apiClient<{ user: User }>('/auth/me');
@@ -97,7 +106,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setIsAuthenticated(true);
         }
       } catch (err: any) {
-        console.warn('[AuthContext] Auth initialization failed:', err);
+        const isAbort = err?.name === 'AbortError' || err?.message === 'signal is aborted without reason';
+        if (!isAbort) console.warn('[AuthContext] Auth initialization failed:', err);
         if (mounted && authOperationRef.current === operation) {
           // Distinguish between genuine auth failure (401/403) and temporary network/server failure
           const isGenuineAuthFailure = err.status === 401 || err.status === 403;
