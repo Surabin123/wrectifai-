@@ -67,7 +67,8 @@ export default function ProductDetailsPage() {
           numericPrice: parseFloat(product.price),
           img: product.image,
           quantity: quantity,
-          garageId: product.garage_id || (typeof window !== 'undefined' ? localStorage.getItem('selectedGarageId') : '')
+          garageId: product.garage_id || (typeof window !== 'undefined' ? localStorage.getItem('selectedGarageId') : ''),
+          garageName: product.garage_name || product.garageName || product.garage?.name || ''
         });
       }
       

@@ -112,6 +112,11 @@ export function CartPage() {
 
   const handleProceedToCheckout = () => {
     if (cartItems.length === 0) return;
+    const garageIds = new Set(cartItems.map((item) => item.garageId).filter(Boolean));
+    if (garageIds.size > 1) {
+      setErrorMsg('Please keep products from the same garage in one order.');
+      return;
+    }
     setErrorMsg(null);
     setStep('checkout');
   };
@@ -291,7 +296,7 @@ export function CartPage() {
                   </Card>
                 ) : (
                   cartItems.map((item) => (
-                    <Card key={item.id} className="p-4 flex flex-col sm:flex-row items-center gap-4 bg-white border-slate-100 rounded-[20px] shadow-sm">
+                    <Card key={item.id} onClick={() => router.push(`/shop/${item.id}`)} className="p-4 flex flex-col sm:flex-row items-center gap-4 bg-white border-slate-100 rounded-[20px] shadow-sm cursor-pointer hover:border-blue-200 hover:shadow-md transition-shadow">
                       <div className="w-24 h-24 bg-slate-50 rounded-xl flex items-center justify-center shrink-0">
                         {item.img ? (
                           <Image src={item.img} alt={item.name} width={80} height={80} className="object-contain" />
@@ -314,7 +319,7 @@ export function CartPage() {
                             <span className="font-medium w-4 text-center">{item.quantity || 1}</span>
                             <button onClick={() => updateQuantity(item.id, 1)} className="text-slate-500 hover:text-slate-900 font-bold">+</button>
                           </div>
-                          <Button variant="outline" size="sm" onClick={() => removeItem(item.id)} className="text-red-500 border-red-100 hover:bg-red-50 p-2">
+                          <Button variant="outline" size="sm" onClick={(event) => { event.stopPropagation(); removeItem(item.id); }} className="text-red-500 border-red-100 hover:bg-red-50 p-2">
                             <Trash2 className="w-4 h-4" />
                           </Button>
                         </div>
@@ -327,7 +332,7 @@ export function CartPage() {
               <div className="space-y-6">
                 <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
                   <h3 className="font-bold text-lg text-slate-900 mb-4 flex items-center gap-2"><MapPin className="w-5 h-5 text-blue-600"/> Garage Collection</h3>
-                  <p className="text-sm text-slate-600">This order must be collected from <strong>{cartItems[0]?.garageName || 'the selected garage'}</strong>. The collection location and status will appear in My Orders.</p>
+                  <p className="text-sm text-slate-600">This order must be collected from <strong>{cartItems[0]?.garageName || 'the selected garage'}</strong>. The collection location and status will appear in <button type="button" onClick={() => router.push('/orders')} className="font-bold text-blue-600 hover:underline">My Orders</button>.</p>
                 </Card>
 
                 <Card className="p-6 bg-white border-slate-100 rounded-[20px] shadow-sm">
