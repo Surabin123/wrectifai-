@@ -189,7 +189,7 @@ quotesRouter.get('/garage-requests', authenticate, async (req, res) => {
     if (!garageId) return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
 
     const result = await query(
-      `SELECT qr.id, qr.customer_id as "customerId", qr.vehicle_id as "vehicleId", qr.issue_summary as "issueSummary", qr.status, qr.created_at as "createdAt",
+      `SELECT qr.id, qr.customer_id as "customerId", qr.vehicle_id as "vehicleId", qr.issue_summary as "issueSummary", qr.preferred_date as "preferredDate", qr.status, qr.created_at as "createdAt",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage",
               NULL as "customerAvatar", u.name as "customerName", u.mobile_number as "customerPhone", u.email as "customerEmail",
               g.name as "garageName"
@@ -212,6 +212,7 @@ quotesRouter.get('/garage-requests', authenticate, async (req, res) => {
       customerAvatar: row.customerAvatar,
       vehicleId: row.vehicleId,
       issueSummary: row.issueSummary,
+      preferredDate: row.preferredDate,
       status: row.status,
       createdAt: row.createdAt,
       vehicle: row.vehicleMake ? {
@@ -387,6 +388,9 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
       labourCost, partsCost, consumablesCost, gstCost, otherCost, 
       estimatedTime, remarks, availability, pickupDrop, warranty, validityDays 
     } = req.body;
+    if (labourCost === undefined || partsCost === undefined || consumablesCost === undefined || gstCost === undefined || !estimatedTime || !availability || !pickupDrop || !warranty || !validityDays) {
+      return error(res, 'All quote fields except notes are required', 'BAD_REQUEST', 400);
+    }
     
     const garageId = await resolveGarageId(garageUserId, req.user?.garageId);
     if (!garageId) {

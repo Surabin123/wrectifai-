@@ -195,8 +195,8 @@ export default function QuotesPage() {
                   <p className="text-slate-800 bg-slate-50 p-3 mt-1 rounded border border-slate-200">{selectedRequest.issueSummary || 'N/A'}</p>
                 </div>
                 <div>
-                  <span className="font-bold text-slate-600">Notes / Preferred Date:</span>
-                  <p className="text-slate-800 bg-slate-50 p-3 mt-1 rounded border border-slate-200">{selectedRequest.preferredDate ? new Date(selectedRequest.preferredDate).toLocaleDateString() : 'No preferred date specified'}</p>
+                  <span className="font-bold text-slate-600">Preferred Date & Time:</span>
+                  <p className="text-slate-800 bg-slate-50 p-3 mt-1 rounded border border-slate-200">{selectedRequest.preferredDate ? new Date(selectedRequest.preferredDate).toLocaleString() : 'No preferred date specified'}</p>
                 </div>
               </div>
               <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
@@ -213,8 +213,8 @@ export default function QuotesPage() {
                       Request Expired (Older than 24h)
                     </div>
                   ) : (
-                    <button 
-                      onClick={() => setShowQuoteForm(true)}
+                    <button
+                      onClick={() => { setAvailability(selectedRequest.preferredDate ? new Date(selectedRequest.preferredDate).toLocaleString() : ''); setShowQuoteForm(true); }}
                       className="px-4 py-2 bg-blue-600 rounded text-sm font-bold text-white hover:bg-blue-700"
                     >
                       Create Quote
@@ -245,7 +245,7 @@ export default function QuotesPage() {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Labour Cost</label>
+                      <label className="block font-bold text-slate-700 mb-1">Labour Cost *</label>
                       <input
                         type="number"
                         required
@@ -256,7 +256,7 @@ export default function QuotesPage() {
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Parts Cost</label>
+                      <label className="block font-bold text-slate-700 mb-1">Parts Cost *</label>
                       <input
                         type="number"
                         required
@@ -270,7 +270,7 @@ export default function QuotesPage() {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Consumables Cost</label>
+                      <label className="block font-bold text-slate-700 mb-1">Consumables Cost *</label>
                       <input
                         type="number"
                         required
@@ -281,7 +281,7 @@ export default function QuotesPage() {
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">GST / Taxes</label>
+                      <label className="block font-bold text-slate-700 mb-1">GST / Taxes *</label>
                       <input
                         type="number"
                         required
@@ -305,18 +305,18 @@ export default function QuotesPage() {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Availability</label>
+                      <label className="block font-bold text-slate-700 mb-1">Customer Preferred Date & Time *</label>
                       <input
                         type="text"
                         required
                         value={availability}
-                        onChange={(e) => setAvailability(e.target.value)}
-                        placeholder="e.g. Today, 6:00 PM"
+                        readOnly
+                        placeholder="Customer preferred date and time"
                         className="w-full px-3 py-2 border border-slate-300 rounded outline-none focus:border-blue-500"
                       />
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Pickup & Drop</label>
+                      <label className="block font-bold text-slate-700 mb-1">Pickup & Drop *</label>
                       <select
                         value={pickupDrop}
                         onChange={(e) => setPickupDrop(e.target.value)}
@@ -330,7 +330,7 @@ export default function QuotesPage() {
                   
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Warranty</label>
+                      <label className="block font-bold text-slate-700 mb-1">Warranty *</label>
                       <select
                         value={warranty}
                         onChange={(e) => setWarranty(e.target.value)}
@@ -344,7 +344,7 @@ export default function QuotesPage() {
                       </select>
                     </div>
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Estimated Days</label>
+                      <label className="block font-bold text-slate-700 mb-1">Estimated Days *</label>
                       <input
                         type="number"
                         required
@@ -357,7 +357,7 @@ export default function QuotesPage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block font-bold text-slate-700 mb-1">Quote Validity (Days)</label>
+                      <label className="block font-bold text-slate-700 mb-1">Quote Validity (Days) *</label>
                       <input
                         type="number"
                         required
