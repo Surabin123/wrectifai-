@@ -1168,7 +1168,7 @@ bookingsRouter.post('/:bookingId/select-cash', authenticate, async (req, res) =>
       // transaction_id is NOT NULL and unique — use a deterministic cash reference
       const cashRef = `cash_pending_${bookingId}`;
       await query(
-        `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, amount, status)
+        `INSERT INTO payments (payer_user_id, booking_id, method, transaction_id, amount, status)
          VALUES ($1, $2, 'cash', $3, $4, 'pending')
          ON CONFLICT (transaction_id) DO NOTHING`,
         [userId, bookingId, cashRef, booking.total_amount]
@@ -1249,7 +1249,7 @@ bookingsRouter.post('/:bookingId/confirm-cash', authenticate, async (req, res) =
       );
     } else {
       await query(
-        `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, amount, status)
+        `INSERT INTO payments (payer_user_id, booking_id, method, transaction_id, amount, status)
          VALUES ($1, $2, 'cash', $3, $4, 'succeeded')
          ON CONFLICT (transaction_id) DO NOTHING`,
         [booking.customer_id, bookingId, cashTransactionId, booking.total_amount]

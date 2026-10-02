@@ -87,7 +87,7 @@ paymentsRouter.post('/orders', authenticate, async (req, res) => {
         [order.id, bookingId, txResult.customerId]
       );
       await client.query(
-        `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, provider_order_id, amount, currency, status)
+        `INSERT INTO payments (payer_user_id, booking_id, method, transaction_id, provider_order_id, amount, currency, status)
          VALUES ($1, $2, 'razorpay', $3, $4, $5, 'INR', 'created')
          ON CONFLICT (provider_order_id) DO UPDATE SET updated_at = NOW()`,
         [txResult.customerId, bookingId, `booking_intent_${bookingId}_${order.id}`, order.id, payable]
@@ -202,7 +202,7 @@ paymentsRouter.post('/verify', authenticate, async (req, res) => {
       if (paymentCheck.rows.length === 0) {
         // transaction_id is the unique key; use razorpay_payment_id as the canonical transaction ID
         await client.query(
-          `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status, signature_status)
+          `INSERT INTO payments (payer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status, signature_status)
            VALUES ($1, $2, 'razorpay', $3, $4, $5, $6, 'succeeded', 'valid')`,
           [booking.customer_id, booking.id, razorpay_payment_id, razorpay_order_id, razorpay_payment_id, paymentAmount]
         );
@@ -273,7 +273,7 @@ paymentsRouter.post('/fail', authenticate, async (req, res) => {
     if (paymentCheck.rows.length === 0) {
       const failTxId = razorpay_payment_id || `fail_${razorpay_order_id}`;
       await pool.query(
-        `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status)
+          `INSERT INTO payments (payer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status)
          VALUES ($1, $2, 'razorpay', $3, $4, $5, $6, 'failed')
          ON CONFLICT (transaction_id) DO NOTHING`,
         [booking.customer_id, booking.id, failTxId, razorpay_order_id, razorpay_payment_id || 'unknown', paymentAmount]
@@ -491,7 +491,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
           );
           if (paymentCheck.rows.length === 0) {
             await client.query(
-              `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status)
+              `INSERT INTO payments (payer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status)
                VALUES ($1, $2, 'razorpay', $3, $4, $5, $6, 'succeeded')`,
               [booking.customer_id, booking.id, paymentEntity.id, providerIntentId, paymentEntity.id, amount]
             );
@@ -560,7 +560,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
               WHERE transaction_id=$3 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.intentToken]);
           } else {
             await client.query(`UPDATE payments SET provider_order_id=$1, provider_payment_id=$2, transaction_id=$1, status='succeeded'
-              WHERE customer_user_id=$3 AND amount=$4 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.userId, amount]);
+              WHERE payer_user_id=$3 AND amount=$4 AND status='created' AND provider_order_id IS NULL`, [providerIntentId, paymentEntity.id, notes.userId, amount]);
           }
         }
       }
@@ -584,7 +584,7 @@ paymentsRouter.post('/webhook', async (req, res) => {
           );
           if (failedPaymentCheck.rows.length === 0) {
             await client.query(
-              `INSERT INTO payments (customer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status)
+              `INSERT INTO payments (payer_user_id, booking_id, method, transaction_id, provider_order_id, provider_payment_id, amount, status)
                VALUES ($1, $2, 'razorpay', $3, $4, $5, $6, 'failed')`,
               [booking.customer_id, booking.id, paymentEntity.id, providerIntentId, paymentEntity.id, paymentEntity.amount / 100]
             );
