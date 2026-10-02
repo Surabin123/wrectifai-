@@ -497,7 +497,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
     const garageLocation = [garageRes.rows[0]?.city, garageRes.rows[0]?.address].filter(Boolean).join(', ');
     const vehicle = vehicleRes.rows[0];
     const vehicleLabel = vehicle ? [vehicle.make, vehicle.model, vehicle.registration_number].filter(Boolean).join(' ') : 'the customer vehicle';
-    const serviceLabel = booking.final_service_type || booking.customer_note || 'requested service';
+    const serviceLabel = booking.customer_note || 'requested service';
 
     await NotificationsService.createNotification({
       garageId: garageId,
@@ -935,7 +935,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
     if (status === 'inService' || status === 'completed' || status === 'readyForCollection' || status === 'collected') {
       // Fetch details for comprehensive notification
       const bookingRes = await query(
-        `SELECT b.customer_note as service_type, b.final_service_type, u.name as customer_name, u.id as customer_id, g.name as garage_name, g.city as garage_city, b.garage_id as garage_id,
+        `SELECT b.customer_note as service_type, u.name as customer_name, u.id as customer_id, g.name as garage_name, g.city as garage_city, b.garage_id as garage_id,
                 v.make, v.model, v.registration_number
          FROM bookings b
          JOIN users u ON b.customer_id = u.id
@@ -945,7 +945,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
          [bookingId]
       );
       const bData = bookingRes.rows[0];
-      const serviceStr = bData?.final_service_type || bData?.service_type || 'A service';
+      const serviceStr = bData?.service_type || 'A service';
       const customerStr = bData?.customer_name || 'a customer';
       const garageStr = bData?.garage_name || 'a garage';
       const vehicleStr = [bData?.make, bData?.model, bData?.registration_number].filter(Boolean).join(' ') || 'the vehicle';
@@ -1277,7 +1277,7 @@ bookingsRouter.post('/:id/refund-requests', authenticate, async (req, res) => {
     const bookingRes = await query(
       `SELECT b.id, b.garage_id, b.total_amount, b.payment_status, u.name as customer_name,
               CONCAT_WS(' ', v.make, v.model, v.registration_number) as refund_vehicle,
-              COALESCE(b.final_service_type, b.customer_note) as refund_service,
+              b.customer_note as refund_service,
               p.amount as payment_amount, p.status as p_status
        FROM bookings b
        JOIN users u ON u.id = b.customer_id
