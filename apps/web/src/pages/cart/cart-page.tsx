@@ -39,7 +39,14 @@ export function CartPage() {
   useEffect(() => {
     const items = localStorage.getItem('shopCart');
     if (items) {
-      setCartItems(JSON.parse(items));
+      const selectedGarageName = localStorage.getItem('selectedGarageName') || '';
+      const savedItems = JSON.parse(items);
+      const normalizedItems = savedItems.map((item: any) => ({
+        ...item,
+        garageName: item.garageName || selectedGarageName
+      }));
+      setCartItems(normalizedItems);
+      localStorage.setItem('shopCart', JSON.stringify(normalizedItems));
     }
   }, []);
 

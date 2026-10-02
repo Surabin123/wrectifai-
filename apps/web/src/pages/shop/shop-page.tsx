@@ -62,6 +62,8 @@ export function ShopPage() {
           const nextGarageId = isValidSaved ? savedGarage! : data[0].id;
           setSelectedGarageId(nextGarageId);
           localStorage.setItem('selectedGarageId', nextGarageId);
+          const selectedGarage = data.find(g => g.id === nextGarageId);
+          localStorage.setItem('selectedGarageName', selectedGarage?.name || selectedGarage?.facade || '');
         } else {
           setSelectedGarageId('');
           setProducts([]);
@@ -119,6 +121,8 @@ export function ShopPage() {
         .catch(() => setIsLoading(false));
       
       localStorage.setItem('selectedGarageId', selectedGarageId);
+      const selectedGarage = garages.find(g => g.id === selectedGarageId);
+      localStorage.setItem('selectedGarageName', selectedGarage?.name || selectedGarage?.facade || '');
     }
   }, [selectedGarageId, userCity, userVehicle]);
 
@@ -155,7 +159,13 @@ export function ShopPage() {
     if (exists) {
       newItems = cartItems.map(i => i.id === product.id ? { ...i, quantity: (i.quantity || 1) + 1 } : i);
     } else {
-      newItems = [...cartItems, { ...product, garageId: selectedGarageId, quantity: 1 }];
+      const selectedGarage = garages.find(g => g.id === selectedGarageId);
+      newItems = [...cartItems, {
+        ...product,
+        garageId: selectedGarageId,
+        garageName: selectedGarage?.name || selectedGarage?.facade || '',
+        quantity: 1
+      }];
     }
     setCartItems(newItems);
     localStorage.setItem('shopCart', JSON.stringify(newItems));

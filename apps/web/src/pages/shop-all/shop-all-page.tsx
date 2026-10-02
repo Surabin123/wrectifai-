@@ -21,6 +21,7 @@ export function ShopAllPage() {
   const [products, setProducts] = useState<any[]>([]);
   const [userCity, setUserCity] = useState<string>('Bengaluru');
   const [selectedGarageId, setSelectedGarageId] = useState<string>('');
+  const [garages, setGarages] = useState<any[]>([]);
   
   const [cartItems, setCartItems] = useState<any[]>([]);
   const [wishlistItems, setWishlistItems] = useState<any[]>([]);
@@ -52,9 +53,12 @@ export function ShopAllPage() {
     apiClient.get<any[]>(`/garages?city=${encodeURIComponent(city)}`)
       .then(garages => {
         if (garages && garages.length > 0) {
+          setGarages(garages);
           const savedG = localStorage.getItem('selectedGarageId');
           const validG = garages.some(g => g.id === savedG) ? savedG! : garages[0].id;
           setSelectedGarageId(validG);
+          const selectedGarage = garages.find(g => g.id === validG);
+          localStorage.setItem('selectedGarageName', selectedGarage?.name || selectedGarage?.facade || '');
           return apiClient.get<any[]>(`/garages/${validG}/inventory`);
         }
         return [];
@@ -110,7 +114,13 @@ export function ShopAllPage() {
     if (exists) {
       newItems = cartItems.map(i => i.id === product.id ? { ...i, quantity: (i.quantity || 1) + 1 } : i);
     } else {
-      newItems = [...cartItems, { ...product, garageId: selectedGarageId, quantity: 1 }];
+      const selectedGarage = garages.find(g => g.id === selectedGarageId);
+      newItems = [...cartItems, {
+        ...product,
+        garageId: selectedGarageId,
+        garageName: selectedGarage?.name || selectedGarage?.facade || '',
+        quantity: 1
+      }];
     }
     setCartItems(newItems);
     localStorage.setItem('shopCart', JSON.stringify(newItems));
