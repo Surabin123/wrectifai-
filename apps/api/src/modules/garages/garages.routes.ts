@@ -3,6 +3,7 @@ import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
 import { query, getDbPool } from '../../config/database';
 import { getPagination } from '../../utils/pagination';
+import { createStorageProvider } from '../../services/storage.service';
 import fs from 'fs';
 import path from 'path';
 
@@ -222,25 +223,42 @@ garagesRouter.get('/my-profile', authenticate, async (req, res) => {
 garagesRouter.get('/my-documents/:documentId/access', authenticate, requireRole(['garage']), async (req, res) => {
   try {
     const result = await query(
-      `SELECT gd.file_url, gd.mime_type FROM garage_documents gd
+      `SELECT gd.file_url, gd.mime_type, gd.original_filename FROM garage_documents gd
        JOIN garages g ON g.id = gd.garage_id
        WHERE gd.id = $1 AND g.owner_user_id = $2`,
       [req.params.documentId, req.user!.userId]
     );
     if (!result.rows.length) return error(res, 'Document not found', 'NOT_FOUND', 404);
     const fileUrl = result.rows[0].file_url as string;
-    if (fileUrl.startsWith('/uploads/')) return success(res, { url: `${req.protocol}://${req.get('host')}${fileUrl}` });
+    if (fileUrl.startsWith('/uploads/')) {
+      const uploadsRoot = path.resolve(process.cwd(), 'uploads');
+      const localPath = path.resolve(process.cwd(), fileUrl.slice(1));
+      if (!localPath.startsWith(`${uploadsRoot}${path.sep}`)) return error(res, 'Document not found', 'NOT_FOUND', 404);
+      const contents = await fs.promises.readFile(localPath);
+      return success(res, { data: contents.toString('base64'), mimeType: result.rows[0].mime_type || 'application/octet-stream' });
+    }
+
+    // Ensure Cloudinary uses the same environment configuration as uploads.
+    createStorageProvider();
+    const parsedUrl = new URL(fileUrl);
+    const resourceMatch = parsedUrl.pathname.match(/\/(raw|image|video)\/(authenticated|upload)\//);
+    if (!resourceMatch) return error(res, 'Document URL format is unsupported. Replace the document and try again.', 'DOCUMENT_ACCESS_ERROR', 422);
+    const [, resourceType, deliveryType] = resourceMatch;
+    const marker = `/${resourceType}/${deliveryType}/`;
+    const encodedPath = parsedUrl.pathname.split(marker)[1].replace(/^v\d+\//, '');
+    const decodedPath = decodeURIComponent(encodedPath);
+    // Cloudinary raw public IDs include their extension (unlike image IDs).
+    const publicId = resourceType === 'raw' ? decodedPath : decodedPath.replace(/\.[^.]+$/, '');
     const { v2: cloudinary } = require('cloudinary');
-    const resourceType = result.rows[0].mime_type === 'application/pdf' ? 'raw' : 'image';
-    const markers = [`/${resourceType}/authenticated/upload/`, `/${resourceType}/upload/`];
-    const marker = markers.find(candidate => fileUrl.includes(candidate));
-    if (!marker) return error(res, 'Secure document access is unavailable', 'DOCUMENT_ACCESS_ERROR', 500);
-    const encodedPath = fileUrl.split(marker)[1].replace(/^v\d+\//, '');
-    const publicId = decodeURIComponent(encodedPath).replace(/\.[^.]+$/, '');
-    const deliveryType = marker.includes('/authenticated/') ? 'authenticated' : 'upload';
-    const signedUrl = cloudinary.url(publicId, { secure: true, sign_url: deliveryType === 'authenticated', type: deliveryType, resource_type: resourceType });
-    return success(res, { url: signedUrl });
-  } catch {
+    const accessUrl = cloudinary.url(publicId, {
+      secure: true,
+      sign_url: deliveryType === 'authenticated',
+      type: deliveryType,
+      resource_type: resourceType,
+    });
+    return success(res, { url: accessUrl, mimeType: result.rows[0].mime_type, filename: result.rows[0].original_filename });
+  } catch (err) {
+    console.error('Document access failed:', err);
     return error(res, 'Failed to access document', 'DOCUMENT_ACCESS_ERROR', 500);
   }
 });
@@ -257,23 +275,14 @@ garagesRouter.put('/my-documents/:documentId', authenticate, requireRole(['garag
     if (!bytes.length || bytes.length > 5 * 1024 * 1024 || (file.type === 'application/pdf' && !isPdf) || (file.type === 'image/png' && !isPng) || (file.type === 'image/jpeg' && !isJpeg)) return error(res, 'Document content is invalid or exceeds 5MB.', 'VALIDATION_ERROR', 400);
     const owner = await query(`SELECT gd.id FROM garage_documents gd JOIN garages g ON g.id = gd.garage_id WHERE gd.id = $1 AND g.owner_user_id = $2`, [req.params.documentId, req.user!.userId]);
     if (!owner.rows.length) return error(res, 'Document not found', 'NOT_FOUND', 404);
-    let storedUrl: string;
-    if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL || (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)) {
-      const { v2: cloudinary } = require('cloudinary');
-      const resourceType = file.type === 'application/pdf' ? 'raw' : 'image';
-      const uploaded = await cloudinary.uploader.upload(file.data, { folder: 'wrectifai/garages/documents', type: 'authenticated', resource_type: resourceType });
-      storedUrl = uploaded.secure_url;
-    } else {
-      if (process.env.NODE_ENV === 'production') return error(res, 'Secure document storage is not configured.', 'CONFIG_ERROR', 500);
-      const directory = path.join(process.cwd(), 'uploads', 'garages', 'documents');
-      fs.mkdirSync(directory, { recursive: true });
-      const extension = file.type === 'application/pdf' ? 'pdf' : file.type === 'image/png' ? 'png' : 'jpg';
-      const filename = `${req.params.documentId}-${Date.now()}.${extension}`;
-      // Write the validated base64 payload directly to avoid Buffer/ArrayBuffer
-      // incompatibilities between the Node and TypeScript runtime definitions.
-      fs.writeFileSync(path.join(directory, filename), content, 'base64');
-      storedUrl = `/uploads/garages/documents/${filename}`;
-    }
+    const storage = createStorageProvider();
+    const stored = await storage.upload({
+      buffer: bytes,
+      filename: typeof file.name === 'string' && file.name ? file.name : `garage-document-${req.params.documentId}`,
+      mimeType: file.type,
+      folder: 'wrectifai/garages/documents',
+    });
+    const storedUrl = stored.url;
     const updated = await query(
       `UPDATE garage_documents SET file_url = $1, original_filename = $2, mime_type = $3, file_size_bytes = $4,
        verification_status = 'pending' WHERE id = $5 RETURNING id, doc_type, original_filename as "originalFilename", mime_type as "mimeType", file_size_bytes as "fileSizeBytes", expiry_date as "expiryDate"`,

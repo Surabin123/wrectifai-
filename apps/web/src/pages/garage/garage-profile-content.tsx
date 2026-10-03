@@ -39,6 +39,8 @@ function fromTimeInput(value: string) {
 export function GarageProfileContent() {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingHours, setIsEditingHours] = useState(false);
+  const [savingHours, setSavingHours] = useState(false);
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
@@ -84,6 +86,20 @@ export function GarageProfileContent() {
 
   const startEditing = () => setIsEditing(true);
 
+  const saveWorkingHours = async () => {
+    try {
+      setSavingHours(true);
+      await apiClient.put('/garages/my-profile', { businessHours: formData.businessHours });
+      await fetchProfile();
+      setIsEditingHours(false);
+      showToast('Working hours updated successfully', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update working hours', 'error');
+    } finally {
+      setSavingHours(false);
+    }
+  };
+
   const viewDocument = async (documentId: string) => {
     // Open synchronously during the click gesture so browser popup blockers
     // don't discard the tab while the authenticated URL is being fetched.
@@ -93,9 +109,13 @@ export function GarageProfileContent() {
       return;
     }
     try {
-      const result = await apiClient.get<{url: string}>(`/garages/my-documents/${documentId}/access`);
+      const result = await apiClient.get<{url?: string, data?: string, mimeType?: string}>(`/garages/my-documents/${documentId}/access`);
+      const documentUrl = result.data
+        ? URL.createObjectURL(new Blob([Uint8Array.from(atob(result.data), char => char.charCodeAt(0))], { type: result.mimeType || 'application/octet-stream' }))
+        : result.url;
+      if (!documentUrl) throw new Error('The document is unavailable. Please replace it and try again.');
       documentWindow.opener = null;
-      documentWindow.location.replace(result.url);
+      documentWindow.location.replace(documentUrl);
     } catch (err: any) {
       documentWindow.close();
       showToast(err.message || 'Could not open document', 'error');
@@ -106,7 +126,9 @@ export function GarageProfileContent() {
     if (!file) return;
     if (!['application/pdf', 'image/jpeg', 'image/png'].includes(file.type) || file.size > 5 * 1024 * 1024) { showToast('Upload a PDF, JPG, or PNG under 5MB.', 'error'); return; }
     const reader = new FileReader();
+    reader.onerror = () => showToast('Could not read the selected file. Please try another file.', 'error');
     reader.onloadend = async () => {
+      if (reader.error || typeof reader.result !== 'string') return;
       try {
         await apiClient.put(`/garages/my-documents/${documentId}`, { file: { name: file.name, type: file.type, size: file.size, data: reader.result } });
         showToast('Document replaced successfully', 'success');
@@ -339,10 +361,13 @@ export function GarageProfileContent() {
         {/* Right Column (1/3) */}
         <div className="space-y-6">
           <Card className="p-6 shadow-sm border-slate-100 rounded-[24px]">
-            <h3 className="text-sm font-bold text-slate-900 mb-4 flex items-center gap-2">
-              <Clock className="w-4 h-4 text-slate-500" /> Working Hours
-            </h3>
-            {isEditing ? (
+            <div className="flex items-center justify-between gap-2 mb-4">
+              <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                <Clock className="w-4 h-4 text-slate-500" /> Working Hours
+              </h3>
+              {!isEditingHours ? <button type="button" onClick={() => setIsEditingHours(true)} className="text-xs font-bold text-blue-600 hover:text-blue-800">Edit</button> : <div className="flex gap-2"><button type="button" disabled={savingHours} onClick={() => { setFormData((current: any) => ({...current, businessHours: normalizeBusinessHours(profile.businessHours)})); setIsEditingHours(false); }} className="text-xs font-semibold text-slate-500 disabled:opacity-50">Cancel</button><button type="button" disabled={savingHours} onClick={saveWorkingHours} className="text-xs font-bold text-blue-600 disabled:opacity-50">{savingHours ? 'Saving…' : 'Save'}</button></div>}
+            </div>
+            {isEditingHours || isEditing ? (
               <div className="space-y-2 text-xs">{WEEK_DAYS.map(day => {
                 const hours = formData.businessHours?.[day] || { open: false, start: '09:00 AM', end: '05:00 PM' };
                 return <div key={day} className="grid grid-cols-[minmax(88px,1fr)_1fr_1fr] gap-2 items-center">
@@ -382,7 +407,7 @@ export function GarageProfileContent() {
                 profile.documents.map((doc: any) => (
                   <div key={doc.id} className="flex justify-between items-center gap-2 bg-white p-3 rounded-lg border border-slate-100">
                     <div className="min-w-0"><span className="text-sm font-medium text-slate-700">{doc.doc_type}</span>{doc.originalFilename && <p className="text-[10px] text-slate-400 truncate">{doc.originalFilename}</p>}</div>
-                    <div className="flex gap-2"><button type="button" onClick={() => viewDocument(doc.id)} className="text-xs font-bold text-blue-600">View</button><label className="text-xs font-bold text-blue-600 cursor-pointer">Replace<input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={event => replaceDocument(doc.id, event.target.files?.[0])}/></label></div>
+                    <div className="flex gap-2"><button type="button" onClick={() => viewDocument(doc.id)} className="text-xs font-bold text-blue-600">View</button><label className="text-xs font-bold text-blue-600 cursor-pointer">Replace<input type="file" accept=".pdf,.jpg,.jpeg,.png" className="hidden" onChange={event => { const input = event.currentTarget; const file = input.files?.[0]; input.value = ''; replaceDocument(doc.id, file); }}/></label></div>
                   </div>
                 ))
               ) : (
