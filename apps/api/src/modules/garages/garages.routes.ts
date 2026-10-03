@@ -854,13 +854,16 @@ garagesRouter.put('/my-services/:serviceId', authenticate, async (req, res) => {
     const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
     if (!garageId) return error(res, 'Garage not found', 'BAD_REQUEST', 400);
 
-    const { price, is_active, duration_mins, description, image } = req.body;
+    const { price, is_active, duration_mins, duration_unit, description, image } = req.body;
     
     const parsedPrice = price !== undefined ? Number(price) : undefined;
     const parsedDuration = duration_mins !== undefined ? Number(duration_mins) : undefined;
     if ((parsedPrice !== undefined && (isNaN(parsedPrice) || parsedPrice < 0)) || 
         (parsedDuration !== undefined && (isNaN(parsedDuration) || parsedDuration < 0))) {
       return error(res, 'Invalid price or duration', 'BAD_REQUEST', 400);
+    }
+    if (duration_unit !== undefined && !['Minutes', 'Hours', 'Days'].includes(duration_unit)) {
+      return error(res, 'Invalid duration unit', 'BAD_REQUEST', 400);
     }
 
     let processedImage = undefined;
@@ -886,10 +889,10 @@ garagesRouter.put('/my-services/:serviceId', authenticate, async (req, res) => {
 
     const result = await query(
       `UPDATE services 
-       SET price = COALESCE($1, price), is_active = COALESCE($2, is_active), duration_mins = COALESCE($3, duration_mins), description = COALESCE($4, description), image = COALESCE($5, image), updated_at = NOW()
-       WHERE id = $6 AND garage_id = $7
+       SET price = COALESCE($1, price), is_active = COALESCE($2, is_active), duration_mins = COALESCE($3, duration_mins), description = COALESCE($4, description), image = COALESCE($5, image), duration_unit = COALESCE($6, duration_unit), updated_at = NOW()
+       WHERE id = $7 AND garage_id = $8
        RETURNING *`,
-      [parsedPrice, is_active, parsedDuration, description, processedImage, req.params.serviceId, garageId]
+      [parsedPrice, is_active, parsedDuration, description, processedImage, duration_unit, req.params.serviceId, garageId]
     );
 
     if (result.rows.length === 0) {
