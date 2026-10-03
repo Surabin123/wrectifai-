@@ -7,6 +7,35 @@ import Link from 'next/link';
 import { useAuth } from '@/lib/auth-context';
 import { apiClient } from '@/lib/api-client';
 
+const WEEK_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+
+function normalizeBusinessHours(value: any) {
+  const hours = value && typeof value === 'object' ? value : {};
+  return Object.fromEntries(WEEK_DAYS.map(day => {
+    const existing = hours[day] || hours[day[0].toUpperCase() + day.slice(1)] || {};
+    return [day, {
+      open: existing.open === true,
+      start: typeof existing.start === 'string' && existing.start ? existing.start : '09:00 AM',
+      end: typeof existing.end === 'string' && existing.end ? existing.end : '05:00 PM',
+    }];
+  }));
+}
+
+function toTimeInput(value: string) {
+  const match = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(value || '');
+  if (!match) return '';
+  let hour = Number(match[1]) % 12;
+  if (match[3].toUpperCase() === 'PM') hour += 12;
+  return `${String(hour).padStart(2, '0')}:${match[2]}`;
+}
+
+function fromTimeInput(value: string) {
+  const match = /^(\d{2}):(\d{2})$/.exec(value);
+  if (!match) return '';
+  const hour = Number(match[1]);
+  return `${String(hour % 12 || 12).padStart(2, '0')}:${match[2]} ${hour >= 12 ? 'PM' : 'AM'}`;
+}
+
 export function GarageProfileContent() {
   const { user } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
@@ -37,7 +66,7 @@ export function GarageProfileContent() {
           timezone: res.timezone || '',
           ownerName: res.ownerName || '',
           ownerDesignation: res.ownerDesignation || '',
-          businessHours: res.businessHours || {},
+          businessHours: normalizeBusinessHours(res.businessHours),
         });
       }
     } catch (err) {
@@ -56,10 +85,21 @@ export function GarageProfileContent() {
   const startEditing = () => setIsEditing(true);
 
   const viewDocument = async (documentId: string) => {
+    // Open synchronously during the click gesture so browser popup blockers
+    // don't discard the tab while the authenticated URL is being fetched.
+    const documentWindow = window.open('about:blank', '_blank');
+    if (!documentWindow) {
+      showToast('Allow pop-ups to view this document.', 'error');
+      return;
+    }
     try {
       const result = await apiClient.get<{url: string}>(`/garages/my-documents/${documentId}/access`);
-      window.open(result.url, '_blank', 'noopener,noreferrer');
-    } catch (err: any) { showToast(err.message || 'Could not open document', 'error'); }
+      documentWindow.opener = null;
+      documentWindow.location.replace(result.url);
+    } catch (err: any) {
+      documentWindow.close();
+      showToast(err.message || 'Could not open document', 'error');
+    }
   };
 
   const replaceDocument = (documentId: string, file?: File) => {
@@ -303,7 +343,14 @@ export function GarageProfileContent() {
               <Clock className="w-4 h-4 text-slate-500" /> Working Hours
             </h3>
             {isEditing ? (
-              <div className="space-y-2 text-xs">{Object.entries(formData.businessHours || {}).map(([day, hours]: [string, any]) => <div key={day} className="grid grid-cols-3 gap-2 items-center"><label className="capitalize flex gap-2"><input type="checkbox" checked={hours.open} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, open: e.target.checked}}})}/>{day}</label><input disabled={!hours.open} value={hours.start || ''} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, start: e.target.value}}})} className="border rounded p-1 disabled:bg-slate-100"/><input disabled={!hours.open} value={hours.end || ''} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, end: e.target.value}}})} className="border rounded p-1 disabled:bg-slate-100"/></div>)}</div>
+              <div className="space-y-2 text-xs">{WEEK_DAYS.map(day => {
+                const hours = formData.businessHours?.[day] || { open: false, start: '09:00 AM', end: '05:00 PM' };
+                return <div key={day} className="grid grid-cols-[minmax(88px,1fr)_1fr_1fr] gap-2 items-center">
+                  <label className="capitalize flex gap-2 items-center"><input type="checkbox" checked={hours.open} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, open: e.target.checked}}})}/>{day}</label>
+                  <input aria-label={`${day} opening time`} type="time" disabled={!hours.open} value={toTimeInput(hours.start)} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, start: fromTimeInput(e.target.value)}}})} className="min-w-0 border rounded p-1 disabled:bg-slate-100"/>
+                  <input aria-label={`${day} closing time`} type="time" disabled={!hours.open} value={toTimeInput(hours.end)} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, end: fromTimeInput(e.target.value)}}})} className="min-w-0 border rounded p-1 disabled:bg-slate-100"/>
+                </div>;
+              })}</div>
             ) : profile.businessHours ? (
               <div className="space-y-2 text-sm">
                 {Object.entries(profile.businessHours)
