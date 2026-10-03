@@ -50,9 +50,17 @@ export async function runMigrations() {
     }
 
     // Step 4: Read and sort SQL migration files
-    const files = fs.readdirSync(migrationsDir)
+    const allFiles = fs.readdirSync(migrationsDir)
       .filter(f => f.endsWith('.sql'))
       .sort();
+    const fixtureMigrations = new Set([
+      '005_dummy_test_user.sql',
+      '008_bookings_seed.sql',
+      '030_seed_more_garages.sql'
+    ]);
+    const files = process.env.NODE_ENV === 'production'
+      ? allFiles.filter(file => !fixtureMigrations.has(file))
+      : allFiles;
 
     console.log(`[migrations] Found ${files.length} migration files in ${migrationsDir}`);
 
