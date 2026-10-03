@@ -41,6 +41,7 @@ export function GarageProfileContent() {
   const [isEditing, setIsEditing] = useState(false);
   const [isEditingHours, setIsEditingHours] = useState(false);
   const [savingHours, setSavingHours] = useState(false);
+  const [hoursDraft, setHoursDraft] = useState<Record<string, {open: boolean; start: string; end: string}>>({});
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<any>(null);
   const [formData, setFormData] = useState<any>({});
@@ -70,6 +71,7 @@ export function GarageProfileContent() {
           ownerDesignation: res.ownerDesignation || '',
           businessHours: normalizeBusinessHours(res.businessHours),
         });
+        setHoursDraft(normalizeBusinessHours(res.businessHours));
       }
     } catch (err) {
       console.error(err);
@@ -84,12 +86,20 @@ export function GarageProfileContent() {
     setTimeout(() => setToast(null), 3000);
   };
 
-  const startEditing = () => setIsEditing(true);
+  const startEditing = () => {
+    setHoursDraft(normalizeBusinessHours(profile?.businessHours));
+    setIsEditing(true);
+  };
+
+  const startEditingHours = () => {
+    setHoursDraft(normalizeBusinessHours(profile?.businessHours));
+    setIsEditingHours(true);
+  };
 
   const saveWorkingHours = async () => {
     try {
       setSavingHours(true);
-      await apiClient.put('/garages/my-profile', { businessHours: formData.businessHours });
+      await apiClient.put('/garages/my-profile', { businessHours: hoursDraft });
       await fetchProfile();
       setIsEditingHours(false);
       showToast('Working hours updated successfully', 'success');
@@ -140,9 +150,9 @@ export function GarageProfileContent() {
 
   const handleSave = async () => {
     try {
-      const res = await apiClient.put<any>('/garages/my-profile', formData);
+      const res = await apiClient.put<any>('/garages/my-profile', {...formData, businessHours: hoursDraft});
       if (res && !res.error) {
-        setProfile({ ...profile, ...res });
+        await fetchProfile();
         setIsEditing(false);
         showToast('Profile updated successfully', 'success');
       }
@@ -365,16 +375,18 @@ export function GarageProfileContent() {
               <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
                 <Clock className="w-4 h-4 text-slate-500" /> Working Hours
               </h3>
-              {!isEditingHours ? <button type="button" onClick={() => setIsEditingHours(true)} className="text-xs font-bold text-blue-600 hover:text-blue-800">Edit</button> : <div className="flex gap-2"><button type="button" disabled={savingHours} onClick={() => { setFormData((current: any) => ({...current, businessHours: normalizeBusinessHours(profile.businessHours)})); setIsEditingHours(false); }} className="text-xs font-semibold text-slate-500 disabled:opacity-50">Cancel</button><button type="button" disabled={savingHours} onClick={saveWorkingHours} className="text-xs font-bold text-blue-600 disabled:opacity-50">{savingHours ? 'Saving…' : 'Save'}</button></div>}
+              {!isEditingHours ? <button type="button" onClick={startEditingHours} className="text-xs font-bold text-blue-600 hover:text-blue-800">Edit</button> : <div className="flex gap-2"><button type="button" disabled={savingHours} onClick={() => { setHoursDraft(normalizeBusinessHours(profile.businessHours)); setIsEditingHours(false); }} className="text-xs font-semibold text-slate-500 disabled:opacity-50">Cancel</button><button type="button" disabled={savingHours} onClick={saveWorkingHours} className="text-xs font-bold text-blue-600 disabled:opacity-50">{savingHours ? 'Saving…' : 'Save'}</button></div>}
             </div>
             {isEditingHours || isEditing ? (
-              <div className="space-y-2 text-xs">{WEEK_DAYS.map(day => {
-                const hours = formData.businessHours?.[day] || { open: false, start: '09:00 AM', end: '05:00 PM' };
-                return <div key={day} className="grid grid-cols-[minmax(88px,1fr)_1fr_1fr] gap-2 items-center">
-                  <label className="capitalize flex gap-2 items-center"><input type="checkbox" checked={hours.open} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, open: e.target.checked}}})}/>{day}</label>
-                  <input aria-label={`${day} opening time`} type="time" disabled={!hours.open} value={toTimeInput(hours.start)} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, start: fromTimeInput(e.target.value)}}})} className="min-w-0 border rounded p-1 disabled:bg-slate-100"/>
-                  <input aria-label={`${day} closing time`} type="time" disabled={!hours.open} value={toTimeInput(hours.end)} onChange={e => setFormData({...formData, businessHours: {...formData.businessHours, [day]: {...hours, end: fromTimeInput(e.target.value)}}})} className="min-w-0 border rounded p-1 disabled:bg-slate-100"/>
-                </div>;
+              <div className="space-y-3">{WEEK_DAYS.map(day => {
+                const hours = hoursDraft[day] || { open: false, start: '09:00 AM', end: '05:00 PM' };
+                return <fieldset key={day} className="rounded-lg border border-slate-200 p-3">
+                  <label className="flex items-center gap-2 font-semibold capitalize text-slate-800"><input type="checkbox" checked={hours.open} onChange={e => setHoursDraft(current => ({...current, [day]: {...(current[day] || hours), open: e.target.checked}}))}/>{day}<span className="font-normal text-slate-500">Open</span></label>
+                  <div className="mt-2 grid grid-cols-2 gap-3">
+                    <label className="min-w-0 text-xs text-slate-600">Opens at<input aria-label={`${day} opening time`} type="time" disabled={!hours.open} value={toTimeInput(hours.start)} onChange={e => setHoursDraft(current => ({...current, [day]: {...(current[day] || hours), start: fromTimeInput(e.target.value)}}))} className="mt-1 block w-full min-w-0 rounded border p-2 text-sm disabled:bg-slate-100"/></label>
+                    <label className="min-w-0 text-xs text-slate-600">Closes at<input aria-label={`${day} closing time`} type="time" disabled={!hours.open} value={toTimeInput(hours.end)} onChange={e => setHoursDraft(current => ({...current, [day]: {...(current[day] || hours), end: fromTimeInput(e.target.value)}}))} className="mt-1 block w-full min-w-0 rounded border p-2 text-sm disabled:bg-slate-100"/></label>
+                  </div>
+                </fieldset>;
               })}</div>
             ) : profile.businessHours ? (
               <div className="space-y-2 text-sm">
