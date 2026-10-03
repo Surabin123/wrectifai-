@@ -480,7 +480,7 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
     // Fetch customerId and garageName for notification
     try {
       const requestRes = await query(`SELECT qr.customer_id, qr.issue_summary, u.name AS customer_name,
-                                             v.make, v.model, v.registration_number
+                                             v.make, v.model, v.plate_number
                                       FROM quote_requests qr
                                       JOIN users u ON u.id = qr.customer_id
                                       LEFT JOIN vehicles v ON v.id = qr.vehicle_id
@@ -490,7 +490,7 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
       const garageName = garageRes.rows[0]?.name || 'A garage';
       const garageLocation = garageRes.rows[0]?.city ? `, ${garageRes.rows[0].city}` : '';
       const customerName = requestRes.rows[0]?.customer_name || 'the customer';
-      const vehicleLabel = [requestRes.rows[0]?.make, requestRes.rows[0]?.model, requestRes.rows[0]?.registration_number].filter(Boolean).join(' ') || 'the vehicle';
+      const vehicleLabel = [requestRes.rows[0]?.make, requestRes.rows[0]?.model, requestRes.rows[0]?.plate_number].filter(Boolean).join(' ') || 'the vehicle';
       const serviceLabel = requestRes.rows[0]?.issue_summary || 'requested service';
 
       if (customerId) {

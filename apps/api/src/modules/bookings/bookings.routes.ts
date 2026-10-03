@@ -490,30 +490,35 @@ function parseTimeToMinutes(timeStr: any): number | null {
 
     const remainingAmountToPay = finalAmount - heldWalletAmount;
 
-    // Fetch customer name and garage name for notification
-    const customerRes = await query('SELECT name, mobile_number FROM users WHERE id = $1', [customerId]);
-    const garageRes = await query('SELECT name, city, address FROM garages WHERE id = $1', [garageId]);
-    const vehicleRes = await query('SELECT make, model, registration_number FROM vehicles WHERE id = $1', [booking.vehicle_id]);
-    const customerName = customerRes.rows[0]?.name || 'A customer';
-    const garageName = garageRes.rows[0]?.name || 'a garage';
-    const garageLocation = [garageRes.rows[0]?.city, garageRes.rows[0]?.address].filter(Boolean).join(', ');
-    const vehicle = vehicleRes.rows[0];
-    const vehicleLabel = vehicle ? [vehicle.make, vehicle.model, vehicle.registration_number].filter(Boolean).join(' ') : 'the customer vehicle';
-    const serviceLabel = booking.customer_note || 'requested service';
+    // The booking is committed above. Notification enrichment is ancillary;
+    // it must never turn a saved booking into a misleading 500 response.
+    try {
+      const customerRes = await query('SELECT name, mobile_number FROM users WHERE id = $1', [customerId]);
+      const garageRes = await query('SELECT name, city, address FROM garages WHERE id = $1', [garageId]);
+      const vehicleRes = await query('SELECT make, model, plate_number FROM vehicles WHERE id = $1', [booking.vehicle_id]);
+      const customerName = customerRes.rows[0]?.name || 'A customer';
+      const garageName = garageRes.rows[0]?.name || 'a garage';
+      const garageLocation = [garageRes.rows[0]?.city, garageRes.rows[0]?.address].filter(Boolean).join(', ');
+      const vehicle = vehicleRes.rows[0];
+      const vehicleLabel = vehicle ? [vehicle.make, vehicle.model, vehicle.plate_number].filter(Boolean).join(' ') : 'the customer vehicle';
+      const serviceLabel = booking.customer_note || 'requested service';
 
-    await NotificationsService.createNotification({
-      garageId: garageId,
-      type: 'Booking',
-      title: 'New Booking Received',
-      description: `${customerName}${customerRes.rows[0]?.mobile_number ? ` (${customerRes.rows[0].mobile_number})` : ''} booked ${vehicleLabel}. Requested service: ${serviceLabel}${booking.scheduled_at ? `. Scheduled for ${new Date(booking.scheduled_at).toLocaleString()}` : ''}. [ID:${bookingId}]`
-    }).catch(err => console.error('Failed to create notification', err));
+      await NotificationsService.createNotification({
+        garageId: garageId,
+        type: 'Booking',
+        title: 'New Booking Received',
+        description: `${customerName}${customerRes.rows[0]?.mobile_number ? ` (${customerRes.rows[0].mobile_number})` : ''} booked ${vehicleLabel}. Requested service: ${serviceLabel}${booking.scheduled_at ? `. Scheduled for ${new Date(booking.scheduled_at).toLocaleString()}` : ''}. [ID:${bookingId}]`
+      }).catch(err => console.error('Failed to create notification', err));
 
-    await NotificationsService.createNotification({
-      isAdmin: true,
-      type: 'Booking',
-      title: 'New Booking Received',
-      description: `${customerName} booked ${vehicleLabel} at ${garageName}${garageLocation ? `, ${garageLocation}` : ''}. Requested service: ${serviceLabel}${booking.scheduled_at ? `. Scheduled for ${new Date(booking.scheduled_at).toLocaleString()}` : ''}. [ID:${bookingId}]`
-    }).catch(err => console.error('Failed to create notification', err));
+      await NotificationsService.createNotification({
+        isAdmin: true,
+        type: 'Booking',
+        title: 'New Booking Received',
+        description: `${customerName} booked ${vehicleLabel} at ${garageName}${garageLocation ? `, ${garageLocation}` : ''}. Requested service: ${serviceLabel}${booking.scheduled_at ? `. Scheduled for ${new Date(booking.scheduled_at).toLocaleString()}` : ''}. [ID:${bookingId}]`
+      }).catch(err => console.error('Failed to create notification', err));
+    } catch (notificationContextErr) {
+      console.error('Failed to load booking notification details:', notificationContextErr);
+    }
 
     return success(
       res,
@@ -936,7 +941,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
       // Fetch details for comprehensive notification
       const bookingRes = await query(
         `SELECT b.customer_note as service_type, u.name as customer_name, u.id as customer_id, g.name as garage_name, g.city as garage_city, b.garage_id as garage_id,
-                v.make, v.model, v.registration_number
+                v.make, v.model, v.plate_number
          FROM bookings b
          JOIN users u ON b.customer_id = u.id
          JOIN garages g ON b.garage_id = g.id
@@ -948,7 +953,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
       const serviceStr = bData?.service_type || 'A service';
       const customerStr = bData?.customer_name || 'a customer';
       const garageStr = bData?.garage_name || 'a garage';
-      const vehicleStr = [bData?.make, bData?.model, bData?.registration_number].filter(Boolean).join(' ') || 'the vehicle';
+      const vehicleStr = [bData?.make, bData?.model, bData?.plate_number].filter(Boolean).join(' ') || 'the vehicle';
       const locationStr = bData?.garage_city ? ` in ${bData.garage_city}` : '';
       const custId = bData?.customer_id;
       const garageId = bData?.garage_id;
@@ -1276,7 +1281,7 @@ bookingsRouter.post('/:id/refund-requests', authenticate, async (req, res) => {
     // 1. Verify Booking Eligibility
     const bookingRes = await query(
       `SELECT b.id, b.garage_id, b.total_amount, b.payment_status, u.name as customer_name,
-              CONCAT_WS(' ', v.make, v.model, v.registration_number) as refund_vehicle,
+              CONCAT_WS(' ', v.make, v.model, v.plate_number) as refund_vehicle,
               b.customer_note as refund_service,
               p.amount as payment_amount, p.status as p_status
        FROM bookings b
