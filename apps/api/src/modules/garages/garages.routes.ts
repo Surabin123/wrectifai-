@@ -245,14 +245,23 @@ garagesRouter.get('/my-documents/:documentId/access', authenticate, requireRole(
     if (!resourceMatch) return error(res, 'Document URL format is unsupported. Replace the document and try again.', 'DOCUMENT_ACCESS_ERROR', 422);
     const [, resourceType, deliveryType] = resourceMatch;
     const marker = `/${resourceType}/${deliveryType}/`;
-    const encodedPath = parsedUrl.pathname.split(marker)[1].replace(/^v\d+\//, '');
-    const decodedPath = decodeURIComponent(encodedPath);
-    // Cloudinary raw public IDs include their extension (unlike image IDs).
+    const pathAfterDelivery = parsedUrl.pathname.split(marker)[1].split('/').filter(Boolean);
+    // Strip any legacy delivery-signature/transform segments by anchoring the
+    // public ID after the uploaded asset's version segment.
+    const versionIndex = pathAfterDelivery.findLastIndex(segment => /^v\d+$/.test(segment));
+    const publicIdSegments = versionIndex >= 0
+      ? pathAfterDelivery.slice(versionIndex + 1)
+      : pathAfterDelivery.filter(segment => !/^s--.*--$/.test(segment));
+    const decodedPath = decodeURIComponent(publicIdSegments.join('/'));
+    if (!decodedPath) return error(res, 'Document URL does not contain an asset ID. Replace the document and try again.', 'DOCUMENT_ACCESS_ERROR', 422);
+    const originalExtension = path.posix.extname(decodedPath).slice(1).toLowerCase();
+    // Cloudinary raw public IDs include their extension; image IDs do not.
     const publicId = resourceType === 'raw' ? decodedPath : decodedPath.replace(/\.[^.]+$/, '');
+    const format = originalExtension || (result.rows[0].mime_type === 'application/pdf' ? 'pdf' : result.rows[0].mime_type === 'image/png' ? 'png' : 'jpg');
     const { v2: cloudinary } = require('cloudinary');
-    const accessUrl = cloudinary.url(publicId, {
-      secure: true,
-      sign_url: deliveryType === 'authenticated',
+    const accessUrl = cloudinary.utils.private_download_url(publicId, format, {
+      expires_at: Math.floor(Date.now() / 1000) + 10 * 60,
+      attachment: false,
       type: deliveryType,
       resource_type: resourceType,
     });
