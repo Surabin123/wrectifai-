@@ -4,6 +4,7 @@ require('dotenv').config({ path: resolve(__dirname, '../../../../.env') });
 import { getEnv } from './config/env';
 import { createApp } from './app';
 import { closeDbPool, withTransaction } from './config/database';
+import { runMigrations } from './db/migrations';
 import { releaseExpiredOrderReservations } from './modules/orders/order-inventory.service';
 import dns from 'dns';
 
@@ -14,6 +15,12 @@ const { host, port } = getEnv();
 
 async function startServer() {
   try {
+    // Render services can have a dashboard-level start-command override that
+    // skips the repository's `db/migrate.js` command. Apply pending packaged
+    // migrations before opening the HTTP listener so the API never serves
+    // routes against an outdated schema.
+    await runMigrations();
+
     const app = createApp();
     const server = app.listen(port, host, () => {
       console.log(`[api] listening on http://${host}:${port}`);
