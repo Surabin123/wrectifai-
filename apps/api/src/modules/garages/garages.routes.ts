@@ -248,7 +248,13 @@ garagesRouter.get('/my-documents/:documentId/access', authenticate, requireRole(
     const pathAfterDelivery = parsedUrl.pathname.split(marker)[1].split('/').filter(Boolean);
     // Strip any legacy delivery-signature/transform segments by anchoring the
     // public ID after the uploaded asset's version segment.
-    const versionIndex = pathAfterDelivery.findLastIndex(segment => /^v\d+$/.test(segment));
+    let versionIndex = -1;
+    for (let index = pathAfterDelivery.length - 1; index >= 0; index -= 1) {
+      if (/^v\d+$/.test(pathAfterDelivery[index])) {
+        versionIndex = index;
+        break;
+      }
+    }
     const publicIdSegments = versionIndex >= 0
       ? pathAfterDelivery.slice(versionIndex + 1)
       : pathAfterDelivery.filter(segment => !/^s--.*--$/.test(segment));
