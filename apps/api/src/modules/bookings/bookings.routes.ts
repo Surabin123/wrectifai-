@@ -465,6 +465,12 @@ function parseTimeToMinutes(timeStr: any): number | null {
       // returning an error for a booking that was already created.
       if (quoteId) {
         await client.query("UPDATE quotes SET status = 'selected' WHERE id = $1", [quoteId]);
+        await client.query(
+          `UPDATE quote_requests
+           SET status = 'selected', issue_summary = COALESCE($2, issue_summary)
+           WHERE id = (SELECT quote_request_id FROM quotes WHERE id = $1)`,
+          [quoteId, issueDescription || null]
+        );
       }
       if (offerId && discountApplied > 0) {
         await recordOfferRedemption(offerId, customerId, result.rows[0].id, discountApplied, undefined, client);
@@ -550,30 +556,28 @@ function parseTimeToMinutes(timeStr: any): number | null {
 
 bookingsRouter.get('/garage-incoming', authenticate, async (req, res) => {
   try {
-    const garageUserId = req.user?.userId;
-    if (!garageUserId || !req.user?.roles?.includes('garage')) {
+    const garageOwnerId = req.user?.userId;
+    if (!garageOwnerId || !req.user?.roles?.includes('garage')) {
       return error(res, 'Unauthorized', 'UNAUTHORIZED', 403);
-    }
-    const garageId = await resolveGarageId(req.user!.userId, req.user?.garageId);
-    if (!garageId) {
-      return error(res, 'Garage not found for this user', 'BAD_REQUEST', 400);
     }
 
     const result = await query(
       `SELECT b.id, b.customer_id as "customerId", b.vehicle_id as "vehicleId", b.quote_id as "quoteId",
+              b.garage_id as "garageId", g.name as "garageName",
               b.scheduled_at as "scheduledAt", b.status, b.total_amount as "totalAmount", b.currency as "currency", b.created_at as "createdAt",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin",
               u.name as "customerName", u.mobile_number as "customerPhone", NULL::text as "customerAvatar",
               q.details as "quoteDetails", q.amount as "quoteAmount", q.eta_days as "estimatedDays",
               qr.issue_summary as "issueSummary", qr.issue_summary as "issueDescription"
        FROM bookings b
+       JOIN garages g ON b.garage_id = g.id
        LEFT JOIN vehicles v ON b.vehicle_id = v.id
        LEFT JOIN users u ON b.customer_id = u.id
        LEFT JOIN quotes q ON b.quote_id = q.id
        LEFT JOIN quote_requests qr ON q.quote_request_id = qr.id
-       WHERE b.garage_id = $1 AND b.status = 'requested'
+       WHERE g.owner_user_id = $1 AND b.status = 'requested'
        ORDER BY b.created_at DESC LIMIT 100`,
-      [garageId]
+      [garageOwnerId]
     );
 
     const formatted = result.rows.map((row) => ({
@@ -634,14 +638,6 @@ bookingsRouter.post('/from-quote/:quoteId', authenticate, async (req, res) => {
       return error(res, 'This quote has expired and can no longer be booked.', 'BAD_REQUEST', 400);
     }
 
-    // Mark quote and quote_request as selected
-    await query(`UPDATE quotes SET status = 'selected' WHERE id = $1`, [quoteId]);
-    await query(`UPDATE quote_requests SET status = 'selected' WHERE id = (SELECT quote_request_id FROM quotes WHERE id = $1)`, [quoteId]);
-
-    if (issueDescription) {
-      await query(`UPDATE quote_requests SET issue_summary = $1 WHERE id = (SELECT quote_request_id FROM quotes WHERE id = $2)`, [issueDescription, quoteId]);
-    }
-
     return createBookingInternal(req, res, {
       garageId: quoteData.garage_id,
       vehicleId: vehicleId || quoteData.vehicle_id,
@@ -651,6 +647,7 @@ bookingsRouter.post('/from-quote/:quoteId', authenticate, async (req, res) => {
       quoteId,
       currency: currency || quoteData.currency || 'USD',
       serviceType: issueDescription || serviceType || 'Quote Based Service',
+      issueDescription,
       paymentMethod: req.body.paymentMethod,
     });
   } catch (err: any) {

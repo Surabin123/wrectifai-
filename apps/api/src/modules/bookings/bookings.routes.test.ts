@@ -201,6 +201,8 @@ test('garage incoming bookings returns only unaccepted requests and uses existin
   assert.strictEqual(response.status, 200);
   assert.strictEqual(response.body.data.length, 1);
   assert.match(lastIncomingBookingsQuery, /b\.status = 'requested'/i);
+  assert.match(lastIncomingBookingsQuery, /g\.owner_user_id = \$1/i);
+  assert.strictEqual(lastQueryParams[0], 'test-user-uuid');
   assert.doesNotMatch(lastIncomingBookingsQuery, /avatar_url/i);
 });
 

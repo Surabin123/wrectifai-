@@ -97,7 +97,10 @@ export default function IncomingRequestsPage() {
                        </tr>
                    ) : bookings.map(booking => (
                      <tr key={booking.id} className="hover:bg-slate-50">
-                       <td className="p-4 text-slate-700">{booking.customerName || 'Customer'}</td>
+                       <td className="p-4 text-slate-700">
+                         {booking.customerName || 'Customer'}
+                         {booking.garageName && <p className="mt-1 text-xs text-slate-500">{booking.garageName}</p>}
+                       </td>
                        <td className="p-4 text-slate-700">{booking.vehicleMake} {booking.vehicleModel} {booking.vehicleYear}</td>
                        <td className="p-4 text-slate-700 font-medium">{formatTime(booking.scheduledAt)}</td>
                        <td className="p-4 text-slate-600 uppercase text-xs font-bold text-orange-600">Pending</td>
