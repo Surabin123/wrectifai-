@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { success, error } from '../../utils/response';
 import { authenticate, requireRole } from '../../middleware/auth';
-import { query } from '../../config/database';
+import { query, withTransaction } from '../../config/database';
 import { NotificationsService } from '../notifications/notifications.service';
 import { QuoteEstimationService } from './quote-estimation.service';
 import { getPagination } from '../../utils/pagination';
@@ -443,66 +443,77 @@ quotesRouter.post('/:quoteRequestId/quotes', authenticate, async (req, res) => {
       }
     }
 
-    const result = await query(
-      `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details, eta_days)
-       VALUES ($1, $2, $3, $4, 'active', $5, $6)
-       RETURNING id`,
-      [
-        req.params.quoteRequestId, 
-        garageId, 
-        amount,
-        quoteCurrency,
-        JSON.stringify({ 
-          remarks,
-          laborCost: labourCost,
-          partsCost: partsCost,
-          consumablesCost: consumablesCost,
-          gstCost: gstCost,
-          otherCost: otherCost,
-          totalCost: amount,
-          etaNote: estimatedTime,
-          availability: availability,
-          pickupDrop: pickupDrop,
-          warranty: warranty,
-          validityDays: Number(validityDays)
-        }),
-        parseInt(estimatedTime) || null
-      ]
-    );
-
-    await query(`UPDATE quote_requests SET status = 'quoted' WHERE id = $1`, [req.params.quoteRequestId]);
+    // Keep the quote and its request status atomic. Previously, a failure
+    // updating the request could return a 500 after the quote had already
+    // been saved, making a retry appear to fail with "already submitted".
+    const result = await withTransaction(async (client) => {
+      const insertedQuote = await client.query(
+        `INSERT INTO quotes (quote_request_id, garage_id, amount, currency, status, details, eta_days)
+         VALUES ($1, $2, $3, $4, 'active', $5, $6)
+         RETURNING id`,
+        [
+          req.params.quoteRequestId,
+          garageId,
+          amount,
+          quoteCurrency,
+          JSON.stringify({
+            remarks,
+            laborCost: labourCost,
+            partsCost: partsCost,
+            consumablesCost: consumablesCost,
+            gstCost: gstCost,
+            otherCost: otherCost,
+            totalCost: amount,
+            etaNote: estimatedTime,
+            availability: availability,
+            pickupDrop: pickupDrop,
+            warranty: warranty,
+            validityDays: Number(validityDays)
+          }),
+          parseInt(estimatedTime) || null
+        ]
+      );
+      await client.query(`UPDATE quote_requests SET status = 'quoted' WHERE id = $1`, [req.params.quoteRequestId]);
+      return insertedQuote;
+    });
 
     // Fetch customerId and garageName for notification
-    const requestRes = await query(`SELECT qr.customer_id, qr.issue_summary, u.name AS customer_name,
-                                           v.make, v.model, v.registration_number
-                                    FROM quote_requests qr
-                                    JOIN users u ON u.id = qr.customer_id
-                                    LEFT JOIN vehicles v ON v.id = qr.vehicle_id
-                                    WHERE qr.id = $1`, [req.params.quoteRequestId]);
-    const garageRes = await query('SELECT name, city FROM garages WHERE id = $1', [garageId]);
-    const customerId = requestRes.rows[0]?.customer_id;
-    const garageName = garageRes.rows[0]?.name || 'A garage';
-    const garageLocation = garageRes.rows[0]?.city ? `, ${garageRes.rows[0].city}` : '';
-    const customerName = requestRes.rows[0]?.customer_name || 'the customer';
-    const vehicleLabel = [requestRes.rows[0]?.make, requestRes.rows[0]?.model, requestRes.rows[0]?.registration_number].filter(Boolean).join(' ') || 'the vehicle';
-    const serviceLabel = requestRes.rows[0]?.issue_summary || 'requested service';
+    try {
+      const requestRes = await query(`SELECT qr.customer_id, qr.issue_summary, u.name AS customer_name,
+                                             v.make, v.model, v.registration_number
+                                      FROM quote_requests qr
+                                      JOIN users u ON u.id = qr.customer_id
+                                      LEFT JOIN vehicles v ON v.id = qr.vehicle_id
+                                      WHERE qr.id = $1`, [req.params.quoteRequestId]);
+      const garageRes = await query('SELECT name, city FROM garages WHERE id = $1', [garageId]);
+      const customerId = requestRes.rows[0]?.customer_id;
+      const garageName = garageRes.rows[0]?.name || 'A garage';
+      const garageLocation = garageRes.rows[0]?.city ? `, ${garageRes.rows[0].city}` : '';
+      const customerName = requestRes.rows[0]?.customer_name || 'the customer';
+      const vehicleLabel = [requestRes.rows[0]?.make, requestRes.rows[0]?.model, requestRes.rows[0]?.registration_number].filter(Boolean).join(' ') || 'the vehicle';
+      const serviceLabel = requestRes.rows[0]?.issue_summary || 'requested service';
 
-    if (customerId) {
+      if (customerId) {
+        await NotificationsService.createNotification({
+          userId: customerId,
+          type: 'Quote',
+          title: 'New Quote Received',
+          description: `${garageName}${garageLocation} submitted a quote for the ${serviceLabel} of your ${vehicleLabel}. Quoted amount: ${amount}. [ID:${result.rows[0].id}]`
+        }).catch(err => console.error('Failed to create notification', err));
+      }
+
+      // Notify admin
       await NotificationsService.createNotification({
-        userId: customerId,
+        isAdmin: true,
         type: 'Quote',
-        title: 'New Quote Received',
-        description: `${garageName}${garageLocation} submitted a quote for the ${serviceLabel} of your ${vehicleLabel}. Quoted amount: ${amount}. [ID:${result.rows[0].id}]`
-      }).catch(err => console.error('Failed to create notification', err));
+        title: 'New Quote Submitted',
+        description: `${garageName}${garageLocation} submitted a service quote for ${customerName}'s ${vehicleLabel}. Requested service: ${serviceLabel}. Quoted amount: ${amount}. [ID:${result.rows[0].id}]`
+      }).catch(err => console.error('Failed to create admin notification', err));
+    } catch (notificationContextErr) {
+      // The quote is already committed; notification enrichment is ancillary
+      // and must not tell the garage that its quote failed to save.
+      console.error('Failed to load quote notification details:', notificationContextErr);
     }
-    
-    // Notify admin
-    await NotificationsService.createNotification({
-      isAdmin: true,
-      type: 'Quote',
-      title: 'New Quote Submitted',
-      description: `${garageName}${garageLocation} submitted a service quote for ${customerName}'s ${vehicleLabel}. Requested service: ${serviceLabel}. Quoted amount: ${amount}. [ID:${result.rows[0].id}]`
-    }).catch(err => console.error('Failed to create admin notification', err));
 
     return success(res, { success: true, quoteId: result.rows[0].id }, 201);
   } catch (err: any) {

@@ -4,12 +4,13 @@ import { getDbPool } from '../../config/database';
  * Creates a HOLD on the user's wallet for a specified amount.
  * Throws an error if insufficient funds.
  */
-export async function holdWalletBalance(userId: string, amount: number, referenceType: string, referenceId: string) {
+export async function holdWalletBalance(userId: string, amount: number, referenceType: string, referenceId: string, externalClient?: any) {
   const pool = getDbPool();
-  const client = await pool.connect();
+  const isExternal = !!externalClient;
+  const client = externalClient || (await pool.connect());
   
   try {
-    await client.query('BEGIN');
+    if (!isExternal) await client.query('BEGIN');
 
     // 1. Lock the wallet row to prevent concurrent updates
     const walletRes = await client.query(
@@ -29,7 +30,7 @@ export async function holdWalletBalance(userId: string, amount: number, referenc
       [wallet.id, referenceType, referenceId]
     );
     if (existingRes.rows.length > 0 && ['PENDING', 'COMPLETED'].includes(existingRes.rows[0].status)) {
-      await client.query('COMMIT');
+      if (!isExternal) await client.query('COMMIT');
       return existingRes.rows[0].id;
     }
     const currentBalance = Number(wallet.balance);
@@ -55,13 +56,13 @@ export async function holdWalletBalance(userId: string, amount: number, referenc
       [wallet.id, amount, currentBalance, newBalance, referenceType, referenceId]
     );
 
-    await client.query('COMMIT');
+    if (!isExternal) await client.query('COMMIT');
     return txRes.rows[0].id;
   } catch (error) {
-    await client.query('ROLLBACK');
+    if (!isExternal) await client.query('ROLLBACK');
     throw error;
   } finally {
-    client.release();
+    if (!isExternal) client.release();
   }
 }
 

@@ -459,6 +459,19 @@ function parseTimeToMinutes(timeStr: any): number | null {
           serviceDetailsJSON
         ]
       );
+
+      // Commit linked quote/offer/wallet state with the booking. If a required
+      // financial step fails, the whole operation rolls back instead of
+      // returning an error for a booking that was already created.
+      if (quoteId) {
+        await client.query("UPDATE quotes SET status = 'selected' WHERE id = $1", [quoteId]);
+      }
+      if (offerId && discountApplied > 0) {
+        await recordOfferRedemption(offerId, customerId, result.rows[0].id, discountApplied, undefined, client);
+      }
+      if (heldWalletAmount > 0) {
+        await holdWalletBalance(customerId, heldWalletAmount, 'BOOKING', result.rows[0].id, client);
+      }
       return { result };
     });
 
@@ -472,21 +485,8 @@ function parseTimeToMinutes(timeStr: any): number | null {
     const booking = result.rows[0];
     const bookingId = booking.id;
 
-    // 1b. Update quote status to 'selected' now that booking is successfully inserted
-    if (quoteId) {
-      await query("UPDATE quotes SET status = 'selected' WHERE id = $1", [quoteId]);
-    }
-
-    // Record offer redemption
-    if (offerId && discountApplied > 0) {
-      await recordOfferRedemption(offerId, customerId, bookingId, discountApplied);
-    }
-
-    // Hold Wallet Funds atomically
-    if (heldWalletAmount > 0) {
-      await holdWalletBalance(customerId, heldWalletAmount, 'BOOKING', bookingId);
-      // We will commit this hold on webhook success, or release it on failure
-    }
+    // Wallet funds are held in the same transaction as the booking insert;
+    // payment success/failure later commits or releases that hold.
 
     const remainingAmountToPay = finalAmount - heldWalletAmount;
 
@@ -889,27 +889,38 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
     updateParams.push(currentBooking.old_status);
     updateQuery += ` WHERE id = $1${garageCheck} AND status = $${updateParams.length} RETURNING id, status, updated_at as "updatedAt"`;
 
-    const result = await query(updateQuery, updateParams);
+    const completionTransition = status === 'completed' && currentBooking.old_status !== 'completed';
+    const result = await withTransaction(async (client) => {
+      const updated = await client.query(updateQuery, updateParams);
+      if (updated.rows.length === 0) return updated;
+
+      // Keep completion and invoice creation atomic. A failed invoice insert
+      // must roll back the status transition so a retry is safe and truthful.
+      if (completionTransition) {
+        const existingInvoice = await client.query(`SELECT id FROM invoices WHERE booking_id = $1`, [bookingId]);
+        if (existingInvoice.rows.length === 0) {
+          const invoiceNum = `INV-${Date.now()}-${bookingId.substring(0, 4).toUpperCase()}`;
+          const totalAmount = currentBooking.total_amount || 0;
+          const discountAmount = currentBooking.discount_applied || 0;
+          const subtotal = Number(totalAmount) + Number(discountAmount);
+
+          await client.query(
+            `INSERT INTO invoices (booking_id, invoice_number, subtotal, discount_amount, total_amount, currency)
+             VALUES ($1, $2, $3, $4, $5, $6)`,
+            [bookingId, invoiceNum, subtotal, discountAmount, totalAmount, currentBooking.currency || 'INR']
+          );
+        }
+      }
+      return updated;
+    });
 
     if (result.rows.length === 0) {
-      return error(res, 'Booking not found', 'NOT_FOUND', 404);
+      return error(res, 'Booking not found or has already changed. Refresh and try again.', 'NOT_FOUND', 404);
     }
 
-    // Invoice generation upon completion
-    if (status === 'completed' && currentBooking.old_status !== 'completed') {
-      const existingInvoice = await query(`SELECT id FROM invoices WHERE booking_id = $1`, [bookingId]);
-      if (existingInvoice.rows.length === 0) {
-        const invoiceNum = `INV-${Date.now()}-${bookingId.substring(0, 4).toUpperCase()}`;
-        const totalAmount = currentBooking.total_amount || 0;
-        const discountAmount = currentBooking.discount_applied || 0;
-        const subtotal = Number(totalAmount) + Number(discountAmount);
-
-        await query(
-          `INSERT INTO invoices (booking_id, invoice_number, subtotal, discount_amount, total_amount, currency)
-           VALUES ($1, $2, $3, $4, $5, $6)`,
-          [bookingId, invoiceNum, subtotal, discountAmount, totalAmount, currentBooking.currency || 'INR']
-        );
-      }
+    // Referral and cashback processing is intentionally asynchronous and
+    // non-blocking: these rewards must not turn a completed job into an error.
+    if (completionTransition) {
 
       // Attempt referral reward and cashback logic when service finishes.
       // (The actual service logic will only credit if it is ALSO marked PAID)

@@ -76,9 +76,10 @@ export async function validateOffer(code: string, userId: string, subtotal: numb
   }
 }
 
-export async function recordOfferRedemption(offerId: string, userId: string, bookingId?: string | null, discountApplied = 0, orderId?: string | null) {
+export async function recordOfferRedemption(offerId: string, userId: string, bookingId?: string | null, discountApplied = 0, orderId?: string | null, externalClient?: any) {
   const pool = getDbPool();
-  await pool.query(
+  const db = externalClient || pool;
+  await db.query(
     `INSERT INTO offer_redemptions (offer_id, user_id, booking_id, discount_applied)
      VALUES ($1, $2, $3, $4)`,
     [offerId, userId, bookingId || null, discountApplied]

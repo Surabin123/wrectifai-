@@ -175,7 +175,7 @@ export default function QuotesPage() {
             <div className="bg-white rounded-lg shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
               <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                 <h2 className="font-bold text-slate-800">Quote Request Details</h2>
-                <button onClick={() => setSelectedRequest(null)} className="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
+                <button onClick={() => { setSelectedRequest(null); setErrorMsg(''); }} className="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
               </div>
               <div className="p-6 overflow-y-auto space-y-4 text-sm">
                 <div>
@@ -201,7 +201,7 @@ export default function QuotesPage() {
               </div>
               <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
                 <button 
-                  onClick={() => setSelectedRequest(null)}
+                  onClick={() => { setSelectedRequest(null); setErrorMsg(''); }}
                   className="px-4 py-2 border border-slate-300 rounded text-sm font-bold text-slate-700 hover:bg-slate-100"
                 >
                   Close
@@ -214,7 +214,7 @@ export default function QuotesPage() {
                     </div>
                   ) : (
                     <button
-                      onClick={() => { setAvailability(selectedRequest.preferredDate ? new Date(selectedRequest.preferredDate).toLocaleString() : ''); setShowQuoteForm(true); }}
+                      onClick={() => { setErrorMsg(''); setAvailability(selectedRequest.preferredDate ? new Date(selectedRequest.preferredDate).toLocaleString() : ''); setShowQuoteForm(true); }}
                       className="px-4 py-2 bg-blue-600 rounded text-sm font-bold text-white hover:bg-blue-700"
                     >
                       Create Quote
@@ -232,7 +232,7 @@ export default function QuotesPage() {
             <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden flex flex-col max-h-[90vh]">
               <div className="p-4 border-b border-slate-200 bg-slate-50 flex justify-between items-center">
                 <h2 className="font-bold text-slate-800">Create Quote</h2>
-                <button onClick={() => setShowQuoteForm(false)} className="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
+                <button onClick={() => { setShowQuoteForm(false); setErrorMsg(''); }} className="text-slate-400 hover:text-slate-600 font-bold">&times;</button>
               </div>
               
               <form onSubmit={handleSendQuote} className="flex flex-col flex-1 overflow-hidden">
@@ -384,7 +384,7 @@ export default function QuotesPage() {
                   <button 
                     type="button"
                     disabled={isSubmitting}
-                    onClick={() => setShowQuoteForm(false)}
+                    onClick={() => { setShowQuoteForm(false); setErrorMsg(''); }}
                     className="px-4 py-2 border border-slate-300 rounded text-sm font-bold text-slate-700 hover:bg-slate-100"
                   >
                     Back
