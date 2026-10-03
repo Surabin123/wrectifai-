@@ -534,6 +534,9 @@ export function QuotesPage() {
   const [quotes, setQuotes] = useState<QuoteItem[]>([]);
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const estimateRequestRef = useRef<string | null>(null);
+  const loadInFlightRef = useRef(false);
   const [activeTab, setActiveTab] = useState('All Quotes');
   const [sortBy, setSortBy] = useState('Lowest Price');
   const [sortOpen, setSortOpen] = useState(false);
@@ -594,7 +597,10 @@ export function QuotesPage() {
   const [aiEstimate, setAiEstimate] = useState<any>(null);
 
   const loadQuotes = useCallback(async () => {
+    if (loadInFlightRef.current) return;
+    loadInFlightRef.current = true;
     try {
+      setLoadError('');
       const [data, reqs] = await Promise.all([
         fetchQuotes(),
         fetchQuoteRequests().catch(() => [])
@@ -603,12 +609,15 @@ export function QuotesPage() {
       setRequests(reqs || []);
       
       const firstReqId = data[0]?.quoteRequestId || reqs[0]?.id;
-      if (firstReqId) {
+      if (firstReqId && estimateRequestRef.current !== firstReqId) {
+        estimateRequestRef.current = firstReqId;
         fetchAiEstimate(firstReqId).then(est => setAiEstimate(est)).catch(console.error);
       }
     } catch (err) {
       console.error('Failed to fetch quotes:', err);
+      setLoadError('We couldn’t load your quotes. Check your connection and try again.');
     } finally {
+      loadInFlightRef.current = false;
       setLoading(false);
     }
   }, []);
@@ -616,6 +625,12 @@ export function QuotesPage() {
   useEffect(() => {
     loadQuotes();
     const handleSync = () => loadQuotes();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') loadQuotes();
+    };
+    const refreshInterval = window.setInterval(() => {
+      if (document.visibilityState === 'visible') loadQuotes();
+    }, 15000);
     
     const handleWishlistSync = () => {
       try {
@@ -626,14 +641,21 @@ export function QuotesPage() {
 
     window.addEventListener('quote-updated', handleSync);
     window.addEventListener('wishlist-updated', handleWishlistSync);
-    window.addEventListener('storage', (e) => {
+    window.addEventListener('focus', handleSync);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    const handleStorage = (e: StorageEvent) => {
       if (e.key === 'wrectifai_sync_quotes') handleSync();
       if (e.key === 'shopWishlist') handleWishlistSync();
-    });
+    };
+    window.addEventListener('storage', handleStorage);
     
     return () => {
+      window.clearInterval(refreshInterval);
       window.removeEventListener('quote-updated', handleSync);
       window.removeEventListener('wishlist-updated', handleWishlistSync);
+      window.removeEventListener('focus', handleSync);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('storage', handleStorage);
     };
   }, [loadQuotes]);
 
@@ -819,6 +841,17 @@ export function QuotesPage() {
                 <div className="h-8 w-8 animate-spin rounded-full border-4 border-[#e6ecfb] border-t-[#2451f6]" />
                 <p className="mt-3 text-[13px]">Loading quotes…</p>
               </div>
+            ) : loadError && filteredQuotes.length === 0 ? (
+              <div className="flex flex-col items-center justify-center rounded-[18px] border border-red-200 bg-red-50 py-12 text-center">
+                <div className="text-[14px] font-bold text-red-700">Couldn’t load quotes</div>
+                <p className="mt-1 text-[12.5px] text-red-600">{loadError}</p>
+                <button
+                  onClick={() => { setLoading(true); void loadQuotes(); }}
+                  className="mt-4 rounded-[10px] bg-[#2451f6] px-5 py-2 text-[13px] font-bold text-white hover:bg-[#1a3ecc] transition-colors"
+                >
+                  Try again
+                </button>
+              </div>
             ) : filteredQuotes.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-[18px] border border-dashed border-[#c7d3ea] bg-[#f9faff] py-16">
                 <ClipboardList className="h-12 w-12 text-[#c7d3ea] mb-3" />
@@ -836,7 +869,13 @@ export function QuotesPage() {
                 </button>
               </div>
             ) : (
-              filteredQuotes.map(quote => (
+              <>
+              {loadError && (
+                <div role="status" className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  Quotes shown may be out of date. Refreshing failed. <button className="font-bold underline" onClick={() => void loadQuotes()}>Retry</button>
+                </div>
+              )}
+              {filteredQuotes.map(quote => (
                 <GarageQuoteCard
                   key={quote.id}
                   quote={quote}
@@ -871,7 +910,8 @@ export function QuotesPage() {
                   isSelected={selectedQuotes.includes(quote.id)}
                   onToggleCompare={() => handleToggleCompare(quote.id)}
                 />
-              ))
+              ))}
+              </>
             )}
           </div>
 
