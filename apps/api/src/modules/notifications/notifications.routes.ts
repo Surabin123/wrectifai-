@@ -8,7 +8,12 @@ export const notificationsRouter = Router();
 
 async function resolveNotificationGarageId(userId: string, tokenGarageId?: string) {
   if (tokenGarageId) return tokenGarageId;
-  const garageRes = await query('SELECT id FROM garages WHERE owner_user_id = $1 ORDER BY created_at DESC LIMIT 1', [userId]);
+  const garageRes = await query(
+    `SELECT id FROM garages WHERE owner_user_id = $1
+       AND COALESCE(approval_status, '') NOT IN ('deleted', 'inactive', 'suspended')
+     ORDER BY created_at DESC LIMIT 1`,
+    [userId]
+  );
   return garageRes.rows[0]?.id;
 }
 

@@ -3,7 +3,7 @@ import { verifyAccessToken } from '../services/jwt.service';
 import { error } from '../utils/response';
 import { query } from '../config/database';
 
-const authStateCache = new Map<string, { status: string; roles: string[]; expiresAt: number }>();
+const authStateCache = new Map<string, { status: string; roles: string[]; garageId?: string; expiresAt: number }>();
 
 export async function authenticate(req: Request, res: Response, next: NextFunction) {
   // Prefer an explicitly supplied bearer token. This lets the web client
@@ -36,6 +36,10 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
         return error(res, 'Account is not active', 'FORBIDDEN', 403);
       }
       decoded.roles = cached.roles;
+      // Always use the current garage ownership mapping. Tokens can outlive a
+      // garage transfer/recreation and must not keep a stale garage id alive.
+      if (cached.garageId) decoded.garageId = cached.garageId;
+      else delete decoded.garageId;
       req.user = decoded;
       return next();
     }
@@ -43,12 +47,22 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     // Single combined query joining users and user_roles (Finding #9 optimization)
     const result = await query(
       `/* SELECT status FROM users */
-       SELECT u.status AS status, COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles
+       SELECT u.status AS status,
+              COALESCE(array_agg(r.code) FILTER (WHERE r.code IS NOT NULL), '{}') AS roles,
+              current_garage.id AS garage_id
        FROM users u
        LEFT JOIN user_roles ur ON u.id = ur.user_id
        LEFT JOIN roles r ON r.id = ur.role_id
+       LEFT JOIN LATERAL (
+         SELECT g.id
+         FROM garages g
+         WHERE g.owner_user_id = u.id
+           AND COALESCE(g.approval_status, '') NOT IN ('deleted', 'inactive', 'suspended')
+         ORDER BY g.created_at DESC
+         LIMIT 1
+       ) current_garage ON TRUE
        WHERE u.id = $1
-       GROUP BY u.id, u.status
+       GROUP BY u.id, u.status, current_garage.id
        LIMIT 1`,
       [userId]
     );
@@ -65,9 +79,12 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     }
 
     // Cache valid user status and roles for 30 seconds
-    authStateCache.set(cacheKey, { status, roles, expiresAt: now + 30000 });
+    const garageId = result.rows[0].garage_id || undefined;
+    authStateCache.set(cacheKey, { status, roles, garageId, expiresAt: now + 30000 });
 
     decoded.roles = roles;
+    if (garageId) decoded.garageId = garageId;
+    else delete decoded.garageId;
     req.user = decoded;
     next();
   } catch (err) {
