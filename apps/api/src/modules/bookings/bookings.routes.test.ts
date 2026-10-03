@@ -97,6 +97,10 @@ const mockedQuery = async (text: string, params?: any[]) => {
     return { rows: [] };
   }
 
+  if (lowerText.includes('current_garage.id as garage_id')) {
+    return { rows: [{ status: 'active', roles: ['customer', 'garage'], garage_id: 'g1' }] };
+  }
+
   if (lowerText.includes('select status from users')) {
     return { rows: [{ status: 'active' }] };
   }
