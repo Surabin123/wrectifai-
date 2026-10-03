@@ -119,13 +119,17 @@ export function GarageProfileContent() {
       return;
     }
     try {
-      const result = await apiClient.get<{url?: string, data?: string, mimeType?: string}>(`/garages/my-documents/${documentId}/access`);
-      const documentUrl = result.data
-        ? URL.createObjectURL(new Blob([Uint8Array.from(atob(result.data), char => char.charCodeAt(0))], { type: result.mimeType || 'application/octet-stream' }))
-        : result.url;
-      if (!documentUrl) throw new Error('The document is unavailable. Please replace it and try again.');
+      const result = await apiClient.get<{data?: string, mimeType?: string}>(`/garages/my-documents/${documentId}/access`);
+      if (!result.data) throw new Error('The document is unavailable. Please replace it and try again.');
+      // Give Chrome's built-in PDF/image viewer an inline Blob with the real
+      // content type; never navigate the garage owner to Cloudinary itself.
+      const documentUrl = URL.createObjectURL(new Blob(
+        [Uint8Array.from(atob(result.data), char => char.charCodeAt(0))],
+        { type: result.mimeType || 'application/octet-stream' }
+      ));
       documentWindow.opener = null;
       documentWindow.location.replace(documentUrl);
+      window.setTimeout(() => URL.revokeObjectURL(documentUrl), 60_000);
     } catch (err: any) {
       documentWindow.close();
       showToast(err.message || 'Could not open document', 'error');

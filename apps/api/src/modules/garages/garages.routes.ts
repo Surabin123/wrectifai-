@@ -235,7 +235,8 @@ garagesRouter.get('/my-documents/:documentId/access', authenticate, requireRole(
       const localPath = path.resolve(process.cwd(), fileUrl.slice(1));
       if (!localPath.startsWith(`${uploadsRoot}${path.sep}`)) return error(res, 'Document not found', 'NOT_FOUND', 404);
       const contents = await fs.promises.readFile(localPath);
-      return success(res, { data: contents.toString('base64'), mimeType: result.rows[0].mime_type || 'application/octet-stream' });
+      res.setHeader('Cache-Control', 'private, no-store');
+      return success(res, { data: contents.toString('base64'), mimeType: result.rows[0].mime_type || 'application/octet-stream', filename: result.rows[0].original_filename });
     }
 
     // Ensure Cloudinary uses the same environment configuration as uploads.
@@ -271,7 +272,21 @@ garagesRouter.get('/my-documents/:documentId/access', authenticate, requireRole(
       type: deliveryType,
       resource_type: resourceType,
     });
-    return success(res, { url: accessUrl, mimeType: result.rows[0].mime_type, filename: result.rows[0].original_filename });
+    const assetResponse = await fetch(accessUrl);
+    if (!assetResponse.ok) {
+      console.error(`Cloudinary document download failed with status ${assetResponse.status}`);
+      return error(res, 'Could not retrieve the document from secure storage. Please try again or replace it.', 'DOCUMENT_DOWNLOAD_ERROR', 502);
+    }
+    const contents = Buffer.from(await assetResponse.arrayBuffer());
+    if (!contents.length || contents.length > 8 * 1024 * 1024) {
+      return error(res, 'The stored document is empty or exceeds the viewing limit.', 'DOCUMENT_SIZE_ERROR', 413);
+    }
+    res.setHeader('Cache-Control', 'private, no-store');
+    return success(res, {
+      data: contents.toString('base64'),
+      mimeType: result.rows[0].mime_type || (format === 'pdf' ? 'application/pdf' : `image/${format}`),
+      filename: result.rows[0].original_filename,
+    });
   } catch (err) {
     console.error('Document access failed:', err);
     return error(res, 'Failed to access document', 'DOCUMENT_ACCESS_ERROR', 500);
