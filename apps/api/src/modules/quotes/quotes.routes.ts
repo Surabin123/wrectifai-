@@ -72,7 +72,7 @@ quotesRouter.get('/', authenticate, async (req, res) => {
               g.id as "garageId", g.name as "garageName", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported",
               g.address as "garageAddress", g.image as "garageImage", g.created_at as "garageCreatedAt", g.established_year as "garageEstablishedYear",
               qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary", qr.preferred_date as "preferredDate",
-              v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage", v.fuel_type as "vehicleFuelType",
+              v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage", to_jsonb(v)->>'fuel_type' as "vehicleFuelType",
               b.id as "bookingId", b.status as "bookingStatus", b.created_at as "bookingCreatedAt", b.scheduled_at as "bookingScheduledAt",
               u.name as "customerName", u.mobile_number as "customerPhone", u.email as "customerEmail",
               g.city as "garageCity", COALESCE(p.city, u.location) as "customerCity"
