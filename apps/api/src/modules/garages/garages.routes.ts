@@ -230,13 +230,15 @@ garagesRouter.get('/my-documents/:documentId/access', authenticate, requireRole(
     if (!result.rows.length) return error(res, 'Document not found', 'NOT_FOUND', 404);
     const fileUrl = result.rows[0].file_url as string;
     if (fileUrl.startsWith('/uploads/')) return success(res, { url: `${req.protocol}://${req.get('host')}${fileUrl}` });
-    const marker = '/authenticated/upload/';
-    if (!fileUrl.includes(marker)) return error(res, 'Secure document access is unavailable', 'DOCUMENT_ACCESS_ERROR', 500);
-    const encodedPath = fileUrl.split(marker)[1].replace(/^v\d+\//, '');
-    const publicId = decodeURIComponent(encodedPath).replace(/\.[^.]+$/, '');
     const { v2: cloudinary } = require('cloudinary');
     const resourceType = result.rows[0].mime_type === 'application/pdf' ? 'raw' : 'image';
-    const signedUrl = cloudinary.url(publicId, { secure: true, sign_url: true, type: 'authenticated', resource_type: resourceType });
+    const markers = [`/${resourceType}/authenticated/upload/`, `/${resourceType}/upload/`];
+    const marker = markers.find(candidate => fileUrl.includes(candidate));
+    if (!marker) return error(res, 'Secure document access is unavailable', 'DOCUMENT_ACCESS_ERROR', 500);
+    const encodedPath = fileUrl.split(marker)[1].replace(/^v\d+\//, '');
+    const publicId = decodeURIComponent(encodedPath).replace(/\.[^.]+$/, '');
+    const deliveryType = marker.includes('/authenticated/') ? 'authenticated' : 'upload';
+    const signedUrl = cloudinary.url(publicId, { secure: true, sign_url: deliveryType === 'authenticated', type: deliveryType, resource_type: resourceType });
     return success(res, { url: signedUrl });
   } catch {
     return error(res, 'Failed to access document', 'DOCUMENT_ACCESS_ERROR', 500);
@@ -256,11 +258,13 @@ garagesRouter.put('/my-documents/:documentId', authenticate, requireRole(['garag
     const owner = await query(`SELECT gd.id FROM garage_documents gd JOIN garages g ON g.id = gd.garage_id WHERE gd.id = $1 AND g.owner_user_id = $2`, [req.params.documentId, req.user!.userId]);
     if (!owner.rows.length) return error(res, 'Document not found', 'NOT_FOUND', 404);
     let storedUrl: string;
-    if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL) {
+    if (process.env.RENDER === 'true' || process.env.CLOUDINARY_URL || (process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET)) {
       const { v2: cloudinary } = require('cloudinary');
-      const uploaded = await cloudinary.uploader.upload(file.data, { folder: 'wrectifai/garages/documents', type: 'authenticated', resource_type: 'auto' });
+      const resourceType = file.type === 'application/pdf' ? 'raw' : 'image';
+      const uploaded = await cloudinary.uploader.upload(file.data, { folder: 'wrectifai/garages/documents', type: 'authenticated', resource_type: resourceType });
       storedUrl = uploaded.secure_url;
     } else {
+      if (process.env.NODE_ENV === 'production') return error(res, 'Secure document storage is not configured.', 'CONFIG_ERROR', 500);
       const directory = path.join(process.cwd(), 'uploads', 'garages', 'documents');
       fs.mkdirSync(directory, { recursive: true });
       const extension = file.type === 'application/pdf' ? 'pdf' : file.type === 'image/png' ? 'png' : 'jpg';
