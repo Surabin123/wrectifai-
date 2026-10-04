@@ -14,7 +14,6 @@ import { cn } from '@/utils/cn';
 import { createQuoteRequest } from '@/lib/quotes-api';
 import { getDiagnosis } from '@/lib/diagnosis-api';
 import { apiClient } from '@/lib/api-client';
-import { getVehicleImage } from '@/lib/vehicle-image-catalog';
 
 interface Vehicle {
   id: string;
@@ -88,7 +87,7 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
                 badgeClass,
                 description: `Diagnosed issue: ${issue.name || issue.title}. Requires parts: ${issue.requiredParts?.join(', ') || 'None specified'}.`,
                 match,
-                imageSrc: selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year)
+                imageSrc: resultIssues.find((candidate) => candidate.title.toLowerCase() === (issue.name || issue.title || '').toLowerCase())?.imageSrc || '/assets/Engine_oil.png'
               };
             });
             setCustomIssues(mapped);
@@ -338,8 +337,12 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
           <Card className="rounded-[22px] border-[#e7edfd] bg-white px-5 py-5 shadow-[0_12px_30px_rgba(37,73,153,0.04)]">
             <h3 className="text-[15.5px] font-semibold text-[#183db1]">Your Vehicle</h3>
             <div className="mt-10 flex flex-col items-center text-center">
-              <span className="flex h-[92px] w-[92px] items-center justify-center rounded-full bg-[radial-gradient(circle_at_top,#f5f8ff_0%,#edf2ff_100%)] text-[#244fe5] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
-                <CarFront className="h-11 w-11" />
+              <span className="flex h-[92px] w-[92px] items-center justify-center overflow-hidden rounded-full bg-[radial-gradient(circle_at_top,#f5f8ff_0%,#edf2ff_100%)] text-[#244fe5] shadow-[inset_0_1px_0_rgba(255,255,255,0.9)]">
+                {selectedVehicle?.image ? (
+                  <Image src={selectedVehicle.image} alt={`${selectedVehicle.make} ${selectedVehicle.model}`} width={92} height={92} className="h-full w-full object-cover" unoptimized />
+                ) : (
+                  <CarFront className="h-11 w-11" />
+                )}
               </span>
               <div className="mt-8 text-[15.5px] font-semibold tracking-[-0.03em] text-[#193daa]">
                 {selectedVehicle ? `${selectedVehicle.make} ${selectedVehicle.model} ${selectedVehicle.vin ? `(${selectedVehicle.vin.slice(-6)})` : ''}` : 'Honda City (TS07 AB 1234)'}
@@ -367,7 +370,7 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
                 <div key={issue.id} className="grid gap-4 py-5 md:grid-cols-[76px_minmax(0,1fr)_92px] md:items-center">
                   <div className="flex justify-center md:justify-start">
                     <Image
-                      src={issue.imageSrc || selectedVehicle?.image || getVehicleImage(selectedVehicle?.make, selectedVehicle?.model, selectedVehicle?.year) || '/assets/Engine_oil.png'}
+                      src={issue.imageSrc || '/assets/Engine_oil.png'}
                       alt={issue.title}
                       width={72}
                       height={72}
