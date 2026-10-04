@@ -62,7 +62,17 @@ diagnosisRouter.post('/upload-media', authenticate, (req, res) => {
         return error(res, 'Video exceeds 50MB limit', 'VALIDATION_ERROR', 400);
       }
 
-      const header = fs.readFileSync(file.path).subarray(0, 16);
+      // multer uses memoryStorage(), so file.path and file.filename do not exist.
+      // Persist the validated upload explicitly before returning its API URL.
+      const diagnosisUploadDir = path.join(process.cwd(), 'uploads', 'diagnosis');
+      fs.mkdirSync(diagnosisUploadDir, { recursive: true });
+      const extension = path.extname(file.originalname).toLowerCase() ||
+        (file.mimetype === 'image/jpeg' ? '.jpg' : `.${file.mimetype.split('/')[1]}`);
+      const filename = `${crypto.randomUUID()}${extension}`;
+      const filePath = path.join(diagnosisUploadDir, filename);
+      fs.writeFileSync(filePath, file.buffer);
+
+      const header = file.buffer.subarray(0, 16);
       const isJpeg = header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
       const isPng = header.subarray(0, 8).equals(Uint8Array.from([137, 80, 78, 71, 13, 10, 26, 10]));
       const isGif = header.subarray(0, 6).toString('ascii') === 'GIF87a' || header.subarray(0, 6).toString('ascii') === 'GIF89a';
@@ -81,19 +91,19 @@ diagnosisRouter.post('/upload-media', authenticate, (req, res) => {
           (file.mimetype === 'image/gif' && !isGif) || (file.mimetype === 'image/webp' && !isWebp) ||
           (file.mimetype.startsWith('audio/') && !validAudio) ||
           (file.mimetype.startsWith('video/') && !validVideo)) {
-        fs.unlinkSync(file.path);
+        fs.unlinkSync(filePath);
         return error(res, 'File content does not match its declared type', 'VALIDATION_ERROR', 400);
       }
 
       // Construct a URL relative to the server so the diagnosis service can read the file
-      const url = `/uploads/diagnosis/${file.filename}`;
+      const url = `/uploads/diagnosis/${filename}`;
       
       // Perform strict validation for images
       if (file.mimetype.startsWith('image/')) {
-        const base64Image = fs.readFileSync(file.path).toString('base64');
+        const base64Image = file.buffer.toString('base64');
         const validation = await DiagnosisService.validateImageRelevance(base64Image, file.mimetype);
         if (!validation.isValid) {
-          fs.unlinkSync(file.path); // fail closed, discard file
+          fs.unlinkSync(filePath); // fail closed, discard file
           return error(res, validation.reason || 'Image does not appear to be vehicle-related. Please upload a clear photo of the car or issue.', 'VALIDATION_ERROR', 400);
         }
       }
