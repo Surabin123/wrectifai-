@@ -35,16 +35,8 @@ interface Vehicle {
 }
 
 function useVehicles() {
-  const [vehicles, setVehicles] = useState<Vehicle[]>(() => {
-    if (typeof window === 'undefined') return [];
-    try {
-      const cached = JSON.parse(localStorage.getItem('wrectifai_vehicles_cache') || '[]');
-      return Array.isArray(cached) ? cached : [];
-    } catch {
-      return [];
-    }
-  });
-  const [loading, setLoading] = useState(() => vehicles.length === 0);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
   const [errorText, setErrorText] = useState<string | null>(null);
 
   const fetchVehicles = useCallback(async () => {
@@ -53,7 +45,6 @@ function useVehicles() {
     try {
       const data = await apiClient.get<Vehicle[]>('/vehicles');
       setVehicles(data || []);
-      localStorage.setItem('wrectifai_vehicles_cache', JSON.stringify(data || []));
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load vehicles';
       setErrorText(message);
