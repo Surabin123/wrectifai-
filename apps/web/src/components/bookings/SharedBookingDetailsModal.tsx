@@ -23,6 +23,8 @@ export interface SharedBookingDetails {
   remarks?: string;
   laborCost?: number;
   partsCost?: number;
+  consumablesCost?: number;
+  gstCost?: number;
   otherCost?: number;
   totalAmount?: number;
   currency?: string;
@@ -95,7 +97,7 @@ export function SharedBookingDetailsModal({ booking, onClose, actions, userRole 
                  booking.status === 'cancelled' ? 'bg-red-50 text-red-700 border-red-100' :
                  'bg-orange-50 text-orange-700 border-orange-100'
                }`}>
-                 {booking.status ? formatAdminStatus(booking.status) : 'N/A'}
+                 {booking.status ? (booking.status === 'accepted' ? 'Booked' : formatAdminStatus(booking.status)) : 'N/A'}
                </span>
             </p>
           </div>
@@ -141,6 +143,14 @@ export function SharedBookingDetailsModal({ booking, onClose, actions, userRole 
               <div className="space-y-1">
                 <p className="text-[10px] uppercase font-bold text-slate-500">Parts Cost</p>
                 <p className="font-semibold text-slate-900">{formatCurrency(booking.partsCost ?? 0, booking.currency)}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-bold text-slate-500">Consumables Cost</p>
+                <p className="font-semibold text-slate-900">{formatCurrency(booking.consumablesCost ?? 0, booking.currency)}</p>
+              </div>
+              <div className="space-y-1">
+                <p className="text-[10px] uppercase font-bold text-slate-500">GST / Tax</p>
+                <p className="font-semibold text-slate-900">{formatCurrency(booking.gstCost ?? 0, booking.currency)}</p>
               </div>
             </>
           )}

@@ -8,6 +8,8 @@ export interface Booking {
   quoteId?: string | null;
   laborCost?: number | null;
   partsCost?: number | null;
+  consumablesCost?: number | null;
+  gstCost?: number | null;
   bookingType: 'instant' | 'quoteBased';
   scheduledAt: string;
   status: 'requested' | 'confirmed' | 'accepted' | 'in_progress' | 'completed' | 'cancelled' | 'readyForCollection' | 'collected';

@@ -87,7 +87,7 @@ function sortQuotes(list: QuoteItem[], sortBy: string): QuoteItem[] {
 function tagColor(status?: string): { bg: string; text: string; label: string } {
   const s = (status || '').toLowerCase();
   if (s === 'open' || s === 'pending' || s === 'quoted') return { bg: 'bg-emerald-100', text: 'text-emerald-700', label: 'New' };
-  if (s === 'accepted' || s === 'selected') return { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Accepted' };
+  if (s === 'accepted' || s === 'selected') return { bg: 'bg-blue-100', text: 'text-blue-700', label: 'Booked' };
   if (s === 'expired' || s === 'cancelled' || s === 'rejected') return { bg: 'bg-red-100', text: 'text-red-600', label: 'Expired' };
   return { bg: 'bg-slate-100', text: 'text-slate-600', label: status || 'Pending' };
 }
@@ -220,21 +220,23 @@ function QuoteDetailsModal({ quote, onClose, onBookNow }: { quote: QuoteItem; on
     <SharedQuoteDetailsModal
       quote={{
         id: quote.id,
-        garageName: quote.garage,
-        garageCity: quote.garageAddress || undefined, // Mocking city as address for now
-        vehicleMake: quote.vehicle?.make,
-        vehicleModel: quote.vehicle?.model,
-        vehicleYear: quote.vehicle?.year,
-        vin: quote.vehicle?.vin,
-        issueDescription: quote.requestIssueSummary,
-        remarks: quote.details?.remarks,
-        laborCost: quote.details?.labour,
-        partsCost: quote.details?.parts,
+        garageName: quote.garage || (quote as any).garageName,
+        garageCity: quote.garageAddress || (quote as any).garageCity,
+        vehicleMake: quote.vehicle?.make || (quote as any).vehicleMake,
+        vehicleModel: quote.vehicle?.model || (quote as any).vehicleModel,
+        vehicleYear: quote.vehicle?.year || (quote as any).vehicleYear,
+        vin: quote.vehicle?.vin || (quote as any).vin,
+        issueDescription: quote.requestIssueSummary || (quote as any).issueSummary || (quote as any).issueDescription,
+        remarks: quote.details?.remarks || (quote as any).remarks,
+        laborCost: quote.details?.labour ?? (quote as any).laborCost,
+        partsCost: quote.details?.parts ?? (quote as any).partsCost,
+        consumablesCost: quote.details?.consumables,
+        gstCost: quote.details?.gst,
         otherCost: quote.details?.other,
-        totalAmount: safePrice(quote),
+        totalAmount: quote.details?.total ?? safePrice(quote),
         currency: quote.currency || 'USD',
         estimatedDays: quote.time,
-        createdAt: quote.requestCreatedAt,
+        createdAt: quote.requestCreatedAt || (quote as any).createdAt,
         status: quote.status,
       }}
       onClose={onClose}

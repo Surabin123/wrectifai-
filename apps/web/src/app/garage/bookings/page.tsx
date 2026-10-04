@@ -5,7 +5,7 @@ import { DashboardHeader } from '@/components/common/dashboard-header';
 import { garageNavItems } from '@/lib/garage-config';
 import { Card } from '@/components/common/card';
 import { Button } from '@/components/common/button';
-import { fetchBookings, updateBookingStatus, confirmCashPayment } from '@/lib/bookings-api';
+import { fetchBookings, updateBookingStatus } from '@/lib/bookings-api';
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Modal } from '@/components/common/modal';
@@ -98,14 +98,8 @@ export default function BookingsPage() {
   };
 
   const handleConfirmCash = async (id: string) => {
-    try {
-      await confirmCashPayment(id);
-      setBookings(prev => prev.map(b => b.id === id ? { ...b, paymentStatus: 'PAID' } : b));
-      alert('Cash payment confirmed successfully!');
-    } catch (err: any) {
-      console.error(err);
-      alert('Failed to confirm cash payment: ' + (err.message || 'Unknown error'));
-    }
+    void id;
+    alert('The customer has not paid yet. Confirm cash only after the customer hands over the cash.');
   };
 
   return (
@@ -209,6 +203,10 @@ export default function BookingsPage() {
               vehicleYear: selectedBooking.vehicleYear,
               vin: selectedBooking.vehicleVin,
               issueDescription: selectedBooking.issueDescription,
+              laborCost: selectedBooking.laborCost,
+              partsCost: selectedBooking.partsCost,
+              consumablesCost: selectedBooking.consumablesCost,
+              gstCost: selectedBooking.gstCost,
               totalAmount: selectedBooking.totalAmount,
               currency: selectedBooking.currency,
               scheduledAt: selectedBooking.scheduledAt,

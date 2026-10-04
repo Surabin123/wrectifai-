@@ -399,7 +399,7 @@ export function BookingsPage() {
   const tabs: { key: TabKey; label: string }[] = [
     { key: 'all', label: 'All Bookings' },
     { key: 'upcoming', label: 'Pending' },
-    { key: 'accepted', label: 'Accepted' },
+    { key: 'accepted', label: 'Booked' },
     { key: 'inProgress', label: 'In Progress' },
     { key: 'completed', label: 'Completed' },
     { key: 'cancelled', label: 'Cancelled' },
@@ -485,7 +485,7 @@ export function BookingsPage() {
                     >
                        {b.status === 'requested' ? 'Pending' : 
                         b.status === 'confirmed' ? 'Confirmed' :
-                        b.status === 'accepted' ? 'Accepted' : 
+                        b.status === 'accepted' ? 'Booked' :
                         b.status === 'in_progress' ? 'In Progress' : 
                         b.status === 'completed' ? 'Completed' :
                         b.status === 'readyForCollection' ? 'Ready for Collection' :
@@ -568,7 +568,7 @@ export function BookingsPage() {
                         {loadingInvoice ? 'Loading...' : 'View Invoice'}
                       </Button>
                     )}
-                    {(b.status === 'completed' || b.status === 'readyForCollection') && (b.paymentStatus === 'PAYMENT_DUE' || b.paymentStatus === 'FAILED') && (
+                    {(b.status === 'completed' || b.status === 'readyForCollection') && (b.paymentStatus === 'UNPAID' || b.paymentStatus === 'PAYMENT_DUE' || b.paymentStatus === 'FAILED') && (
                       <Button
                         onClick={() => handlePayNow(b)}
                         disabled={paymentProcessingId === b.id}

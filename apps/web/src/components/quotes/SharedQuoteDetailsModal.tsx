@@ -20,6 +20,8 @@ export interface SharedQuoteDetails {
   remarks?: string; // Garage notes
   laborCost?: number;
   partsCost?: number;
+  consumablesCost?: number;
+  gstCost?: number;
   otherCost?: number;
   totalAmount?: number;
   currency?: string;
@@ -120,6 +122,14 @@ export function SharedQuoteDetailsModal({ quote, onClose, actions, userRole = 'a
           <div className="space-y-1">
             <p className="text-[10px] uppercase font-bold text-slate-500">Parts Cost</p>
             <p className="font-semibold text-slate-900">{formatCurrency(quote.partsCost || 0, quote.currency || 'USD')}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase font-bold text-slate-500">Consumables Cost</p>
+            <p className="font-semibold text-slate-900">{formatCurrency(quote.consumablesCost || 0, quote.currency || 'USD')}</p>
+          </div>
+          <div className="space-y-1">
+            <p className="text-[10px] uppercase font-bold text-slate-500">GST / Tax</p>
+            <p className="font-semibold text-slate-900">{formatCurrency(quote.gstCost || 0, quote.currency || 'USD')}</p>
           </div>
           {(quote.otherCost ?? 0) > 0 && (
             <div className="space-y-1">

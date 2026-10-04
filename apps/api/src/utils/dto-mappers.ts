@@ -45,6 +45,8 @@ export function mapBookingDto(row: any) {
     issueSummary: row.quoteIssueSummary || row.issueSummary || null,
     laborCost: row.quoteLaborCost != null ? Number(row.quoteLaborCost) : null,
     partsCost: row.quotePartsCost != null ? Number(row.quotePartsCost) : null,
+    consumablesCost: details.consumablesCost != null ? Number(details.consumablesCost) : 0,
+    gstCost: details.gstCost != null ? Number(details.gstCost) : 0,
     totalCost: row.quoteTotalCost != null ? Number(row.quoteTotalCost) : (row.totalCost != null ? Number(row.totalCost) : null),
     estimatedDays: row.quoteEtaDays != null ? Number(row.quoteEtaDays) : null,
     remarks: details.remarks || null,
