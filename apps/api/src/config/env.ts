@@ -68,7 +68,12 @@ export function getEnv(envSource: Record<string, string | undefined> = process.e
     groqApiKey: anyKey,
     openaiApiKey: anyKey,
     imageLlmProvider: envSource.IMAGE_LLM_PROVIDER ?? provider,
-    imageLlmModel: envSource.IMAGE_LLM_MODEL ?? 'qwen/qwen3.6-27b',
+    // Groq's Qwen 3.6 model may be unavailable to the deployed project.
+    // Use the currently supported multimodal Qwen model when an old value is
+    // still present in the deployment environment.
+    imageLlmModel: ['qwen/qwen3.6-27b', 'qwen/qwen3.6-27b-preview'].includes(envSource.IMAGE_LLM_MODEL?.trim() || '')
+      ? 'qwen/qwen3.8-27b'
+      : (envSource.IMAGE_LLM_MODEL?.trim() || 'qwen/qwen3.8-27b'),
     audioProvider: envSource.AUDIO_PROVIDER ?? provider,
     audioModel: envSource.AUDIO_MODEL ?? 'whisper-large-v3-turbo',
   };
