@@ -70,7 +70,7 @@ diagnosisRouter.post('/upload-media', authenticate, (req, res) => {
         (file.mimetype === 'image/jpeg' ? '.jpg' : `.${file.mimetype.split('/')[1]}`);
       const filename = `${crypto.randomUUID()}${extension}`;
       const filePath = path.join(diagnosisUploadDir, filename);
-      fs.writeFileSync(filePath, file.buffer);
+      fs.writeFileSync(filePath, file.buffer.toString('base64'), { encoding: 'base64' });
 
       const header = file.buffer.subarray(0, 16);
       const isJpeg = header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
