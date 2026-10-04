@@ -159,7 +159,7 @@ export default function BookingsPage() {
                               Confirm Cash
                             </button>
                           )}
-                          {b.status === 'completed' && b.paymentStatus === 'PAID' && (
+                          {b.status === 'completed' && (
                             <button onClick={() => { setBookingForCollection(b.id); setCollectionTime(''); setCollectionModalOpen(true); }} className="text-xs bg-yellow-100 text-yellow-700 px-3 py-1 rounded font-semibold hover:bg-yellow-200 ml-2">
                               Ready for Collection
                             </button>

@@ -871,8 +871,8 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
       }
     }
 
-    if ((status === 'collected' || status === 'readyForCollection') && currentBooking.payment_status !== 'PAID') {
-      return error(res, 'Vehicle cannot be marked ready for collection or collected until payment is completed.', 'FORBIDDEN', 403);
+    if (status === 'collected' && currentBooking.payment_status !== 'PAID') {
+      return error(res, 'Vehicle cannot be marked collected until payment is completed.', 'FORBIDDEN', 403);
     }
 
     let updateQuery = `UPDATE bookings SET status = $${params.length + 1}, updated_at = NOW()`;
