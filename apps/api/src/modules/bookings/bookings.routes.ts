@@ -1007,6 +1007,14 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
 
     return success(res, result.rows[0], 200);
   } catch (err) {
+    if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23505') {
+      return error(
+        res,
+        'This vehicle has another active booking or conflicting appointment. Complete or collect that booking before changing this status.',
+        'BOOKING_STATE_CONFLICT',
+        409
+      );
+    }
     return error(
       res,
       err instanceof Error ? err.message : 'Failed to update booking status',
