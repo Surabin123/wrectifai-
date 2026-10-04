@@ -780,7 +780,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
           return error(res, 'Your garage account is suspended or inactive.', 'FORBIDDEN', 403);
         }
 
-        garageCheck = ' AND garage_id = $2';
+        garageCheck = ' AND garage_id = $3';
         params.push(authorizedGarageId);
       } else {
         // Customer check: Customers can only cancel or mark as collected
