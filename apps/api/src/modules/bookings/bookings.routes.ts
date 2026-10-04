@@ -1007,7 +1007,7 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
 
     return success(res, result.rows[0], 200);
   } catch (err) {
-    if (err && typeof err === 'object' && 'code' in err && (err as { code?: string }).code === '23505') {
+    if (err && typeof err === 'object' && 'code' in err && /^23/.test(String((err as { code?: string }).code || ''))) {
       return error(
         res,
         'This vehicle has another active booking or conflicting appointment. Complete or collect that booking before changing this status.',
