@@ -861,8 +861,8 @@ quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
     const result = await query(
       `SELECT q.id, q.quote_request_id, q.quote_request_id as "quoteRequestId", q.amount, q.currency, q.eta_days as "etaDays", q.status, q.created_at as "createdAt", q.details, q.garage_id as "quoteGarageId",
               q.details->>'laborCost' as "laborCost", q.details->>'partsCost' as "partsCost", q.details->>'totalCost' as "totalCost", q.details->>'etaNote' as "etaNote",
-              g.name as "garageName", g.owner_user_id as "garageOwnerId", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported", g.created_at as "garageCreatedAt",
-              qr.customer_id as "requestCustomerId", qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary",
+              g.name as "garageName", g.address as "garageAddress", g.city as "garageCity", g.owner_user_id as "garageOwnerId", g.rating_avg as "ratingAvg", g.rating_count as "ratingCount", g.pickup_drop_supported as "pickupDropSupported", g.created_at as "garageCreatedAt",
+              qr.customer_id as "requestCustomerId", qr.created_at as "requestCreatedAt", qr.issue_summary as "requestIssueSummary", qr.preferred_date as "preferredDate",
               v.make as "vehicleMake", v.model as "vehicleModel", v.year as "vehicleYear", v.vin as "vehicleVin", v.mileage as "vehicleMileage"
        FROM quotes q
        JOIN garages g ON q.garage_id = g.id
@@ -898,6 +898,9 @@ quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
       quoteRequestId: row.quoteRequestId || row.quote_request_id,
       status: row.status || 'open',
       garage: row.garageName,
+      garageName: row.garageName,
+      garageAddress: row.garageAddress,
+      garageCity: row.garageCity,
       garageCreatedAt: row.garageCreatedAt,
       image: '/assets/garage_1_1778071156220.png',
       rating: String(Number(row.ratingAvg || 0).toFixed(1)),
@@ -912,6 +915,18 @@ quotesRouter.get('/:quoteId', authenticate, async (req, res) => {
       tag: undefined,
       requestCreatedAt: row.requestCreatedAt,
       requestIssueSummary: row.requestIssueSummary,
+      createdAt: row.createdAt,
+      preferredDate: row.preferredDate,
+      issueDescription: row.requestIssueSummary,
+      vehicleMake: row.vehicleMake,
+      vehicleModel: row.vehicleModel,
+      vehicleYear: row.vehicleYear,
+      vin: row.vehicleVin,
+      laborCost: laborCostNum,
+      partsCost: partsCostNum,
+      consumablesCost: Number(details.consumablesCost || 0),
+      gstCost: Number(details.gstCost || 0),
+      totalAmount: amountNum,
       vehicle: row.vehicleMake ? {
         make: row.vehicleMake,
         model: row.vehicleModel,

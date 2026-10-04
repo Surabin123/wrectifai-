@@ -239,7 +239,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
     const duplicateBooking = await query(
       `SELECT id FROM bookings
        WHERE vehicle_id = $1 AND customer_id = $2
-         AND status IN ('in_progress', 'readyForCollection')
+         AND status IN ('requested', 'confirmed', 'accepted', 'in_progress', 'readyForCollection')
        LIMIT 1`,
       [vehicleId, customerId]
     );
@@ -252,7 +252,7 @@ function parseTimeToMinutes(timeStr: any): number | null {
     const sameDayBooking = await query(
       `SELECT id FROM bookings
        WHERE vehicle_id = $1 AND customer_id = $2
-         AND status IN ('requested', 'confirmed')
+         AND status IN ('requested', 'confirmed', 'accepted', 'in_progress', 'readyForCollection')
          AND (scheduled_at AT TIME ZONE 'Asia/Kolkata')::date = ($3::timestamptz AT TIME ZONE 'Asia/Kolkata')::date
        LIMIT 1`,
       [vehicleId, customerId, scheduledAt]
@@ -420,8 +420,8 @@ function parseTimeToMinutes(timeStr: any): number | null {
 
       const activeJob = await client.query(
         `SELECT id FROM bookings
-         WHERE vehicle_id = $1 AND customer_id = $2
-           AND status IN ('in_progress', 'readyForCollection')
+        WHERE vehicle_id = $1 AND customer_id = $2
+           AND status IN ('requested', 'confirmed', 'accepted', 'in_progress', 'readyForCollection')
          LIMIT 1`,
         [vehicleId, customerId]
       );
@@ -429,8 +429,8 @@ function parseTimeToMinutes(timeStr: any): number | null {
 
       const sameDayAppointment = await client.query(
         `SELECT id FROM bookings
-         WHERE vehicle_id = $1 AND customer_id = $2
-           AND status IN ('requested', 'confirmed')
+        WHERE vehicle_id = $1 AND customer_id = $2
+           AND status IN ('requested', 'confirmed', 'accepted', 'in_progress', 'readyForCollection')
            AND (scheduled_at AT TIME ZONE 'Asia/Kolkata')::date = ($3::timestamptz AT TIME ZONE 'Asia/Kolkata')::date
          LIMIT 1`,
         [vehicleId, customerId, scheduledAt]
