@@ -13,6 +13,7 @@ import { cn } from '@/utils/cn';
 
 import { createQuoteRequest } from '@/lib/quotes-api';
 import { getDiagnosis } from '@/lib/diagnosis-api';
+import { apiClient } from '@/lib/api-client';
 import { getVehicleImage } from '@/lib/vehicle-image-catalog';
 
 interface Vehicle {
@@ -47,6 +48,14 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
             console.error(e);
           }
         }
+      }
+
+      // The selected vehicle preference is only a UI hint. The database is
+      // authoritative, so load the user's current vehicles before submitting
+      // a quote request when no valid preference is available.
+      if (!selectedVehicle) {
+        const vehicles = await apiClient.get<Vehicle[]>('/vehicles');
+        if (vehicles.length > 0) setSelectedVehicle(vehicles[0]);
       }
 
       if (diagnosisRequestId) {
@@ -138,14 +147,19 @@ export function FindingQuotesPage({ issues, diagnosisRequestId }: { issues?: str
       try {
         setErrorMsg(null);
         hasSubmitted.current = true;
-        const vehicleId = selectedVehicle?.id || '00000000-0000-0000-0000-000000000002';
+        if (!selectedVehicle?.id) {
+          throw new Error('Please register a vehicle before requesting quotes.');
+        }
+        const vehicleId = selectedVehicle.id;
         const issueSummary = chosenIssues.map((i) => i.title).join(', ');
+        const preferredDate = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
         console.log('[FindingQuotes] Submitting quote request payload:', { vehicleId, issueSummary, diagnosisRequestId });
         const response = await createQuoteRequest({
           vehicleId,
           issueSummary,
           diagnosisRequestId,
-          garageId: 'ALL' // Broadcast to all approved garages
+          garageId: 'ALL', // Broadcast to all approved garages
+          preferredDate,
         });
         console.log('[FindingQuotes] Received quote request response:', response);
         if (!isUnmounted.current) {
