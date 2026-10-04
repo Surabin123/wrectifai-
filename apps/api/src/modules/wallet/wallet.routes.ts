@@ -68,11 +68,32 @@ walletRouter.get('/transactions', authenticate, async (req, res) => {
     }
 
     const result = await query(
-        `SELECT t.id, t.wallet_id, t.type, t.amount, t.balance_before, t.balance_after, t.reference_type as "referenceType", t.reference_id, t.status, t.description, t.created_at as "createdAt"
-         FROM wallet_transactions t
-         JOIN wallets w ON t.wallet_id = w.id
-         WHERE w.user_id = $1
-         ORDER BY t.created_at DESC LIMIT $2 OFFSET $3`,
+        `SELECT * FROM (
+           SELECT t.id, t.wallet_id, t.type, t.amount, t.balance_before, t.balance_after,
+                  t.reference_type as "referenceType", t.reference_id, t.status,
+                  t.description, t.created_at as "createdAt"
+           FROM wallet_transactions t
+           JOIN wallets w ON t.wallet_id = w.id
+           WHERE w.user_id = $1
+
+           UNION ALL
+
+           SELECT p.id, NULL::uuid as wallet_id,
+                  CASE WHEN p.status = 'succeeded' THEN 'DEBIT' ELSE 'HOLD' END as type,
+                  p.amount, NULL::numeric as balance_before, NULL::numeric as balance_after,
+                  'BOOKING_PAYMENT' as "referenceType", p.booking_id::text as reference_id,
+                  CASE WHEN p.status = 'succeeded' THEN 'COMPLETED'
+                       WHEN p.status IN ('failed', 'refunded') THEN 'FAILED'
+                       ELSE 'PENDING' END as status,
+                  CASE WHEN p.method = 'cash' THEN 'Cash payment for vehicle service'
+                       ELSE 'Payment for vehicle service' END as description,
+                  p.created_at as "createdAt"
+           FROM payments p
+           WHERE COALESCE(p.customer_user_id, p.payer_user_id) = $1
+             AND p.booking_id IS NOT NULL
+             AND p.status IN ('pending', 'succeeded', 'failed', 'refunded')
+         ) transactions
+         ORDER BY "createdAt" DESC LIMIT $2 OFFSET $3`,
         [userId, limit, offset]
       );
     return success(res, result.rows, 200);

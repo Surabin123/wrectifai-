@@ -48,7 +48,15 @@ invoicesRouter.get('/by-booking/:bookingId', authenticate, async (req, res) => {
         i.issued_at as "issuedAt",
         i.created_at as "createdAt",
         b.id as "bookingId",
-        b.payment_status as "paymentStatus",
+        CASE WHEN b.payment_status = 'PAID'
+                  AND EXISTS (
+                    SELECT 1 FROM payments paid_payment
+                    WHERE paid_payment.booking_id = b.id
+                      AND paid_payment.status = 'succeeded'
+                  )
+             THEN 'PAID'
+             ELSE b.payment_status
+        END as "paymentStatus",
         b.status as "serviceStatus",
         b.customer_note as "serviceType",
         b.booking_type as "bookingType",
