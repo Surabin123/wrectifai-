@@ -5,6 +5,7 @@ import { Search, Plus, Edit2, Trash2, Tag, Percent, Image as ImageIcon, MoreVert
 import { Modal } from '@/components/common/modal';
 import { Card } from '@/components/common/card';
 import { formatCurrency } from '@/lib/currency';
+import { resolveImageUrl } from '@/lib/utils';
 import { getSavedCity, getCurrencyCodeForCity } from '@/utils/location';
 
 interface Offer {
@@ -229,6 +230,7 @@ export default function GarageOffersContent() {
 
   const filteredOffers = offers.filter(o => o.title.toLowerCase().includes(searchQuery.toLowerCase()) || o.code.toLowerCase().includes(searchQuery.toLowerCase()));
   const filteredDeals = deals.filter(d => d.title.toLowerCase().includes(searchQuery.toLowerCase()));
+  const formatOfferTitle = (title: string) => title.replace(/\b(\d+(?:\.\d+)?)\s*%/g, (_match, value: string) => `${Number(value).toFixed(2)}%`);
 
   return (
     <div className="p-6 bg-slate-50 min-h-screen">
@@ -277,6 +279,11 @@ export default function GarageOffersContent() {
           ) : (
             filteredOffers.map((o) => (
               <Card key={o.id} className="overflow-hidden flex flex-col border-slate-200">
+                {o.image && (
+                  <div className="h-40 w-full bg-slate-100">
+                    <img src={resolveImageUrl(o.image)} alt={o.title} className="h-full w-full object-cover" />
+                  </div>
+                )}
                 <div className="p-5 flex-1 relative group">
                   <div className="absolute top-3 right-3 flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                     <button onClick={() => { setSelectedOffer(o); setOfferForm(o); setOfferImagePreview(o.image || ''); setIsEditOffer(true); setShowOfferModal(true); }} className="p-1.5 rounded-full bg-white shadow hover:bg-slate-50 text-slate-700" title="Edit"><Edit2 className="w-3.5 h-3.5" /></button>
@@ -289,14 +296,14 @@ export default function GarageOffersContent() {
                     </div>
                     <div>
                       <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold mb-1 ${o.active ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-500'}`}>{o.active ? 'ACTIVE' : 'INACTIVE'}</span>
-                      <h3 className="font-bold text-slate-800 leading-tight">{o.title}</h3>
+                      <h3 className="font-bold text-slate-800 leading-tight">{formatOfferTitle(o.title)}</h3>
                     </div>
                   </div>
                   <div className="bg-slate-50 rounded-lg p-3 border border-slate-100 mb-3 flex justify-between items-center">
                     <span className="font-mono text-sm font-bold text-blue-700">{o.code}</span>
                     <span className="text-sm font-black text-green-600">
                       {o.discount_type === 'PERCENTAGE'
-                        ? `${o.discount_value}% OFF`
+                        ? `${Number(o.discount_value).toFixed(2)}% OFF`
                         : `${formatCurrency(o.discount_value, currencyCode)} OFF`}
                     </span>
                   </div>
