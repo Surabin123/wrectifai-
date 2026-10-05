@@ -935,8 +935,10 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
     }
 
     if (status === 'inService' || status === 'completed' || status === 'readyForCollection' || status === 'collected') {
-      // Fetch details for comprehensive notification
-      const bookingRes = await query(
+      try {
+        // Fetch details for comprehensive notification. Notification delivery
+        // must never turn a successful booking status transition into a 500.
+        const bookingRes = await query(
         `SELECT b.customer_note as service_type, u.name as customer_name, u.id as customer_id, g.name as garage_name, g.city as garage_city, b.garage_id as garage_id,
                 v.make, v.model, v.plate_number
          FROM bookings b
@@ -946,16 +948,16 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
          WHERE b.id = $1`,
          [bookingId]
       );
-      const bData = bookingRes.rows[0];
-      const serviceStr = bData?.service_type || 'A service';
-      const customerStr = bData?.customer_name || 'a customer';
-      const garageStr = bData?.garage_name || 'a garage';
-      const vehicleStr = [bData?.make, bData?.model, bData?.plate_number].filter(Boolean).join(' ') || 'the vehicle';
-      const locationStr = bData?.garage_city ? ` in ${bData.garage_city}` : '';
-      const custId = bData?.customer_id;
-      const garageId = bData?.garage_id;
+        const bData = bookingRes.rows[0];
+        const serviceStr = bData?.service_type || 'A service';
+        const customerStr = bData?.customer_name || 'a customer';
+        const garageStr = bData?.garage_name || 'a garage';
+        const vehicleStr = [bData?.make, bData?.model, bData?.plate_number].filter(Boolean).join(' ') || 'the vehicle';
+        const locationStr = bData?.garage_city ? ` in ${bData.garage_city}` : '';
+        const custId = bData?.customer_id;
+        const garageId = bData?.garage_id;
 
-      if (status === 'inService') {
+        if (status === 'inService') {
         await NotificationsService.createNotification({
           userId: custId,
           type: 'Booking',
@@ -1002,6 +1004,9 @@ bookingsRouter.patch('/:bookingId/status', authenticate, requireRole(['garage', 
           title: 'Vehicle Collected',
           description: `${customerStr} collected their ${vehicleStr} from ${garageStr}${locationStr}, following completion of the ${serviceStr}. [ID:${bookingId}]`
         }).catch(err => console.error('Failed to create notification', err));
+        }
+      } catch (notificationErr) {
+        console.error('Booking status updated but notification delivery failed:', notificationErr);
       }
     }
 
